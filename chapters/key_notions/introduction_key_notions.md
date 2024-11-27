@@ -1,0 +1,3 @@
+# Introduzione {.unnumbered}
+
+La data science è un campo che si sviluppa all'intersezione tra la statistica e l'informatica. La statistica fornisce una serie di metodologie per analizzare i dati e ottenere informazioni significative, mentre l'informatica si occupa dello sviluppo di software e strumenti per implementare tali metodologie. In questa sezione della dispensa, approfondiremo alcuni concetti fondamentali della statistica e della misurazione psicologica. Considereremo anche in termini generali quali sono gli obiettivi e i limiti dell'analisi dei dati psicologici.

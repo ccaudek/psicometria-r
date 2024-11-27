@@ -1,0 +1,210 @@
+---
+execute:
+  freeze: auto
+---
+
+# Le fasi del progetto di analisi dei dati {#sec-proj-structure}
+
+**Prerequisiti**
+
+- Leggere [Veridical Data Science](https://vdsbook.com) [@yu2024veridical] focalizzandoti sul primo capitolo, che introduce le problematiche della data science, e sul quarto capitolo, che fornisce le linee guida dettagliate sull'organizzazione di un progetto di analisi dei dati.
+
+**Concetti e competenze chiave**
+
+- Ciclo di vita del progetto (DSLC): Definizione chiara della domanda di ricerca, raccolta dati esistenti o nuovi, pulizia, analisi esplorativa e inferenziale, valutazione e comunicazione dei risultati.
+- Organizzazione del progetto di analisi dei dati: Strutturazione efficiente dei file per garantire portabilità e condivisione.
+
+**Preparazione del Notebook**
+
+```{r}
+library(here)
+# Carica il file _common.R per impostazioni di pacchetti e opzioni
+here::here("code", "_common.R") |> source()
+
+# Carica pacchetti aggiuntivi
+pacman::p_load(mirt, mokken)
+```
+
+## Introduzione
+
+Seguendo @yu2024veridical, in questo capitolo introdurremo l'analisi esplorativa dei dati situandola all'interno dell'intero ciclo di vita di un progetto di data science (DSLC). Secondo @yu2024veridical, ogni progetto di analisi dei dati segue una combinazione delle seguenti fasi:
+
+1. Formulazione del problema e raccolta dei dati.
+2. Pulizia dei dati, preprocessing e analisi esplorativa.
+3. Analisi predittiva e/o inferenziale.
+4. Valutazione dei risultati.
+5. Comunicazione dei risultati.
+
+Mentre quasi tutti i progetti di data science attraversano le fasi 1-2 e 4-5, non tutti includono la fase 3.
+
+## Fase 1: Formulazione del Problema e Raccolta dei Dati
+
+La formulazione di una domanda di ricerca precisa è il punto di partenza di ogni progetto di data science. È cruciale che la domanda sia formulata in modo tale da poter essere risolta attraverso l'analisi dei dati disponibili. Alle volte la domanda iniziale è troppo vaga o non risolvibile. L'obiettivo è riformulare la domanda in modo tale che possa trovare una risposta utilizzando i dati a disposizione.
+
+### Raccolta dei Dati
+
+Alcuni progetti utilizzano dati esistenti (da repository pubblici, database interni o esperimenti passati), mentre altri richiedono la raccolta di nuovi dati. Ogni volta che è possibile, è necessario avere ben chiaro quali analisi statistiche verranno svolte *prima* di raccogliere i dati. Se questo non viene fatto, può succedere che i dati raccolti non siano adeguati per rispondere alle domande di interesse, in quanto mancano informazioni cruciali, o vengono violate assunzioni richieste dai modelli statistici che si vogliono impiegare.
+
+È fondamentale sviluppare una comprensione approfondita dei processi di acquisizione dei dati e del significato delle misure ottenute. Parallelamente, è cruciale essere pienamente consapevoli degli strumenti e delle metodologie impiegate nella raccolta dei dati. In altri termini, è essenziale riconoscere e valutare i potenziali bias che possono emergere dalle tecniche e dalle procedure adottate durante il processo di raccolta dati.
+
+### Terminologia dei Dati
+
+In una matrice di dati (comunemente denominata "dataset"), ogni colonna rappresenta una diversa tipologia di misurazione, definita come variabile, carattere o attributo. In alcuni contesti, specialmente nell'analisi di regressione, queste possono essere anche chiamate covariate.
+
+Generalmente, le variabili in un dataset si classificano in una delle seguenti categorie:
+
+1. **Quantitative**: 
+   - Continue: Valori che possono assumere qualsiasi numero reale all'interno di un intervallo (es. importo di spesa, durata di permanenza su un sito web).
+   - Discrete: Valori numerici interi, spesso risultato di conteggi (es. numero di visitatori di un sito web in un determinato periodo, numero di esemplari di una specie in una data località).
+
+2. **Qualitative** (o Categoriche):
+   - Nominali: Categorie senza un ordine intrinseco (es. partito politico, reparto ospedaliero, nazione).
+   - Ordinali: Categorie con un ordine naturale ma senza una metrica definita tra i livelli (es. livello di istruzione, grado di soddisfazione).
+
+3. **Temporali**: Date e orari in vari formati (es. "01/01/2020 23:00:05" o "1 gen 2020").
+
+4. **Testuali**:
+   - Strutturate: Testo con formato predefinito (es. nominativo, indirizzo postale, email).
+   - Non strutturate: Corpo di testo esteso senza struttura predefinita (es. cartelle cliniche, recensioni, post sui social media).
+
+La dimensionalità dei dati si riferisce al numero di variabili (colonne) presenti nel dataset. Si parla di "dati ad alta dimensionalità" quando il numero di variabili è elevato (generalmente superiore a 100, sebbene non esista una soglia universalmente accettata).
+
+Ogni riga del dataset corrisponde a una singola unità statistica, anche detta caso o osservazione. Queste rappresentano le entità su cui vengono effettuate le misurazioni.
+
+Questa struttura, in cui i dati sono organizzati in colonne (variabili) e righe (unità statistiche), viene definita come matrice dei dati o, in ambito informatico, come formato tabellare.
+
+## Fase 2: Pulizia dei Dati e Analisi Esplorativa
+
+### Pulizia dei Dati
+
+Dopo aver definito la domanda della ricerca e avere raccolto i dati rilevanti, è il momento di pulire i dati. Un dataset pulito è ordinato, formattato in modo appropriato e ha voci non ambigue. La fase iniziale di pulizia dei dati consiste nell'identificare problemi con i dati (come formattazioni anomale e valori non validi) e modificarli in modo che i valori siano validi e formattati in modo comprensibile sia per il computer che per noi. La pulizia dei dati è una fase estremamente importante di un progetto di data science perché non solo aiuta a garantire che i dati siano interpretati correttamente dal computer, ma aiuta anche a sviluppare una comprensione dettagliata delle informazioni contenute nei dati e delle loro limitazioni.
+
+L'obiettivo della pulizia dei dati è creare una versione dei dati che rifletta nella maniera più fedele possibile la realtà e che sia interpretata correttamente dal computer. Per garantire che il computer utilizzi fedelmente le informazioni contenute nei dati, è necessario modificare i dati (scrivendo codice, non modificando il file dati grezzo stesso) in modo che siano in linea con ciò che il computer "si aspetta". Tuttavia, il processo di pulizia dei dati è necessariamente soggettivo e comporta fare assunzioni sulle quantità reali sottostanti misurate e decisioni su quali modifiche siano le più sensate.
+
+### Preprocessing
+
+Il preprocessing si riferisce al processo di modifica dei dati puliti per soddisfare i requisiti di un algoritmo specifico che si desidera applicare. Ad esempio, se si utilizza un algoritmo che richiede che le variabili siano sulla stessa scala, potrebbe essere necessario trasformarle, oppure, se si utilizza un algoritmo che non consente valori mancanti, potrebbe essere necessario imputarli o rimuoverli. Durante il preprocessing, potrebbe essere utile anche definire nuove caratteristiche/variabili utilizzando le informazioni esistenti nei dati, se si ritiene che queste possano essere utili per l'analisi.
+
+Come per la pulizia dei dati, non esiste un unico modo corretto per pre-elaborare un dataset, e la procedura finale comporta tipicamente una serie di decisioni che dovrebbero essere documentate nel codice e nei file di documentazione.
+
+### Analisi Esplorativa dei Dati
+
+Dopo l'acquisizione dei dati, si procede con un'analisi approfondita che si articola in due fasi principali:
+
+1. **Analisi Esplorativa dei Dati (EDA - Exploratory Data Analysis)**:
+
+   Questa fase iniziale mira a far familiarizzare il ricercatore con il dataset e a scoprire pattern nascosti. Si realizza attraverso:
+
+   - La costruzione di tabelle di frequenza e contingenza
+   - Il calcolo di statistiche descrittive (come indici di posizione, dispersione e forma della distribuzione)
+   - La creazione di rappresentazioni grafiche preliminari
+
+   L'EDA permette di generare ipotesi sui dati e di guidare le successive analisi statistiche.
+
+2. **Analisi Esplicativa**:
+
+   In questa fase successiva, l'obiettivo è raffinare e perfezionare le analisi per comunicare efficacemente i risultati a un pubblico più ampio. Ciò comporta:
+
+   - L'ottimizzazione delle tabelle per una maggiore leggibilità
+   - Il perfezionamento delle visualizzazioni grafiche per una comunicazione chiara ed efficace
+   - La selezione delle statistiche più rilevanti per supportare le conclusioni
+
+   L'analisi esplicativa si concentra sulla presentazione chiara e convincente dei risultati, adattando il livello di dettaglio e il linguaggio al pubblico di riferimento.
+
+Entrambe le fasi sono cruciali: l'EDA consente di comprendere a fondo la struttura e le caratteristiche dei dati, mentre l'analisi esplicativa assicura che le scoperte siano comunicate in modo efficace e comprensibile.
+
+## Fase 3: Analisi Predittiva e Inferenziale
+
+Molte domande nella data science si presentano come problemi di inferenza e/o previsione, in cui l’obiettivo principale è utilizzare dati osservati, passati o presenti, per descrivere le caratteristiche di una popolazione più ampia o per fare previsioni su dati futuri non ancora disponibili. Questo tipo di analisi è spesso orientato a supportare decisioni nel mondo reale.
+
+Nel corso, ci concentreremo principalmente sull’approccio bayesiano per affrontare questi problemi inferenziali, fornendo un'introduzione a come tale prospettiva possa essere applicata efficacemente in questo contesto.
+
+## Fase 4: Valutazione dei Risultati
+
+In questa fase, i risultati ottenuti vengono analizzati alla luce della domanda di ricerca iniziale. Si procede a una valutazione sia quantitativa, attraverso l'applicazione di tecniche statistiche appropriate, sia qualitativa, attraverso un'attenta riflessione critica.
+
+## Fase 5: Comunicazione dei Risultati 
+
+L'ultima fase di un progetto di analisi dei dati consiste nel condividere i risultati con un pubblico più ampio, il che richiede la preparazione di materiali comunicativi chiari e concisi. L'obiettivo è trasformare i risultati dell'analisi in informazioni utili per supportare il processo decisionale. Questo può includere la stesura di un articolo scientifico, la creazione di un report per un team di lavoro, o la preparazione di una presentazione con diapositive.
+
+La comunicazione deve essere adattata al pubblico di riferimento. Non si deve dare per scontato che il pubblico abbia familiarità con il progetto: è fondamentale spiegare l'analisi e le visualizzazioni in modo chiaro e dettagliato. Anche se per il ricercatore il messaggio principale di una figura o diapositiva può sembrare ovvio, è sempre una buona pratica guidare il pubblico nella sua interpretazione, evitando l'uso di gergo tecnico complesso.
+
+## Organizzazione del Progetto
+
+Un requisito fondamentale per un progetto di analisi dei dati è organizzare in modo efficiente i file sul proprio computer. Questo include i file dei dati, il codice e la documentazione del progetto. Tutti questi elementi dovrebbero essere raccolti all'interno di una singola cartella dedicata al progetto. @yu2024veridical propone il seguente template per la struttura di un progetto:
+
+![](../../figures/project_structure.png){width="27.5%"}
+
+Le due cartelle principali sono:
+
+- `data/`: contiene il dataset grezzo (ad esempio, `data.csv`) e una sottocartella con documentazione relativa ai dati, come metadati e codebook.
+- `dslc_documentation/`: raccoglie i file di documentazione e codice necessari per le varie fasi del progetto. Questi possono essere file .qmd (per Quarto, in R) o .ipynb (per Jupyter Notebook, in Python), utilizzati per condurre ed esplorare le analisi. I file sono prefissati da un numero per mantenerli in ordine cronologico. All'interno di questa cartella, è presente una sottocartella `functions/`, che contiene script .R (per R) o .py (per Python) con funzioni utili per le diverse analisi.
+
+Un file `README.md` descrive la struttura del progetto e riassume il contenuto di ogni file.
+
+Un’organizzazione come quella proposta da @yu2024veridical offre un notevole vantaggio: permette di specificare i percorsi dei file in modo relativo, utilizzando come radice la cartella del progetto. Questo rende il progetto facilmente trasferibile e condivisibile tra diversi utenti o computer.
+
+::: {#exm-}
+
+Per esplorare come gestire l'archiviazione dei dati sul computer e importarli in Python, consideriamo i dati raccolti da @zetsche_2019future in uno studio che ha esaminato le aspettative negative come meccanismo chiave nel mantenimento della depressione. In questo studio, i ricercatori hanno confrontato 30 soggetti con episodi depressivi a un gruppo di controllo di 37 individui sani, utilizzando il Beck Depression Inventory (BDI-II) per valutare i livelli di depressione.
+
+Il file CSV contenente questi dati, così come tutti gli altri file utilizzati in questa dispensa, è memorizzato nella cartella `data`, situata all'interno della cartella `psicometria`, che rappresenta la directory principale del progetto.
+
+Con le istruzioni seguenti, viene specificato il percorso della directory principale del progetto in relazione alla mia directory personale:
+
+```{r}
+here::here()
+```
+
+
+Dopo aver definito `project_directory` come directory principale, è possibile indicare il percorso del file CSV contenente i dati in modo relativo a `project_directory`.
+
+La seguente istruzione permette di importare i dati dal file `data.mood.csv` in un DataFrame di pandas.
+
+```{r}
+df <- rio::import(
+    here::here("data", "data.mood.csv")
+)
+```
+
+Per conoscere le dimensioni del DataFrame utilizziamo l'istruzione `dim()`:
+
+```{r}
+dim(df)
+```
+
+Il DataFrame ha 1188 righe e 44 colonne. Visualizziamo il nome delle colonne con il metodo `.columns`.
+
+```{r}
+df |> names()
+```
+
+Dato che il DataFrame è troppo grande (1188 righe e 44 colonne), stampiamo sullo schermo solo le prime 5 righe.
+
+```{r}
+df |> head()
+```
+
+:::
+
+## Riflessioni Conclusive
+
+La bellezza del codice risiede nella sua riusabilità: una volta scritto, può essere utilizzato tutte le volte che si desidera. Se configurato correttamente, lo stesso codice applicato agli stessi dati produrrà sempre gli stessi risultati. Questo principio, noto come *riproducibilità computazionale*, offre numerosi vantaggi.
+
+- **Tracciare le modifiche al progetto**: La riproducibilità semplifica il monitoraggio delle evoluzioni e dei cambiamenti nel progetto, permettendo di vedere come si sviluppa nel tempo.
+- **Riprodurre il proprio lavoro**: L'utente più interessato alla riproducibilità sei tu stesso. La capacità di replicare i risultati è una caratteristica essenziale, poiché in futuro potresti aver bisogno di riprendere in mano il lavoro e comprenderne i dettagli. La riproducibilità rende questo processo molto più semplice.
+- **Costruire su basi solide**: Anche altri ricercatori possono utilizzare il tuo lavoro come punto di partenza, espandendo e approfondendo le conoscenze che hai contribuito a sviluppare.
+
+Tuttavia, rendere il codice riproducibile è più difficile di quanto sembri. In questo capitolo abbiamo esplorato alcuni metodi che possono aiutare a raggiungere questo obiettivo.
+
+::: {.callout-note}
+Uno dei problemi più importanti nella psicologia contemporanea è la *crisi di replicabilità*: molti risultati di ricerca non sono replicabili [@open2015estimating]. La *riproducibilità computazionale* si concentra su un obiettivo più ristretto: ottenere gli stessi risultati utilizzando lo stesso codice sugli stessi dati.
+:::
+
+## Informazioni sull'Ambiente di Sviluppo
+
+```{r}
+sessionInfo()
+```
+
+## Bibliografia {.unnumbered}
