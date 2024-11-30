@@ -1,3 +1,8 @@
+---
+execute:
+  freeze: auto
+---
+
 # Data tidying {#sec-data-tidy-dplyr}
 
 **Prerequisiti**
@@ -10,17 +15,14 @@
 **Preparazione del Notebook**
 
 ```{r}
-suppressPackageStartupMessages({
-    library(tidyverse)
-    library(tidyr)
-    library(mice)
-    set.seed(42)
-})
+here::here("code", "_common.R") |> source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(tidyr, mice)
 ```
 
 ## Introduzione
-
-Sebbene Python sia generalmente considerato un linguaggio di programmazione più elegante e intuitivo rispetto a R, quest'ultimo è stato sviluppato appositamente per l'analisi dei dati. Grazie a questa specializzazione, molte operazioni di analisi, in particolare nelle fasi iniziali di preprocessing e pulizia dei dati, possono essere eseguite in modo più semplice ed efficiente con R rispetto a Python. 
 
 L'obiettivo di questo capitolo è fornire un'introduzione alle funzioni principali del linguaggio R per le operazioni di *data wrangling*, cioè per il preprocessing e la pulizia dei dati. In R, queste operazioni sono strettamente legate al concetto di "data tidying", che si riferisce all'organizzazione sistematica dei dati per facilitare l'analisi.
 
@@ -42,11 +44,43 @@ I pacchetti R come `dplyr`, `ggplot2` e gli altri pacchetti del tidyverse sono p
 
 ## Pipe
 
-Sia il pacchetto `tidyr` che il pacchetto `dplyr` utilizzano l'operatore pipe, `|>`. La pipe è uno strumento potente che permette di concatenare in modo efficiente una serie di operazioni. Utilizzando la pipe, l'output di un'istruzione viene automaticamente passato come input all'istruzione successiva.
+Sia il pacchetto `tidyr` che il pacchetto `dplyr` utilizzano l'operatore pipe, che in R può essere rappresentato da due notazioni principali: `|>` (introdotto nativamente in R a partire dalla versione 4.1.0) e `%>%` (introdotto dal pacchetto `magrittr`, ampiamente utilizzato in `tidyverse`). Entrambi gli operatori permettono di concatenare in modo efficiente una serie di operazioni, ma presentano alcune differenze che meritano attenzione.
 
-Questo metodo di concatenazione rende il codice più leggibile e conciso, permettendo di applicare una serie di trasformazioni o manipolazioni sui dati senza dover creare variabili intermedie o scrivere codice ridondante. In pratica, ogni funzione applicata con la pipe riceve l'output della funzione precedente come suo primo argomento, rendendo il flusso di operazioni lineare e facile da seguire. 
+### Cosa Fa la Pipe?
 
-Ad esempio, in una sequenza di operazioni di pulizia dati, si può utilizzare la pipe per filtrare i dati, selezionare solo alcune colonne, e riordinare le righe, tutto in un'unica catena di comandi. Questo approccio non solo semplifica la sintassi del codice, ma migliora anche la sua leggibilità, rendendo più chiaro quale operazione viene eseguita e in quale ordine.
+La pipe è uno strumento potente che permette di collegare in modo diretto l'output di una funzione come input della funzione successiva. Questo approccio:
+
+- Riduce la necessità di creare variabili intermedie.
+- Migliora la leggibilità del codice.
+- Rende il flusso delle operazioni più chiaro e lineare.
+
+Ogni funzione applicata con la pipe riceve automaticamente l'output della funzione precedente come suo primo argomento. Ciò consente di scrivere sequenze di operazioni in un formato compatto e intuitivo.
+
+Ecco un esempio pratico:
+
+```{r}
+# Utilizzo della pipe per trasformare un dataset
+library(dplyr)
+
+df <- data.frame(
+  id = 1:5,
+  value = c(10, 20, 30, 40, 50)
+)
+
+# Filtra i dati, seleziona colonne e calcola nuovi valori
+df_clean <- df |>
+  dplyr::filter(value > 20) |>
+  dplyr::select(id, value) |>
+  mutate(squared_value = value^2)
+```
+
+In questa sequenza, il dataset originale `df` viene filtrato, le colonne desiderate vengono selezionate e viene aggiunta una nuova colonna con il valore al quadrato.
+
+```{r}
+head(df_clean)
+```
+
+In sintesi, la pipe è uno strumento fondamentale per scrivere codice R moderno e leggibile, indipendentemente dal fatto che si utilizzi `|>` o `%>%`. 
 
 ## Verbi
 
@@ -59,7 +93,7 @@ Le funzioni principali ("verbi) di `dplyr` sono le seguenti:
 | `arrange()`  | Riordina o organizza le righe                              |
 | `mutate()`   | Crea nuove colonne                                         |
 | `summarise()`| Riassume i valori                                          |
-| `group_by()` | Consente di eseguire operazioni di gruppo seguendo il concetto di "dividi-applica-combina" |
+| `group_by()` | Consente di eseguire operazioni di gruppo                  |
 
 I verbi di `dplyr` sono suddivisi in quattro gruppi, in base all'elemento su cui operano: righe, colonne, gruppi o tabelle.
 
@@ -71,6 +105,9 @@ Per introdurre il processo di "data tidying", in questo tutorial utilizzeremo il
 data(msleep)
 dim(msleep)
 ```
+
+Esaminiamo i dati:
+
 ```{r}
 glimpse(msleep)
 ```
@@ -97,7 +134,7 @@ I verbi più importanti che operano sulle righe di un dataset sono `filter()`, c
 
 ```{r}
 msleep |>
-    filter(sleep_total < 4) |>
+    dplyr::filter(sleep_total < 4) |>
     arrange(sleep_total)
 ```
 
@@ -105,7 +142,7 @@ Possiamo usare `filter()` speficicano più di una condizione logica.
 
 ```{r}
 msleep |>
-    filter((sleep_total < 4 & bodywt > 100) | brainwt > 1) |>
+    dplyr::filter((sleep_total < 4 & bodywt > 100) | brainwt > 1) |>
     arrange(sleep_total)
 ```
 

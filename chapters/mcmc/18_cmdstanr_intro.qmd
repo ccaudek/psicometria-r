@@ -1,0 +1,180 @@
+# Introduzione a CmdStanR {#sec-cmdstanr-intro}
+
+**Prerequisiti**
+
+- Leggere [Getting started with CmdStanR](https://mc-stan.org/cmdstanr/articles/cmdstanr.html).
+
+**Concetti e competenze chiave**
+
+- Acquisire le competenze necessarie per utilizzare CmdStan con R.
+
+**Preparazione del Notebook**
+
+```{r}
+suppressPackageStartupMessages({
+    library(tidyverse)
+    library(cmdstanr)
+    library(posterior)
+    library(bayesplot)
+    color_scheme_set("brightblue")
+    library(here)
+
+    set.seed(42)
+})
+```
+
+## Introduzione
+
+Riprendiamo l'analisi dei dati fittizi di un compito Go/No-go, in cui sono state registrate 6 risposte corrette su 9 prove, già discussa in precedenza. In questa sezione, utilizzeremo il pacchetto `cmdstanr` in R, invece di `cmdstanpy` in Python, per eseguire l'analisi. L'obiettivo di questo capitolo è mostrare come utilizzare CmdStan attraverso il linguaggio R, offrendo un'alternativa all'uso di Python.
+
+In R, i dati vengono salvati in una lista, che equivale a un dizionario in Python.
+
+```{r}
+data_list <- list(
+    "N" = 9,
+    "y" = 6
+)
+```
+
+Successivamente, specifichiamo il percorso del file contenente lo script Stan. È importante notare che lo script Stan rimane identico indipendentemente dall'interfaccia utilizzata, sia essa R o Python.
+
+```{r}
+file <- file.path(here::here("stan", "go_nogo_model.stan"))
+file
+```
+
+## Compilazione del modello
+
+Per compilare il modello, utilizziamo la funzione `cmdstan_model()`, che crea un nuovo oggetto CmdStanModel a partire da un file contenente un programma Stan.
+
+```{r}
+mod <- cmdstan_model(file)
+```
+
+Dopo aver compilato il modello, possiamo stamparne le informazioni.
+
+```{r}
+mod$print()
+```
+
+## Esecuzione dell'algoritmo MCMC
+
+Il metodo `$sample()` sugli oggetti CmdStanModel esegue l'algoritmo MCMC predefinito di Stan. L'argomento data accetta una lista di oggetti R con nomi specificati.
+
+```{r}
+#| echo: true
+#| results: "hide"
+
+fit <- mod$sample(
+    data = data_list,
+    seed = 123,
+    chains = 4,
+    parallel_chains = 4
+)
+```
+
+## Statistiche riassuntive del posterior
+
+Il metodo `$summary()` chiama la funzione `summarise_draws()` dal pacchetto `posterior`. Il primo argomento specifica le variabili da riassumere, e gli argomenti successivi sono passati a `posterior::summarise_draws()` per specificare quali statistiche calcolare, l'uso di più core, ecc.
+
+```{r}
+fit$summary(variables = c("p"))
+```
+
+È possibile utilizzare una formula per riassumere funzioni arbitrarie, come ad esempio la probabilità che $p$ sia minore o uguale a 0.5.
+
+```{r}
+fit$summary("p", pr_lt_half = ~ mean(. <= 0.5))
+```
+
+## Estrazione dei campioni posteriori
+
+### Estrazione dei campioni
+
+Il metodo `$draws()` può essere utilizzato per estrarre i campioni posteriori in formati supportati dal pacchetto `posterior`. Qui dimostriamo i formati `draws_array` e `draws_df`.
+
+```{r}
+# default is a 3-D draws_array object from the posterior package
+# iterations x chains x variables
+draws_arr <- fit$draws() # or format="array"
+str(draws_arr)
+```
+
+Oppure, possiamo usare `as_draws_df()` per creare un data frame:
+
+```{r}
+draws <- as_draws_df(fit)
+head(draws)
+```
+
+Lo stesso risultato si ottiene nel modo seguente:
+
+```{r}
+draws_df <- as_draws_df(draws_arr)
+head(draws_df)
+```
+
+Una volta creato un data frame, possiamo facilmente calcolare le statistiche descrittive. Per esempio:
+
+```{r}
+draws_df$p |>
+    mean()
+```
+
+In questo modo possiamo calcolare la probabilità che, ad esempio, $p$ sia compreso tra 0.5 e 0.75:
+
+```{r}
+draws_df |>
+    summarise(
+        p_between_0.5_and_0.75 = mean(p > 0.5 & p < 0.75)
+    )
+```
+
+```{r}
+partion_vector <- c("italic(p)<0.5", "{0.5<italic(p)}<0.75", "lower~80*'%'", "middle~80*'%'")
+
+draws_df |>
+    mutate(
+        `italic(p)<0.5` = p < 0.5,
+        `{0.5<italic(p)}<0.75` = p > 0.5 & p < 0.75,
+        `lower~80*'%'` = p < quantile(p, probs = 0.8),
+        `middle~80*'%'` = p > quantile(p, probs = 0.1) & p < quantile(p, probs = 0.9)
+    ) |>
+    pivot_longer(cols = `italic(p)<0.5`:`middle~80*'%'`) |>
+    mutate(name = factor(name, levels = partion_vector)) |>
+    ggplot(aes(x = p, fill = value)) +
+    geom_histogram(boundary = 0, binwidth = 0.01) +
+    scale_x_continuous(expression(proportion ~ water ~ (italic(p))), limits = 0:1) +
+    scale_y_continuous(NULL, breaks = NULL) +
+    scale_fill_viridis_d(end = 0.6, breaks = NULL) +
+    facet_wrap(~name, labeller = label_parsed)
+```
+
+### Visualizzazione dei campioni
+
+Visualizzare le distribuzioni posteriori è semplice: basta passare l'oggetto restituito dal metodo `$draws()` direttamente alle funzioni di plotting del pacchetto `bayesplot`.
+
+```{r}
+mcmc_hist(fit$draws("p"))
+```
+
+## Diagnostica del campionatore
+
+Il metodo `$sampler_diagnostics()` estrae i valori dei parametri del campionatore (come `treedepth__`, `divergent__`, ecc.) in formati supportati dal pacchetto `posterior`.
+
+
+```{r}
+str(fit$sampler_diagnostics(format = "df"))
+```
+
+```{r}
+fit$diagnostic_summary()
+```
+
+Questo processo consente di esaminare in dettaglio le prestazioni del campionatore e di verificare eventuali problemi o inefficienze durante l'esecuzione del modello.
+
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered}
+
+```{r}
+sessionInfo()
+```

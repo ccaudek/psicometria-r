@@ -1,0 +1,425 @@
+---
+execute:
+  freeze: auto
+---
+
+# Metodi di sintesi della distribuzione a posteriori {#sec-posterior-methods}
+
+
+**Prerequisiti**
+
+**Concetti e Competenze Chiave**
+
+**Preparazione del Notebook**
+
+```{r}
+here::here("code", "_common.R") |> source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(cmdstanr, posterior, qs, rstanarm, bayestestR, insight, see)
+
+color_scheme_set("brightblue")
+```
+
+## Introduzione 
+
+L'obiettivo di questo capitolo è illustrare come sintetizzare una distribuzione a posteriori ottenuta attraverso il campionamento MCMC (Markov Chain Monte Carlo). Questa tecnica è fondamentale nell'inferenza bayesiana moderna, permettendo di comprendere e interpretare i parametri di interesse in modo probabilistico.
+
+### Cos'è la Distribuzione a Posteriori?
+
+La distribuzione a posteriori rappresenta la nostra conoscenza aggiornata sui parametri di interesse. Essa combina l'informazione iniziale (distribuzione a priori) con le evidenze empiriche (dati osservati) attraverso il modello statistico. È un concetto chiave che distingue l'approccio bayesiano dall'inferenza classica.
+
+## Sintesi della Distribuzione a Posteriori
+
+Il risultato di un'analisi bayesiana è una distribuzione a posteriori, contenente tutte le informazioni sui parametri dati un modello e un insieme di dati. Pertanto, riassumere la distribuzione a posteriori significa sintetizzare le conseguenze logiche del modello e dei dati analizzati. È prassi comune riportare, per ciascun parametro, una misura di posizione centrale (come la media, la moda o la mediana) per fornire un'idea della localizzazione della distribuzione, accompagnata da una misura di dispersione, quale la deviazione standard, per quantificare l'incertezza delle stime. La deviazione standard è adeguata per distribuzioni simili alla normale, ma può risultare fuorviante per distribuzioni di altra natura, come quelle asimmetriche.
+
+Per riassumere la dispersione di una distribuzione a posteriori, si utilizza spesso l'Intervallo di Densità Più Alta (HDI, Highest-Density Interval). L'HDI è l'intervallo più breve che contiene una data porzione della densità di probabilità. Ad esempio, se diciamo che l'HDI al 95% per un'analisi è [2, 5], intendiamo che, secondo i nostri dati e modello, il parametro in questione si trova tra 2 e 5 con una probabilità di 0.95. Non vi è nulla di particolare nella scelta del 95%, del 50% o di qualsiasi altro valore; siamo liberi di scegliere, ad esempio, l'intervallo HDI all'89% o al 94% secondo le nostre preferenze. Idealmente, le giustificazioni per queste scelte dovrebbero dipendere dal contesto e non essere automatiche, ma è accettabile stabilire un valore comune come il 95%. 
+
+## Campionamento con Stan
+
+A scopo illustrativo, immaginiamo di aver condotto un'analisi campionando casualmente 100 opere dal Museum of Modern Art (MoMA) e di aver riscontrato che 14 sono di artisti della Generazione X. Utilizzeremo un modello Beta-Binomiale per affrontare questo problema. Il parametro θ rappresenterà la proporzione di artisti della Generazione X. Adotteremo una distribuzione a priori Beta(4, 6), che riflette un'aspettativa iniziale basata su conoscenze pregresse. I dati osservati (14 opere su 100) verranno utilizzati per aggiornare questa distribuzione iniziale.
+
+
+## Implementazione in Stan
+
+Il seguente codice Stan definisce il nostro modello probabilistico:
+
+```{r}
+# Path to the Stan file
+stan_file <- here::here("stan", "moma.stan")
+
+# Create a CmdStanModel object
+mod <- cmdstan_model(stan_file)
+```
+
+```{r}
+mod$print()
+```
+
+Procediamo con l'implementazione pratica del modello per stimare la proporzione di artisti della Generazione X (θ) al MoMA.
+
+Definiamo i dati osservati e i parametri della distribuzione a priori:
+
+```{r}
+N <- 100
+y <- 14
+
+stan_data <- list(
+  N = N,
+  y = y,
+  alpha_prior = 4,
+  beta_prior = 6
+)
+```
+
+Eseguiamo il campionamento utilizzando il modello compilato in precedenza:
+
+```{r}
+fit <- mod$sample(
+  data = stan_data,
+  seed = 123,
+  chains = 4,
+  parallel_chains = 4,
+  iter_sampling = 2000, 
+  iter_warmup = 2000,
+  show_messages = FALSE
+)
+```
+
+Per evitare di dover ripetere il campionamento (che può essere computazionalmente costoso), possiamo salvare l'oggetto fit su disco utilizzando la funzione `qsave()` del pacchetto **qs**. Questo garantisce un caricamento rapido e senza perdita di dati.
+
+```{r}
+# Save the object to a file.
+qs::qsave(x = fit, file = "fit_moma.qs")
+```
+
+Se in seguito vogliamo analizzare i risultati senza dover ripetere il campionamento, possiamo leggere l'oggetto salvato direttamente nel nostro ambiente R:
+
+```{r}
+# Read the object.
+fit2 <- qs::qread("fit_moma.qs")
+```
+
+L'oggetto `fit2` è identico a `fit` e contiene tutte le informazioni relative al modello, ai parametri, ai campioni e ai metadati.
+
+
+## Analisi della distribuzione a posteriori
+
+La distribuzione a posteriori rappresenta la nostra conoscenza aggiornata riguardo al valore del parametro $\theta$ dopo aver osservato i dati. Combina le nostre credenze a priori riguardo al parametro (la distribuzione a priori) con le nuove evidenze fornite dai dati osservati (la funzione di verosimiglianza) per ottenere una nuova distribuzione che riflette la nostra comprensione aggiornata del parametro, ovvero la distribuzione a posteriori.
+
+La distribuzione a posteriori ci dice quanto sia probabile ogni possibile valore del parametro alla luce dei dati osservati. Un picco stretto indica che i dati sono molto informativi rispetto al parametro, portando a una maggiore certezza nella sua stima. Un picco largo, invece, indica maggiore incertezza.
+
+
+## Esaminare i Valori della Distribuzione a Posteriori
+
+Dopo aver eseguito il campionamento con Stan, possiamo esaminare i valori della distribuzione a posteriori accedendo ai campioni generati.
+
+### Estrarre i Campioni in un Oggetto `draws_array`
+
+Il metodo `fit$draws()` restituisce i campioni in un oggetto tridimensionale del tipo `draws_array`, che fa parte del pacchetto **posterior**.
+
+```{r}
+# Estrazione dei campioni posteriori in formato array (default)
+draws_arr <- fit2$draws()  
+str(draws_arr)  # Struttura dell'oggetto
+```
+
+L'output sarà un array 3D con le dimensioni **iterazioni × catene × variabili**, ovvero il formato standard per i campioni MCMC.
+
+Per verificare le dimensioni dell'array:
+
+```{r}
+dim(draws_arr)
+```
+
+Ad esempio, se l'output di `dim(draws_arr)` restituisce `(2000, 4, 3)`, le dimensioni si riferiscono a:
+
+1. **2000**: Numero di iterazioni di campionamento per ciascuna catena, specificato dall'argomento `iter_sampling = 2000` durante il campionamento.
+2. **4**: Numero di catene eseguite in parallelo, specificato da `chains = 4`.
+3. **3**: Numero di parametri o quantità campionate, inclusi:
+   - **Parametri definiti nel blocco `parameters` del modello Stan.**
+   - **Quantità trasformate (`transformed parameters`).**
+   - **Quantità generate (`generated quantities`).**
+
+### Interpretazione della Struttura
+
+L'array 3D permette di accedere ai campioni in modo organizzato:
+
+- **Prima dimensione**: Iterazioni per ciascuna catena (es. `draws_arr[1,,]` restituisce i valori della prima iterazione di tutte le catene).
+- **Seconda dimensione**: Catene (es. `draws_arr[,1,]` restituisce tutti i campioni della prima catena).
+- **Terza dimensione**: Variabili campionate (es. `draws_arr[,,1]` restituisce i valori della prima variabile in tutte le iterazioni e catene).
+
+
+### Accesso ai Parametri
+
+Per accedere ai campioni di un parametro specifico, possiamo utilizzare il nome del parametro con il metodo `fit$draws(format = "matrix")` o `fit$draws(format = "df")`.
+
+```{r}
+# Estrazione dei campioni in formato data frame
+draws_df <- fit2$draws(format = "df")
+
+# Visualizza i primi campioni della variabile "theta"
+head(draws_df$theta)
+```
+
+
+### Sintesi dei Campioni
+
+Per riassumere i campioni della distribuzione a posteriori:
+
+```{r}
+# Riassunto della distribuzione a posteriori
+fit2$summary()
+```
+
+
+### Vantaggi del Formato `draws_array`
+
+Il formato `draws_array` è particolarmente utile per:
+
+1. **Analisi avanzate**: Permette di accedere direttamente a specifiche iterazioni, catene e parametri.
+2. **Visualizzazioni**: È compatibile con funzioni di plotting del pacchetto **bayesplot**.
+3. **Controlli diagnostici**: Facilita l'analisi della convergenza e della miscelazione delle catene.
+
+Con questa struttura, possiamo esplorare in dettaglio la distribuzione a posteriori generata dal modello Stan.
+
+```{r}
+fit2$metadata()$model_params
+```
+
+Recuperiamo i campioni posteriori per `theta`:
+
+```{r}
+# draws x variables data frame
+draws_df <- fit2$draws(format = "df")
+head(draws_df)
+```
+
+```{r}
+draws_df$theta |>
+  head()
+```
+
+```{r}
+length(draws_df$theta)
+```
+
+Generiamo un istogramma della distribuzione a posteriori di `theta`:
+
+```{r}
+draws_df |>
+  ggplot(aes(theta)) +
+  geom_histogram()
+```
+
+In alternativa, possiamo passare l'oggetto `fit$draws("theta")` alla funzione `mcmc_hist()` di **bayesplot**:
+
+```{r}
+mcmc_hist(fit2$draws("theta"))
+```
+
+Oppure possiamo usare la funzione `mcmc_dens_overlay()`:
+
+```{r}
+mcmc_dens_overlay(fit2$draws("theta"))
+```
+
+La traccia del campionamento si ottiene nel modo seguente: 
+
+```{r}
+mcmc_trace(fit2$draws("theta"))
+```
+
+Confrontiamo la distribuzione a posteriori con la distribuzione a priori di $\theta$.
+
+```{r}
+# Parameters of the Beta distribution
+alpha <- 4
+beta_param <- 6
+
+# Create a data frame for the prior Beta distribution
+x <- seq(0, 1, length.out = 1000)
+prior_pdf <- dbeta(x, alpha, beta_param)
+prior_df <- data.frame(theta = x, density = prior_pdf, distribution = "Prior")
+
+# Extract posterior draws of theta and calculate density
+posterior_theta <- as.vector(fit2$draws("theta")) # Assuming `fit2$draws("theta")` works
+posterior_density <- density(posterior_theta)
+posterior_df <- data.frame(
+  theta = posterior_density$x,
+  density = posterior_density$y,
+  distribution = "Posterior"
+)
+
+# Combine the prior and posterior data
+combined_df <- bind_rows(prior_df, posterior_df)
+
+# Plot using ggplot2
+ggplot(combined_df, aes(x = theta, y = density, color = distribution)) +
+  geom_line(size = 1.2) +
+  labs(
+    x = expression(theta),
+    y = "Density",
+    title = "Prior and Posterior Distributions"
+  ) +
+  scale_color_manual(
+    values = c("Prior" = "black", "Posterior" = "red"),
+    name = "Distribution"
+  ) +
+  theme(
+    legend.position = "top",
+    plot.title = element_text(hjust = 0.5)
+  )
+```
+
+Nel caso presente, la distribuzione a posteriori differisce in maniera importante dalla distribuzione a priori. Ciò indica che i dati hanno avuto un forte impatto sulle nostre credenze riguardo al valore del parametro.
+
+
+## Intervallo di Credibilità
+
+Gli intervalli di credibilità sono uno strumento fondamentale nell'inferenza bayesiana per riassumere l'incertezza sui parametri stimati. Esistono due metodi principali per calcolare gli intervalli di credibilità:
+
+- **Highest Density Interval (HDI)**: definisce l’intervallo più stretto che contiene la probabilità specificata, includendo le aree di maggiore densità della distribuzione a posteriori.
+- **Equal-tailed Interval (ETI)**: lascia una probabilità uguale (ad esempio, il 2,5% per un intervallo al 95%) in entrambe le code della distribuzione.
+
+Questi metodi producono risultati identici in caso di distribuzioni simmetriche ma differiscono per distribuzioni asimmetriche. Di seguito vediamo come interpretare e calcolare questi intervalli.
+
+
+**Distribuzione Simmetrica**
+
+Con una distribuzione a posteriori simmetrica, come quella normale, gli intervalli HDI ed ETI coincidono.
+
+Esempio di calcolo:
+
+```{r}
+# Genera una distribuzione normale
+posterior <- distribution_normal(1000)
+
+# Calcola HDI ed ETI
+ci_hdi <- ci(posterior, method = "HDI")
+ci_eti <- ci(posterior, method = "ETI")
+
+# Visualizza la distribuzione con i limiti degli intervalli
+out <- estimate_density(posterior, extend = TRUE)
+ggplot(out, aes(x = x, y = y)) +
+  geom_area(fill = "orange") +
+  # HDI in blu
+  geom_vline(xintercept = ci_hdi$CI_low, color = "royalblue", linewidth = 3) +
+  geom_vline(xintercept = ci_hdi$CI_high, color = "royalblue", linewidth = 3) +
+  # ETI in rosso
+  geom_vline(xintercept = ci_eti$CI_low, color = "red", linewidth = 1) +
+  geom_vline(xintercept = ci_eti$CI_high, color = "red", linewidth = 1)
+```
+
+**Distribuzione Asimmetrica**
+
+Quando la distribuzione a posteriori è asimmetrica, come una distribuzione beta, l'HDI è generalmente più stretto rispetto all'ETI poiché privilegia le regioni di maggiore densità.
+
+Esempio di calcolo:
+
+```{r}
+# Genera una distribuzione beta
+posterior <- distribution_beta(1000, 6, 2)
+
+# Calcola HDI ed ETI
+ci_hdi <- ci(posterior, method = "HDI")
+ci_eti <- ci(posterior, method = "ETI")
+
+# Visualizza la distribuzione con i limiti degli intervalli
+out <- estimate_density(posterior, extend = TRUE)
+ggplot(out, aes(x = x, y = y)) +
+  geom_area(fill = "orange") +
+  # HDI in blu
+  geom_vline(xintercept = ci_hdi$CI_low, color = "royalblue", linewidth = 3) +
+  geom_vline(xintercept = ci_hdi$CI_high, color = "royalblue", linewidth = 3) +
+  # ETI in rosso
+  geom_vline(xintercept = ci_eti$CI_low, color = "red", linewidth = 1) +
+  geom_vline(xintercept = ci_eti$CI_high, color = "red", linewidth = 1)
+```
+
+### Interpretazione dell’Intervallo di Credibilità
+
+L'intervallo di credibilità bayesiano offre una chiara interpretazione probabilistica: dato il modello e i dati, c'è una probabilità specificata (ad esempio, il 94%) che il parametro si trovi all'interno dell'intervallo calcolato.
+
+### Calcolo degli intervalli in R
+
+- **HDI**:
+
+```{r}
+bayestestR::ci(fit2$draws("theta"), method = "HDI")
+```
+
+- **ETI**:
+
+```{r}
+bayestestR::ci(fit2$draws("theta"), method = "ETI")
+```
+
+### Visualizzazione grafica
+
+Utilizzando il pacchetto `bayesplot` possiamo rappresentare la distribuzione a posteriori con l’HDI:
+
+```{r}
+mcmc_areas(fit2$draws("theta"), 
+           prob = 0.94) +  # Specifica il livello dell'HDI
+  ggtitle("Distribuzione a Posteriori di Theta con HDI al 94%") +
+  xlab(expression(theta)) +
+  ylab("Densità")
+```
+
+### Confronto con gli Intervalli di Confidenza Frequentisti
+
+Gli intervalli di credibilità bayesiani si distinguono nettamente dagli intervalli di confidenza frequentisti. Mentre gli intervalli frequentisti si basano su una prospettiva a lungo termine (ovvero, il 95% degli intervalli costruiti su infiniti campioni includerebbe il vero valore), gli intervalli bayesiani:
+
+1. **Hanno una chiara interpretazione probabilistica**: dato il modello e i dati, indicano direttamente la probabilità che il parametro sia nell’intervallo.
+2. **Incorporano credenze a priori**, combinate con l’evidenza fornita dai dati.
+
+
+### Scelta del Livello dell’Intervallo (89% vs 95%)
+
+Una discussione comune nell’inferenza bayesiana riguarda il livello predefinito degli intervalli. Sebbene il 95% sia un valore convenzionale mutuato dal frequentismo, alcune evidenze suggeriscono che livelli più bassi (ad esempio, 89%) possano essere più stabili per le distribuzioni a posteriori, specialmente con un numero limitato di campioni posteriori (Kruschke, 2014).
+
+- **Vantaggi del 95%**:
+  - Relazione intuitiva con la deviazione standard.
+  - Maggiore probabilità di includere 0, rendendo le analisi più conservative.
+
+- **Vantaggi dell’89%**:
+  - Maggiore stabilità con campioni posteriori limitati.
+  - Evita l’arbitrarietà del valore 95% (McElreath, 2018).
+
+In conclusione, la scelta tra HDI e ETI, così come il livello dell'intervallo, dipende dagli obiettivi e dal contesto dell’analisi. Gli intervalli di credibilità offrono un approccio flessibile e intuitivo per sintetizzare l’incertezza, adattandosi alle esigenze di analisi sia esplorative che confermative.
+
+
+## Test di Ipotesi Bayesiane
+
+In alcune situazioni, descrivere semplicemente la distribuzione a posteriori potrebbe non essere sufficiente. Potremmo dover prendere decisioni pratiche basate sulle inferenze, traducendo stime continue in scelte binarie. Ad esempio, possiamo voler determinare se una terapia è efficace, se un intervento ha avuto successo, o se una proporzione supera una soglia di rilevanza pratica.
+
+Supponiamo di voler verificare se, nel Museum of Modern Art (MoMA), gli artisti della generazione X (nati tra il 1965 e il 1980) rappresentano **meno del 10%** del corpus esposto. Analizzando un campione casuale di 100 opere e utilizzando un prior basato su convinzioni pregresse, stimiamo la distribuzione a posteriori della proporzione di artisti, $\theta$. L'intervallo di credibilità (Credible Interval, CI) al 94% risulta compreso tra 0.104 e 0.235.
+
+La nostra ipotesi iniziale è che la proporzione di artisti della generazione X sia **inferiore al 10%**, cioè $\theta < 0.1$. Tuttavia, il fatto che l'intero intervallo di credibilità al 94% si trovi **sopra** la soglia del 10% contraddice questa ipotesi. Per quantificare ulteriormente la compatibilità dei dati con questa ipotesi, calcoliamo la probabilità a posteriori che $\theta < 0.1$.
+
+```{r}
+fit2$summary("theta", pr_lt_01 = ~ mean(. <= 0.1))
+```
+
+La probabilità a posteriori che $\theta < 0.1$** è molto bassa, ovvero $P(\theta < 0.1) = 0.0213$, fornendo ulteriori evidenze contro l’ipotesi che gli artisti della generazione X rappresentino meno del 10% del corpus esposto.
+
+In sintesi, sulla base dei dati e del modello, l’ipotesi che gli artisti della generazione X rappresentino meno del 10% **non è supportata**. Al contrario, i dati indicano, con un livello di certezza soggettiva del 94%, che la proporzione di artisti appartenenti a questa generazione è molto probabilmente **superiore al 10%**. 
+
+
+## Riflessioni conclusive
+
+La crescente popolarità dei metodi bayesiani in psicologia e nelle scienze sociali è stata fortemente influenzata dalla (ri)scoperta di algoritmi numerici capaci di stimare le distribuzioni a posteriori dei parametri del modello a partire dai dati osservati. Prima di questi sviluppi, ottenere misure riassuntive delle distribuzioni a posteriori, soprattutto per modelli complessi con molti parametri, era praticamente impossibile.
+
+Questo capitolo fornisce un'introduzione a `cmdstanr`, che permette di compilare ed eseguire modelli probabilistici espressi in linguaggio Stan. Grazie a questa tecnologia, è possibile generare una stima della distribuzione a posteriori attraverso il campionamento Markov Chain Monte Carlo (MCMC), rivoluzionando la capacità di effettuare inferenze bayesiane e rendendo l'analisi di modelli complessi più accessibile e gestibile.
+
+Inoltre, nel capitolo sono state presentate diverse strategie per la trasformazione della distribuzione a posteriori e sono state esplorate modalità per ottenere intervalli di credibilità. Successivamente, è stata discussa l'analisi delle ipotesi a posteriori, che consente di confrontare due ipotesi contrapposte riguardanti il parametro $\theta$. 
+
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered}
+
+```{r}
+sessionInfo()
+```
+
+
