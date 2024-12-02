@@ -1,0 +1,565 @@
+---
+execute:
+  freeze: auto
+---
+
+# Stime, stimatori e parametri {#sec-prob-sampling-distr}
+
+**Prerequisiti**
+
+**Concetti e Competenze Chiave**
+
+- Comprendere e analizzare come le stime dei parametri della popolazione variano da campione a campione.
+- Definire le nozioni di popolazione, campione, parametro, stima e stimatore.
+- Esplorare la connessione tra stime campionarie e parametri reali della popolazione.
+- Calcolare e interpretare il valore atteso e la varianza della media campionaria.
+- Utilizzare l'errore standard per rappresentare l'incertezza nelle stime dei parametri.
+- Comprendere la convergenza delle medie campionarie alla media della popolazione.
+- Applicare il teorema per approssimare distribuzioni campionarie con distribuzioni normali.
+- Analizzare la distribuzione campionaria di statistiche come la varianza e il valore massimo del campione.
+
+**Preparazione del Notebook**
+
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(mice)
+```
+
+## Introduzione 
+
+In questo capitolo, approfondiremo il concetto di *distribuzione campionaria* che costituisce uno dei pilastri dell'inferenza statistica frequentista. La distribuzione campionaria ci permette di comprendere come le stime dei parametri della popolazione, come la media o la varianza, cambiano da campione a campione. In particolare, la distribuzione campionaria ci consente di stabilire delle proprietà probabilistiche delle stime campionarie, come ad esempio la loro media e la loro varianza. Queste proprietà verranno utilizzate per costruire gli strumenti fondamentali dell'inferenza frequentista: gli intervalli di fiducia e i test di ipotesi.
+
+## Popolazione e campioni
+
+Nell'analisi dei dati, l'obiettivo spesso è comprendere una quantità specifica a livello di popolazione, ma in genere abbiamo accesso solo a un campione di osservazioni. La quantità sconosciuta che vogliamo determinare viene chiamata *parametro*. Quando usiamo i dati del campione per calcolare una misura di questo parametro, la misura ottenuta è chiamata *stima*, e la formula che utilizziamo per ottenerla è conosciuta come *stimatore*. In termini formali, uno stimatore è una funzione dei dati osservati, utilizzata per fornire un'approssimazione del parametro di interesse.
+
+In pratica, quando analizziamo un campione di dati, il nostro obiettivo è inferire determinate proprietà della popolazione intera dalla quale il campione è stato tratto. Il parametro è l'indicatore numerico di queste proprietà, ma poiché spesso non possiamo calcolarlo direttamente sulla popolazione, ricorriamo alle osservazioni del campione per stimarlo. La stima, quindi, rappresenta il valore approssimato del parametro ottenuto dal campione, mentre lo stimatore è la regola o la formula matematica che usiamo per arrivare a questa approssimazione.
+
+È importante riconoscere che le stime possono non corrispondere esattamente ai parametri che vogliamo comprendere. In altre parole, le stime sono solo approssimazioni del parametro a causa della natura aleatoria del campionamento. 
+
+## La relazione tra stime e parametri
+
+In questo capitolo, ci concentreremo sulla relazione tra le stime ottenute dai campioni e i parametri reali della popolazione, esplorando in particolare la connessione tra la media di un campione e la media della popolazione, denotata con $\mu$. Il nostro obiettivo è capire e caratterizzare l'incertezza che deriva dalla natura aleatoria delle stime, e per farlo, adotteremo l'approccio frequentista, facendo uso di un importante strumento statistico chiamato *distribuzione campionaria*.
+
+### Distribuzione campionaria
+
+Per illustrare il concetto di distribuzione campionaria, possiamo iniziare considerando un caso semplice e specifico: una popolazione finita di dimensioni ridotte. Sebbene stiamo esaminando un caso particolare, è fondamentale notare che le proprietà e i principi che analizzeremo in questo contesto sono perfettamente applicabili a popolazioni di qualsiasi dimensione.
+
+La distribuzione campionaria ci dà una visione della variazione che potremmo aspettarci nelle stime derivate da diversi campioni estratti dalla stessa popolazione. Ogni volta che preleviamo un campione, otteniamo una stima diversa per il parametro di interesse (come la media). La distribuzione campionaria ci mostra come queste stime sono distribuite e ci aiuta a comprendere quanto siano affidabili.
+
+In termini pratici, se vogliamo calcolare la media della popolazione, non possiamo farlo direttamente (a meno di non avere accesso all'intera popolazione). Invece, possiamo estrarre un campione casuale e calcolare la media del campione come stima di $\mu$. Tuttavia, un altro campione fornirà una stima leggermente diversa. La distribuzione campionaria ci aiuta a capire quanto queste stime varino da campione a campione e ci fornisce un quadro completo dell'incertezza legata al processo di stima.
+
+Nella simulazione seguente, ipotizziamo la seguente popolazione:
+
+```{r}
+x <- c(2, 4.5, 5, 5.5)
+x
+```
+
+L'istogramma seguente descrive la distribuzione di frequenza della popolazione.
+
+```{r}
+ggplot(data.frame(x = x), aes(x)) +
+  geom_histogram(
+    bins = 5,
+    aes(y = ..density..)
+  )
+```
+
+Stampiamo gli intervalli utilizzati per l'istogramma.
+
+```{r}
+# Calcolo degli intervalli e delle frequenze per l'istogramma
+hist_data <- hist(x, breaks = 5, plot = FALSE)
+
+# Stampa degli intervalli e delle frequenze relative
+cat("Intervalli utilizzati per l'istogramma:", hist_data$breaks, "\n")
+cat("Frequenze relative utilizzate per l'istogramma:", hist_data$density, "\n")
+
+# Calcolo delle frequenze assolute
+hist_data_abs <- hist(x, breaks = 5, plot = FALSE)
+
+# Stampa delle frequenze assolute
+cat("Frequenze assolute utilizzate per l'istogramma:", hist_data_abs$counts, "\n")
+```
+
+Calcoliamo la media e la varianza della popolazione.
+
+```{r}
+# Calcolo della media e della varianza della popolazione
+mean_x <- mean(x)
+var_x <- var(x) * ((length(x) - 1) / length(x)) # Varianza popolazione
+c(mean_x, var_x)
+```
+
+Supponiamo ora di voler considerare l'estrazione di tutti i possibili campioni di dimensione \(n = 2\) da una popolazione rappresentata dal vettore `x`. Per fare ciò, possiamo fare uso della funzione `expand.grid` in R, che permette di generare tutte le combinazioni possibili di valori con ripetizione.
+
+Utilizzando `expand.grid`, otteniamo un `data.frame` in cui ogni riga rappresenta una coppia di valori possibili. La struttura risultante contiene tutte le combinazioni in cui ogni valore nel vettore `x` può essere abbinato a se stesso o a un altro valore nel vettore. Convertendo il risultato in una matrice, otteniamo una rappresentazione simile a un array NumPy, con 16 righe e 2 colonne, che rappresenta tutte le possibili coppie formate dai valori del vettore `x`.
+
+Questo approccio è coerente con un concetto matematico fondamentale: se stiamo scegliendo 2 elementi da un insieme di 4, e ogni elemento può essere scelto più di una volta (ossia con ripetizione), il numero totale di possibili combinazioni sarà \(4^2 = 16\). Questo si spiega dal fatto che ci sono 4 scelte per il primo elemento e 4 scelte per il secondo elemento, risultando in un totale di \(4 \times 4 = 16\) possibili coppie.
+
+```{r}
+# Creare tutte le combinazioni possibili di valori
+samples <- expand.grid(x, x)
+samples <- as.matrix(samples)  # Convertire in matrice
+print(samples)
+```
+
+La matrice `samples` è bidimensionale, dove ogni riga rappresenta una coppia di valori. Per calcolare la media di ogni campione di ampiezza \(n = 2\), possiamo utilizzare la funzione `rowMeans`, che calcola la media per ogni riga di una matrice. In questo modo, otteniamo un vettore contenente la media di ciascuna coppia di valori. Questo insieme di valori costituisce la *distribuzione campionaria* delle medie dei campioni di ampiezza \(n = 2\) che possono essere estratti dalla popolazione `x`.
+
+```{r}
+# Calcolare la media di ciascun campione
+means <- rowMeans(samples)
+print(means)
+```
+
+La funzione `rowMeans(samples)` calcola la media per ogni riga della matrice `samples`. Una rappresentazione grafica della distribuzione campionaria dei campioni di ampiezza \(n = 2\) che possono essere estratti dalla popolazione `x` è fornita qui sotto.
+
+```{r}
+# Istogramma delle medie campionarie
+ggplot(data.frame(means), aes(x = means)) +
+  geom_histogram(
+    bins = 5,
+    aes(y = ..density..)
+)
+```
+
+Mostriamo qui nuovamente la lista di tutti i possibili campioni di ampiezza 2 insieme alla media di ciascun campione.
+
+```{r}
+# Creare un data frame con i campioni e le loro medie
+df <- data.frame(
+  Samples = apply(samples, 1, paste, collapse = ", "),
+  x_bar = rowMeans(samples)
+)
+print(df)
+```
+
+Procediamo ora al calcolo della media della distribuzione campionaria delle medie di campioni di ampiezza \(n = 2\) che possono essere estratti dalla popolazione `x`. 
+
+```{r}
+# Calcolare la media delle medie campionarie
+mean_of_means <- mean(means)
+print(mean_of_means)
+```
+
+### Valore atteso della media campionaria
+
+Supponiamo che $ X_1, X_2, \ldots, X_n $ siano variabili aleatorie iid con valore atteso $ \mu $ e varianza $ \sigma^2 $. Vogliamo trovare il valore atteso della media campionaria:
+
+$$
+\bar{X} = \frac{1}{n} \sum_{i=1}^n X_i 
+$$
+
+Ecco la dimostrazione:
+
+$$
+\begin{align*}
+\mathbb{E}(\bar{X}) & = \mathbb{E}\left(\frac{1}{n} \sum_{i=1}^n X_i\right) \\
+& = \frac{1}{n} \mathbb{E}\left(\sum_{i=1}^n X_i\right) \\
+& = \frac{1}{n} \sum_{i=1}^n \mathbb{E}(X_i) \\
+& = \frac{1}{n} \sum_{i=1}^n \mu \\
+& = \frac{1}{n} \cdot n \cdot \mu \\
+& = \mu
+\end{align*}
+$$
+
+Quindi, il valore atteso della media campionaria di $ n $ variabili iid è uguale al valore atteso di ciascuna variabile singola, che in questo caso è $ \mu $.
+
+Verifichiamo che ciò sia vero nel nostro caso specifico.
+
+```{r}
+mean(x)
+mean(means)
+```
+
+### Varianza della media campionaria
+
+Dato che le variabili $X_1, X_2, \ldots, X_n$ sono indipendenti ed identicamente distribuite (iid) con valore atteso $\mu$ e varianza $\sigma^2$, possiamo calcolare la varianza della media campionaria $\bar{X}$ come segue:
+
+$$
+\begin{align*}
+\text{Var}(\bar{X}) & = \text{Var}\left(\frac{1}{n} \sum_{i=1}^n X_i\right) \\
+& = \frac{1}{n^2} \text{Var}\left(\sum_{i=1}^n X_i\right) \\
+& = \frac{1}{n^2} \sum_{i=1}^n \text{Var}(X_i) \quad \text{(dato che le $X_i$ sono indipendenti, i termini incrociati si annullano)} \\
+& = \frac{1}{n^2} \sum_{i=1}^n \sigma^2 \\
+& = \frac{1}{n^2} \cdot n \cdot \sigma^2 \\
+& = \frac{\sigma^2}{n}
+\end{align*}
+$$
+
+Quindi, la varianza della media campionaria di $n$ variabili iid è uguale alla varianza di ciascuna variabile singola divisa per $n$, che in questo caso è $\sigma^2/n$.
+
+Per l'esempio in discussione, il valore della varianza delle medie dei campioni è dunque pari a
+
+```{r}
+var(x) * ((length(x) - 1)/ length(x)) / 2
+```
+
+Lo stesso risultato si ottiene facendo la media delle 16 medie che abbiamo trovato in precedenza.
+
+```{r}
+var(means) * ((length(means) - 1)/ length(means))
+```
+
+Consideriamo ora un particolare campione. Per esempio
+
+```{r}
+observed_sample = c(5, 5.5)
+print(observed_sample)
+```
+
+Troviamo la media del campione:
+
+```{r}
+sample_mean = mean(observed_sample)
+print(sample_mean)
+```
+
+La media del campione è diversa dalla media della popolazione ($\mu$ = 4.25).
+
+Troviamo la deviazione standard del campione:
+
+```{r}
+sample_sd = sqrt(var(observed_sample)/2)
+print(sample_sd)
+```
+
+La deviazione standard del campione è diversa dalla deviazione standard della popolazione:
+
+```{r}
+sqrt(var(x) * (length(x) - 1)/length(x))
+```
+
+In conclusione, possiamo sottolineare due risultati centrali che emergono dall'analisi delle medie campionarie:
+
+1. **Media delle medie campionarie e media della popolazione**: La media della distribuzione delle medie campionarie è identica alla media della popolazione. In termini matematici, questo significa che il valore atteso della media dei campioni (con ripetizione) da una popolazione (finita o infinita) con media $ \mu $ è:
+
+$$
+   \mathbb{E}(\bar{X}_n) = \mu.
+$$
+
+2. **Varianza delle medie campionarie e varianza della popolazione**: La varianza della distribuzione delle medie campionarie è inferiore alla varianza della popolazione e, precisamente, è pari alla varianza della popolazione divisa per la dimensione del campione:
+
+$$
+   \mathbb{V}(\bar{X}_n) = \frac{\sigma^2}{n}.
+$$
+
+Questi risultati, che abbiamo verificato empiricamente attraverso la simulazione, ci offrono una comprensione profonda del comportamento delle medie campionarie.
+
+Inoltre, è importante notare che il comportamento della distribuzione delle medie campionarie dipende dalla forma della distribuzione della popolazione stessa:
+
+- Se la popolazione segue una distribuzione normale, allora la distribuzione delle medie dei campioni sarà anch'essa normale.
+- Se la popolazione non segue una distribuzione normale, il teorema del limite centrale entra in gioco, assicurando che, man mano che le dimensioni del campione aumentano, la distribuzione delle medie dei campioni converga a una distribuzione normale.
+
+Questi principi sono fondamentali in statistica e forniscono la base per molte tecniche di inferenza e modellazione.
+
+## Errore standard e rappresentazione dell'incertezza inferenziale
+
+Nella statistica inferenziale, l'errore standard è una misura frequentemente utilizzata per rappresentare l'incertezza legata a un parametro stimato, conosciuta anche come incertezza inferenziale. L'errore standard quantifica quanto possa variare la stima di una statistica da un campione all'altro; un errore standard minore indica una stima più precisa, mentre uno maggiore implica maggiore incertezza. Spesso, le rappresentazioni grafiche includono gli errori standard nella forma di "media più o meno uno (o due) errori standard." Questa espressione fornisce una gamma di valori entro cui è plausibile che ricada il valore vero del parametro della popolazione.
+
+L'uso dell'errore standard nei grafici non è soltanto una convenzione; esso è uno strumento per quantificare e visualizzare l'incertezza inferenziale. Contribuisce alla comprensione dell'affidabilità delle stime ottenute dai dati campionari, permettendo di valutare quanto le stime possano variare se si prendesse un altro campione dalla stessa popolazione. Tuttavia, è importante notare che questo utilizzo dell'errore standard può essere problematico [@ward2022control].
+
+## Legge dei Grandi Numeri
+
+La Legge dei Grandi Numeri (LLN) è un principio fondamentale della teoria delle probabilità che stabilisce come, incrementando il numero $n$ di osservazioni, la media campionaria $\bar{X}_n$ tenda asintoticamente alla media teorica $\mu$. La LLN si articola in due varianti: la versione "forte" e quella "debole", le quali differiscono per il tipo di convergenza verso la media attesa.
+
+### Versione Forte della Legge dei Grandi Numeri (SLLN)
+
+La SLLN afferma che la media campionaria $ \bar{X}_n $ converge quasi certamente alla media teorica $\mu$, ovvero la convergenza avviene con probabilità 1. Questo implica che, per quasi ogni possibile sequenza di eventi nell'insieme campionario $S$, $\bar{X}_n(s)$ tende a $\mu$, ad eccezione di un insieme di eventi $B_0$ la cui probabilità è zero. In termini tecnici, si dice che $\bar{X}_n$ converge a $\mu$ "quasi certamente".
+
+### Versione Debole della Legge dei Grandi Numeri (WLLN)
+
+La WLLN afferma che, per ogni $\epsilon > 0$, la probabilità che la media campionaria $\bar{X}_n$ si discosti da $\mu$ di una quantità maggiore di $\epsilon$ tende a zero all'aumentare di $n$. Questo fenomeno è definito come convergenza in probabilità verso la media teorica $\mu$.
+
+### Implicazioni e Applicazioni
+
+La Legge dei Grandi Numeri riveste un ruolo cruciale nel campo delle simulazioni, della statistica e, più in generale, nelle discipline scientifiche. La generazione di dati attraverso numerose repliche indipendenti di un esperimento, sia in ambito simulativo che empirico, implica l'utilizzo della media campionaria come stima affidabile della media teorica della variabile di interesse. In pratica, la LLN fornisce una base teorica per l'affidabilità delle stime medie ottenute da grandi campioni di dati, sottolineando come, a fronte di un numero elevato di osservazioni, le fluttuazioni casuali tendano ad annullarsi, convergendo verso un valore stabile e prevedibile.
+
+::: {#exm-}
+
+Siano $X_1, X_2, \ldots$ variabili aleatorie indipendenti e identicamente distribuite secondo una distribuzione di Bernoulli con parametro $1/2$. Interpretando gli $X_j$ come indicatori di "Testa" in una sequenza di lanci di una moneta equa, $\bar{X}_n$ rappresenta la proporzione di "Testa" dopo $n$ lanci. La Legge Forte dei Grandi Numeri (SLLN) afferma che, con probabilità 1, la sequenza di variabili aleatorie $\bar{X}_1, \bar{X}_2, \bar{X}_3, \ldots$ convergerà a $1/2$ quando si cristallizza in una sequenza di numeri reali. Matematicamente parlando, esistono scenari improbabili come una sequenza infinita di "Testa" (HHHHHH...) o sequenze irregolari come HHTHHTHHTHHT..., ma queste hanno una probabilità collettiva di zero di verificarsi. La Legge Debole dei Grandi Numeri (WLLN) stabilisce che, per ogni $\epsilon > 0$, la probabilità che $\bar{X}_n$ sia distante più di $\epsilon$ da $1/2$ può essere resa arbitrariamente piccola aumentando $n$.
+
+Come illustrazione, abbiamo simulato sei sequenze di lanci di una moneta equa e, per ciascuna sequenza, abbiamo calcolato $\bar{X}_n$ in funzione di $n$. Ovviamente, nella realtà non possiamo effettuare un numero infinito di lanci, quindi ci siamo fermati dopo 300 lanci. Il grafico seguente mostra $\bar{X}_n$ in funzione di $ n $ per ciascuna delle sei sequenze. All'inizio, notiamo una certa variazione nella proporzione cumulativa di "Testa". Tuttavia, con l'aumentare del numero di lanci, la varianza $ \text{Var}(\bar{X}_n) $ diminuisce progressivamente e $\bar{X}_n$ tende a $1/2$.
+
+```{r}
+# Numero di sequenze
+num_sequences <- 6
+# Numero di lanci
+num_tosses <- 300
+
+# Creare un data frame per contenere i risultati
+results <- data.frame(Toss = numeric(), Proportion = numeric(), Sequence = character())
+
+# Loop attraverso ciascuna sequenza
+for (i in 1:num_sequences) {
+  # Generare una sequenza di lanci di moneta equa (Testa=1, Croce=0)
+  coin_tosses <- sample(c(0, 1), num_tosses, replace = TRUE)
+  
+  # Calcolare la proporzione cumulativa di Teste
+  running_proportion <- cumsum(coin_tosses) / seq_along(coin_tosses)
+  
+  # Aggiungere i risultati al data frame
+  results <- rbind(
+    results,
+    data.frame(
+      Toss = seq_along(coin_tosses),
+      Proportion = running_proportion,
+      Sequence = paste("Sequence", i)
+    )
+  )
+}
+
+# Creare il grafico con ggplot2
+ggplot(results, aes(x = Toss, y = Proportion, color = Sequence)) +
+  geom_line() +
+  geom_hline(yintercept = 0.5, color = "red", linetype = "dashed") +
+  labs(
+    x = "Number of Tosses",
+    y = "Running Proportion of Heads",
+    title = "Running Proportion of Heads in Six Sequences of Fair Coin Tosses",
+    color = "Sequence"
+  ) 
+```
+
+:::
+
+## Teorema del Limite Centrale
+
+Il teorema del limite centrale è un risultato fondamentale in statistica che è stato dimostrato per la prima volta da Laplace nel 1812. Esso fornisce una spiegazione matematica per il motivo per cui la distribuzione normale appare così frequentemente nei fenomeni naturali. Ecco la formulazione essenziale.
+
+Supponiamo di avere una sequenza di variabili aleatorie indipendenti ed identicamente distribuite (i.i.d.), $Y = Y_1, \dots, Y_i, \ldots, Y_n$, ciascuna con valore atteso $\mathbb{E}(Y_i) = \mu$ e deviazione standard $SD(Y_i) = \sigma$. Definiamo una nuova variabile casuale come la media aritmetica di queste variabili:
+
+$$
+Z = \frac{1}{n} \sum_{i=1}^n Y_i.
+$$
+
+Allora, quando $n$ tende all'infinito, la distribuzione di $Z$ convergerà a una distribuzione normale con media $\mu$ e deviazione standard ridotta di un fattore $\frac{1}{\sqrt{n}}$:
+
+$$
+p_Z(z) \rightarrow \mathcal{N}\left(z \ \Bigg| \ \mu, \, \frac{\sigma}{\sqrt{n}}\right).
+$$
+
+### Significato e generalizzazione
+
+Il TLC non si applica solo alle variabili casuali con la stessa distribuzione, ma può essere esteso a variabili casuali indipendenti con aspettative e varianze finite. La potenza del teorema sta nella sua capacità di descrivere fenomeni che sono il risultato di molteplici effetti additivi indipendenti. Anche se questi effetti possono avere distribuzioni diverse, la loro somma tende a una distribuzione normale.
+
+Ad esempio, l'altezza degli esseri umani adulti può essere vista come la somma di molti fattori genetici e ambientali indipendenti. Indipendentemente dalla distribuzione individuale di questi fattori, la loro combinazione tende a formare una distribuzione normale. Questa universalità rende la distribuzione normale una buona approssimazione per molti fenomeni naturali.
+
+::: {#exm-}
+
+Per visualizzare il TLC in azione, si può condurre una simulazione. Immaginiamo una popolazione distribuita in maniera uniforme. Estraiamo 300 campioni di dimensione $n$ = 30 da questa popolazione e osserviamo come la distribuzione campionaria di tali medie converga a una distribuzione normale. Questa simulazione fornirà un'illustrazione concreta dell'efficacia del TLC nell'approssimare distribuzioni reali.
+
+```{r}
+# Set the random seed for reproducibility
+set.seed(42)
+
+# Generate a non-normally distributed population
+population <- runif(5000, min = 0, max = 1)
+
+# Create a histogram of the population
+par(mfrow = c(1, 2))  # Set up a 1x2 grid for plotting
+
+# Plot the histogram of the population
+hist(population, breaks = 30, prob = TRUE, main = "Population Distribution",
+     xlab = "Value", col = "lightblue")
+
+# Step 2 and 3: Draw random samples and calculate sample means
+sample_size <- 30
+num_samples <- 300
+
+# Empty vector to store sample means
+sample_means <- c()
+
+for (i in 1:num_samples) {
+  # Take a random sample
+  sample <- sample(population, size = sample_size, replace = TRUE)
+  
+  # Calculate the mean of the sample
+  sample_means[i] <- mean(sample)
+}
+
+# For sample
+x_bar <- mean(sample_means)
+std <- sd(sample_means)
+
+print('Sample Mean and Variance')
+print(x_bar)
+print(std**2)
+
+# For Population
+mu <- mean(population)
+sigma <- sd(population)
+
+print('Population Mean and Variance')
+print(mu)
+print((sigma**2)/sample_size)
+
+# Plot the histogram of sample means
+hist(sample_means, breaks = 30, prob = TRUE, main = "Distribution of Sample Means",
+     xlab = "Sample Mean", col = "lightgreen")
+
+# Overlay density curves
+curve(dnorm(x, mean = x_bar, sd = std), col = "black", lwd = 2, add = TRUE)
+
+# Add labels and legends
+legend("topright", legend = c("Distribution Curve"),
+       col = c("black"), lwd = 2)
+
+# Reset the plot layout
+par(mfrow = c(1, 1))
+```
+
+:::
+
+In conclusione, il teorema del limite centrale (TLC) stabilisce che, a meno che non si stia lavorando con campioni estremamente piccoli, è possibile approssimare con buona precisione la distribuzione campionaria della media dei campioni utilizzando la distribuzione Normale. Questo vale indipendentemente dalla forma specifica della distribuzione della popolazione da cui sono tratti i campioni. In altre parole, quando si lavora con campioni di dimensioni sufficienti, il TLC offre una formula concreta per descrivere la forma della distribuzione campionaria della media dei campioni. Ciò avviene anche se non si hanno informazioni dettagliate sulla popolazione, come la media $\mu$ e la deviazione standard $\sigma$, ed è espresso dalla relazione $\bar{X} \sim \mathcal{N}(\mu, \sigma/\sqrt{n})$.
+
+## Distribuzioni campionarie di altre statistiche
+
+In precedenza abbiamo descritto la distribuzione campionaria della media dei campioni. Ma ovviamente è possibile costruire la distribuzione campionaria di altre statistiche campionarie.  Ad esempio, la figura seguente mostra l'approssimazione empirica della distribuzione campionaria del valore massimo del campione. È chiaro che, se da ciascun campione estraiamo il valore massimo, il valore atteso della distribuzione campionaria di questa statistica sarà maggiore della media della popolazione.
+
+```{r}
+# Definire una distribuzione normale con media 100 e deviazione standard 15
+mu <- 100
+sigma <- 15
+x <- seq(mu - 3 * sigma, mu + 3 * sigma, length.out = 100)
+y <- dnorm(x, mean = mu, sd = sigma)
+
+# Simulare 10.000 esperimenti con 5 soggetti ciascuno e trovare il massimo punteggio per ciascun esperimento
+set.seed(123)  # Per riproducibilità
+sample_maxes <- replicate(10000, max(rnorm(5, mean = mu, sd = sigma)))
+
+# Creare un istogramma della distribuzione dei massimi campionari insieme alla distribuzione della popolazione
+
+# Creare il data frame per il grafico
+data <- data.frame(SampleMaxes = sample_maxes)
+density_data <- data.frame(x = x, y = y)
+
+ggplot(data, aes(x = SampleMaxes)) +
+  geom_histogram(
+    aes(y = ..density..),
+    bins = 30,
+    alpha = 0.7
+  ) +
+  geom_line(data = density_data, aes(x = x, y = y), size = 1) +
+  labs(
+    title = "Distribuzione dei massimi campionari",
+    x = "Massimo campionario",
+    y = "Densità"
+  ) 
+```
+
+La distribuzione campionaria della varianza dei campioni è particolarmente interessante. Usiamo la formula della statistica descrittiva, ovvero
+
+$$
+S^2 = \frac{\sum_{i=1}^n (Y_i - \bar{Y})^2}{n}.
+$$
+
+Una volta compresa la procedura, possiamo creare un grafico che rappresenta l'approssimazione empirica della distribuzione campionaria della varianza dei punteggi del quoziente di intelligenza. Sapendo che la varianza della popolazione è uguale a $15^2$, abbiamo utilizzato la simulazione per stimare la varianza della popolazione. Tuttavia, il risultato ottenuto è stato interessante: in media, l'utilizzo della formula precedente ha portato a una stima della varianza della popolazione troppo piccola. Gli statistici chiamano questa discrepanza *distorsione*, ovvero quando il valore atteso di uno stimatore non coincide con il parametro.
+
+```{r}
+# Definire una distribuzione normale con media 100 e deviazione standard 15
+mu <- 100
+sigma <- 15
+x <- seq(0, 30, length.out = 100)
+y <- dnorm(x, mean = mu, sd = sigma)
+
+# Simulare 10.000 esperimenti con 5 soggetti ciascuno e calcolare la varianza per ciascun esperimento
+set.seed(123)  # Per riproducibilità
+sample_vars <- replicate(10000, var(rnorm(5, mean = mu, sd = sigma)))
+
+# Creare un istogramma della distribuzione delle varianze campionarie
+
+data <- data.frame(SampleVars = sample_vars)
+
+ggplot(data, aes(x = SampleVars)) +
+  geom_histogram(
+    aes(y = ..density..),
+    bins = 30,
+    alpha = 0.7
+  ) +
+  labs(
+    title = "Distribuzione delle varianze campionarie",
+    x = "Varianza campionaria",
+    y = "Densità"
+  ) 
+```
+
+```{r}
+# Calcolare la media delle varianze campionarie
+mean(sample_vars)
+```
+
+Abbiamo già visto come questo problema trova una semplice soluzione nel momento in cui usiamo $n-1$ al denominatore.
+
+```{r}
+# Definire una distribuzione normale con media 100 e deviazione standard 15
+mu <- 100
+sigma <- 15
+x <- seq(0, 30, length.out = 100)
+y <- dnorm(x, mean = mu, sd = sigma)
+
+# Simulare 10.000 esperimenti con 5 soggetti ciascuno e calcolare la varianza corretta per ciascun esperimento
+set.seed(123)  # Per riproducibilità
+sample_vars <- replicate(10000, var(rnorm(5, mean = mu, sd = sigma)))
+
+# Creare un istogramma della distribuzione delle varianze campionarie
+data <- data.frame(SampleVars = sample_vars)
+
+ggplot(data, aes(x = SampleVars)) +
+  geom_histogram(
+    aes(y = ..density..),
+    bins = 30,
+    alpha = 0.7
+  ) +
+  labs(
+    title = "Distribuzione delle varianze campionarie",
+    x = "Varianza campionaria",
+    y = "Densità"
+  ) 
+```
+
+```{r}
+# Calcolare la media delle varianze campionarie
+mean(sample_vars)
+```
+
+La differenza tra la stima di un parametro e il valore vero del parametro è chiamata *errore della stima*. Uno stimatore si dice *non distorto* (*unbiased*) se la media delle sue stime su molteplici campioni ipotetici è uguale al valore del parametro che si vuole stimare. In altre parole, l'errore medio di stima è zero. 
+
+In questo capitolo abbiamo visto che $\frac{\sum_{i=1}^n{X_i}}{n}$ è uno stimatore non distorto di $\mu$ e che $\frac{\sum_{i=1}^n{(^2)}}{n-1}$ è uno stimatore non distorto di $\sigma^2$. Questo significa che tali stimatori hanno una distribuzione campionaria centrata sul vero valore del parametro. 
+
+## Riflessioni Conclusive
+
+In generale, i parametri della popolazione sono sconosciuti, ma possiamo stimarli utilizzando le informazioni del campione. Di seguito viene presentata una tabella che riassume i simboli comuni utilizzati per indicare le quantità note e sconosciute nel contesto dell'inferenza statistica. Questo ci aiuterà a tenere traccia di ciò che sappiamo e ciò che non sappiamo.
+
+|Simbolo          | Nome           | È qualcosa che conosciamo?     |
+|:----------------|:-------------|:--------------------|
+|$s$              |Deviazione standard del campione    |Sì, la calcoliamo dai dati grezzi |
+|$\sigma$         |Deviazione standard della popolazione  | No, tranne in casi particolari o nelle simulazioni  |
+|$\hat{\sigma}$  | Stima della deviazione standard della popolazione | Sì, ma non è uguale a $\sigma$ |
+|$s^2$            | Varianza del campione    |Sì, la calcoliamo dai dati grezzi |
+|$\sigma^2$       | Varianza della popolazione  | No, tranne in casi particolari o nelle simulazioni  |
+|$\hat{\sigma}^2$ | Stima della varianza della popolazione  | Sì, ma non è uguale a $\sigma^2$  |
+
+Utilizzando le informazioni di un campione casuale di ampiezza $n$:
+
+- La stima migliore che possiamo ottenere per la media $\mu$ della popolazione è la media del campione $\bar{Y}$.
+- La stima migliore che possiamo ottenere per la varianza $\sigma^2$ della popolazione è:
+
+$$
+\hat{\sigma}^2 = \frac{1}{n-1} \sum_{i=1}^n (Y_i - \bar{Y})^2.
+$$
+
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
+
+```{r}
+sessionInfo()
+```
+
+## Bibliografia {.unnumbered}
+
+

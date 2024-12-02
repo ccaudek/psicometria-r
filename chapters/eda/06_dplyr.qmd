@@ -1,0 +1,263 @@
+---
+execute:
+  freeze: auto
+---
+
+# Data wrangling {#sec-dplyr}
+
+**Prerequisiti**
+
+- Leggere [R for Data Science (2e)](https://r4ds.hadley.nz).
+- Consultare [Data cleaning for social scientists](https://bookdown.org/f_lennert/data-prep_2days/).
+
+**Concetti e competenze chiave**
+
+**Preparazione del Notebook**
+
+```{r}
+here::here("code", "_common.R") |> source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(tidyr, mice, missForest)
+```
+
+## Introduzione
+
+L'obiettivo di questo capitolo è fornire un'introduzione alle funzioni principali del linguaggio R per le operazioni di *data wrangling*, cioè per il preprocessing e la pulizia dei dati. In R, queste operazioni sono strettamente legate al concetto di "data tidying", che si riferisce all'organizzazione sistematica dei dati per facilitare l'analisi.
+
+Per comprendere meglio il concetto di "data tidying", possiamo rifarci a una citazione tratta dal testo di riferimento [*R for Data Science (2e)*](https://r4ds.hadley.nz):
+
+> "Happy families are all alike; every unhappy family is unhappy in its own way."  
+> — Leo Tolstoy
+
+> "Tidy datasets are all alike, but every messy dataset is messy in its own way."  
+> — Hadley Wickham
+
+L'essenza del "data tidying" è organizzare i dati in un formato che sia facile da gestire e analizzare. Anche se gli stessi dati possono essere rappresentati in vari modi, non tutte le rappresentazioni sono ugualmente efficienti o facili da usare. Un dataset "tidy" segue tre principi fondamentali che lo rendono particolarmente pratico:
+
+1. **Ogni variabile è una colonna**: ogni colonna nel dataset rappresenta una singola variabile.
+2. **Ogni osservazione è una riga**: ogni riga nel dataset rappresenta un'unica osservazione.
+3. **Ogni valore è una cella**: ogni cella del dataset contiene un singolo valore.
+
+I pacchetti R come `dplyr`, `ggplot2` e gli altri pacchetti del tidyverse sono progettati specificamente per lavorare con dati in formato "tidy", permettendo agli utenti di eseguire operazioni di manipolazione e visualizzazione in modo più intuitivo ed efficiente.
+
+## Pipe
+
+Sia il pacchetto `tidyr` che il pacchetto `dplyr` utilizzano l'operatore pipe, che in R può essere rappresentato da due notazioni principali: `|>` (introdotto nativamente in R a partire dalla versione 4.1.0) e `%>%` (introdotto dal pacchetto `magrittr`, ampiamente utilizzato in `tidyverse`). Entrambi gli operatori permettono di concatenare in modo efficiente una serie di operazioni, ma presentano alcune differenze che meritano attenzione.
+
+### Cosa Fa la Pipe?
+
+La pipe è uno strumento potente che permette di collegare in modo diretto l'output di una funzione come input della funzione successiva. Questo approccio:
+
+- Riduce la necessità di creare variabili intermedie.
+- Migliora la leggibilità del codice.
+- Rende il flusso delle operazioni più chiaro e lineare.
+
+Ogni funzione applicata con la pipe riceve automaticamente l'output della funzione precedente come suo primo argomento. Ciò consente di scrivere sequenze di operazioni in un formato compatto e intuitivo.
+
+Ecco un esempio pratico:
+
+```{r}
+# Utilizzo della pipe per trasformare un dataset
+library(dplyr)
+
+df <- data.frame(
+  id = 1:5,
+  value = c(10, 20, 30, 40, 50)
+)
+
+# Filtra i dati, seleziona colonne e calcola nuovi valori
+df_clean <- df |>
+  dplyr::filter(value > 20) |>
+  dplyr::select(id, value) |>
+  mutate(squared_value = value^2)
+```
+
+In questa sequenza, il dataset originale `df` viene filtrato, le colonne desiderate vengono selezionate e viene aggiunta una nuova colonna con il valore al quadrato.
+
+```{r}
+head(df_clean)
+```
+
+In sintesi, la pipe è uno strumento fondamentale per scrivere codice R moderno e leggibile, indipendentemente dal fatto che si utilizzi `|>` o `%>%`. 
+
+## Verbi
+
+Le funzioni principali ("verbi) di `dplyr` sono le seguenti:
+
+| Verbo dplyr  | Descrizione                                               |
+|--------------|-----------------------------------------------------------|
+| `select()`   | Seleziona colonne                                          |
+| `filter()`   | Filtra righe                                               |
+| `arrange()`  | Riordina o organizza le righe                              |
+| `mutate()`   | Crea nuove colonne                                         |
+| `summarise()`| Riassume i valori                                          |
+| `group_by()` | Consente di eseguire operazioni di gruppo                  |
+
+I verbi di `dplyr` sono suddivisi in quattro gruppi, in base all'elemento su cui operano: righe, colonne, gruppi o tabelle.
+
+Inoltre, le diverse funzioni `bind_` e `_joins` permettono di combinare più tibbles (ovvero, data frame) in uno solo.
+
+Per introdurre il processo di "data tidying", in questo tutorial utilizzeremo il dataset `msleep`.
+
+```{r}
+data(msleep)
+dim(msleep)
+```
+
+Esaminiamo i dati:
+
+```{r}
+glimpse(msleep)
+```
+
+Le colonne, nell'ordine, corrispondono a quanto segue:
+
+| Nome colonna   | Descrizione                                     |
+|----------------|-------------------------------------------------|
+| name           | Nome comune                                     |
+| genus          | Rango tassonomico                               |
+| vore           | Carnivoro, onnivoro o erbivoro?                 |
+| order          | Rango tassonomico                               |
+| conservation   | Stato di conservazione del mammifero            |
+| sleep_total    | Quantità totale di sonno, in ore                |
+| sleep_rem      | Sonno REM, in ore                               |
+| sleep_cycle    | Durata del ciclo di sonno, in ore               |
+| awake          | Quantità di tempo trascorso sveglio, in ore     |
+| brainwt        | Peso del cervello, in chilogrammi               |
+| bodywt         | Peso corporeo, in chilogrammi                   |
+
+## Righe
+
+I verbi più importanti che operano sulle righe di un dataset sono `filter()`, che seleziona le righe da includere senza modificarne l'ordine, e `arrange()`, che cambia l'ordine delle righe senza alterare la selezione delle righe presenti.
+
+```{r}
+msleep |>
+    dplyr::filter(sleep_total < 4) |>
+    arrange(sleep_total)
+```
+
+Possiamo usare `filter()` speficicano più di una condizione logica.
+
+```{r}
+msleep |>
+    dplyr::filter((sleep_total < 4 & bodywt > 100) | brainwt > 1) |>
+    arrange(sleep_total)
+```
+
+## Colonne
+
+Esistono quattro verbi principali che modificano le colonne di un dataset senza cambiare le righe:
+
+- `relocate()` cambia la posizione delle colonne;
+- `rename()` modifica i nomi delle colonne;
+- `select()` seleziona le colonne da includere o escludere;
+- `mutate()` crea nuove colonne a partire da quelle esistenti.
+
+```{r}
+msleep2 <- msleep |>
+    mutate(
+        rem_prop = sleep_rem / sleep_total * 100
+    ) |>
+    dplyr::select(name, vore, rem_prop, sleep_total) |>
+    arrange(desc(rem_prop))
+
+glimpse(msleep2)
+```
+
+In questo esempio, utilizziamo `mutate()` per creare una nuova colonna `rem_prop` che rappresenta la percentuale di sonno REM sul totale del sonno. Successivamente, `select()` viene utilizzato per scegliere solo alcune colonne del dataset, e infine `desc(rem_prop)` ordina i valori di `rem_prop` in ordine decrescente, dal valore maggiore a quello minore.
+
+Per cambiare il nome di una colonna possiamo usare `rename()`. Inoltre, possiamo cambiare l'ordine delle variabili con `relocate()`.
+
+```{r}
+msleep2 |>
+    rename(rem_perc = rem_prop) |>
+    relocate(rem_perc, .before = name)
+```
+
+## Gruppi
+
+Il verbo `group_by()` viene utilizzato per suddividere un dataset in gruppi, in base a una o più variabili, che siano rilevanti per l'analisi. Questo permette di eseguire operazioni di sintesi su ciascun gruppo separatamente, ottenendo informazioni aggregate.
+
+Ad esempio, nel codice seguente:
+
+```{r}
+msleep |>
+    group_by(order) |>
+    summarise(
+        avg_sleep = mean(sleep_total),
+        min_sleep = min(sleep_total),
+        max_sleep = max(sleep_total),
+        total = n()
+    ) |>
+    arrange(desc(avg_sleep))
+```
+
+1. `group_by(order)` suddivide il dataset `msleep` in gruppi, ciascuno corrispondente a un valore distinto della variabile `order`.
+  
+2. Successivamente, `summarise()` calcola diverse statistiche per ogni gruppo:
+   - `avg_sleep` è la media del totale del sonno (`sleep_total`) all'interno di ciascun gruppo.
+   - `min_sleep` è il valore minimo di `sleep_total` in ogni gruppo.
+   - `max_sleep` è il valore massimo di `sleep_total` in ogni gruppo.
+   - `total` è il numero di osservazioni (o righe) per ciascun gruppo, calcolato con la funzione `n()`.
+
+3. Infine, `arrange(desc(avg_sleep))` ordina i risultati in ordine decrescente in base alla media del sonno totale (`avg_sleep`), mostrando prima i gruppi con la media di sonno più alta. 
+
+Questo tipo di approccio è utile quando si vuole analizzare come cambiano le caratteristiche dei dati a seconda dei gruppi specifici, fornendo una visione più dettagliata e significativa.
+
+## Dati mancanti
+
+Nel dataset ci sono celle che contengono valori mancanti, indicati come NA. Questi rappresentano misurazioni per le quali i dati non sono stati registrati.
+
+Per ottenere una panoramica dei dati, inclusi i valori mancanti, possiamo utilizzare il comando:
+
+```{r}
+summary(msleep)
+```
+
+Per visualizzare il pattern di dati mancanti, ovvero come la mancanza di una variabile possa influenzare la mancanza di altre, si può usare:
+
+```{r}
+md.pattern(msleep, rotate.names = TRUE)
+```
+
+Il modo più semplice per gestire i valori mancanti è l'analisi dei casi completi (*complete case analysis*), che esclude dall'analisi le osservazioni con valori mancanti e utilizza solo quelle con tutte le variabili registrate. Questo approccio può essere implementato come segue:
+
+```{r}
+msleep_comp <- msleep |>
+    drop_na()
+dim(msleep_comp)
+```
+
+Tuttavia, per il dataset in questione, questa strategia non è adeguata, poiché si passa da 83 osservazioni iniziali a solo 20 righe dopo aver eliminato i dati mancanti.
+
+Un approccio più utile è l'utilizzo di metodi di imputazione (*imputation methods*). Uno di questi è l'imputazione semplice (*single imputation*, SI), dove il valore mancante viene sostituito dalla media della variabile corrispondente. Questo tipo di imputazione può essere eseguito come segue:
+
+```{r}
+imp <- mice(msleep, method = "mean", m = 1, maxit = 1, print = FALSE)
+complete(imp) |>
+    summary()
+```
+
+Tuttavia, uno dei problemi dell'imputazione media è che tende a ridurre la varianza e a rendere le stime dell'errore standard meno accurate, generando bias verso il basso.
+
+Un metodo più sofisticato è l'imputazione multipla (*multiple imputation*, MI). Questa tecnica genera più imputazioni, creando diversi dataset completi. Per ciascuno di questi dataset, è possibile effettuare l'analisi desiderata e, al termine, combinare i risultati ottenuti dai vari dataset imputati per ottenere un risultato finale più robusto. Un esempio di questa tecnica utilizza il metodo di predictive mean matching (metodo = "pmm"), che sfrutta i valori vicini nei dati come imputazioni:
+
+```{r}
+imp2 <- mice(msleep, method = "pmm", m = 1, maxit = 100, print = FALSE)
+complete(imp2) |>
+    summary()
+```
+
+L'imputazione multipla, grazie alla sua capacità di considerare la variabilità tra le diverse imputazioni, fornisce stime più accurate rispetto all'imputazione media semplice, riducendo il rischio di bias e fornendo risultati più affidabili.
+
+## Considerazioni Conclusive
+
+Il *data wrangling* è una delle fasi più importanti in qualsiasi pipeline di analisi dei dati. In questo capitolo abbiamo introdotto l'uso del pacchetto `tidyverse` di R per la manipolazione dei dati e il suo utilizzo in scenari di base. Tuttavia, il tidyverse è un ecosistema ampio e qui abbiamo trattato solo gli elementi fondamentali. Per approfondire, si consiglia di consultare ulteriori risorse come quelle disponibili sul sito web del tidyverse e il libro [*R for Data Science (2e)*](https://r4ds.hadley.nz), di cui esiste anche una [traduzione italiana](https://it.r4ds.hadley.nz).
+
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered}
+
+```{r}
+sessionInfo()
+```

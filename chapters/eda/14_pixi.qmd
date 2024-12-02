@@ -1,0 +1,293 @@
+---
+execute:
+  freeze: auto
+---
+
+# Flusso di lavoro riproducibile {#sec-r-workflow}
+
+**Prerequisiti**
+
+Prima di iniziare, assicurati di avere:
+
+- **R** installato (preferibilmente la versione più recente).  
+- **RStudio** come ambiente di sviluppo integrato (opzionale, ma altamente raccomandato).
+- **Pixi** installato come workflow manager per la gestione delle dipendenze e delle attività.  
+
+**Concetti e competenze chiave**
+
+- Riproducibilità.
+- Gestione delle dipendenze.
+- Organizzazione del progetto.
+- Uso di Pixi.
+
+**Preparazione del Notebook**
+
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(readr)
+```
+
+## Introduzione
+
+In questo capitolo esploreremo gli strumenti essenziali per garantire che il flusso di lavoro di un progetto di analisi dei dati in R sia pienamente riproducibile.
+
+## Analisi e flussi di lavoro riproducibili
+
+La possibilità di confermare ripetutamente i risultati scientifici attraverso la replica è un principio fondamentale della scienza. Questo concetto si basa sull'idea che una verità scientifica debba resistere a ulteriori indagini da parte di altri osservatori. In ambito scientifico, è utile distinguere due aspetti legati alla replica: **replicabilità** e **riproducibilità**.
+
+- **Replicabilità**: si riferisce alla capacità di ottenere risultati simili con dati diversi, ma seguendo lo stesso protocollo sperimentale.
+- **Riproducibilità**: indica la capacità di ottenere gli stessi risultati utilizzando gli stessi dati e lo stesso metodo di analisi, sia dalla stessa persona che da altri.
+
+### Riproducibilità dei dati: una sfida spesso sottovalutata
+
+La replicazione di esperimenti fisici può presentare difficoltà pratiche significative. Tuttavia, anche riprodurre semplicemente un’analisi dei dati, che sembra un compito più semplice, è spesso problematico per molteplici ragioni. Tradizionalmente, i ricercatori annotavano scrupolosamente i dettagli sperimentali nei loro taccuini di laboratorio, consentendo di replicare l’esperimento. Oggi, strumenti software moderni permettono di applicare lo stesso principio alla riproduzione dei dati: tutto il necessario per rifare l’analisi deve essere documentato in modo chiaro e centralizzato.
+
+Questi strumenti non solo facilitano la ripetizione dell’analisi, ma permettono anche di migliorarla e applicarla facilmente a nuovi dati. Tuttavia, per essere riproducibile, l’analisi deve essere scritta in modo appropriato, utilizzando ambienti di programmazione statistica come R o Python, che permettono l’automazione del processo. Al contrario, software come i fogli di calcolo non sono adatti a garantire riproducibilità, perché legano i comandi a celle specifiche, rendendo l’adattamento a nuovi dati complesso e soggetto a errori.
+
+## La crisi della replicazione e la riproducibilità
+
+La crisi della replicazione evidenzia un problema crescente nella scienza moderna: molti studi pubblicati, anche sottoposti a peer review, non sono replicabili. Studi come quello di @ioannidis2005most e @baker20161 denunciano che molte ricerche sperimentali e statistiche non resistono alla verifica di altri ricercatori. Questo significa che, nonostante l'apparente validità dei risultati, spesso non è possibile raggiungere le stesse conclusioni ripetendo lo studio.
+
+Tra le cause di questa crisi figurano problematiche complesse come la molteplicità e i percorsi analitici alternativi (il cosiddetto *garden of forking paths*). Tuttavia, indipendentemente da queste difficoltà, un’analisi riproducibile è un requisito minimo per garantire la validità dei risultati.
+
+::: {.callout-note}
+
+Un problema che compromette la solidità delle conclusioni di molti studi è stato definito da [Andrew Gelman](https://statmodeling.stat.columbia.edu/), della Columbia University, come il [garden of forking paths](https://en.wikipedia.org/wiki/Forking_paths_problem) (giardino dei sentieri che si biforcano). La maggior parte delle analisi richiede una serie di decisioni su come codificare i dati, identificare i fattori rilevanti e formulare (e successivamente rivedere) i modelli prima di arrivare alle analisi finali. Questo processo implica spesso l'esame dei dati per costruire una rappresentazione parsimoniosa. Ad esempio, un predittore continuo potrebbe essere suddiviso arbitrariamente in gruppi per valutare la relazione con l'esito, oppure alcune variabili potrebbero essere incluse o escluse da un modello di regressione durante una fase esplorativa.
+
+Questo approccio tende a favorire risultati dei test di ipotesi che sono distorti verso il rigetto dell'ipotesi nulla, poiché le decisioni prese durante il processo possono privilegiare segnali più forti (o p-value più piccoli) rispetto ad altre alternative. Nella maggior parte dei problemi di data science, questo rappresenta una sfida importante che solleva dubbi sulla riproducibilità dei risultati.
+
+:::
+
+## Elementi chiave per un workflow riproducibile
+
+Un flusso di lavoro riproducibile si compone di tre elementi fondamentali:
+
+1. **Ambienti di programmazione statistica scriptabili**: software come R o Python consentono di automatizzare le analisi e ridurre gli errori manuali.
+2. **Analisi riproducibili**: basate sull’approccio della *literate programming*, dove codice e documentazione sono integrati per garantire trasparenza e comprensione.
+3. **Controllo di versione**: sistemi come Git e piattaforme come GitHub permettono di monitorare e documentare i cambiamenti, favorendo la collaborazione e la tracciabilità.
+
+Integrare questi componenti nella pratica quotidiana non solo migliora la qualità delle analisi, ma contribuisce a rafforzare la fiducia nella scienza.
+
+## Gestione del Workflow
+
+Anche se l'uso di R per scrivere script che documentano le analisi dei dati rappresenta un importante passo verso la riproducibilità, questo non garantisce che il progetto possa essere riprodotto con successo da altri ricercatori. Ad esempio, @obels2020analysis hanno esaminato la condivisione di dati e codice per gli articoli pubblicati come Registered Reports nella letteratura psicologica tra il 2014 e il 2018, tentando di riprodurre indipendentemente i risultati principali. Riportano:
+
+> "Abbiamo esaminato dati e script condivisi per i Registered Reports pubblicati nella letteratura psicologica dal 2014 al 2018 e tentato di riprodurre computazionalmente i risultati principali di ciascun articolo. Dei 62 articoli che soddisfacevano i nostri criteri di inclusione, 41 mettevano a disposizione i dati e 37 gli script di analisi. Dati e codice erano condivisi per 36 articoli. Siamo riusciti a eseguire gli script per 31 analisi e a riprodurre i risultati principali di 21 articoli. Sebbene la percentuale di articoli con dati e codice condivisi (36 su 62, ovvero il 58%) e quella degli articoli per cui i risultati principali potevano essere riprodotti computazionalmente (21 su 36, ovvero il 58%) siano relativamente alte rispetto a quelle riscontrate in altri studi, c'è un evidente margine di miglioramento."
+
+Questi risultati evidenziano che, anche quando dati e codice sono disponibili, la riproducibilità non è garantita. Gli script possono essere incompleti, o l'ambiente di sviluppo originariamente utilizzato dagli autori può non essere replicabile da altri ricercatori.
+
+### Strumenti per la Gestione del Workflow
+
+Per affrontare queste problematiche, sono stati sviluppati numerosi strumenti di gestione del workflow. Tra i più noti ricordiamo:
+
+- **Make**: uno strumento storico progettato per sistemi Unix, altamente portabile e preinstallato su tutti i sistemi Unix e derivati.
+- **Snakemake**: molto popolare in biologia, offre grande flessibilità per gestire flussi di lavoro complessi.
+- **targets**: uno strumento specificamente progettato per R, che semplifica la gestione dei workflow riproducibili nei progetti di analisi dati.
+
+### Limiti degli Strumenti di Workflow Management
+
+Nonostante i vantaggi, l'adozione di questi strumenti comporta un certo aggravio per il ricercatore. Oltre a dover scrivere gli script per l'analisi dei dati, è necessario creare ulteriori script che definiscano il workflow e garantiscano la riproducibilità. Questo può richiedere una riorganizzazione significativa del modo in cui gli script sono strutturati, rendendo talvolta più complesso il debug e le successive modifiche. Per questi motivi, l'uso di strumenti di workflow management può risultare impegnativo.
+
+## Un Workflow Manager Semplice e Innovativo
+
+In questo capitolo verrà introdotto **Pixi**, un workflow manager di ultima generazione progettato per semplificare la gestione dei flussi di lavoro nei progetti di analisi dati. Pixi si distingue per la sua intuitività e per la capacità di affrontare molte delle difficoltà tipiche legate alla riproducibilità e all’organizzazione di progetti complessi. Questo strumento è particolarmente adatto a ricercatori e data scientist che desiderano automatizzare e strutturare efficacemente il proprio lavoro senza aggiungere complessità inutili.
+
+Pixi è un gestore di pacchetti veloce e versatile, basato sull'ecosistema **Conda**, che semplifica la creazione di ambienti di sviluppo su diverse piattaforme, tra cui Windows, macOS e Linux. Supporta una vasta gamma di linguaggi di programmazione, tra cui **Python**, **R**, **C/C++**, **Rust** e **Ruby**, rendendolo uno strumento estremamente flessibile. Inoltre, Pixi consente di creare ambienti riproducibili senza dover ricorrere a strumenti più complessi come Docker, riducendo così il tempo e lo sforzo necessari per configurare il progetto.
+
+Con una configurazione iniziale ben strutturata, Pixi permette di concentrarsi sull'analisi dei dati e sulla generazione di risultati, garantendo al tempo stesso la piena riproducibilità del workflow.
+
+### Installazione di Pixi
+
+Per utilizzare Pixi, è necessario avere installati **R**, **RStudio** e Pixi stesso. L'installazione di Pixi è semplice seguendo le [indicazioni ufficiali](https://github.com/prefix-dev/pixi). Per installare Pixi, è sufficiente eseguire il seguente comando nel terminale:
+
+```bash
+curl -fsSL https://pixi.sh/install.sh | bash
+```
+
+### Struttura del Progetto
+
+Immaginiamo che il progetto segua questa struttura organizzativa:
+
+```
+data-analysis-project/
+│
+├── pixi.toml               # File di configurazione Pixi
+├── pixi.lock               # Lockfile per le dipendenze
+│
+├── data/                   # Directory per i dati
+│   ├── raw/                # Dati grezzi
+│   └── processed/          # Dati processati
+│
+├── src/                    # Codice sorgente in R
+│   ├── data_cleaning.R     # Script per pulizia dei dati
+│   ├── analysis.R          # Script per analisi
+│   └── visualization.R     # Script per visualizzazioni
+│
+├── reports/                # Report e output
+│   ├── figures/            # Figure generate
+│   └── report.Rmd          # Report in R Markdown
+│
+└── README.md               # Documentazione del progetto
+```
+
+---
+
+### Configurazione di Pixi
+
+Per configurare Pixi, si crea un file `pixi.toml` nella directory principale del progetto:
+
+```toml
+[project]
+name = "r-data-analysis"
+description = "Progetto di analisi dati con R"
+authors = ["Tuo Nome <tua.email@example.com>"]
+channels = ["conda-forge"]
+platforms = ["osx-64", "linux-64","win-64"]
+
+[dependencies]
+r-base = ">=4.3,<5"
+r-tidyverse = "*"
+r-rio= "*"
+r-knitr = "*"
+r-rmarkdown = "*"
+r-here = "*"
+
+[tasks]
+clean = "rm -rf reports/figures/* data/processed/*"
+data-prep = "Rscript src/data_cleaning.R"
+analysis = "Rscript src/analysis.R"
+report = "Rscript -e 'rmarkdown::render(\"reports/report.Rmd\")'"
+all = { depends-on = ["clean", "data-prep", "analysis", "report"] }
+```
+
+
+### Script di Pulizia Dati (`src/data_cleaning.R`)
+
+Uno script per pulire e organizzare i dati grezzi:
+
+```r
+library(readr)
+library(dplyr)
+
+# Caricamento dati grezzi
+raw_data <- read_csv("data/raw/dati_esempio.csv")
+
+# Pulizia e trasformazione dei dati
+cleaned_data <- raw_data %>%
+  filter(!is.na(valore)) %>%
+  mutate(categoria = factor(categoria)) %>%
+  group_by(categoria) %>%
+  summarise(media = mean(valore, na.rm = TRUE))
+
+# Salvataggio dei dati processati
+write_csv(cleaned_data, "data/processed/dati_puliti.csv")
+```
+
+
+### Script di Analisi (`src/analysis.R`)
+
+Uno script per eseguire analisi statistiche e creare visualizzazioni:
+
+```r
+library(readr)
+library(dplyr)
+library(ggplot2)
+
+# Caricamento dei dati processati
+dati <- read_csv("data/processed/dati_puliti.csv")
+
+# Analisi statistica
+risultati_analisi <- dati %>%
+  group_by(categoria) %>%
+  summarise(
+    media = mean(media),
+    deviazione_standard = sd(media)
+  )
+
+# Salvataggio dei risultati
+write_csv(risultati_analisi, "reports/risultati_analisi.csv")
+
+# Creazione di un grafico
+grafico <- ggplot(dati, aes(x = categoria, y = media)) +
+  geom_bar(stat = "identity") +
+  ggtitle("Media per Categoria")
+
+# Salvataggio del grafico
+ggsave("reports/figures/media_categoria.png", plot = grafico)
+```
+
+### Creazione di un Report (`reports/report.Rmd`)
+
+Un report generato con R Markdown per presentare i risultati dell'analisi:
+
+````
+---
+title: "Report di Analisi dei Dati"
+output: html_document
+---
+
+## Risultati dell'Analisi
+
+```
+library(readr)
+library(knitr)
+risultati <- read_csv("reports/risultati_analisi.csv")
+kable(risultati)
+```
+
+## Grafico delle Medie per Categoria
+
+![Media per Categoria](figures/media_categoria.png)
+````
+
+### Esecuzione del Workflow con Pixi
+
+Una volta installato Pixi, puoi inizializzare un nuovo progetto con:
+
+```bash
+# Inizializzazione del progetto
+pixi init
+```
+
+Per installare le dipendenze specificate in `in pixi.toml`, esegui:
+
+```bash
+# Installazione delle dipendenze specificate in pixi.toml
+pixi install
+```
+
+Questo comando crea un file `pixi.lock` che elenca tutte le dipendenze del progetto, garantendo che l'ambiente possa essere ricreato in modo identico su diverse macchine.
+
+Per eseguire le attività definite, utilizza:
+
+```bash
+pixi run data-prep
+pixi run analysis
+pixi run report
+```
+
+Oppure, per eseguire tutte le attività in sequenza:
+
+```bash
+pixi run all
+```
+
+Il codice utilizzato in questo tutorial è disponibile nel [repository GitHub dedicato](https://github.com/ccaudek/pixi-tutorial).
+
+## Riflessioni Conclusive
+
+Pixi semplifica la gestione dei progetti di analisi dati in R, automatizzando il workflow e garantendo riproducibilità e coerenza. Non è necessario modificare gli script esistenti; possono essere utilizzati direttamente da Pixi. Con una configurazione iniziale ben strutturata, consente di concentrarsi sull'analisi dei dati e sulla generazione di risultati, minimizzando gli errori e massimizzando l'efficienza del processo. Pixi elenca automaticamente tutte le dipendenze utilizzate nel progetto nel file `pixi.lock`, assicurando che l'ambiente sia pienamente riproducibile. 
+
+
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered}
+
+```{r}
+sessionInfo()
+```
+
+## Bibliografia {.unnumbered}
+

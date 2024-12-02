@@ -1,0 +1,229 @@
+---
+execute:
+  freeze: auto
+---
+
+# Le fasi del progetto di analisi dei dati {#sec-proj-structure}
+
+**Prerequisiti**
+
+- Leggere [Veridical Data Science](https://vdsbook.com) [@yu2024veridical] focalizzandoti sul primo capitolo, che introduce le problematiche della data science, e sul quarto capitolo, che fornisce le linee guida dettagliate sull'organizzazione di un progetto di analisi dei dati.
+
+**Concetti e competenze chiave**
+
+- Ciclo di vita del progetto (DSLC): Definizione chiara della domanda di ricerca, raccolta dati esistenti o nuovi, pulizia, analisi esplorativa e inferenziale, valutazione e comunicazione dei risultati.
+- Organizzazione del progetto di analisi dei dati: Strutturazione efficiente dei file per garantire portabilità e condivisione.
+
+**Preparazione del Notebook**
+
+```{r}
+library(here)
+# Carica il file _common.R per impostazioni di pacchetti e opzioni
+here::here("code", "_common.R") |> source()
+
+# Carica pacchetti aggiuntivi
+pacman::p_load(mirt, mokken)
+```
+
+## Introduzione
+
+Una gestione accurata ed efficace dei dati è fondamentale, soprattutto in discipline come la psicologia, dove l'analisi di dataset complessi è una componente centrale della ricerca. Assicurare che i dati siano raccolti con precisione, organizzati in modo chiaro e facilmente accessibili per analisi e verifiche è essenziale per preservare l'integrità del lavoro scientifico e promuovere la sua riproducibilità. Una gestione rigorosa dei dati garantisce qualità e affidabilità durante tutte le fasi del progetto, dalla raccolta alla documentazione dei processi di elaborazione e delle eventuali modifiche apportate.
+
+Dati ben organizzati e documentati non solo semplificano e rendono più efficiente il processo di analisi, ma riducono anche il rischio di errori, migliorando l'utilizzabilità e l'interpretazione delle informazioni. Questo aspetto è particolarmente rilevante quando si lavora con dataset provenienti da fonti eterogenee o con strutture complesse. Inoltre, la trasparenza e la completezza nella gestione dei dati rappresentano una condizione imprescindibile per garantire la riproducibilità della ricerca, pilastro fondamentale della scienza. 
+
+La possibilità per altri ricercatori di replicare i risultati utilizzando gli stessi dati e metodi rafforza la credibilità delle conclusioni e contribuisce a costruire un progresso scientifico condiviso e solido. Una gestione dei dati responsabile, dunque, non è solo una buona pratica, ma una necessità per la produzione di conoscenze affidabili e sostenibili.
+
+## Panoramica delle Capacità di Gestione dei Dati in R
+
+R è uno strumento potente e versatile, progettato per supportare ogni fase del ciclo di vita dei dati, dalla raccolta alla documentazione, rendendolo indispensabile per chiunque lavori con dati complessi.
+
+- **Importazione ed esportazione dei dati**: Con pacchetti come `readr` e `rio`, R facilita l'importazione di dati da diverse fonti, tra cui file CSV, database e API web, e consente l'esportazione in formati adatti a diversi utilizzi.
+- **Pulizia e preparazione dei dati**: Pacchetti come `dplyr`, `tidyr` e `stringr` offrono strumenti intuitivi e potenti per manipolare, trasformare e preparare i dati in modo efficiente, rendendoli pronti per l'analisi.
+- **Esplorazione e sintesi**: R, attraverso pacchetti come `dplyr` e `ggplot2`, permette di calcolare statistiche descrittive, individuare pattern significativi e visualizzare distribuzioni e relazioni in modo chiaro e informativo.
+- **Documentazione dinamica**: Grazie a strumenti come R Markdown e Quarto, è possibile creare documenti interattivi che integrano codice, analisi, testo esplicativo e risultati, promuovendo la riproducibilità e la trasparenza del lavoro.
+- **Controllo delle versioni**: L'integrazione di Git in RStudio offre un sistema di gestione delle versioni che consente di monitorare modifiche, collaborare con altri e garantire la tracciabilità del processo analitico.
+
+Queste funzionalità rendono R uno strumento essenziale per gestire i dati in modo organizzato, trasparente e ottimale, facilitando analisi rigorose e riproducibili.
+
+## Configurare l’Ambiente R per la Gestione dei Dati
+
+Per sfruttare al meglio le potenzialità di R, è essenziale configurare correttamente RStudio e integrare i pacchetti fondamentali per la gestione dei dati. Una configurazione adeguata favorisce la riproducibilità e l’organizzazione del lavoro.
+
+### Workspace e Cronologia
+
+Accedi a **Tools > Global Options > General** e modifica le seguenti impostazioni:  
+
+- Disabilita l’opzione *Restore .RData into workspace at startup*.  
+- Imposta *Save workspace to .RData on exit* su **Never**.  
+
+Queste configurazioni incoraggiano una gestione basata sugli script, rendendo il lavoro più trasparente e riducendo conflitti tra sessioni diverse. Ogni analisi sarà così chiaramente documentata nello script, evitando dipendenze da file temporanei o precedenti sessioni.
+
+### Pacchetti Essenziali
+
+R è composto da un modulo base che fornisce le funzionalità fondamentali del linguaggio, ma la sua potenza deriva dall’enorme ecosistema di pacchetti aggiuntivi. Questi pacchetti possono essere caricati secondo necessità. Per questo corso, utilizzeremo regolarmente i seguenti pacchetti:
+
+- **`here`**: per una gestione ordinata dei percorsi relativi, evitando problemi legati ai percorsi assoluti.  
+- **`tidyverse`**: una raccolta di pacchetti per manipolazione, analisi e visualizzazione dei dati, che include `dplyr`, `tidyr`, `ggplot2` e altri strumenti indispensabili.
+
+Assicurati di installarli e caricarli all’inizio di ogni script con i comandi:  
+
+```{r}
+# install.packages(c("here", "tidyverse")) # è solo necessario installarli una volta
+library(here)
+library(tidyverse)
+```
+
+### Gestione dei Progetti
+
+I progetti in RStudio rappresentano uno strumento chiave per mantenere il lavoro organizzato. Utilizzare i progetti consente di lavorare in ambienti separati, dove ogni progetto ha la propria directory dedicata.  
+
+Per creare un nuovo progetto:  
+1. Vai su **File > New Project**.  
+2. Seleziona una directory specifica per il progetto.  
+3. Salva tutti i file correlati (script, dati, risultati) all’interno della directory del progetto.  
+
+Questo approccio facilita la navigazione e previene errori derivanti dall’uso di file non correlati. Ogni progetto diventa così un’unità autonoma, ideale per mantenere ordine e coerenza nel lavoro.
+
+## Il Ciclo di Vita di un Progetto di Data Science
+
+Secondo @yu2024veridical, i progetti di analisi dei dati seguono solitamente queste fasi:
+
+1. **Formulazione del problema e raccolta dei dati**: Definizione delle domande di ricerca e acquisizione dei dataset.
+2. **Pulizia, preprocessing e analisi esplorativa**: Preparazione dei dati per l'analisi attraverso trasformazioni e sintesi.
+3. **Analisi predittiva e/o inferenziale**: (Opzionale) Modelli statistici o predittivi per rispondere alle domande di ricerca.
+4. **Valutazione dei risultati**: Interpretazione e verifica delle conclusioni tratte.
+5. **Comunicazione dei risultati**: Presentazione dei risultati in forma visiva e narrativa.
+
+Non tutti i progetti includono la fase 3, ma quasi tutti attraversano le altre fasi, rendendo essenziale un approccio organizzato e ben strutturato.
+
+
+### Fase 1: Formulazione del Problema e Raccolta dei Dati
+
+La formulazione di una domanda di ricerca chiara e precisa è il primo passo per qualsiasi progetto di data science. È fondamentale che la domanda sia costruita in modo tale da poter essere risolta tramite l'analisi dei dati disponibili. Spesso, la domanda iniziale può risultare troppo vaga o irrealizzabile, rendendo necessario un processo di revisione per adattarla alle informazioni a disposizione. Questo approccio assicura che i dati raccolti o utilizzati siano adeguati per rispondere efficacemente al problema di ricerca.
+
+La raccolta dei dati rappresenta una fase altrettanto cruciale del processo. In alcuni casi, i progetti sfruttano dati esistenti provenienti da repository pubblici, database interni o esperimenti passati; in altri, è necessaria una nuova raccolta di dati. Per evitare problematiche future, è essenziale pianificare con attenzione le analisi statistiche da effettuare prima di raccogliere i dati. In assenza di questa pianificazione, si rischia di ottenere dataset inadatti, privi di informazioni cruciali o non conformi alle assunzioni richieste dai modelli statistici previsti.
+
+Un altro aspetto chiave della raccolta dei dati è comprendere appieno i processi e le metodologie utilizzate per acquisirli. È fondamentale analizzare e documentare le tecniche impiegate, le procedure seguite e i potenziali bias che potrebbero influenzare i risultati. Questa consapevolezza contribuisce a garantire che le misure ottenute siano affidabili e che eventuali limitazioni siano considerate durante l’analisi.
+
+
+### Fase 2: Pulizia dei Dati e Analisi Esplorativa
+
+#### Importare i Dati in R
+
+In ogni dataset, i dati sono generalmente organizzati in una matrice in cui ogni colonna rappresenta una variabile e ogni riga un'osservazione. Le variabili possono essere suddivise in diverse categorie: quantitative (continue o discrete), qualitative (nominali o ordinali), temporali (date e orari) e testuali (strutturate o non strutturate). La dimensionalità del dataset, cioè il numero di variabili, può influenzare notevolmente la complessità dell'analisi, soprattutto quando si lavora con dati ad alta dimensionalità (tipicamente oltre 100 variabili).
+
+Per lavorare con questi dati in R, il primo passo è importare i file in un oggetto chiamato *data frame*, una struttura tabellare che organizza i dati in modo pronto per l’elaborazione e la visualizzazione. Il pacchetto **`rio`** semplifica notevolmente questo processo con la funzione `import()`, che consente di caricare dati da diversi formati (ad esempio, `.csv`, `.xlsx`, `.json`) senza dover ricordare funzioni specifiche per ogni tipo di file. 
+
+Quando si utilizza un progetto in RStudio, è buona pratica organizzare i file in una struttura chiara con sotto-cartelle dedicate, come una per i dati grezzi e una per quelli processati. Utilizzare percorsi relativi, resi semplici dal pacchetto **here**, permette di mantenere i progetti portabili e ben organizzati. Ad esempio, per importare un file `nome_file.csv` contenuto nella cartella `data/raw`, si può usare il comando:
+
+```r
+library(here)
+library(rio)
+
+dati <- import(here("data", "raw", "nome_file.csv"))
+```
+
+Analogamente, l’esportazione dei dati elaborati può essere effettuata con `rio::export()`, specificando il percorso relativo in cui salvare il file:
+
+```r
+export(my_data, here("data", "processed", "nome_file.csv"))
+```
+
+Queste pratiche non solo assicurano che i file siano salvati nella posizione corretta, ma promuovono anche un workflow organizzato, rendendo più facile condividere e replicare i progetti. Inoltre, strumenti come **here** e **rio** migliorano l'efficienza, semplificando il lavoro con dataset complessi e formati diversi.
+
+In conclusione, una gestione accurata dei dati è il fondamento di un'analisi robusta e riproducibile. Pianificare attentamente la raccolta dei dati, organizzarli in modo strutturato e utilizzare strumenti adeguati per l'importazione e l'esportazione sono passaggi indispensabili per garantire il successo del progetto. 
+
+
+#### Pulizia dei Dati
+
+Dopo aver definito la domanda della ricerca e avere raccolto i dati rilevanti, è il momento di pulire i dati. Un dataset pulito è ordinato, formattato in modo appropriato e ha voci non ambigue. La fase iniziale di pulizia dei dati consiste nell'identificare problemi con i dati (come formattazioni anomale e valori non validi) e modificarli in modo che i valori siano validi e formattati in modo comprensibile sia per il computer che per noi. La pulizia dei dati è una fase estremamente importante di un progetto di data science perché non solo aiuta a garantire che i dati siano interpretati correttamente dal computer, ma aiuta anche a sviluppare una comprensione dettagliata delle informazioni contenute nei dati e delle loro limitazioni.
+
+L'obiettivo della pulizia dei dati è creare una versione dei dati che rifletta nella maniera più fedele possibile la realtà e che sia interpretata correttamente dal computer. Per garantire che il computer utilizzi fedelmente le informazioni contenute nei dati, è necessario modificare i dati (scrivendo codice, non modificando il file dati grezzo stesso) in modo che siano in linea con ciò che il computer "si aspetta". Tuttavia, il processo di pulizia dei dati è necessariamente soggettivo e comporta fare assunzioni sulle quantità reali sottostanti misurate e decisioni su quali modifiche siano le più sensate.
+
+#### Preprocessing
+
+Il preprocessing si riferisce al processo di modifica dei dati puliti per soddisfare i requisiti di un algoritmo specifico che si desidera applicare. Ad esempio, se si utilizza un algoritmo che richiede che le variabili siano sulla stessa scala, potrebbe essere necessario trasformarle, oppure, se si utilizza un algoritmo che non consente valori mancanti, potrebbe essere necessario imputarli o rimuoverli. Durante il preprocessing, potrebbe essere utile anche definire nuove caratteristiche/variabili utilizzando le informazioni esistenti nei dati, se si ritiene che queste possano essere utili per l'analisi.
+
+Come per la pulizia dei dati, non esiste un unico modo corretto per pre-elaborare un dataset, e la procedura finale comporta tipicamente una serie di decisioni che dovrebbero essere documentate nel codice e nei file di documentazione.
+
+#### Analisi Esplorativa dei Dati
+
+Dopo l'acquisizione dei dati, si procede con un'Analisi Esplorativa dei Dati (EDA - Exploratory Data Analysis). Questa fase iniziale mira a far familiarizzare il ricercatore con il dataset e a scoprire pattern nascosti. Si realizza attraverso:
+
+- La costruzione di tabelle di frequenza e contingenza.
+- Il calcolo di statistiche descrittive (come indici di posizione, dispersione e forma della distribuzione).
+- La creazione di rappresentazioni grafiche preliminari.
+
+L'EDA permette di generare ipotesi sui dati e di guidare le successive analisi statistiche.
+
+
+### Fase 3: Analisi Predittiva e Inferenziale
+
+Molte domande nella data science si presentano come problemi di inferenza e/o previsione, in cui l’obiettivo principale è utilizzare dati osservati, passati o presenti, per descrivere le caratteristiche di una popolazione più ampia o per fare previsioni su dati futuri non ancora disponibili. Questo tipo di analisi è spesso orientato a supportare decisioni nel mondo reale.
+
+### Fase 4: Valutazione dei Risultati
+
+In questa fase, i risultati ottenuti vengono analizzati alla luce della domanda di ricerca iniziale. Si procede a una valutazione sia quantitativa, attraverso l'applicazione di tecniche statistiche appropriate, sia qualitativa, attraverso un'attenta riflessione critica.
+
+### Fase 5: Comunicazione dei Risultati 
+
+L'ultima fase di un progetto di analisi dei dati consiste nel condividere i risultati con un pubblico più ampio, il che richiede la preparazione di materiali comunicativi chiari e concisi. L'obiettivo è trasformare i risultati dell'analisi in informazioni utili per supportare il processo decisionale. Questo può includere la stesura di un articolo scientifico, la creazione di un report per un team di lavoro, o la preparazione di una presentazione con diapositive.
+
+La comunicazione deve essere adattata al pubblico di riferimento. Non si deve dare per scontato che il pubblico abbia familiarità con il progetto: è fondamentale spiegare l'analisi e le visualizzazioni in modo chiaro e dettagliato. Anche se per il ricercatore il messaggio principale di una figura o diapositiva può sembrare ovvio, è sempre una buona pratica guidare il pubblico nella sua interpretazione, evitando l'uso di gergo tecnico complesso.
+
+## Organizzazione del Progetto
+
+Un requisito fondamentale per un progetto di analisi dei dati è organizzare in modo efficiente i file sul proprio computer. Questo include i file dei dati, il codice e la documentazione del progetto. Tutti questi elementi dovrebbero essere raccolti all'interno di una singola cartella dedicata al progetto.
+
+### Home Directory
+
+In RStudio, è possibile creare un file chiamato `nome_del_progetto.Rproj`, che consente di configurare automaticamente la *home directory* del progetto, ovvero la cartella principale da cui R avvia il lavoro relativo al progetto. Per utilizzare questa funzionalità, è sufficiente aprire RStudio cliccando direttamente sul file `nome_del_progetto.Rproj`.
+
+La *home directory* rappresenta il punto di riferimento principale per tutte le operazioni del progetto, come il caricamento di file, il salvataggio degli output e la gestione delle risorse. 
+
+Grazie a questa configurazione, è possibile utilizzare percorsi relativi per accedere ai file all'interno del progetto. I percorsi relativi si basano sempre sulla cartella principale del progetto, il che rende il codice più portabile e adattabile. In pratica, chiunque scarichi il tuo progetto sarà in grado di eseguirlo senza dover modificare manualmente i percorsi dei file. Questo approccio migliora la condivisione e garantisce una maggiore riproducibilità del tuo lavoro.
+
+### Struttura di un Progetto
+
+@yu2024veridical propone il seguente template per la struttura di un progetto:
+
+![](../../figures/project_structure.png){width="27.5%"}
+
+Le due cartelle principali sono:
+
+- `data/`: contiene il dataset grezzo (ad esempio, `data.csv`) e una sottocartella con documentazione relativa ai dati, come metadati e codebook.
+- `dslc_documentation/`: raccoglie i file di documentazione e codice necessari per le varie fasi del progetto. Questi possono essere file .qmd (per Quarto, in R) o .ipynb (per Jupyter Notebook, in Python), utilizzati per condurre ed esplorare le analisi. I file sono prefissati da un numero per mantenerli in ordine cronologico. All'interno di questa cartella, è presente una sottocartella `functions/`, che contiene script .R (per R) o .py (per Python) con funzioni utili per le diverse analisi.
+
+Un file `README.md` descrive la struttura del progetto e riassume il contenuto di ogni file.
+
+Un’organizzazione come quella proposta da @yu2024veridical offre un notevole vantaggio: permette di specificare i percorsi dei file in modo relativo, utilizzando come radice la cartella del progetto. Questo rende il progetto facilmente trasferibile e condivisibile tra diversi utenti o computer.
+
+
+## Riflessioni Conclusive
+
+La forza e la bellezza del codice risiedono nella sua riusabilità: una volta scritto, può essere applicato infinite volte per ottenere risultati coerenti. Se configurato correttamente, lo stesso codice applicato agli stessi dati produrrà sempre gli stessi risultati. Questo principio, noto come *riproducibilità computazionale*, è fondamentale per garantire la trasparenza e l’affidabilità del lavoro scientifico.
+
+La riproducibilità offre numerosi vantaggi:
+
+- **Monitorare le modifiche del progetto**  
+  La possibilità di riprodurre il lavoro semplifica il monitoraggio delle evoluzioni e dei cambiamenti nel progetto. Questo consente di comprendere come il progetto si è sviluppato nel tempo, facilitando il confronto tra diverse versioni o approcci.
+
+- **Riprodurre il proprio lavoro**  
+  Il primo beneficiario della riproducibilità sei tu stesso. Essere in grado di replicare i propri risultati è essenziale, soprattutto se in futuro sarà necessario rivedere o approfondire il lavoro. La riproducibilità garantisce che le analisi possano essere riprese con facilità e senza ambiguità.
+
+- **Costruire su basi solide**  
+  Altri ricercatori possono utilizzare il tuo lavoro come punto di partenza, espandendolo o applicandolo a nuovi contesti. La condivisione di codice riproducibile non solo favorisce la collaborazione, ma contribuisce a creare un corpo di conoscenze più robusto e condiviso.
+
+Tuttavia, rendere il codice riproducibile non è sempre semplice. Richiede attenzione nella documentazione, un’organizzazione chiara del progetto e strumenti adeguati per garantire che l’ambiente di lavoro sia stabile e replicabile. In questo capitolo, abbiamo esplorato alcune strategie e tecniche per raggiungere questi obiettivi.
+
+::: {.callout-note}
+Un problema cruciale nella psicologia contemporanea è la *crisi di replicabilità*, che evidenzia come molti risultati di ricerca non siano replicabili [@open2015estimating]. La *riproducibilità computazionale*, pur avendo un obiettivo più ristretto, si concentra sulla possibilità di ottenere gli stessi risultati applicando lo stesso codice agli stessi dati. Questo approccio, sebbene non risolva interamente la crisi, rappresenta un passo fondamentale verso una scienza più trasparente e rigorosa.
+:::
+
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered}
+
+```{r}
+sessionInfo()
+```
+
+## Bibliografia {.unnumbered}
