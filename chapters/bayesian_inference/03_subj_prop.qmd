@@ -1,0 +1,456 @@
+---
+execute:
+  freeze: auto
+---
+
+# Pensare ad una proporzione in termini soggettivi {#sec-bayesian-inference-proportion}
+
+
+**Prerequisiti**
+
+Leggere il settimo capitolo del libro di @albert_2019prob. 
+
+**Concetti e Competenze Chiave**
+
+- Comprendere e applicare l'aggiornamento bayesiano per affinare le credenze preesistenti alla luce di nuovi dati.
+- Rappresentare le convinzioni iniziali su un parametro tramite una distribuzione a priori, sia discreta che continua.
+- Calcolare la verosimiglianza per dati binomiali e utilizzarla per aggiornare la distribuzione a priori.
+- Derivare e interpretare la distribuzione a posteriori combinando la distribuzione a priori e la verosimiglianza dei dati osservati.
+- Utilizzare il metodo basato su griglia per approssimare la distribuzione a posteriori di un parametro.
+- Applicare il modello binomiale a un esempio concreto per stimare la probabilità di un evento specifico e quantificare l'incertezza associata.
+- Calcolare quantità di interesse (media, moda, intervalli di credibilità) dalla distribuzione a posteriori e interpretare i risultati.
+- Utilizzare una distribuzione a priori continua, come la Beta, per rappresentare un'ampia gamma di possibili valori del parametro.
+
+**Preparazione del Notebook**
+
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(mice, HDInterval)
+```
+
+## Introduzione {.unnumbered}
+
+> L'unica cosa rilevante è l'incertezza – il grado della nostra conoscenza e ignoranza. Il fatto che gli eventi considerati siano in qualche modo determinati, o conosciuti da altre persone, non ha alcuna importanza.  
+> (Bruno deFinetti)
+
+L'inferenza bayesiana è un metodo di inferenza statistica che utilizza la probabilità per aggiornare le credenze sui parametri di un modello, sulla base di nuove evidenze o dati osservati. Essa fornisce un quadro concettuale per stimare variabili sconosciute, tenendo conto dell'incertezza. Attraverso un modello che descrive le dipendenze tra variabili aleatorie, la teoria della probabilità può essere impiegata per inferire tutte le quantità sconosciute. In questo approccio, tutte le incertezze, sia nelle osservazioni che nei parametri del modello, sono trattate come distribuzioni di probabilità.
+
+In sintesi, l'inferenza bayesiana è il processo di deduzione delle proprietà di una distribuzione di probabilità a partire dai dati, utilizzando il teorema di Bayes. Questo processo incorpora l'idea che la probabilità rappresenti una misura della fiducia su una previsione o un risultato.
+
+Questo capitolo ha lo scopo di esplorare in dettaglio il concetto di aggiornamento bayesiano, illustrandolo con un esempio concreto in un contesto semplificato. L’obiettivo è dimostrare come le credenze preesistenti sulla probabilità di un parametro $\theta$ possano essere aggiornate attraverso l'osservazione di nuovi dati.
+
+Il primo passo nell'inferenza bayesiana consiste nel rappresentare le credenze iniziali, formulate prima di raccogliere i dati, tramite una <font color='orange'>distribuzione a priori</font>. La distribuzione a priori riflette le nostre conoscenze o ipotesi preesistenti su $\theta$ e può variare in base al contesto o alle informazioni pregresse disponibili.
+
+Una volta ottenuti nuovi dati, il passaggio successivo è l'aggiornamento delle credenze tramite la <font color='orange'>distribuzione a posteriori</font>. Questo aggiornamento si ottiene moltiplicando la distribuzione a priori per la verosimiglianza dei dati osservati, il che riflette quanto i dati supportino un determinato valore di $\theta$. Il prodotto di questi due termini fornisce una misura delle credenze aggiornate, che viene successivamente normalizzata per garantire che il risultato sia una distribuzione di probabilità valida (ovvero, che l'area sotto la curva sia pari a 1).
+
+Il capitolo si concentra sul <font color='orange'>modello binomiale</font>. Questo modello è utilizzato per stimare una proporzione sconosciuta basata su una serie di dati binari $y_1, \ldots, y_n$, ciascuno dei quali può assumere valore 0 o 1. 
+
+Inizieremo esplorando un esempio in cui la distribuzione a priori di $\theta$ è discreta, un caso in cui i valori possibili di $\theta$ sono limitati a un insieme finito di opzioni. Successivamente, discuteremo scenari in cui la distribuzione a priori è continua, ampliando il modello per affrontare casi più complessi e realistici. Questo approccio progressivo consente di acquisire una comprensione graduale dei concetti centrali dell'inferenza bayesiana e del loro utilizzo pratico nel contesto di problemi statistici reali.
+
+## Verosimiglianza Binomiale
+
+La distribuzione binomiale offre un modello naturale per dati che derivano da una sequenza di $n$ prove indipendenti e identicamente distribuite, dove ciascuna prova dà origine a uno dei due possibili esiti, convenzionalmente etichettati come 'successo' e 'fallimento'. Grazie al fatto che le prove sono iid, i dati possono essere riassunti dal numero totale di successi nelle $n$ prove, che denotiamo con $y$. Il parametro $\theta$ rappresenta la proporzione di successi nella popolazione o, equivalentemente, la probabilità di successo in ciascuna prova. Il modello di campionamento binomiale è:
+
+$$ 
+p(y \mid \theta) = \text{Bin}(y \mid n, \theta) = \binom{n}{y} \theta^y (1 - \theta)^{n-y}, 
+$$
+
+dove nella parte sinistra dell'equazione non si indica la dipendenza da $n$ perché viene considerato parte del disegno sperimentale e fissato; tutte le probabilità discusse per questo problema sono considerate condizionate su $n$, cioè assumono che il numero totale di prove sia fissato e noto.
+
+## Applicazione Specifica del Modello Binomiale
+
+In questo capitolo, esaminiamo un'applicazione specifica del modello binomiale per valutare la prestazione di un partecipante in un classico esperimento di psicologia, noto come *Go/No-Go task* [@shiffrin1977controlled]. In questo tipo di compito, ai partecipanti viene richiesto di rispondere a determinati stimoli (prove Go) e di trattenere la risposta ad altri stimoli (prove No-Go). Ad esempio, i partecipanti possono vedere una serie di lettere presentate su uno schermo e devono premere un pulsante quando vedono qualsiasi lettera tranne una specifica lettera bersaglio (ad esempio, la lettera "X"). In questo esperimento, ogni prova rappresenta un evento di tipo bernoulliano con due possibili esiti: o il partecipante risponde correttamente o commette un errore. I ricercatori analizzano la percentuale di risposte corrette e di inibizioni, concentrandosi in particolare sulla capacità del partecipante di controllare l'impulso di rispondere durante le prove No-Go.
+
+Consideriamo un piccolo numero di prove No-Go di un partecipante, dove i risultati sono: 1, 0, 1, 1, 1, 0, 1, 0, 1. Qui, il valore "1" indica che il partecipante è stato in grado di inibire la risposta, mentre "0" indica che non è riuscito a farlo. L'obiettivo dell'analisi è quantificare l'incertezza nella stima di $\theta$, che rappresenta la proporzione di risposte corrette nel compito No-Go, ovvero la capacità inibitoria del partecipante.
+
+Consideriamo questi dati come una sequenza di 9 prove bernoulliane indipendenti. Utilizzando il modello binomiale, stimiamo la probabilità $\theta$ che il partecipante riesca a controllare il proprio impulso di rispondere durante le prove No-Go e quantifichiamo l'incertezza associata a questa stima.
+
+### Processo di Lavoro 
+
+@McElreath_rethinking descrive il flusso lavoro bayesiano nel modo seguente.
+
+1. **Definire un Modello Generativo per i Dati**: 
+   Un modello generativo descrive il processo attraverso il quale i dati vengono prodotti. Nel contesto del compito No-Go, consideriamo ogni prova come un processo di Bernoulli con due possibili esiti: una prestazione corretta, ovvero l'inibizione della risposta (rappresentata da 1), oppure una prestazione errata, ovvero la mancata inibizione della risposta (rappresentata da 0). Definiamo $\theta$ come la probabilità di ottenere una prestazione corretta nel compito No-Go. Il modello generativo per questi dati può essere formalizzato come:
+
+   $$ 
+   X_i \sim \text{Bernoulli}(\theta),
+   $$
+
+   dove $i = 1, 2, \dots, 9$ e $X_i$ assume il valore 1 in caso di prestazione corretta e 0 in caso di prestazione errata nel compito No-Go.
+
+2. **Definire uno Stimatore per il Parametro di Interesse**: 
+   Uno stimatore è una regola o una formula che utilizza i dati campionari per fornire una stima del parametro di interesse. Nel nostro caso, lo stimatore di interesse è la probabilità $\theta$ di inibire correttamente la risposta durante le prove No-Go. L'obiettivo è non solo calcolare questa probabilità, ma anche quantificare l'incertezza associata alla stima di $\theta$, basandoci sui dati raccolti.
+
+3. **Sviluppare un Metodo Statistico per la Stima del Parametro di Interesse**: 
+   Per stimare $\theta$, utilizziamo l'approccio bayesiano. In statistica bayesiana, si parte da una distribuzione a priori che rappresenta le nostre convinzioni iniziali su $\theta$, e poi si aggiorna questa distribuzione alla luce dei dati osservati per ottenere una distribuzione a posteriori. Nel contesto di un modello Bernoulli/Binomiale, una scelta comune per la distribuzione a priori è la distribuzione Beta. In questo caso, iniziamo con una distribuzione a priori non informativa, $\text{Beta}(1, 1)$, che corrisponde a una distribuzione uniforme su $\theta$.
+
+   La verosimiglianza dei nostri dati (6 "successi", 3 "insuccessi") è data dalla distribuzione binomiale:
+   
+   $$ 
+   L(p) = {9 \choose 6} \theta^{6} (1-\theta)^{3}.
+   $$
+   
+   Utilizziamo il teorema di Bayes per combinare priori e verosimiglianza e ottenere la distribuzione a posteriori:
+   
+   $$
+   \text{Posteriore} \propto \text{Verosimiglianza} \times \text{Priori}
+   $$
+
+4. **Validazione del Modello tramite Simulazioni**:  
+   Prima di analizzare i dati reali, eseguiamo una simulazione predittiva a priori per verificare se il modello è in grado di generare dati plausibili. Successivamente, dopo aver adattato il modello ai dati osservati, conduciamo una simulazione predittiva a posteriori per valutare la capacità del modello di riprodurre dati simili a quelli effettivamente osservati.
+
+5. **Analisi e Sintesi dei Risultati**:  
+   Infine, analizziamo i dati reali calcolando la distribuzione a posteriori, tipicamente tramite metodi computazionali come il Monte Carlo a catene di Markov (MCMC). Riassumiamo questa distribuzione per fare inferenze su $\theta$, utilizzando statistiche descrittive come la media, la mediana e gli intervalli di credibilità.
+
+Nel corso di questo capitolo, illustreremo come generare numericamente la distribuzione a posteriori, mentre nei capitoli successivi approfondiremo ulteriormente le varie fasi del flusso di lavoro proposto da @McElreath_rethinking.
+
+## Metodo Basato su Griglia nell'Aggiornamento Bayesiano
+
+Dopo aver discusso l'aggiornamento bayesiano e come permette di raffinare le nostre convinzioni preesistenti alla luce di nuove evidenze, esploreremo ora una tecnica specifica per realizzare questo aggiornamento: il metodo basato su griglia.
+
+Il metodo basato su griglia è un approccio semplice e intuitivo per stimare la distribuzione a posteriori, particolarmente utile quando non sono disponibili soluzioni analitiche esatte o si desidera evitare l'uso di algoritmi computazionali complessi. La procedura si articola nei seguenti passi:
+
+1. **Selezione di un intervallo per il parametro**: Basandosi sulle convinzioni a priori, si definisce un intervallo ragionevole per il parametro di interesse.
+2. **Creazione di una griglia di punti**: Su questo intervallo, si distribuiscono una serie di punti, di solito equidistanti tra loro.
+3. **Calcolo della posteriori per ogni punto**: Per ogni punto della griglia, si moltiplica la verosimiglianza per il prior corrispondente.
+4. **Normalizzazione dei risultati**: Per garantire che la somma delle probabilità sia pari a 1, si normalizzano i valori ottenuti dividendo ciascun punto per l'area totale sottesa dalla curva della distribuzione a posteriori.
+
+Attraverso questo metodo, si ottiene una rappresentazione approssimativa ma illustrativa della distribuzione a posteriori. Questo approccio offre un modo accessibile per visualizzare e comprendere il processo di aggiornamento bayesiano.
+
+## Aggiornamento Bayesiano con una Distribuzione a Priori Discreta
+
+### Distribuzione a priori
+
+Quando non disponiamo di informazioni specifiche preliminari su $\theta$, potremmo inizialmente assegnare un valore di 0.5, suggerendo una probabilità a priori uniforme tra le due alternative (la capacità di inibire la risposta e la mancanza di questa capacità in una prova del compito Go/No-Go). Tuttavia, questo valore non rappresenta adeguatamente l'intero spettro della nostra incertezza iniziale.
+
+Per riflettere meglio questa incertezza, utilizziamo una distribuzione a priori discreta, che assegna una probabilità distinta a ciascun valore plausibile di $\theta$. Questo approccio ci permette di quantificare le nostre convinzioni preliminari sulla distribuzione di questi valori.
+
+Supponiamo di considerare undici possibili valori per $\theta$, che variano da 0 a 1 con incrementi di 0.1. Possiamo attribuire a ciascun valore una probabilità a priori uguale, creando così una distribuzione uniforme, oppure scegliere una distribuzione non uniforme che meglio rifletta le nostre aspettative sui valori di $\theta$ più probabili.
+
+Dopo aver osservato i dati — nel nostro caso, 6 successi in 9 prove — applichiamo il teorema di Bayes per trasformare la distribuzione a priori in una distribuzione a posteriori. Questo processo consiste nel combinare la probabilità a priori di $\theta$ con la verosimiglianza dei dati per produrre una probabilità a posteriori aggiornata per $\theta$.
+
+
+### Distribuzione a Posteriori in R
+
+La distribuzione a posteriori combina le informazioni a priori con i dati osservati, aggiornando le nostre credenze riguardo al parametro $\theta$. Vediamo passo passo come implementare il calcolo della distribuzione a posteriori e delle relative quantità in R, partendo dalla rappresentazione discreta di $\theta$.
+
+#### 1. Definizione di $\theta$
+Iniziamo definendo un insieme discreto di valori per $\theta$.
+
+```{r}
+theta <- seq(0, 1, by = 0.1)
+theta
+```
+
+#### 2. Distribuzione a Priori Uniforme
+Se non abbiamo motivi per preferire alcuni valori di $\theta$, assegniamo probabilità uguali a tutti i valori. Standardizziamo la distribuzione affinché le probabilità si sommino a 1.
+
+```{r}
+unif_prior <- rep(1 / length(theta), length(theta))
+print(unif_prior)
+```
+
+```{r}
+sum(unif_prior) # Verifica che le probabilità sommino a 1
+```
+
+Visualizziamo questa distribuzione a priori uniforme:
+
+```{r}
+plot(
+  theta, 
+  unif_prior, 
+  type = "h", 
+  lwd = 2, 
+  main = "Distribuzione a Priori (Uniforme)",
+  xlab = expression(theta), 
+  ylab = "Probabilità"
+)
+```
+
+#### 3. Distribuzione a Priori Non Uniforme
+
+Se riteniamo più probabili i valori centrali di $\theta$, definiamo una distribuzione a priori discreta non uniforme:
+
+```{r}
+not_unif_prior <- 
+  c(0, 0.05, 0.05, 0.05, 0.175, 0.175, 0.175, 0.175, 0.05, 0.05, 0.05)
+plot(
+  theta, 
+  not_unif_prior, 
+  type = "h", 
+  lwd = 2, 
+  main = "Distribuzione a Priori (Non Uniforme)",
+  xlab = expression(theta), 
+  ylab = "Probabilità"
+)
+```
+
+#### 4. Calcolo della Verosimiglianza
+
+La funzione di verosimiglianza per il modello binomiale è definita come segue:
+
+```{r}
+likelihood <- dbinom(6, size = 9, prob = theta)
+```
+
+```{r}
+likelihood <- likelihood / sum(likelihood) # Normalizzazione
+```
+
+```{r}
+plot(
+  theta, 
+  likelihood, 
+  type = "h",
+  lwd = 2, 
+  main = "Funzione di Verosimiglianza",
+  xlab = expression(theta), 
+  ylab = expression(L(theta))
+)
+```
+
+#### 5. Distribuzione a Posteriori
+
+La distribuzione a posteriori si calcola moltiplicando elemento per elemento la distribuzione a priori e la verosimiglianza, quindi dividendo per la probabilità marginale dei dati (normalizzazione).
+
+```{r}
+post <- (not_unif_prior * likelihood) / sum(not_unif_prior * likelihood)
+print(post)
+```
+
+```{r}
+sum(post) # Verifica che sommi a 1
+```
+
+Visualizziamo la distribuzione a posteriori:
+
+```{r}
+plot(
+  theta, 
+  post, 
+  type = "h", 
+  lwd = 2, 
+  main = "Distribuzione a Posteriori",
+  xlab = expression(theta), 
+  ylab = expression(f(theta))
+)
+```
+
+#### 6. Quantità a Posteriori
+
+- **Media a Posteriori**: Calcolata come il valore atteso di $\theta$ sotto la distribuzione a posteriori.
+
+```{r}
+posterior_mean <- sum(theta * post)
+posterior_mean
+```
+
+- **Varianza a Posteriori**: Calcolata come la varianza della distribuzione a posteriori.
+
+```{r}
+posterior_variance <- sum((theta^2) * post) - posterior_mean^2
+posterior_variance
+```
+
+- **Moda a Posteriori**: Il valore di $\theta$ con la probabilità più alta.
+
+```{r}
+posterior_mode <- theta[which.max(post)]
+posterior_mode
+```
+
+In sintesi, abbiamo calcolato la distribuzione a posteriori di $\theta$ utilizzando una distribuzione a priori discreta non uniforme e osservando 6 successi su 9 prove. Abbiamo derivato quantità statistiche come media, varianza e moda a posteriori. Questo processo dimostra come l'inferenza bayesiana aggiorni le credenze a priori in base ai dati osservati, offrendo una visione quantitativamente informata del parametro $\theta$.
+
+
+## Aggiornamento Bayesiano con una Distribuzione a Priori Continua in R
+
+Passiamo ora all'aggiornamento bayesiano utilizzando una distribuzione a priori continua, in particolare la distribuzione Beta. Questo approccio è particolarmente utile poiché consente di rappresentare $\theta$ come una variabile continua definita nell'intervallo [0, 1].
+
+### Definizione della Distribuzione Beta
+
+Iniziamo con una distribuzione Beta simmetrica, Beta(2, 2), e calcoliamo la sua densità di probabilità su un intervallo continuo di valori $\theta$.
+
+```{r}
+# Parametri della distribuzione Beta
+alpha <- 2
+beta <- 2
+
+# Valori di theta
+theta <- seq(0, 1, length.out = 1000)
+
+# Densità di probabilità della distribuzione Beta
+pdf <- dbeta(theta, alpha, beta)
+
+# Grafico della distribuzione Beta
+plot(theta, pdf, type = "l", col = "blue", lwd = 2,
+     main = "Funzione di Densità di Probabilità Beta(2, 2)",
+     xlab = expression(theta), ylab = "Densità")
+```
+
+### Distribuzione a Priori Non Simmetrica
+
+Consideriamo una distribuzione a priori non simmetrica, Beta(2, 5), per rappresentare credenze che privilegiano valori bassi di $\theta$.
+
+```{r}
+# Parametri della distribuzione Beta non simmetrica
+alpha <- 2
+beta <- 5
+
+# Densità di probabilità
+pdf <- dbeta(theta, alpha, beta)
+
+# Grafico della distribuzione Beta(2, 5)
+plot(theta, pdf, type = "l", col = "red", lwd = 2,
+     main = "Funzione di Densità di Probabilità Beta(2, 5)",
+     xlab = expression(theta), ylab = "Densità")
+```
+
+### Verosimiglianza
+
+Consideriamo un esperimento con 9 prove e 6 successi, modellato con una distribuzione binomiale. Calcoliamo la funzione di verosimiglianza normalizzata.
+
+```{r}
+# Parametri dell'esperimento
+n <- 9
+k <- 6
+
+# Calcolo della verosimiglianza
+likelihood <- dbinom(k, size = n, prob = theta)
+likelihood <- likelihood / sum(likelihood) # Normalizzazione
+
+# Grafico della verosimiglianza
+plot(theta, likelihood, type = "l", col = "green", lwd = 2,
+     main = "Funzione di Verosimiglianza",
+     xlab = expression(theta), ylab = "Densità")
+```
+
+### Distribuzione a Posteriori
+
+La distribuzione a posteriori si ottiene moltiplicando la distribuzione a priori per la verosimiglianza e normalizzando il risultato.
+
+```{r}
+# Calcolo della distribuzione a priori Beta(2, 5)
+prior <- dbeta(theta, shape1 = 2, shape2 = 5)
+prior <- prior / sum(prior)
+
+# Calcolo della distribuzione a posteriori
+posterior <- (prior * likelihood) / sum(prior * likelihood)
+```
+
+```{r}
+# Grafico delle distribuzioni
+plot(theta, prior, type = "l", col = "red", lwd = 2, ylim = c(0, max(posterior)),
+     main = "Distribuzioni Bayesiane",
+     xlab = expression(theta), ylab = "Densità")
+lines(theta, likelihood, col = "green", lwd = 2)
+lines(theta, posterior, col = "purple", lwd = 2)
+legend("topright", legend = c("Prior", "Likelihood", "Posterior"),
+       col = c("red", "green", "purple"), lwd = 2)
+```
+
+### Quantità a Posteriori
+
+Calcoliamo alcune quantità riassuntive dalla distribuzione a posteriori.
+
+- **Media a Posteriori**
+
+```{r}
+posterior_mean <- sum(theta * posterior)
+posterior_mean
+```
+
+- **Deviazione Standard a Posteriori**
+
+```{r}
+posterior_sd <- sqrt(sum((theta^2) * posterior) - posterior_mean^2)
+posterior_sd
+```
+
+- **Moda a Posteriori**
+
+```{r}
+posterior_mode <- theta[which.max(posterior)]
+posterior_mode
+```
+
+### Campionamento dalla Distribuzione a Posteriori
+
+Possiamo generare campioni casuali dalla distribuzione a posteriori per effettuare inferenze.
+
+```{r}
+# Campionamento casuale
+set.seed(123)
+samples <- sample(theta, size = 10000, prob = posterior, replace = TRUE)
+
+# Grafico dei campioni
+hist(samples, breaks = 50, col = "purple", probability = TRUE,
+     main = "Distribuzione dei Campioni dalla Posteriori",
+     xlab = expression(theta))
+lines(density(samples), col = "blue", lwd = 2)
+```
+
+#### Intervalli di Credibilità
+
+Calcoliamo l'intervallo di credibilità al 94%.
+
+```{r}
+credible_interval <- quantile(samples, probs = c(0.03, 0.97))
+credible_interval
+```
+
+Se desideriamo calcolare l'intervallo di densità più alta (HPDI), possiamo utilizzare pacchetti aggiuntivi come `HDInterval`.
+
+```{r}
+# Calcolo HPDI (richiede il pacchetto HDInterval)
+hdi(samples, credMass = 0.94)
+```
+
+In sintesi, questo approccio dimostra l'applicazione del metodo bayesiano con distribuzioni a priori continue, utilizzando sia formule analitiche che campionamento. I risultati mostrano come possiamo ottenere credenze aggiornate su $\theta$ e riassumerle con quantità come media, moda e intervalli di credibilità.
+
+## Metodo basato su griglia
+
+Il metodo utilizzato in questo capitolo per generare la distribuzione a posteriori è noto come metodo basato su griglia. Questo metodo numerico esatto si basa sul calcolo della distribuzione a posteriori mediante una griglia di punti uniformemente spaziati. Nonostante la maggior parte dei parametri sia continua, l'approssimazione della distribuzione a posteriori può essere ottenuta considerando soltanto una griglia finita di valori dei parametri. Il metodo segue quattro fasi:
+
+1. Fissare una griglia discreta di possibili valori dei parametri.
+2. Valutare la distribuzione a priori e la funzione di verosimiglianza per ciascun valore della griglia.
+3. Calcolare l'approssimazione della densità a posteriori, ottenuta moltiplicando la distribuzione a priori per la funzione di verosimiglianza per ciascun valore della griglia e normalizzando i prodotti in modo che la loro somma sia uguale a 1.
+4. Selezionare $n$ valori casuali dalla griglia per ottenere un campione casuale della densità a posteriori normalizzata.
+
+Questo metodo può essere potenziato aumentando il numero di punti nella griglia, ma il limite principale risiede nel fatto che all'aumentare della dimensionalità dello spazio dei parametri, il numero di punti necessari per una stima accurata cresce in modo esponenziale, rendendo il metodo impraticabile per problemi complessi.
+
+In sintesi, l'approccio basato sulla griglia è intuitivo e non richiede competenze di programmazione avanzate per l'implementazione. Inoltre, fornisce un risultato che può essere considerato, per tutti gli scopi pratici, come un campione casuale estratto dalla distribuzione di probabilità a posteriori condizionata ai dati. Tuttavia, questo metodo è limitato a causa della *maledizione della dimensionalità*[^036_posterior_sim-1], il che significa che può essere applicato soltanto a modelli statistici semplici con non più di due parametri. Di conseguenza, in pratica, è spesso sostituito da altre tecniche più efficienti, poiché i modelli impiegati in psicologia richiedono frequentemente la stima di centinaia o anche migliaia di parametri.
+
+[^036_posterior_sim-1]: Per comprendere la maledizione della dimensionalità, possiamo considerare l'esempio di una griglia di 100 punti equispaziati. Nel caso di un solo parametro, sarebbe necessario calcolare solo 100 valori. Tuttavia, se abbiamo due parametri, il numero di valori da calcolare diventa $100^2$. Se invece abbiamo 10 parametri, il numero di valori da calcolare sarebbe di $10^{10}$. È evidente che la quantità di calcoli richiesta diventa troppo grande persino per un computer molto potente. Pertanto, per modelli che richiedono la stima di un numero significativo di parametri, è necessario utilizzare un approccio diverso.
+
+## Riflessioni Conclusive
+
+In questo capitolo, abbiamo esplorato l'aggiornamento bayesiano utilizzando una distribuzione a priori discreta, accennando brevemente al caso delle distribuzioni a priori continue. Quando si affrontano scenari con distribuzioni a priori continue, l'elaborazione della distribuzione a posteriori generalmente richiede la risoluzione di un integrale che, nella maggior parte dei casi, non ammette una soluzione analitica. Tuttavia, ci sono eccezioni notevoli, come nell'inferenza relativa alle proporzioni, dove la distribuzione a priori è modellata come una distribuzione Beta e la funzione di verosimiglianza segue una distribuzione binomiale. In queste circostanze particolari, è possibile derivare analiticamente la distribuzione a posteriori. L'analisi dettagliata di questo caso sarà trattata nel capitolo successivo.
+
+## Esercizi
+
+::: {#exr-subj-prop-1}
+
+Viene chieso di calcolare la distribuzione a posteriori della probabilità che uno studio condivida i materiali di ricerca utilizzando il metodo basato su griglia. Si utilizzeranno dati reali per motivare e costruire una distribuzione a priori discretizzata.
+
+In uno studio sull'analisi delle pratiche di trasparenza e riproducibilità nella ricerca in psicologia, @hardwicke2022estimating hanno riportato che la condivisione dei materiali di ricerca è stata rilevata nel 14% dei casi (26 su 183 studi), con un intervallo di confidenza al 95% pari a [10%, 19%]. Questo suggerisce che la condivisione di materiali è rara.
+
+Ispirandoti ai risultati di questo studio, costruisci una distribuzione a priori per la probabilità $\theta$ che uno studio condivida i materiali di ricerca. Per semplicità, discretizza $\theta$ in 10 livelli equispaziati: $0.05, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95$.
+
+Attribuisci le seguenti probabilità a priori ai 10 livelli, basandoti sull'informazione che la condivisione dei materiali è un evento raro ma non trascurabile: $0.05, 0.20, 0.30, 0.15, 0.10, 0.08, 0.05, 0.03, 0.02, 0.02$.
+
+Supponiamo che siano stati osservati 20 studi su 100 che hanno condiviso i materiali di ricerca. Calcola la distribuzione a posteriori utilizzando il metodo basato su griglia. Calcola la media della distribuzione a posteriori e l'intervallo di credibilità al 89%.
+
+:::
+
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
+
+```{r}
+sessionInfo()
+```
+
+## Bibliografia {.unnumbered}

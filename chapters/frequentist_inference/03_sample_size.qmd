@@ -1,0 +1,183 @@
+---
+execute:
+  freeze: auto
+---
+
+# La grandezza del campione {#sec-frequentist-sample-size}
+
+**Prerequisiti**
+
+**Concetti e competenze chiave**
+
+**Preparazione del Notebook**
+
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(readr)
+```
+
+## Introduzione
+
+La scelta della dimensione campionaria è cruciale per garantire che i risultati di uno studio siano affidabili, bilanciando precisione e costi. In questo capitolo, analizzeremo come calcolare la dimensione campionaria necessaria per stimare la **media di una popolazione** con un margine di errore prefissato e un determinato livello di confidenza. Utilizzeremo un esempio psicologico per illustrare il processo e fornire implementazioni in R.
+
+## La Logica Dietro la Scelta della Dimensione Campionaria
+
+In psicologia, stimare la media di una variabile (ad esempio, il punteggio medio di una scala psicometrica) è un'operazione comune. Campioni più grandi garantiscono:
+
+- **Stime più precise:** La varianza dell'estimatore diminuisce con l'aumentare della dimensione campionaria.
+- **Maggiore fiducia nei risultati:** Il margine di errore si restringe.
+
+Tuttavia, i campioni più grandi comportano costi più elevati in termini di tempo e risorse. Pertanto, il problema si riduce spesso a determinare il **campione più piccolo che garantisce la precisione richiesta**.
+
+## Calcolo della Dimensione Campionaria: Derivazione della Formula
+
+Per campioni sufficientemente grandi, la media stimata $\bar{X}$ segue una distribuzione normale:
+
+$$
+\bar{X} \sim \mathcal{N}\left(\mu, \frac{\sigma^2}{n}\right),
+$$
+
+dove $n$ è la dimensione del campione, $\mu$ è la vera media della popolazione e $\sigma^2$ è la varianza della popolazione.
+
+Il nostro obiettivo è trovare la dimensione campionaria $n$ tale che:
+
+$$
+P\left(|\bar{X} - \mu| < E\right) \geq 0.95,
+$$
+
+dove:
+
+- $\bar{X}$ è la media campionaria,
+- $\mu$ è la media della popolazione,
+- $E$ è il margine di errore massimo accettabile.
+
+Sappiamo che, per il **teorema centrale del limite** o per le proprietà della distribuzione normale:
+
+$$
+\bar{X} \sim \mathcal{N}\left(\mu, \frac{\sigma^2}{n}\right),
+$$
+
+dove $\sigma^2$ è la varianza della popolazione e $n$ è la dimensione campionaria. 
+
+Per trasformare in termini della variabile standardizzata $Z$, utilizziamo:
+
+$$
+Z = \frac{\bar{X} - \mu}{\sigma / \sqrt{n}},
+$$
+
+che implica:
+
+$$
+\bar{X} \sim \mathcal{N}\left(0, 1\right).
+$$
+
+Pertanto, la probabilità richiesta si riscrive:
+
+$$
+P\left(|\bar{X} - \mu| < E\right) = P\left(|Z| < z_{0.025}\right),
+$$
+
+dove $z_{0.025} = 1.96$ è il quantile superiore della distribuzione normale standard, corrispondente a un livello di confidenza del $95\%$.
+
+Dalla definizione della variabile standardizzata:
+
+$$
+Z = \frac{\bar{X} - \mu}{\sigma / \sqrt{n}},
+$$
+
+possiamo ricavare la relazione per il margine di errore:
+
+$$
+|\bar{X} - \mu| < E \implies Z = \frac{\bar{X} - \mu}{\sigma / \sqrt{n}} \implies |\frac{\bar{X} - \mu}{\sigma / \sqrt{n}}| < \frac{E}{\sigma / \sqrt{n}}.
+$$
+
+Sostituendo la condizione $|Z| < z_{0.025}$, otteniamo:
+
+$$
+\frac{E}{\sigma / \sqrt{n}} = z_{0.025}.
+$$
+
+Moltiplichiamo entrambi i membri per $\sigma / \sqrt{n}$:
+
+$$
+E = z_{0.025} \cdot \frac{\sigma}{\sqrt{n}}.
+$$
+
+Isoliamo $\sqrt{n}$ dividendo entrambi i membri per $z_{0.025} \cdot \sigma$:
+
+$$
+\sqrt{n} = \frac{z_{0.025} \cdot \sigma}{E}.
+$$
+
+Per ottenere $n$, eleviamo entrambi i membri al quadrato:
+
+$$
+n = \left(\frac{z_{0.025} \cdot \sigma}{E}\right)^2.
+$$
+
+In conclusione, la dimensione campionaria minima $n$ necessaria per soddisfare il margine di errore $E$ e il livello di confidenza richiesto è:
+
+$$
+n = \left(\frac{z_{0.025} \cdot \sigma}{E}\right)^2.
+$$
+
+
+## Stima della Media del Punteggio di Autostima
+
+Per fare un esempio, immaginiamo di voler stimare la media del punteggio di autostima in una popolazione di giovani adulti. Utilizziamo la **Rosenberg Self-Esteem Scale (RSES)**, che assegna un punteggio compreso tra 0 e 30.
+
+**Dettagli del problema:**
+
+- Deviazione standard del punteggio: $\sigma = 6$ (stimata da studi precedenti).
+- Margine di errore massimo accettabile: $E = 2$.
+- Livello di confidenza: $95\%$.
+
+Implementiamo in R la formula derivata in precedenza.
+
+```{r}
+# Parametri del problema
+sigma <- 6     # Deviazione standard del punteggio RSES
+E <- 2         # Margine di errore desiderato
+z_alpha <- qnorm(0.975)  # Quantile superiore della distribuzione normale (95% confidenza)
+
+# Calcolo della dimensione campionaria
+n <- (z_alpha * sigma / E)^2
+n <- ceiling(n)  # Arrotondamento all'intero successivo
+n
+```
+
+In conclusione, la dimensione campionaria minima necessaria per stimare la media del punteggio di autostima con un margine di errore massimo di 2 punti e un livello di confidenza del 95% è $n = 35$.
+
+
+### Approfondimenti
+
+1. **Precisione e Livello di Confidenza**  
+   Aumentando $n$, la varianza di $\bar{X}$ diminuisce:
+   
+   $$
+   \text{Var}(\bar{X}) = \frac{\sigma^2}{n}.
+   $$
+   
+   Questo restringe l'intervallo di confidenza e migliora la precisione.
+
+2. **Costo e Praticità**  
+   Un campione più grande aumenta i costi. È importante trovare il giusto compromesso tra precisione e fattibilità.
+
+3. **Adattamento ad Altri Livelli di Confidenza**  
+   Per altri livelli di confidenza, basta modificare il quantile $z_{\alpha/2}$. Ad esempio, per un livello di confidenza del 99%, $z_{0.005} \approx 2.576$.
+
+
+## Riflessioni Conclusive
+
+Determinare la dimensione del campione è essenziale per ogni studio psicologico. Un approccio matematico rigoroso ci permette di bilanciare la precisione delle stime con i vincoli di risorse. 
+
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
+
+```{r}
+sessionInfo()
+```
+

@@ -1,0 +1,195 @@
+---
+execute:
+  freeze: auto
+---
+
+# Diagramma quantile-quantile {#sec-prob-qq-plot}
+
+
+**Prerequisiti**
+
+**Concetti e Competenze Chiave**
+
+- Comprendere il concetto di diagramma quantile-quantile.
+- Sapere svolgere i calcoli "a mano" e usando le funzioni specializzate.
+
+**Preparazione del Notebook**
+
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(mice)
+```
+
+## Introduzione 
+
+L'obiettivo di questo breve capitolo è spiegare il *diagramma quantile-quantile* (QQ-plot) e illustrarne l'utilità come strumento per analizzare visivamente la conformità di un dataset a una distribuzione teorica, in particolare alla distribuzione normale. Il QQ-plot è una tecnica essenziale per chi lavora con dati che si presume seguano una distribuzione specifica, e rappresenta un passaggio cruciale in molte analisi statistiche, soprattutto per verificare l'assunto di normalità.
+
+Nelle analisi statistiche, si parte spesso dall'assunzione che i dati seguano una distribuzione specifica, come la distribuzione normale. Tuttavia, questa ipotesi deve essere verificata. Un QQ-plot permette di:
+
+- *Valutare graficamente la normalità dei dati*: Se i punti nel diagramma seguono approssimativamente una linea retta, i dati possono essere considerati normalmente distribuiti. In caso contrario, il QQ-plot rivela deviazioni dalla normalità, come code pesanti o asimmetrie.
+  
+- *Identificare outlier*: Gli outlier nei dati saranno visibili come punti che si discostano significativamente dalla linea retta del QQ-plot.
+  
+- *Confrontare distribuzioni*: Il QQ-plot non si limita solo alla distribuzione normale, ma può essere utilizzato per confrontare la distribuzione del campione con qualsiasi distribuzione teorica, facilitando l'analisi di dati con forme di distribuzione complesse.
+
+Il QQ-plot è costruito tracciando i *quantili del campione* contro i *quantili teorici* di una distribuzione di riferimento. L’interpretazione è piuttosto semplice:
+
+- Se il campione segue la distribuzione teorica, i punti nel QQ-plot si allineano lungo una linea retta di pendenza 1 (e intercetta 0 nel caso di distribuzione normale standardizzata).
+- La deviazione dalla linea retta indica differenze nella distribuzione del campione rispetto alla distribuzione teorica:
+  - *Intercetta diversa da 0*: indica che la media del campione differisce dalla media della distribuzione teorica.
+  - *Pendenza diversa da 1*: indica una differenza nella varianza tra il campione e la distribuzione teorica.
+  - *Curve*: indicano deviazioni sistematiche, come code pesanti o distribuzioni asimmetriche.
+
+Il QQ-plot è particolarmente utile nelle seguenti situazioni:
+
+- *Pre-analisi statistica*: Prima di applicare tecniche come la regressione lineare, dove l'assunzione di normalità è cruciale, un QQ-plot permette di diagnosticare la normalità dei residui.
+  
+- *Verifica della bontà del fit*: Quando si utilizza un modello per stimare la distribuzione di un dataset, il QQ-plot permette di confrontare visivamente quanto il modello si adatti bene ai dati osservati.
+
+- *Identificazione di dati anomali*: Un QQ-plot può evidenziare valori atipici, che potrebbero influenzare negativamente i risultati dell'analisi, permettendo di valutare la necessità di una trasformazione dei dati o di un trattamento degli outlier.
+
+Nel capitolo che segue, costruiremo e analizzeremo QQ-plot per tre casi tipici:
+
+1. *Campione con stessa media e varianza della distribuzione teorica*.
+2. *Campione con media diversa ma stessa varianza*.
+3. *Campione con media e varianza diverse*.
+
+Simuleremo i dati, li ordineremo, calcoleremo manualmente i quantili teorici e infine utilizzeremo librerie specializzate per replicare e confrontare i risultati. Questo approccio pratico ci permetterà di comprendere a fondo l'utilità e il funzionamento del QQ-plot.
+
+## Comprendere e Costruire un QQ-Plot (Distribuzione Normale)
+
+Un *QQ-plot* (Quantile-Quantile plot) è uno strumento grafico utilizzato per confrontare la distribuzione di un campione con una distribuzione teorica, spesso la distribuzione normale. Il QQ-plot aiuta a visualizzare se un dataset segue una distribuzione specifica, tracciando i quantili del campione contro i quantili della distribuzione teorica.
+
+### Passi per Costruire un QQ-Plot
+
+1. **Ordinare i Dati**: Disporre i dati del campione in ordine crescente.
+2. **Determinare i Quantili Teorici**: Per una distribuzione normale, i quantili corrispondono all'inverso della funzione di distribuzione cumulativa (CDF) della distribuzione normale.
+3. **Confrontare i Quantili**: Tracciare i quantili del campione rispetto ai quantili della distribuzione teorica. Se il campione proviene dalla distribuzione teorica, i punti dovrebbero trovarsi approssimativamente su una linea retta.
+
+### Caso 1: Campione con Stessa Media e Varianza della Distribuzione Normale
+
+Supponiamo che il campione provenga da una distribuzione normale $N(\mu = 0, \sigma^2 = 1)$, esattamente come la distribuzione teorica.
+
+#### Simulazione dei Dati
+
+Iniziamo simulando un piccolo dataset da $N(0, 1)$:
+
+```{r}
+# Generiamo 20 punti dati da N(0, 1)
+set.seed(42)  # Per garantire la riproducibilità
+dati_campione <- rnorm(20, mean = 0, sd = 1)
+
+# Ordiniamo i dati del campione
+campione_ordinato <- sort(dati_campione)
+
+# Calcoliamo i quantili teorici da N(0, 1)
+quantili_teorici <- qnorm((seq(1, 20) - 0.5) / 20)
+
+# Tracciamo il QQ-plot
+plot(quantili_teorici, campione_ordinato,
+     xlab = "Quantili Teorici", ylab = "Quantili del Campione",
+     main = "QQ-Plot: Stessa Media e Varianza", pch = 16)
+abline(0, 1, col = "red", lwd = 2)  # Linea y = x
+```
+
+In questo caso, i punti del QQ-plot dovrebbero allinearsi alla linea rossa, indicando che la distribuzione del campione corrisponde a quella teorica.
+
+---
+
+### Caso 2: Campione con Media Diversa (Intercetta ≠ 0)
+
+Simuliamo un campione da $N(2, 1)$, con una media diversa ma la stessa varianza:
+
+```{r}
+# Generiamo 20 punti dati da N(2, 1)
+dati_campione_media_spostata <- rnorm(20, mean = 2, sd = 1)
+
+# Ordiniamo i dati del campione
+campione_ordinato_media_spostata <- sort(dati_campione_media_spostata)
+
+# Tracciamo il QQ-plot
+plot(quantili_teorici, campione_ordinato_media_spostata,
+     xlab = "Quantili Teorici", ylab = "Quantili del Campione",
+     main = "QQ-Plot: Media Diversa (Intercetta ≠ 0)", pch = 16)
+abline(0, 1, col = "red", lwd = 2)  # Linea y = x
+```
+
+In questo caso, i punti dovrebbero seguire una linea retta ma essere spostati verticalmente, indicando una media diversa (intercetta ≠ 0).
+
+---
+
+### Caso 3: Campione con Media e Varianza Diverse (Pendenza ≠ 1)
+
+Simuliamo un campione da $N(2, 2^2)$, con una media e una varianza diverse:
+
+```{r}
+# Generiamo 20 punti dati da N(2, 2^2)
+dati_campione_varianza_spostata <- rnorm(20, mean = 2, sd = 2)
+
+# Ordiniamo i dati del campione
+campione_ordinato_varianza_spostata <- sort(dati_campione_varianza_spostata)
+
+# Tracciamo il QQ-plot
+plot(quantili_teorici, campione_ordinato_varianza_spostata,
+     xlab = "Quantili Teorici", ylab = "Quantili del Campione",
+     main = "QQ-Plot: Media e Varianza Diverse (Pendenza ≠ 1)", pch = 16)
+abline(0, 1, col = "red", lwd = 2)  # Linea y = x
+```
+
+In questo caso, i punti si discosteranno sia verticalmente (per la media diversa) sia rispetto alla pendenza della linea (per la varianza diversa).
+
+---
+
+### Calcolo Manuale del QQ-Plot
+
+Per ciascun caso sopra, i passaggi sono i seguenti:
+
+1. **Ordinamento dei dati del campione**: Questo fornisce i quantili del campione.
+2. **Calcolo dei quantili teorici**: Utilizzando la funzione inversa della CDF per la distribuzione normale.
+
+Esempio in R:
+
+```{r}
+# Calcolo manuale dei quantili teorici
+quantili_teorici_manuali <- function(n) {
+  sapply(1:n, function(i) qnorm((i - 0.5) / n))
+}
+
+n <- length(dati_campione)
+quantili_teorici_calcolati <- quantili_teorici_manuali(n)
+quantili_teorici_calcolati
+```
+
+---
+
+### Utilizzo di Funzioni Specializzate
+
+In R, il pacchetto base offre la funzione `qqnorm()` per generare QQ-plot. Ad esempio:
+
+```{r}
+# Generazione del QQ-plot con qqnorm
+qqnorm(dati_campione, main = "QQ-Plot: Stessa Media e Varianza")
+qqline(dati_campione, col = "red", lwd = 2)  # Linea di riferimento
+```
+
+Possiamo ripetere lo stesso per i campioni con media e varianza spostate.
+
+--- 
+
+Questo approccio fornisce un'analisi completa della corrispondenza tra distribuzioni teoriche e campioni simulati utilizzando QQ-plot.
+
+## Conclusione
+
+Questo tutorial mostra come costruire manualmente un QQ-plot e interpretarlo in diversi casi che coinvolgono variazioni nella media e nella varianza del campione.
+
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered}
+
+```{r}
+sessionInfo()
+```
+
+

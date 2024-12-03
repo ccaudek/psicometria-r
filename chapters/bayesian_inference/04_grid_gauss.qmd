@@ -1,0 +1,214 @@
+---
+execute:
+  freeze: auto
+---
+
+# Calcolo della Distribuzione a Posteriori Gaussiana tramite Metodo a Griglia {#sec-gauss-grid}
+
+**Prerequisiti**
+
+**Concetti e Competenze Chiave**
+
+**Preparazione del Notebook**
+
+```{r}
+here::here("code", "_common.R") |>
+    source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(reshape2, )
+```
+
+## Introduzione 
+
+In questo capitolo, estenderemo la discussione precedente sul calcolo della distribuzione a posteriori utilizzando il metodo basato su griglia, applicandolo questa volta a un caso con verosimiglianza gaussiana. In particolare, ci concentreremo su come costruire un modello gaussiano per descrivere l'intelligenza.
+
+Immaginiamo di condurre uno studio sulla plusdotazione, considerando l'approccio psicometrico. Secondo questo approccio, una persona è considerata plusdotata se ha un QI (Quoziente Intellettivo) di 130 o superiore (Robinson, Zigler, & Gallagher, 2000). Anche se l'uso di un QI di 130 come soglia è il criterio più comune, non è universalmente accettato. L'intelligenza nei bambini plusdotati non è solo superiore rispetto a quella dei loro pari, ma è qualitativamente diversa (Lubart & Zenasni, 2010). I bambini plusdotati tendono a mostrare caratteristiche come un vocabolario ampio, un linguaggio molto sviluppato, processi di ragionamento avanzati, eccellente memoria, vasti interessi, forte curiosità, empatia, capacità di leadership, abilità visive elevate, impegno in situazioni sfidanti e un forte senso di giustizia (Song & Porath, 2005).
+
+Nella simulazione che seguirà, assumeremo che i dati provengano da una distribuzione normale. Per semplicità, considereremo che la deviazione standard sia nota e pari a 5. Il parametro della media sarà l'oggetto della nostra inferenza.
+
+## Dati
+
+Supponiamo di avere un campione di 10 osservazioni. I dati saranno generati casualmente da una distribuzione normale con media 130 e deviazione standard 5.
+
+```{r}
+set.seed(123) # Per la riproducibilità
+vera_media <- 130 # Media vera
+sigma_conosciuta <- 5 # Deviazione standard conosciuta
+dimensione_campione <- 10 # Dimensione del campione
+
+# Generare un campione
+campione <- round(rnorm(n = dimensione_campione, mean = vera_media, sd = sigma_conosciuta))
+campione
+```
+
+## Griglia
+
+Creiamo ora una griglia di 100 valori compresi tra 110 e 150.
+
+```{r}
+mu_griglia <- seq(110, 150, length.out = 100)
+mu_griglia
+```
+
+## Calcolo della Verosimiglianza
+
+Per ogni valore della griglia, calcoliamo la verosimiglianza complessiva come prodotto delle densità di probabilità.
+
+```{r}
+likelihood <- sapply(mu_griglia, function(mu) {
+    prod(dnorm(campione, mean = mu, sd = sigma_conosciuta))
+})
+likelihood
+```
+
+## Calcolo della Distribuzione a Posteriori
+
+Impostiamo una prior uniforme e calcoliamo la distribuzione a posteriori normalizzata.
+
+```{r}
+prior <- rep(1, length(mu_griglia)) # Prior uniforme
+posterior_non_norm <- likelihood * prior
+posterior <- posterior_non_norm / sum(posterior_non_norm) # Normalizzazione
+```
+
+Visualizzazione:
+
+```{r}
+plot(mu_griglia, posterior,
+    type = "l", main = "Distribuzione a Posteriori della Media",
+    xlab = "Media", ylab = "Probabilità"
+)
+```
+
+### Aggiunta di una Prior Informativa
+
+Usiamo una prior gaussiana con media 140 e deviazione standard 3.
+
+```{r}
+prior <- dnorm(mu_griglia, mean = 140, sd = 3)
+
+posterior_non_norm <- likelihood * prior
+posterior <- posterior_non_norm / sum(posterior_non_norm)
+
+# Grafico
+plot(mu_griglia, posterior,
+    type = "l", col = "blue", lwd = 2,
+    main = "Distribuzione a Posteriori e Prior della Media",
+    xlab = "Media", ylab = "Densità"
+)
+lines(mu_griglia, prior / sum(prior), col = "red", lty = 2)
+legend("topright", legend = c("Posterior", "Prior"), col = c("blue", "red"), lty = c(1, 2))
+```
+
+## Campionamento dalla Posterior
+
+Generiamo un campione dalla distribuzione a posteriori.
+
+```{r}
+set.seed(123)
+indice_campionato <- sample(1:length(mu_griglia), size = 1000, replace = TRUE, prob = posterior)
+media_campionata <- mu_griglia[indice_campionato]
+
+# Istogramma dei campioni
+hist(media_campionata,
+    main = "Campionamento dalla Posterior", xlab = "Media",
+    breaks = 20, col = "lightblue", border = "white"
+)
+
+# Media e intervallo di credibilità
+mean(media_campionata)
+quantile(media_campionata, c(0.03, 0.97))
+```
+
+## Calcolo della Log-Verosimiglianza
+
+Utilizziamo i logaritmi per migliorare la stabilità numerica.
+
+```{r}
+log_likelihood <- sapply(mu_griglia, function(mu) {
+    sum(dnorm(campione, mean = mu, sd = sigma_conosciuta, log = TRUE))
+})
+
+log_prior <- dnorm(mu_griglia, mean = 140, sd = 3, log = TRUE)
+
+log_posterior_non_norm <- log_likelihood + log_prior
+log_posterior <- log_posterior_non_norm - max(log_posterior_non_norm) # Stabilizzazione
+posterior <- exp(log_posterior) / sum(exp(log_posterior))
+
+# Grafico
+plot(mu_griglia, posterior,
+    type = "l", col = "darkgreen", lwd = 2,
+    main = "Distribuzione a Posteriori con Log-Verosimiglianza",
+    xlab = "Media", ylab = "Probabilità"
+)
+```
+
+## Estensione alla Deviazione Standard Ignota
+
+Per una griglia bidimensionale di valori di $\mu$ e $\sigma$:
+
+```{r}
+# Define the grid for mu and sigma
+mu_griglia <- seq(110, 150, length.out = 100)
+sigma_griglia <- seq(1, 10, length.out = 50)
+
+# Create combinations of mu and sigma using expand.grid
+grid <- expand.grid(mu = mu_griglia, sigma = sigma_griglia)
+
+# Compute the log-likelihood for each combination of mu and sigma
+log_likelihood <- apply(grid, 1, function(params) {
+    mu <- params[1]
+    sigma <- params[2]
+    sum(dnorm(campione, mean = mu, sd = sigma, log = TRUE))
+})
+
+# Reshape log-likelihood into a matrix
+log_likelihood_2d <- matrix(log_likelihood, nrow = length(mu_griglia), ncol = length(sigma_griglia))
+
+# Compute priors for mu and sigma
+log_prior_mu <- dnorm(mu_griglia, mean = 140, sd = 5, log = TRUE)
+log_prior_sigma <- dnorm(sigma_griglia, mean = 5, sd = 2, log = TRUE)
+
+# Combine priors into a grid
+log_prior_2d <- outer(log_prior_mu, log_prior_sigma, "+")
+
+# Compute log-posterior
+log_posterior_2d <- log_likelihood_2d + log_prior_2d
+log_posterior_2d <- log_posterior_2d - max(log_posterior_2d) # Stabilize
+posterior_2d <- exp(log_posterior_2d)
+posterior_2d <- posterior_2d / sum(posterior_2d) # Normalize
+
+# Convert posterior_2d to a data frame for visualization
+library(reshape2)
+posterior_df <- melt(posterior_2d)
+names(posterior_df) <- c("mu_idx", "sigma_idx", "posterior")
+posterior_df$mu <- mu_griglia[posterior_df$mu_idx]
+posterior_df$sigma <- sigma_griglia[posterior_df$sigma_idx]
+
+# Plot the posterior distribution
+library(ggplot2)
+ggplot(posterior_df, aes(x = mu, y = sigma, fill = posterior)) +
+    geom_tile() +
+    scale_fill_viridis_c() +
+    labs(
+        title = "Distribuzione a Posteriori Bidimensionale",
+        x = "Media ($\\mu$)", y = "Deviazione Standard ($\\sigma$)"
+    )
+
+```
+
+## Riflessioni Conclusive
+
+Quando si passa alla stima simultanea di più parametri, come la media ($\mu$) e la deviazione standard ($\sigma$), l'analisi diventa notevolmente più complessa. Questo perché occorre considerare un numero molto maggiore di combinazioni di parametri rispetto alla stima di un solo parametro, aumentando così il carico computazionale. Inoltre, la scelta delle priors per ciascun parametro richiede particolare attenzione, poiché queste influenzeranno in modo diretto le stime a posteriori.
+
+In scenari dove lo spazio dei parametri è multidimensionale o quando l'esplorazione della griglia diventa impraticabile, l'uso di metodi avanzati come il campionamento di Markov Chain Monte Carlo (MCMC) diventa indispensabile. Questi metodi permettono di campionare in modo efficiente dalla distribuzione a posteriori, senza la necessità di esplorare esplicitamente ogni combinazione possibile di parametri, rendendo l'analisi più gestibile anche in contesti complessi.
+
+In conclusione, l'estensione dell'approccio bayesiano a problemi con più parametri sconosciuti richiede un'attenzione ancora maggiore nella definizione dello spazio dei parametri, nella selezione delle priors appropriate e nel calcolo delle distribuzioni a posteriori. L'adozione di tecniche come l'MCMC può facilitare questo processo, permettendo di affrontare in modo efficiente problemi che altrimenti sarebbero proibitivi dal punto di vista computazionale.
+
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
+
+```{r}
+sessionInfo()
+```
