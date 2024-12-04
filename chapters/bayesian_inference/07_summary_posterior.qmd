@@ -1,0 +1,319 @@
+---
+execute:
+  freeze: auto
+---
+
+# Sintesi a posteriori {#sec-bayesian-inference-summary-posterior}
+
+
+**Prerequisiti**
+
+**Concetti e competenze chiave**
+
+**Preparazione del Notebook**
+
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(mice)
+```
+
+## Introduzione 
+
+In questo capitolo, concentriamo la nostra attenzione sulla sintesi dell'informazione racchiusa nella distribuzione a posteriori, la quale rappresenta il nostro livello di incertezza riguardo al parametro o ai parametri incogniti oggetto dell'inferenza.
+
+## Riepilogo numerico
+
+La distribuzione a posteriori contiene in sé tutte le informazioni disponibili sui potenziali valori del parametro. Nel caso di un parametro unidimensionale o bidimensionale, possiamo rappresentare la distribuzione a posteriori mediante un grafico $p(\theta \mid y)$.
+
+Tuttavia, quando ci troviamo di fronte a vettori di parametri con più di due dimensioni, risulta vantaggioso eseguire una sintesi numerica della distribuzione a posteriori. Possiamo distinguere due forme di sintesi numerica della distribuzione a posteriori:
+
+- Stima puntuale;
+- Intervallo di credibilità.
+
+## Stima puntuale
+
+Nel contesto dell'inferenza bayesiana, il processo di stima del valore più credibile del parametro $\theta$ tramite la distribuzione a posteriori si avvale di tre statistiche: la moda, la mediana e la media, la cui scelta è guidata dalla forma della distribuzione a posteriori. Queste statistiche sono utilizzate per ottenere una stima puntuale della tendenza centrale della distribuzione a posteriori, che a sua volta fornisce il "valore più credibile" del parametro. Questo valore rappresenta la stima a cui attribuiamo il massimo grado di fiducia soggettiva, basandoci sui dati osservati e sulle nostre credenze a priori.
+
+1. **Moda (Massimo a posteriori, MAP)**:
+
+   La moda rappresenta il valore più probabile di un parametro, ovvero quello che massimizza la distribuzione a posteriori. Questo valore è noto come "massimo a posteriori" (MAP). La stima MAP prende origine dalla stima di massima verosimiglianza (MLE), che cerca il valore di $\theta$, denotato come $\hat{\theta}_{ML}$, che massimizza la funzione di verosimiglianza $L(\theta \mid y)$:
+
+$$ 
+\hat{\theta}_{ML} = \arg \max_\theta L(\theta \mid y). 
+$$
+
+Nell'inferenza bayesiana, $\theta$ è considerato una variabile casuale, e si specifica una distribuzione a priori su $\theta$ per riflettere l'incertezza sul suo valore. Integrando l'informazione a priori nella funzione di verosimiglianza, si ottiene la formula per la stima MAP:
+
+$$ 
+\hat{\theta}_{MAP} = \arg \max_\theta L(\theta \mid y)p(\theta). 
+$$
+
+Questa formula evidenzia che la stima MAP corrisponde al valore che massimizza la densità a posteriori di $\theta$ dati i dati osservati $y$, ovvero il valore che rappresenta la moda della distribuzione a posteriori.
+
+   Sebbene il concetto di MAP sia intuitivo, presenta diversi problemi che ne limitano l'uso nella pratica.
+
+   La prima difficoltà è di tipo computazionale: con i metodi MCMC comunemente utilizzati per stimare le distribuzioni a posteriori, è molto difficile individuare con precisione la posizione esatta del MAP nello spazio delle distribuzioni posteriori.
+
+   Il secondo problema è legato all'uso dell'inferenza bayesiana in modelli complessi e in situazioni non asintotiche. In questi casi, la verosimiglianza o la distribuzione a posteriori possono avere forme irregolari o non normali. Se la distribuzione a posteriori è molto asimmetrica, il MAP potrebbe non rappresentare adeguatamente dove si concentra la maggior parte della probabilità. Di conseguenza, il MAP non sempre fornisce un'idea accurata del comportamento complessivo della distribuzione a posteriori.
+
+2. **Media a posteriori**:
+
+La media a posteriori è il valore atteso del parametro $\theta$, calcolato sulla base della distribuzione a posteriori. In termini matematici, nel caso continuo, è espressa dalla formula:
+
+$$ 
+E(\theta \mid y) = \int_{-\infty}^{\infty} \theta \, p(\theta \mid y) \, d\theta. 
+$$
+
+3. **Mediana**:
+
+La mediana è il valore del parametro per cui il 50% della massa di probabilità a posteriori si distribuisce equamente a sinistra e a destra. È una misura robusta della tendenza centrale, particolarmente utile in presenza di distribuzioni asimmetriche o multimodali, dove la moda potrebbe non fornire una stima accurata del valore più probabile del parametro.
+
+Per valutare l'incertezza associata al parametro $\theta$, è utile calcolare la varianza a posteriori. Questa varianza è basata sulla tendenza centrale definita dalla media a posteriori, e la sua radice quadrata fornisce la deviazione standard a posteriori, che misura l'incertezza a posteriori relativa a $\theta$, espressa nelle stesse unità di misura dei dati. La formula per la varianza a posteriori è data da:
+
+$$ 
+V(\theta|y) = E[((\theta - E[(\theta|y)])^2 |y) = \int_{-\infty}^{\infty} (\theta - E[\theta | y])^2 p(\theta | y) d\theta = E[\theta^2 |y] - E[\theta|y]^2. 
+$$
+
+In sintesi, la media, la moda e la mediana a posteriori, insieme alla varianza a posteriori, forniscono una descrizione comprensiva del comportamento della distribuzione a posteriori di $\theta$, permettendoci di derivare stime puntuali e misurare l'incertezza associata a $\theta$ in modo informativo.
+
+## Intervallo di credibilità
+
+Nell'inferenza bayesiana, l'intervallo di credibilità è uno strumento utilizzato per definire un intervallo che contiene una determinata percentuale della massa della distribuzione a posteriori del parametro $\theta$. Questo intervallo riflette l'incertezza associata alla stima del parametro: un intervallo più ampio suggerisce una maggiore incertezza. Lo scopo principale dell'intervallo di credibilità è fornire una misura quantitativa dell'incertezza riguardante $\theta$.
+
+A differenza degli intervalli di confidenza frequentisti, non esiste un unico intervallo di credibilità per un dato livello di confidenza $(1 - \alpha) \cdot 100\%$. In effetti, è possibile costruire un numero infinito di tali intervalli. Per questo motivo, è necessario stabilire criteri aggiuntivi per selezionare l'intervallo di credibilità più appropriato. Tra le opzioni più comuni ci sono l'intervallo di credibilità simmetrico e l'intervallo di massima densità posteriore (HPD).
+
+1. **Intervallo di Credibilità Simmetrico**:
+
+Questo tipo di intervallo è centrato rispetto al punto di stima puntuale. Se $\hat{\theta}$ rappresenta la stima del parametro, l'intervallo simmetrico avrà la forma $(\hat{\theta} - a, \hat{\theta} + a)$, dove $a$ è un valore positivo scelto in modo tale che la massa totale inclusa sia pari a $(1 - \alpha)$. Più formalmente, un intervallo di credibilità simmetrico al livello $\alpha$ può essere espresso come:
+
+$$ 
+I_{\alpha} = [q_{\alpha/2}, q_{1 - \alpha/2}], 
+$$
+
+dove $q_z$ rappresenta il quantile $z$ della distribuzione a posteriori. Ad esempio, un intervallo di credibilità simmetrico al 94% sarà:
+
+$$ 
+I_{0.06} = [q_{0.03}, q_{0.97}], 
+$$
+
+dove il 3% della massa a posteriori si trova in ciascuna delle due code della distribuzione.
+
+2. **Intervallo di Credibilità Più Stretto (Intervallo di Massima Densità Posteriore, HPD)**:
+
+L'intervallo di massima densità posteriore (HPD) è l'intervallo più stretto possibile che contiene il $(1 - \alpha) \cdot 100\%$ della massa a posteriori. A differenza dell'intervallo simmetrico, l'HPD include tutti i valori di $\theta$ che hanno la maggiore densità a posteriori. Per costruirlo, si disegna una linea orizzontale sulla distribuzione a posteriori e si regola l'altezza della linea in modo che l'area sotto la curva corrisponda a $(1 - \alpha)$. L'HPD risulta essere il più stretto tra tutti gli intervalli possibili per lo stesso livello di confidenza. Nel caso di una distribuzione a posteriori unimodale e simmetrica, l'HPD coincide con l'intervallo di credibilità simmetrico.
+
+### Interpretazione
+
+Il calcolo degli intervalli di credibilità, in particolare dell'intervallo di massima densità posteriore (HPD), richiede spesso l'uso di software statistici avanzati. Questo perché determinare manualmente tali intervalli può essere complicato, soprattutto nei modelli bayesiani con distribuzioni posteriori complesse o quando sono necessarie simulazioni numeriche per stimare la distribuzione a posteriori.
+
+Un aspetto cruciale dell'inferenza bayesiana riguarda l'interpretazione dell'incertezza. Nel contesto frequentista, si considera il parametro, come ad esempio la media della popolazione $\mu$, come un valore fisso ma sconosciuto. L'inferenza frequentista si basa sull'immaginare un numero infinito di campioni ripetuti dalla popolazione. Per ogni campione, si può calcolare una media campionaria $\bar{x}$ e formare un intervallo di confidenza al $100(1-\alpha)\%$. L'interpretazione corretta in termini frequentisti è che, nel lungo periodo, il $100(1-\alpha)\%$ degli intervalli di confidenza costruiti con questo metodo conterrà il vero valore del parametro $\mu$. Tuttavia, per un singolo intervallo calcolato, la probabilità che contenga effettivamente $\mu$ è o 0 o 1, poiché $\mu$ è considerato un valore fisso.
+
+Nel framework bayesiano, invece, il parametro è trattato come una variabile aleatoria con una distribuzione di probabilità. Campionando dalla distribuzione a posteriori dei parametri, possiamo ottenere quantili che ci permettono di calcolare direttamente la probabilità che un parametro rientri in un determinato intervallo. Ad esempio, un intervallo di credibilità al 95% indica che c'è una probabilità del 95% che il parametro sia contenuto all'interno di quell'intervallo, data l'evidenza osservata. Questa interpretazione differisce profondamente da quella frequentista e risulta più intuitiva, poiché riflette direttamente il grado di incertezza che abbiamo riguardo al parametro.
+
+In sintesi, mentre l'intervallo di confidenza frequentista riguarda la ripetizione ipotetica del campionamento, l'intervallo di credibilità bayesiano fornisce una misura diretta dell'incertezza attuale sul valore di un parametro, basata sui dati osservati e sulle informazioni a priori. Questo approccio è spesso considerato più vicino al senso comune quando si tratta di interpretare la probabilità associata ai parametri.
+
+## Verifica di ipotesi bayesiana
+
+L'inferenza bayesiana può essere applicata anche nel contesto della verifica di ipotesi, in un approccio noto come <font color='orange'>verifica di ipotesi bayesiana</font>. In questo tipo di inferenza, l'obiettivo è valutare la plausibilità che un parametro $\theta$ assuma valori all'interno di un determinato intervallo. Ad esempio, possiamo voler sapere quanto è probabile che $\theta$ sia maggiore di 0.5 o che rientri in un intervallo specifico, come [0.5, 1.0].
+
+In questo approccio, si calcola la <font color='orange'>probabilità a posteriori</font> che $\theta$ si trovi all'interno dell'intervallo di interesse. Questa probabilità viene ottenuta integrando la distribuzione a posteriori su tale intervallo. Quindi, invece di rifiutare o accettare un'ipotesi come nel test di ipotesi frequentista, la verifica di ipotesi bayesiana fornisce una misura diretta della probabilità che un parametro rientri in un intervallo specifico, dato l'evidenza osservata e le informazioni a priori.
+
+In altre parole, questo approccio consente di quantificare la nostra incertezza rispetto all'affermazione che $\theta$ rientri in un certo intervallo, fornendo una probabilità che rappresenta direttamente la plausibilità di quell'ipotesi.
+
+::: {#exm-}
+
+Per illustrare l'approccio bayesiano, consideriamo i dati relativi ai punteggi del BDI-II (*Beck Depression Inventory - Second Edition*) di 30 soggetti clinici, come riportato nello studio condotto da @zetsche_2019future. Il BDI-II è uno strumento per valutare la gravità dei sintomi depressivi.
+
+I punteggi del BDI-II per i 30 soggetti sono:
+
+```{r}
+# Dati del BDI-II
+bdi <- c(
+  26, 35, 30, 25, 44, 30, 33, 43, 22, 43, 
+  24, 19, 39, 31, 25, 28, 35, 30, 26, 31, 
+  41, 36, 26, 35, 33, 28, 27, 34, 27, 22
+)
+bdi
+```
+
+Un punteggio BDI-II $\geq 30$ indica un livello grave di depressione. Nel nostro campione, 17 pazienti su 30 manifestano un livello grave:
+
+```{r}
+# Conteggio di depressione grave
+sum(bdi >= 30)
+```
+
+### Stima della Distribuzione a Posteriori
+
+Supponiamo di voler stimare la probabilità $\theta$ di depressione grave nei pazienti clinici utilizzando una distribuzione a priori $Beta(8, 2)$. I dati possono essere visti come una sequenza di prove Bernoulliane indipendenti, dove la presenza di depressione grave è un "successo". La verosimiglianza è quindi binomiale con parametri $n = 30$ e $y = 17$.
+
+Con una distribuzione a priori $Beta(8, 2)$, la distribuzione a posteriori di $\theta$ sarà:
+
+$$
+\text{Beta}(\alpha = 8 + 17, \beta = 2 + 30 - 17) = \text{Beta}(25, 15).
+$$
+
+#### Tracciamo la Distribuzione a Posteriori
+
+```{r}
+# Parametri della distribuzione Beta
+alpha <- 25
+beta <- 15
+
+# Calcolo della densità per valori di theta
+theta <- seq(0, 1, length.out = 200)
+posterior_density <- dbeta(theta, alpha, beta)
+
+# Grafico della distribuzione a posteriori
+ggplot(data = data.frame(theta, posterior_density), aes(x = theta, y = posterior_density)) +
+  geom_line(color = "blue") +
+  labs(
+    title = "Distribuzione a Posteriori Beta(25, 15)",
+    x = expression(theta),
+    y = "Densità di probabilità"
+  ) 
+```
+
+---
+
+### Stime Puntuali
+
+1. **Media a Posteriori**  
+La media della distribuzione a posteriori è calcolata come:
+
+$$
+\mathbb{E}(\theta | y = 17) = \frac{\alpha}{\alpha + \beta} = \frac{25}{25 + 15} = 0.625.
+$$
+
+In R:
+
+```{r}
+# Calcolo della media a posteriori
+posterior_mean <- alpha / (alpha + beta)
+posterior_mean
+```
+
+2. **Moda a Posteriori (MAP)**  
+La moda della distribuzione a posteriori è:
+
+$$
+Mo(\theta | y = 17) = \frac{\alpha - 1}{\alpha + \beta - 2} = \frac{25 - 1}{25 + 15 - 2} = 0.6316.
+$$
+
+In R:
+
+```{r}
+# Calcolo della moda a posteriori
+posterior_mode <- (alpha - 1) / (alpha + beta - 2)
+posterior_mode
+```
+
+3. **Mediana a Posteriori**  
+La mediana si ottiene utilizzando la funzione di distribuzione cumulativa inversa:
+
+```{r}
+# Calcolo della mediana a posteriori
+posterior_median <- qbeta(0.5, alpha, beta)
+posterior_median
+```
+
+---
+
+### Intervallo di Credibilità
+
+L'intervallo di credibilità simmetrico al 94% è dato dai percentili 3% e 97%:
+
+```{r}
+# Intervallo di credibilità simmetrico al 94%
+cred_interval <- qbeta(c(0.03, 0.97), alpha, beta)
+cred_interval
+```
+
+Possiamo interpretare questo intervallo come segue: c'è una certezza soggettiva del 94% che $\theta$ sia compreso tra 0.478 e 0.761.
+
+---
+
+### Verifica di Ipotesi Bayesiana
+
+Infine, calcoliamo la probabilità che $\theta > 0.5$:
+
+$$
+P(\theta > 0.5 | y = 17) = \int_{0.5}^1 f(\theta | y = 17) d\theta.
+$$
+
+In R:
+
+```{r}
+# Probabilità P(theta > 0.5)
+prob_theta_greater_0_5 <- pbeta(0.5, alpha, beta, lower.tail = FALSE)
+prob_theta_greater_0_5
+```
+
+In conclusione, utilizzando un approccio bayesiano, abbiamo stimato la distribuzione a posteriori di $\theta$, ottenuto stime puntuali e costruito intervalli di credibilità. Abbiamo inoltre calcolato la probabilità che $\theta$ superi una soglia specifica, mostrando la flessibilità e l'interpretabilità delle analisi bayesiane.
+:::
+
+## Sintesi della distribuzione a posteriori: questioni multivariate
+
+Quando si affronta un'analisi bayesiana con più parametri, la complessità aumenta. Le principali difficoltà riguardano le interazioni tra i parametri e il modo in cui queste influenzano le distribuzioni marginali. Questi fattori possono complicare notevolmente la sintesi della distribuzione a posteriori e, se non considerati attentamente, possono portare a interpretazioni errate.
+
+### Correlazioni nascoste e distribuzioni marginali
+
+Un problema comune nelle analisi con più parametri è rappresentato dalle **correlazioni tra i parametri**. Le distribuzioni marginali a posteriori, spesso riportate nei riassunti statistici, possono essere **molto fuorvianti** se considerate isolatamente. Quando i parametri sono fortemente correlati, le distribuzioni marginali possono apparire piatte o poco informative, inducendo a pensare che non ci sia molta informazione nella verosimiglianza.
+
+Tuttavia, le correlazioni tra parametri possono restringere notevolmente lo spazio delle combinazioni plausibili, escludendo vaste aree dello spazio dei parametri. Questo significa che, nonostante le marginali possano sembrare non informative, l'analisi congiunta dei parametri può rivelare una struttura sottostante che riduce l'incertezza su specifiche combinazioni. Pertanto, è essenziale esaminare le correlazioni congiunte tra i parametri per ottenere una visione più completa dell'incertezza.
+
+Con un numero maggiore di parametri, anche i grafici di correlazione bidimensionali possono diventare limitati, poiché potrebbero esistere correlazioni di ordine superiore che non emergono in rappresentazioni a due dimensioni.
+
+### Correlazioni non lineari
+
+Un'altra difficoltà significativa riguarda le **correlazioni non lineari** tra i parametri. Quando queste correlazioni sono presenti, il massimo delle distribuzioni marginali non coincide necessariamente con il massimo della distribuzione congiunta. Per esempio, se due parametri presentano una correlazione complessa, come una forma a "banana", il massimo delle distribuzioni marginali potrebbe trovarsi in una posizione diversa rispetto al massimo globale della distribuzione congiunta.
+
+Questo fenomeno rende più difficile sintetizzare correttamente la distribuzione a posteriori. In tali casi, la stima del **massimo a posteriori (MAP)** o altri riassunti, come gli **intervalli di credibilità (CI)** o gli **intervalli di massima densità a posteriori (HPD)**, calcolati sulle marginali, potrebbero essere fuorvianti. Quando la distribuzione a posteriori è asimmetrica nello spazio multivariato, le distribuzioni marginali non catturano adeguatamente le relazioni tra i parametri. Questa è una fonte comune di confusione, poiché si tende a sottovalutare l'importanza della struttura multivariata nella distribuzione a posteriori.
+
+### Strategie per affrontare queste sfide
+
+1. **Confronto tra distribuzioni predittive**:
+
+   - Confrontare la distribuzione predittiva a priori con quella a posteriori offre una visione più completa della riduzione dell'incertezza.
+   - Questo approccio è particolarmente utile in presenza di parametri multipli e correlazioni complesse, poiché la distribuzione predittiva a posteriori incorpora le interazioni tra i parametri, fornendo una rappresentazione più accurata della plausibilità dei diversi valori parametrici.
+
+2. **Analisi congiunta**:
+
+   - Esaminare le distribuzioni congiunte dei parametri, oltre alle distribuzioni marginali.
+   - Utilizzare grafici di dispersione bivariati o multivariati per visualizzare le relazioni tra i parametri.
+   - Tecniche avanzate di visualizzazione, come i **pair plots** o le **heatmap**, possono essere utili per esplorare relazioni in spazi ad alta dimensionalità.
+
+3. **Misure di dipendenza**:
+
+   - Utilizzare misure di dipendenza non lineare, come la **correlazione di Spearman** o l'**informazione mutua**, che possono catturare relazioni complesse che le misure lineari tradizionali potrebbero non rilevare.
+
+4. **Analisi di sensibilità**:
+
+   - Condurre un'analisi di sensibilità per valutare come i cambiamenti in un parametro influenzano gli altri parametri e le previsioni del modello. Questo permette di capire meglio le relazioni tra i parametri e il loro impatto sulle inferenze.
+
+5. **Tecniche di riduzione della dimensionalità**:
+
+   - Quando ci sono molti parametri, l'uso di metodi come l'**analisi delle componenti principali (PCA)** può aiutare a identificare strutture latenti e ridurre la complessità del problema, facilitando l'interpretazione dei risultati.
+
+In sintesi, l'analisi multivariata in un contesto bayesiano richiede particolare attenzione nella sintesi delle distribuzioni a posteriori. Le distribuzioni marginali possono fornire informazioni utili, ma spesso nascondono importanti correlazioni e strutture di dipendenza tra i parametri. Un'analisi completa dovrebbe combinare l'esame delle marginali con una valutazione attenta delle relazioni congiunte tra i parametri, utilizzando tecniche di visualizzazione e misure di dipendenza adeguate. Questo approccio integrato permette di comprendere più a fondo la distribuzione a posteriori e di trarre inferenze più robuste e accurate.
+
+## Riflessioni Conclusive
+
+In conclusione, la distribuzione a posteriori rappresenta la nostra conoscenza aggiornata sui parametri sconosciuti. L'impiego delle statistiche descrittive e l'analisi degli intervalli di credibilità contribuiscono a tracciare un quadro completo della distribuzione a posteriori e delle nostre inferenze riguardo al parametro di interesse.
+
+Le stime puntuali, ottenute attraverso statistiche descrittive come media, mediana o moda a posteriori, offrono una singola valutazione numerica del parametro ignoto. Gli intervalli di credibilità forniscono un intervallo di valori all'interno del quale si ritiene, con un certo grado di probabilità soggettiva, che il parametro incognito possa rientrare. Questi intervalli quantificano l'incertezza associata al parametro e consentono di esprimere il livello di fiducia soggettiva riguardo ai possibili valori del parametro dopo l'analisi dei dati. Abbiamo inoltre esaminato il concetto di test di ipotesi bayesiano, il quale può essere condotto agevolmente calcolando l'area appropriata sotto la distribuzione a posteriori, in accordo con l'ipotesi in questione.
+
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
+
+```{r}
+sessionInfo()
+```
+
+## Bibliografia {.unnumbered}
+
+
+

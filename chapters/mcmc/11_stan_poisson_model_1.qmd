@@ -1,0 +1,149 @@
+---
+execute:
+  freeze: auto
+---
+
+# Modello di Poisson (1) {#sec-mcmc-poisson-1}
+
+**Prerequisiti**
+
+**Concetti e competenze chiave**
+
+**Preparazione del Notebook**
+
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(cmdstanr, posterior)
+```
+
+## Introduction 
+
+Nel @sec-bayes-inference-gamma-poisson, abbiamo determinato la distribuzione a posteriori sia attraverso il metodo basato su griglia, sia tramite la derivazione analitica utilizzando la famiglia coniugata gamma-poisson. In questo capitolo, affronteremo lo stesso problema utilizzando Stan.
+
+## Dati
+
+Riconsideriamo lo stesso problema discusso nella sezione @sec-poisson-model. I dati disponibili sono:
+
+```{r}
+y <- c(2, 1, 3, 2, 2, 1, 1, 1)
+```
+
+## Modello di Poisson con Stan
+
+Nel modello Stan utilizzeremo una verosimiglianza di Poisson e una distribuzione a priori per il parametro $\lambda$ modellata da una distribuzione Gamma con parametri $\alpha_{\text{prior}} = 9$ e $\beta_{\text{prior}} = 2$. 
+
+```{r}
+stan_file <- here::here("stan", "gamma_poisson_mcmc.stan")
+# Create a CmdStanModel object
+mod <- cmdstan_model(stan_file)
+```
+
+```{r}
+mod$print()
+```
+
+Sistemiamo i dati nel formato richiesto da Stan.
+
+```{r}
+# Preparazione dei dati in R
+N <- length(y)
+alpha_prior <- 9
+beta_prior <- 2
+
+# Preparazione dei dati per Stan
+stan_data <- list(N = N, y = y, alpha_prior = alpha_prior, beta_prior = beta_prior)
+
+# Stampa del contenuto di stan_data
+print(stan_data)
+```
+
+Eseguiamo il campionamento.
+
+```{r}
+#| echo: false
+#| 
+fit <- mod$sample(
+  data = stan_data,
+  seed = 123,
+  chains = 4,
+  parallel_chains = 4,
+  iter_sampling = 3000, 
+  iter_warmup = 2000,
+  # adapt_delta = 0.99,
+  show_messages = FALSE
+)
+```
+
+Estraiamo un campione casuale dalla distribuzione a posteriori di `lambda`.
+
+```{r}
+lambda_samples <- fit$draws(variables = "lambda", format = "array")
+```
+
+Calcoliamo i parametri della Gamma a posteriori teorica.
+
+```{r}
+alpha_post <- alpha_prior + sum(y)
+beta_post <- beta_prior + N
+```
+
+Creiamo un istogramma con i campioni della distribuzione a posteriori di $\lambda$ e sovrapposta la densità teorica della distribuzione a posteriori.
+
+```{r}
+lambda_samples <- as.vector(lambda_samples)
+
+# Create a dataframe with lambda_samples
+lambda_samples_df <- data.frame(lambda_samples = lambda_samples)
+
+# Generate the plot
+ggplot(lambda_samples_df, aes(x = lambda_samples)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 50, fill = "blue", alpha = 0.7) +
+  stat_function(
+    fun = function(x) dgamma(x, shape = alpha_post, rate = beta_post),
+    color = "red",
+    linewidth = 1.2
+  ) +
+  ggtitle("Distribuzione a posteriori di lambda") +
+  xlab("lambda") +
+  ylab("Densità") +
+  annotate(
+    "text",
+    x = max(lambda_samples) * 0.95,
+    y = max(dgamma(lambda_samples, shape = alpha_post, rate = beta_post)) * 0.95,
+    label = paste0("alpha_post = ", round(alpha_post, 2), "\n",
+                   "beta_post = ", round(beta_post, 2)),
+    hjust = 1,
+    vjust = 1,
+    size = 5,
+    color = "black"
+  ) 
+```
+
+Otteniamo un sommario della distribuzione a posteriori dei parametri del modello.
+
+```{r}
+fit$summary()
+```
+
+Generiamo l'intervallo di credibilità al 94% per la distribuzione a posteriori del parametro `lambda`.
+
+```{r}
+# Calcolo dell'intervallo di credibilità al 94%
+credibility_interval <- quantile(lambda_samples, probs = c(0.03, 0.97))
+
+# Visualizzazione dell'intervallo
+print(credibility_interval)
+```
+
+In sintesi, analizzando i dati disponibili e utilizzando una distribuzione a priori Gamma(9, 2), possiamo affermare con un grado di certezza soggettivo del 94% che il tasso stimato di occorrenza dell'evento considerato sia di 2.2 compulsioni all'ora, con un intervallo di credibilità compreso tra 1.4 e 3.1.
+
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered}
+
+```{r}
+sessionInfo()
+```
+
