@@ -5,7 +5,18 @@ execute:
 
 # Flusso di lavoro per la pulizia dei dati {#sec-data-cleaning}
 
-**Prerequisiti**
+::: callout-note
+## In questo capitolo imparerai a
+
+- verificare, pulire e trasformare i dati per l'analisi
+- garantire riservatezza eliminando informazioni sensibili
+- documentare il dataset con un dizionario e note esplicative
+- assicurare validità, unicità e organizzazione dei dati
+- applicare regole coerenti per denominazione e codifica
+:::
+
+::: callout-tip
+## Prerequisiti
 
 - Leggere [Cleaning sample data in standardized way](https://cghlewis.com/blog/data_clean_03/) di Crystal Lewis.
 - Leggere [Getting Started Creating Data Dictionaries: How to Create a Shareable Data Set](https://journals.sagepub.com/doi/full/10.1177/2515245920928007) di @buchanan2021getting.
@@ -13,17 +24,10 @@ execute:
 - Consultare [How to Make a Data Dictionary](https://help.osf.io/article/217-how-to-make-a-data-dictionary).
 - Consultare [data dictionary template](https://osf.io/ynqcu).
 
-**Concetti e competenze chiave**
+:::
 
-- Verificare che i dati importati siano completi e caricati correttamente.
-- Rimuovere duplicati, gestire valori mancanti e trasformare variabili per preparare i dati all'analisi.
-- Eliminare informazioni sensibili per garantire la riservatezza.
-- Creare un dizionario dei dati e documentazione per facilitare l'uso e la comprensione del dataset.
-- Assicurarsi che i dati rispettino i criteri attesi, come l’unicità delle righe e la validità dei valori.
-- Mantenere una struttura organizzata, separando i dati grezzi da quelli puliti e includendo la documentazione.
-- Adottare regole coerenti per la denominazione delle variabili e la codifica, garantendo chiarezza e uniformità.
-
-**Preparazione del Notebook**
+::: callout-important
+## Preparazione del Notebook
 
 ```{r}
 here::here("code", "_common.R") |> 
@@ -33,6 +37,7 @@ here::here("code", "_common.R") |>
 if (!requireNamespace("pacman")) install.packages("pacman")
 pacman::p_load(mice, labelled, haven, pointblank)
 ```
+:::
 
 ## Introduzione
 
@@ -66,62 +71,79 @@ Sebbene l'ordine di questi passaggi sia flessibile e possa essere adattato alle 
 
 ## Tutorial
 
-Esamineremo questi passaggi seguendo il tutorial di [Crystal Lewis](https://cghlewis.com/blog/data_clean_03/).
+Questo tutorial segue i passaggi descritti da [Crystal Lewis](https://cghlewis.com/blog/data_clean_03/) per illustrare le buone pratiche nella gestione e pulizia dei dati.
 
-**Importare i Dati**
+### Organizzazione dei Dati
 
-I dati grezzi non dovrebbero mai essere modificati direttamente. È consigliabile organizzare i dati in una struttura di cartelle all'interno di una directory chiamata `data`, che contiene due sottocartelle: `raw` e `processed`. I dati originali, non ancora elaborati, devono essere conservati nella cartella `raw` e mantenuti inalterati. I dati ripuliti e preprocessati, invece, devono essere salvati nella cartella `processed`.
+Un principio fondamentale nella gestione dei dati è preservare l'integrità dei dati grezzi. I dati originali non devono mai essere modificati direttamente. È quindi consigliabile strutturare i dati in una directory denominata `data`, suddivisa in due sottocartelle:
 
-Per fare un esempio, importiamo i dati dal file `w1_mathproj_stu_svy_raw.csv` e iniziamo il processo di pulizia. È importante notare che tutte le istruzioni sono formulate in modo relativo alla home directory del progetto. Prima di tutto, definiamo il percorso della home directory del progetto.
+- **`raw`**: contiene i dati originali, mantenuti inalterati.  
+- **`processed`**: destinata ai dati ripuliti e preprocessati.  
 
-1. **Esaminare i Dati**
+Ad esempio, importiamo i dati da un file denominato `w1_mathproj_stu_svy_raw.csv` per avviare il processo di pulizia. Tutte le operazioni dovranno essere effettuate utilizzando percorsi relativi alla home directory del progetto, che definiremo come primo passo.
 
-Procediamo con l'importazione dei dati.
+### Passaggi del Tutorial
+
+#### Importare e Esaminare i Dati
+
+Importiamo i dati utilizzando la libreria `rio` e visualizziamo una panoramica per verificarne la corretta importazione:
 
 ```{r}
-svy = rio::import(here::here("data", "w1_mathproj_stu_svy_raw.csv"))
+# Importa i dati
+svy <- rio::import(here::here("data", "w1_mathproj_stu_svy_raw.csv"))
+
+# Esamina la struttura del dataset
 glimpse(svy)
 ```
 
-È utile esaminare visivamente le prime o le ultime righe del data frame per verificare che i dati siano stati importati correttamente.
+Per controllare visivamente i dati, possiamo esaminare le prime e le ultime righe del `data frame`:
 
 ```{r}
+# Visualizza le prime righe
 svy |> 
   head()
-```
 
-```{r}
+# Visualizza le ultime righe
 svy |> 
   tail()
 ```
 
-2. **Modificare i casi secondo necessità**
+#### Individuare e Rimuovere i Duplicati
 
-Il secondo passo è quello in cui vengono fatte delle semplici ma necessarie modifiche al data frame. Crystal Lewis descrive così questo passo per i dati in esame:
+In questa fase, eseguiamo alcune modifiche necessarie al `data frame`, come rimuovere duplicati e ordinare i dati:
 
-- Verificare la presenza di duplicati - Il record 1347 è duplicato.
-- Rimuovere i duplicati.
-- Ordinare per `svy_date` in ordine crescente.
-- Esaminare i dati dopo aver rimosso i duplicati.
+- **Verifica duplicati**: controlliamo i record duplicati nel dataset.
+- **Rimuovi duplicati**: manteniamo solo la prima occorrenza.
+- **Ordina per data**: organizziamo i record in ordine crescente rispetto alla variabile `svy_date`.
+- **Esamina i dati puliti**: controlliamo il risultato delle modifiche.
 
 ```{r}
-# Trova i duplicati basati su 'stu_id'
-duplicates <- svy[duplicated(svy$stu_id) | duplicated(svy$stu_id, fromLast = TRUE), ]
+# Identifica i duplicati basati su 'stu_id'
+duplicates <- 
+  svy[duplicated(svy$stu_id) | duplicated(svy$stu_id, fromLast = TRUE), ]
 
-# Ordina per 'svy_date' in ordine crescente e rimuovi i duplicati mantenendo il primo
+# Ordina per 'svy_date' in ordine crescente
 svy <- svy[order(svy$svy_date), ]
+
+# Rimuove i duplicati mantenendo la prima occorrenza
 svy <- svy[!duplicated(svy$stu_id), ]
 
-# Mostra il DataFrame finale
+# Visualizza i duplicati trovati
+print(duplicates)
+
+# Esamina il dataset finale
 print(svy)
 ```
 
+Verifichiamo le dimensioni del dataset pulito per assicurarci che le operazioni siano state eseguite correttamente:
+
 ```{r}
+# Controlla il numero di righe e colonne
 svy |> 
   dim()
 ```
 
-3. **De-identificazione dei Dati**
+#### De-identificazione dei Dati
 
 ```{r}
 # Rimuovi la colonna 'svy_date'
@@ -132,27 +154,27 @@ svy <- svy |>
 names(svy)
 ```
 
-4. **Rimuovere le Colonne non Necessarie**
+#### Rimuovere le Colonne non Necessarie
 
 Nel caso presente, la rimozione di colonne non è necessaria. Tuttavia, in molti progetti di analisi dei dati, soprattutto quando i dati vengono raccolti utilizzando software di terze parti o strumenti specifici per esperimenti psicologici, è comune trovarsi con colonne che non sono pertinenti allo studio in corso. 
 
 Queste colonne possono includere dati come identificatori interni, timestamp generati automaticamente, informazioni di debug, o variabili che non sono rilevanti per l'analisi che si intende condurre. Quando tali colonne sono irrilevanti per la ricerca, possono essere rimosse per semplificare il dataset e ridurre il rischio di confusione o errori durante l'analisi. Rimuovere le colonne non necessarie non solo rende il dataset più gestibile, ma aiuta anche a focalizzare l'analisi sulle variabili che realmente importano per rispondere alle domande di ricerca.
 
-5. **Dividere le Colonne Secondo Necessità**
+#### Dividere le Colonne Secondo Necessità
 
 Nel caso presente, questa operazione non è necessaria. Tuttavia, se si lavora con un dataset che include una colonna chiamata "NomeCompleto", contenente sia il nome che il cognome di uno studente, è buona pratica separare questa colonna in due colonne distinte, "Nome" e "Cognome". Questa suddivisione facilita l'analisi e la manipolazione dei dati, rendendoli più organizzati e accessibili.
 
-6. **Rinominare le Colonne**
+#### Rinominare le Colonne
 
 È importante assegnare nomi chiari alle colonne del dataset. Utilizzare nomi di variabili comprensibili aiuta a rendere l'analisi dei dati più intuitiva e a ridurre il rischio di errori interpretativi.
 
-*Esempi di buone pratiche:*
+Esempi di buone pratiche:
 
 - Evita nomi di colonne come "x" o acronimi incomprensibili. Questi possono creare confusione durante l'analisi, specialmente se il dataset viene condiviso con altri ricercatori o se viene ripreso dopo un lungo periodo di tempo.
 - Invece, cerca di utilizzare nomi di variabili che descrivano chiaramente il contenuto della colonna. Ad esempio, invece di "x1" o "VAR123", un nome come "ansia_base" o "liv_autoefficacia" è molto più comprensibile e immediato.
 - Per i nomi composti, utilizza un separatore come il trattino basso `_`. Ad esempio, se stai lavorando con dati relativi a un test psicologico, potresti avere colonne chiamate "test_ansia_pre" e "test_ansia_post" per indicare i risultati del test di ansia prima e dopo un intervento.
 
-*Esempi di nomi di colonne ben scelti:*
+Esempi di nomi di colonne ben scelti:
 
 - *Nome generico:* `TS`, `AE`
   - *Nome migliore:* `tempo_studio`, `auto_efficacia`
@@ -161,21 +183,21 @@ Nel caso presente, questa operazione non è necessaria. Tuttavia, se si lavora c
 - *Nome generico:* `Q1`, `Q2`
   - *Nome migliore:* `qualità_sonno_sett1`, `qualità_sonno_sett2`
 
-7. **Trasformare le Variabili**
+#### Trasformare le Variabili
 
 Nel caso presente non si applica, ma è un passo importante in molte analisi dei dati. 
 
-*Esempi di trasformazione delle variabili:*
+Esempi di trasformazione delle variabili:
 
 - *Logaritmo di una variabile:* Immaginiamo di avere una variabile che misura i tempi di reazione dei partecipanti a un esperimento. Se i tempi di reazione hanno una distribuzione fortemente asimmetrica (con alcuni valori molto elevati), potrebbe essere utile applicare una trasformazione logaritmica per rendere la distribuzione più simmetrica e migliorare l'interpretabilità dei risultati.
 
 - *Codifica delle variabili categoriche:* Se è presente una variabile categorica come il "tipo di intervento" con valori come "cognitivo", "comportamentale" e "farmacologico", potrebbe essere necessario trasformare questa variabile in variabili dummy (ad esempio, `intervento_cognitivo`, `intervento_comportamentale`, `intervento_farmacologico`), dove ogni variabile assume il valore 0 o 1 a seconda della presenza o meno di quel tipo di intervento. Questo è utile quando si utilizzano tecniche di regressione.
 
-8. **Standardizzare / Normalizzare le Variabili**
+#### Standardizzare / Normalizzare le Variabili
 
 Nel caso presente non si applica, ma è un passo importante in molte analisi dei dati. 
 
-*Esempi di standardizzazione delle variabili:*
+Esempi di standardizzazione delle variabili:
 
 - *Standardizzazione dei punteggi:* Supponiamo di avere una variabile che misura il livello di ansia su una scala da 0 a 100. Se desideriamo confrontare i livelli di ansia tra diversi gruppi o includere questa variabile in un modello di regressione, potrebbe essere utile standardizzare i punteggi (cioè, sottrarre la media e dividere per la deviazione standard) per ottenere una variabile con media 0 e deviazione standard 1. Questo processo rende i punteggi comparabili e facilita l'interpretazione dei coefficienti in un modello di regressione.
 
@@ -183,7 +205,7 @@ Nel caso presente non si applica, ma è un passo importante in molte analisi dei
 
 Trasformare e standardizzare le variabili sono passaggi cruciali in molte analisi psicologiche, specialmente quando si confrontano dati provenienti da diverse fonti o gruppi. Questi processi aiutano a garantire che le variabili siano trattate in modo appropriato e che i risultati dell'analisi siano validi e interpretabili.
 
-9. **Aggiornare i Tipi delle Variabili**
+#### Aggiornare i Tipi delle Variabili
 
 Nel caso presente non è necessario. Supponiamo invece di avere una colonna in un dataset psicologico che contiene punteggi di un questionario, ma i dati sono stati importati come stringhe (testo) invece che come numeri. Per eseguire calcoli statistici, sarà necessario convertire questa colonna da stringa a numerico. 
 
@@ -200,7 +222,7 @@ In questo esempio, la funzione `as.numeric()` viene utilizzata per convertire la
 
 Un altro caso molto comune si verifica quando si importano dati da file Excel. Spesso capita che, all'interno di una cella di una colonna che dovrebbe contenere solo valori numerici, venga inserito erroneamente uno o più caratteri alfanumerici. Di conseguenza, l'intera colonna viene interpretata come di tipo alfanumerico, anche se i valori dovrebbero essere numerici. In questi casi, è fondamentale individuare la cella problematica, correggere il valore errato, e poi riconvertire l'intera colonna da alfanumerica a numerica.
 
-10. **Ricodificare le Variabili**
+#### Ricodificare le Variabili
 
 Anche se in questo caso non è necessario, la ricodifica delle variabili è una pratica molto comune nelle analisi dei dati psicologici.
 
@@ -225,7 +247,7 @@ df <- df %>%
 print(df)
 ```
 
-11. **Aggiungere Nuove Variabili nel Data Frame**
+#### Aggiungere Nuove Variabili nel Data Frame
 
 Nel caso presente non è richiesto, ma aggiungere nuove variabili a un DataFrame è un'operazione comune durante l'analisi dei dati. Un esempio è il calcolo dell'indice di massa corporea (BMI).
 
@@ -252,7 +274,7 @@ df <- df %>%
 print(df)
 ```
 
-12. **Affrontare il Problema dei Dati Mancanti**
+#### Affrontare il Problema dei Dati Mancanti
 
 L'imputazione è una tecnica utilizzata per gestire i dati mancanti in un dataset, un problema comune in molte analisi. Lasciare i valori mancanti nel DataFrame può compromettere la qualità dell'analisi, poiché molti algoritmi statistici non sono in grado di gestire direttamente i dati incompleti, portando a risultati distorti o poco affidabili.
 
@@ -324,7 +346,7 @@ Per eseguire l'imputazione multipla in R, utilizziamo il pacchetto **`mice`**, u
 
 In sintesi, l'imputazione multipla con **`mice`** è una tecnica potente per gestire i valori mancanti senza eliminare intere righe o colonne. Questo approccio preserva le relazioni tra variabili, garantendo che l'inferenza statistica rimanga accurata e valida. Nel nostro caso, abbiamo utilizzato un modello predittivo iterativo per stimare i valori mancanti basandoci sulle informazioni fornite dalle altre variabili. Questo metodo aumenta la qualità dei dati e consente analisi più robuste e affidabili.
 
-13. **Aggiungere i Metadati**
+#### Aggiungere i Metadati
 
 I *metadati* sono informazioni che descrivono i dati stessi, come etichette di variabili, etichette di valori, informazioni sull'origine dei dati, unità di misura e altro ancora. Questi metadati sono essenziali per comprendere, documentare e condividere correttamente un dataset.
 
@@ -367,7 +389,7 @@ svy <- svy %>%
 val_labels(svy$math1)
 ```
 
-14. **Validazione dei Dati**
+#### Validazione dei Dati
 
 La validazione dei dati è un passaggio fondamentale per garantire che il dataset soddisfi i criteri previsti e sia pronto per le analisi successive. Questo processo include il controllo della coerenza e della correttezza dei dati in base a specifiche regole definite dal dizionario dei dati. Alcune verifiche comuni includono:
 
@@ -410,15 +432,15 @@ Il dataset ripulito soddisfa tutte le aspettative delineate da Crystal Lewis.
 
 Una volta completati i 14 passaggi precedenti, è possibile esportare questo dataset ripulito nella cartella `processed` per le successive analisi statistiche.
 
-15. **Unire e/o aggiungere dati se necessario**
+#### Unire e/o aggiungere dati se necessario
 
 In questo passaggio, è possibile unire o aggiungere colonne o righe presenti in file diversi. È importante eseguire nuovamente i controlli di validazione dopo l'unione/aggiunta di nuovi dati.
 
-16. **Trasformare i dati se necessario**
+#### Trasformare i dati se necessario
 
 Esistono vari motivi per cui potrebbe essere utile memorizzare i dati in formato `long` o `wide`. In questo passaggio, è possibile ristrutturare i dati secondo le esigenze.
 
-17. **Salvare il dataset pulito finale**
+#### Salvare il dataset pulito finale
 
 L'ultimo passaggio del processo di pulizia consiste nell'esportare o salvare il dataset pulito. Come accennato in precedenza, può essere utile esportare/salvare il dataset in più di un formato di file (ad esempio, un file .csv e un file .parquet).
 
@@ -440,15 +462,13 @@ Un dizionario dei dati è un documento che descrive le caratteristiche di ciascu
 
 Si presti particolare attenzione alle [guide di stile](https://datamgmtinedresearch.com/style) per la denominazione delle variabili e la codifica dei valori delle risposte.
 
-Ecco come tradurre i passi per creare un dizionario dei dati in R, utilizzando il pacchetto **`tibble`** per creare il dizionario e **`writexl`** o **`readr`** per esportarlo in formato `.xlsx` o `.csv`.
+### Esempio in `R`
 
-### Passi per Creare un Dizionario dei Dati
+Ecco come tradurre i passi per creare un dizionario dei dati in R, utilizzando il pacchetto **`tibble`** per creare il dizionario e **`writexl`** o **`readr`** per esportarlo in formato `.xlsx` o `.csv`.
 
 1. **Identificare le variabili**: Elencare tutte le variabili presenti nel dataset.
 2. **Descrivere ogni variabile**: Per ciascuna variabile, definire il tipo (ad esempio, `integer`, `numeric`, `character`), il range di valori accettabili o le categorie, e fornire una descrizione chiara.
 3. **Salvare il dizionario dei dati**: Il dizionario può essere salvato in un file `.csv` o `.xlsx` per una facile consultazione.
-
-### Esempio in `R`
 
 Creeremo un dizionario dei dati per un dataset di esempio e lo salveremo sia in formato CSV che Excel.
 

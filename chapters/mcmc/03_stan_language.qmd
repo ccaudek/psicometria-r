@@ -1,0 +1,436 @@
+# Linguaggio Stan {#sec-mcmc-stan-lang}
+
+::: callout-note
+## In questo capitolo imparerai a
+
+- 
+:::
+
+::: callout-tip
+## Prerequisiti
+
+- Leggere 
+:::
+
+::: callout-important
+## Preparazione del Notebook
+
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(cmdstanr, posterior)
+
+color_scheme_set("brightblue")
+options(digits = 3)
+```
+:::
+
+## Introduzione 
+
+[Stan](https://mc-stan.org/) è un linguaggio di programmazione probabilistica (PPL) progettato per l'inferenza bayesiana su modelli complessi. Tra le sue caratteristiche principali, Stan implementa un algoritmo avanzato chiamato *No-U-Turn Sampler* (NUTS), che ottimizza il metodo Hamiltonian Monte Carlo (HMC). Questa tecnica rappresenta un'evoluzione rispetto all'algoritmo di Metropolis (@sec-mcmc-metropolis), tradizionalmente utilizzato per generare campioni da distribuzioni a posteriori. Sebbene entrambi gli approcci producano lo stesso risultato finale, NUTS riduce drasticamente il numero di iterazioni necessarie per raggiungere la convergenza, soprattutto nei modelli ad alta dimensionalità.
+
+Dal punto di vista concettuale, NUTS e Metropolis mirano a costruire una catena di Markov che converga alla distribuzione a posteriori target. Tuttavia, NUTS lo fa in modo molto più efficiente, rendendolo la scelta preferita quando si analizzano modelli complessi. Stan combina questa efficienza con un'interfaccia flessibile, compatibile con diverse piattaforme come R, Python e Julia. In questo corso, useremo `cmdstanr`, l'interfaccia R per Stan. Oltre a `cmdstanr`, esistono altre interfacce come CmdStanPy per Python e `Stan.jl` per Julia, che facilitano l'integrazione di Stan nei flussi di lavoro di programmazione.
+
+## Stan e la Programmazione Probabilistica
+
+La programmazione probabilistica unisce principi di statistica bayesiana e linguaggi di programmazione, semplificando lo sviluppo di modelli complessi. In un linguaggio PPL come Stan, l'utente deve solo specificare le distribuzioni a priori e la funzione di verosimiglianza. L'inferenza viene poi gestita automaticamente dal linguaggio, che utilizza metodi avanzati di campionamento come NUTS per produrre campioni dalla distribuzione a posteriori.
+
+Un programma Stan è strutturato in blocchi. Ogni blocco ha una funzione specifica, come dichiarare i dati (`data`), definire i parametri (`parameters`), specificare la densità del modello (`model`) e generare quantità derivate (`generated quantities`). Questa struttura modulare rende Stan intuitivo e adattabile a un'ampia gamma di applicazioni.
+
+Le variabili in Stan devono essere dichiarate con tipi specifici (`int` per interi, `real` per numeri reali, `vector` per vettori, ecc.) e possono avere vincoli, come `lower=0` o `upper=1`, per garantire che i loro valori rispettino determinati limiti. Questo approccio, noto come tipizzazione statica, rende i programmi Stan robusti e meno soggetti a errori.
+
+## Esecuzione di Stan con CmdStanR
+
+Per eseguire un modello Stan, utilizzeremo qui l'interfaccia `cmdstanr`, che integra CmdStan in R. L'esempio seguente illustra come generare dati simulati da una distribuzione binomiale e analizzare un problema inverso, stimando il parametro di successo $\theta$.
+
+### Simulazione in Avanti
+
+La simulazione in avanti consiste nel generare dati simulati da un modello probabilistico noto. Supponiamo di voler simulare i risultati di uno studio con $N = 100$ prove e una probabilità di successo $\theta = 0.3$. Il codice Stan per questa simulazione è il seguente:
+
+```
+data {
+  int<lower=0> N;                   // Numero di prove
+  real<lower=0, upper=1> theta;     // Probabilità di successo
+}
+generated quantities {
+  int<lower=0, upper=N> y;          // Numero di successi
+  y = binomial_rng(N, theta);
+}
+```
+
+Per eseguire il modello in R con `cmdstanr` dobbiamo compilare il modello:
+
+```{r}
+model1 <- cmdstan_model(here("stan", "binomial-rng.stan"))
+```
+
+Definire i dati:
+
+```{r}
+data_list <- list(N = 100, theta = 0.3)
+```
+
+Eseguire il campionamento:
+
+```{r}
+#| warning: false
+#| message: false
+#| 
+fit1 <- model1$sample(
+  data = data_list, 
+  fixed_param = TRUE, 
+  seed = 123,
+  show_messages = FALSE )
+```
+
+Estrazione dei risultati:
+
+```{r}
+y_samples <- fit1$draws(variables = "y", format = "matrix")[, 1]
+y_samples
+```
+
+La simulazione in avanti ci permette di generare dati simulati per esplorare il comportamento del modello sotto specifiche ipotesi sui parametri.
+
+### Problema Inverso
+
+Nel problema inverso, l'obiettivo è stimare i parametri di un modello a partire dai dati osservati. 
+
+Supponiamo di analizzare la proporzione di artisti della Generazione X presenti al MoMA, dove 14 artisti su 100 appartengono a questa generazione. Utilizzeremo una distribuzione Beta(4, 6) come prior per il parametro $\theta$, la probabilità che un artista appartenga alla Generazione X. Il modello Stan corrispondente è il seguente:
+
+```
+data {
+  int<lower=0> N;                // Numero di osservazioni
+  int<lower=0, upper=N> y;       // Numero di successi
+  real<lower=0> alpha_prior;     // Parametro alpha del prior Beta
+  real<lower=0> beta_prior;      // Parametro beta del prior Beta
+}
+parameters {
+  real<lower=0, upper=1> theta;  // Probabilità di successo
+}
+model {
+  theta ~ beta(alpha_prior, beta_prior);  // Prior
+  y ~ binomial(N, theta);                 // Verosimiglianza
+}
+```
+
+Supponiamo di osservare 14 successi su 100 prove e vogliamo stimare la probabilità di successo $\theta$. In questo esempio, imponiamo su $\theta$ un prior debolmente informativo, Beta(2, 2). 
+
+Per eseguire il modello e stimare $\theta$ dobbiamo specificare i dati in un formato appropriato per Stan:
+
+```{r}
+stan_data <- list(
+  N = 100, 
+  y = 14, 
+  alpha_prior = 2, 
+  beta_prior = 2
+)
+```
+
+Compiliamo il modello:
+
+```{r}
+model2 <- cmdstan_model(here("stan", "moma_model.stan"))
+```
+
+Eseguiamo il campionamento:
+
+```{r}
+#| warning: false
+#| message: false
+#| 
+fit2 <- model2$sample(
+  data = stan_data, 
+  iter_warmup = 2000, 
+  iter_sampling = 2000, 
+  seed = 42,
+  show_messages = FALSE 
+)
+```
+
+Il metodo `sample()` esegue il modello Stan utilizzando un algoritmo a campionamento iterativo (di solito Hamiltonian Monte Carlo). Durante il **burn-in** (prime iterazioni), i campioni potrebbero non rappresentare accuratamente la distribuzione a posteriori. Questi campioni iniziali vengono scartati e solo quelli successivi sono utilizzati per costruire stime dalla distribuzione a posteriori.
+
+Recuperiamo i campioni di `theta` dall'oggetto `fit2`:
+
+```{r}
+theta2_samples <- fit2$draws(variables = "theta", format = "array")
+dim(theta2_samples)
+```
+
+Questo indica la struttura dell'array estratto dal modello Stan. Significa che il campionamento ha prodotto **2000 iterazioni per ciascuna delle 4 catene**. L'ultimo valore (`1`) rappresenta il numero di variabili monitorate nel modello (in questo caso, una sola variabile). Quindi, il formato dell'array è `(iterazioni, catene, variabili)`.
+
+Per analizzare i campioni generati, possiamo utilizzare istogrammi e tracce MCMC. In R, possiamo creare un istogramma della distribuzione a posteriori di $\theta$. 
+
+Convertiamo i campioni in un vettore:
+
+```{r}
+theta2_vector <- as.vector(theta2_samples)
+length(theta2_vector)
+```
+
+Creiamo un istogramma della distribuzione a posteriori di $\theta$:
+
+```{r}
+ggplot(data.frame(theta = theta2_vector), aes(x = theta)) +
+  geom_histogram(bins = 30, fill = "blue", color = "black", alpha = 0.5) +
+  labs(
+    title = "Distribuzione a Posteriori di Theta",
+    x = "Theta",
+    y = "Frequenza"
+  )
+```
+
+Questo grafico ci permette di visualizzare la distribuzione a posteriori, valutando sia la modalità (valore più probabile) che l'incertezza (larghezza della distribuzione).
+
+Interpretazione dell'istogramma:
+
+- se l'istogramma mostra una distribuzione stretta attorno a un valore, significa che c'è poca incertezza nella stima di $\theta$.
+- una distribuzione ampia indica maggiore incertezza, suggerendo che i dati osservati non forniscono una stima precisa di $\theta$.
+
+Questo esempio dimostra come utilizzare prior debolmente informativi per modellare dati binomiali in Stan. Si noti come la stima putuale a posteriori e l'intervallo di credibilità riproducono i valori ottenuti utilizzando l'algoritmo di Metropolis (@sec-mcmc-metropolis).
+
+## Diagnostiche di Campionamento
+
+Per valutare la qualità del campionamento, possiamo utilizzare la statistica $\widehat{R}$ e il numero effettivo di campioni ($N_{\text{eff}}$):
+
+```{r}
+fit2$summary()
+```
+
+Un valore di $\widehat{R}$ vicino a 1 indica che le catene sono convergenti, mentre un $N_{\text{eff}}$ elevato suggerisce una stima precisa dei parametri.
+
+Le colonne dell'output di `summary()` rappresentano:
+
+- **`mean`** e **`median`**: Media e mediana della distribuzione a posteriori. Per `theta`, la media è 0.153 e la mediana è simile (0.152), suggerendo una distribuzione abbastanza simmetrica.
+- **`sd`**: Deviazione standard della distribuzione (0.0354 per `theta`).
+- **`mad`**: Deviazione assoluta mediana, una misura di dispersione robusta (simile alla deviazione standard in questo caso).
+- **`q5`** e **`q95`**: Quantili al 5% e al 95%, che definiscono un intervallo di credibilità al 90% per `theta` ($[0.0991, 0.215]$).
+- **`rhat`**: Statistica di convergenza. Un valore di 1 indica che le catene sono ben miscelate e hanno raggiunto la convergenza.
+- **`ess_bulk`**: Dimensione campionaria effettiva, che misura il numero di campioni indipendenti. È alta per entrambe le variabili (`3699` per `lp__` e `2553` per `theta`), segnalando un'efficienza del campionamento.
+
+È anche possibile usare la funzione `diagnostic_summary()`:
+
+```{r}
+fit2$diagnostic_summary()
+```
+
+1. **`num_divergent`**: Mostra il numero di transizioni divergenti per ciascuna catena. Valori pari a 0 indicano che non ci sono stati problemi di campionamento (assenza di transizioni divergenti).
+   
+2. **`num_max_treedepth`**: Indica il numero di transizioni che hanno raggiunto la profondità massima dell'albero in NUTS. Valori pari a 0 segnalano che il modello è stato esplorato correttamente senza limitazioni imposte dalla profondità dell'albero.
+
+3. **`ebfmi`**: Efficienza dell'Hamiltonian Monte Carlo calcolata tramite il *Energy Bayesian Fraction of Missing Information* (EBFMI). Tutti i valori sono superiori a 1, indicando un campionamento efficace e nessun problema con l'esplorazione dello spazio dei parametri.
+
+I risultati ottenuti mostrano che il campionamento è stato efficace:
+
+- Le catene hanno convergenza ($\hat{R} = 1$).
+- Non ci sono stati problemi tecnici come transizioni divergenti o massima profondità raggiunta.
+- Le diagnostiche di efficienza ($N_{\text{eff}}$, EBFMI) confermano un campionamento affidabile.
+
+In sintesi, Stan, grazie alla sua implementazione dell'algoritmo NUTS, offre un framework potente e flessibile per l'inferenza bayesiana. Attraverso una combinazione di modelli probabilistici ben strutturati, diagnostica avanzata e strumenti di visualizzazione, è possibile affrontare con successo problemi complessi, dalle simulazioni in avanti alle stime inverse dei parametri.
+
+## Verifica dei Priors
+
+Possiamo verificare se i nostri priors sono adeguati calcolando la probabilità a priori dei parametri di interesse. Ad esempio, nel nostro campione, sappiamo che la proporzione di artisti appartenenti alla Generazione X è 0.14. È importante che i priors consentano configurazioni ragionevoli dei dati ma escludano scenari chiaramente assurdi, basandosi sulla nostra esperienza del dominio. Per verificare se i nostri priors soddisfano questo requisito, possiamo effettuare un **prior predictive check**.
+
+Per condurre un prior predictive check, utilizziamo lo stesso modello usato in precedenza, inseriamo i parametri di interesse nel blocco *generated_quantities* e rimuoviamo il termine relativo alla distribuzione di campionamento (ossia la verosimiglianza) dal modello. Senza la verosimiglianza, i parametri non vengono adattati ai dati e vengono quindi campionati dalla loro distribuzione a priori. Il codice Stan rimane identico a quello finale, ma senza la riga `y ~ binomial(N, theta);`. Un trucco utile per semplificare i prior predictive check è aggiungere uno switch `compute_likelihood` ai dati, come mostrato di seguito:
+
+```
+if (compute_likelihood == 1)
+  y ~ binomial(N, theta);
+```
+
+Compilazione del modello:
+
+```{r}
+model3 <- cmdstan_model(here("stan", "moma_model_prior.stan"))
+```
+
+```{r}
+model3$print()
+```
+
+Questo ci consente di utilizzare lo stesso file Stan per eseguire sia i prior predictive check che l'inferenza, semplicemente modificando il valore di `compute_likelihood`.
+
+Definiamo il dizionario dei dati:
+  
+```{r}
+stan_data3 <- list(
+  N = 9, # Number of trials
+  y = 0, # Placeholder, not used during prior predictive checks
+  alpha_prior = 2,
+  beta_prior = 2,
+  compute_likelihood = 0 
+  # Set to 0 to disable likelihood for prior predictive check
+)
+```
+
+Eseguiamo il campionamento utilizzando solo la distribuzione a priori:
+  
+```{r}
+# Campionamento dalla distribuzione a priori (compute_likelihood settato a 0)
+fit3 = model3$sample(
+  data=stan_data3,
+  chains=4,
+  iter_warmup=500,
+  iter_sampling=1000,
+  seed=123,
+  show_message=FALSE
+)
+```
+
+Estraiamo i campioni a priori per il parametro $\theta$:
+  
+```{r}
+theta3_samples <- as.vector(
+  fit3$draws(variables = "theta", format = "array")
+)
+```
+
+Infine, creiamo un istogramma per visualizzare la distribuzione a priori di $\theta$:
+  
+```{r}
+# Conversione dei campioni in un vettore per ggplot2
+theta3_vector <- as.vector(theta3_samples)
+
+# Creazione dell'istogramma
+ggplot(data.frame(theta = theta3_vector), aes(x = theta)) +
+  geom_histogram(bins = 30, alpha = 0.5) +
+  labs(
+    title = "Istogramma della distribuzione a priori di theta",
+    x = "Valori di theta",
+    y = "Frequenza"
+  )
+```
+
+Lo stesso risultato può essere ottenuto con le funzioni di **bayesplot**:
+  
+```{r}
+mcmc_hist(fit3$draws("theta"))
+```
+
+In conclusione, osserviamo che la distribuzione a priori per $\theta$ include la proporzione campionaria, ma la maggior parte della massa di probabilità si concentra su valori più elevati. Questo suggerisce che la scelta della distribuzione Beta come prior potrebbe non essere completamente ottimale per rappresentare il parametro in questione. Sarà necessario valutare se un prior diverso potrebbe migliorare l'inferenza, garantendo una rappresentazione più accurata delle conoscenze a priori e dei dati osservati.
+
+## Stime Puntuali Bayesiane
+
+In un contesto bayesiano, una _stima puntuale_ di un parametro $\Theta$, condizionata sui dati osservati $Y = y$, è un valore singolo $\hat{\theta} \in \mathbb{R}^D$ che sintetizza la distribuzione a posteriori $p(\theta \mid y)$. La stima puntuale non cattura tutta l'incertezza, ma rappresenta un riassunto della distribuzione a posteriori. Nella statistica, la notazione $\hat{\theta}$ è convenzionale per indicare una stima di $\theta$. Esistono diverse modalità di stima puntuale, ognuna delle quali minimizza una specifica _funzione di perdita_. Di seguito, esaminiamo la media posteriori, la mediana posteriori e la moda posteriori, discutendo anche le loro proprietà e il loro uso pratico.
+
+### Stimatore della Media Posteriori
+
+Lo stimatore della media posteriori è uno dei più comuni in ambito bayesiano. La media posteriori è definita come:
+
+$$
+\widehat{\theta} = \mathbb{E}[\Theta \mid Y = y] = \int_{\Theta} \theta \cdot p(\theta \mid y) \, \mathrm{d}\theta.
+$$
+
+In pratica, la media è calcolata come la media campionaria dei campioni $\theta^{(m)}$ estratti dalla distribuzione a posteriori, ovvero:
+
+$$
+\widehat{\theta} \approx \frac{1}{M} \sum_{m=1}^M \theta^{(m)},
+$$
+
+dove $\theta^{(m)} \sim p(\theta \mid y)$. Questo metodo sfrutta l'*aspettativa condizionale*, un concetto chiave dell'inferenza bayesiana. In R, la media posteriori può essere calcolata con:
+
+```{r}
+theta_hat <- mean(theta2_vector)
+theta_hat
+```
+
+### Stimatore della Mediana Posteriori
+
+Un'altra stima puntuale è la mediana posteriori, $\theta^+$. Essa è definita come il valore che divide la distribuzione a posteriori in due parti uguali, cioè:
+
+$$
+\Pr[\Theta \leq \theta^+] = \frac{1}{2}.
+$$
+
+La mediana posteriori è calcolata ordinando i campioni e identificando il punto centrale. In R, può essere calcolata con:
+
+```{r}
+theta_plus <- median(theta2_vector)
+theta_plus
+```
+
+Se la distribuzione a posteriori è simmetrica, media e mediana coincideranno o saranno molto simili. Tuttavia, per distribuzioni asimmetriche, la mediana è più robusta, in quanto minimizza l'errore assoluto atteso rispetto alla media.
+
+### Quantili e Intervalli di Credibilità
+
+I quantili forniscono una descrizione più completa della distribuzione a posteriori. Un intervallo di credibilità è un intervallo di quantili che cattura una proporzione specificata della massa di probabilità. Ad esempio, un intervallo di credibilità al 90% è dato dai quantili al 5% e al 95%. In R, possiamo calcolarli così:
+
+```{r}
+quantile_05 <- quantile(theta2_vector, 0.05)
+quantile_95 <- quantile(theta2_vector, 0.95)
+c(quantile_05, quantile_95)
+```
+
+Questi valori rappresentano un intervallo che contiene il 90% della distribuzione a posteriori di $\theta$, con il 5% al di sotto e al di sopra di esso.
+
+### Stimatore della Moda Posteriori
+
+La moda posteriori rappresenta il valore di $\theta$ che massimizza la densità a posteriori. Formalmente, è definita come:
+
+$$
+\theta^* = \operatorname{arg\,max}_\theta p(\theta \mid y).
+$$
+
+Questa stima, spesso chiamata _Maximum A Posteriori_ (MAP), si focalizza sul punto più probabile della distribuzione. Tuttavia, la moda non tiene conto della variabilità e non minimizza una funzione di perdita basata sui valori veri dei parametri. È meno comune rispetto a media e mediana, soprattutto per distribuzioni non unimodali o altamente asimmetriche.
+
+### Proprietà degli Stimatori Bayesiani
+
+Ogni stimatore presenta vantaggi e limitazioni:
+- La media posteriori minimizza l'errore quadratico medio atteso. Tuttavia, è sensibile ai valori estremi, specialmente per distribuzioni con code ampie.
+- La mediana posteriori minimizza l'errore assoluto atteso, rendendola più robusta ai valori anomali.
+- La moda posteriori non considera l'incertezza, ma è utile per individuare il valore più probabile.
+
+### Bias e Errore di Stima
+
+L'errore di una stima è definito come la differenza tra il valore stimato e quello vero:
+
+$$
+\text{err} = \hat{\theta} - \theta.
+$$
+
+Il bias di uno stimatore è l'errore atteso rispetto alla distribuzione dei dati:
+
+$$
+\text{bias} = \mathbb{E}[\hat{\theta}(Y) - \theta].
+$$
+
+Un bias nullo indica che lo stimatore è corretto in media, cioè non tende a sovrastimare o sottostimare sistematicamente il valore vero.
+
+### Dimensione del Campione Effettivo ed Errore Monte Carlo
+
+Quando si utilizzano metodi basati su catene di Markov (MCMC), i campioni successivi possono essere correlati. La _dimensione del campione effettivo_ ($N_{\text{eff}}$) misura il numero di campioni indipendenti equivalenti e viene calcolata come:
+
+$$
+N_{\text{eff}} = \frac{M}{\text{IAT}},
+$$
+
+dove $\text{IAT}$ è il tempo di autocorrelazione integrata. Un $N_{\text{eff}}$ elevato indica che il campionamento è efficace, riducendo l'errore Monte Carlo. Stan riporta anche l'_errore standard MCMC_ per ogni parametro, dato da:
+
+$$
+\text{mcmc-se} = \frac{\text{sd}[\Theta \mid Y = y]}{\sqrt{N_{\text{eff}}}}.
+$$
+
+Questo valore riflette la precisione delle stime ottenute.
+
+### Conclusione
+
+La scelta dello stimatore dipende dal contesto e dalle proprietà della distribuzione a posteriori. La media è preferita per la sua capacità di minimizzare l'errore quadratico medio, mentre la mediana è utile per la sua robustezza. La moda può essere utile per individuare il valore più probabile, ma è meno comune nell'analisi bayesiana. La comprensione del bias, dell'errore Monte Carlo e della dimensione del campione effettivo è cruciale per valutare la qualità delle stime e interpretare correttamente i risultati.
+
+
+
+
+
+
+
+
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
+
+```{r} 
+sessionInfo()
+```
+
+

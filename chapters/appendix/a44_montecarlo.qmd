@@ -1,0 +1,122 @@
+# Simulazione Monte Carlo {#sec-apx-montecarlo-integration}
+
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(cmdstanr)
+```
+
+Il **Metodo Monte Carlo** utilizza simulazioni casuali per risolvere problemi complessi. È applicato in numerosi ambiti per calcolare stime quando non è possibile ottenere soluzioni analitiche semplici.
+
+Per fare un esempio semplice, stimiamo π con il Metodo Monte Carlo. Per fare questo, calcoleremo approssimativamente π simulando il rapporto tra l'area di un cerchio e quella di un quadrato circoscritto.
+
+## Funzioni in R
+
+Definiamo una funzione per verificare se un punto è all'interno del cerchio e una per stimare $\pi$ e generare una figura visualizzabile nel file HTML.
+
+```{r}
+# Funzione per verificare se un punto è dentro il cerchio
+in_circle <- function(x, y, r) {
+  sqrt(x^2 + y^2) <= r
+}
+
+# Funzione per stimare π e creare una figura
+approx_pi <- function(r, n) {
+  # Genera punti casuali
+  points <- data.frame(
+    x = runif(n, 0, r),
+    y = runif(n, 0, r)
+  )
+  
+  # Determina se i punti sono dentro il cerchio
+  points <- points %>%
+    mutate(in_circle = in_circle(x, y, r),
+           color = ifelse(in_circle, "inside", "outside"))
+  
+  # Conta i punti dentro il cerchio
+  count <- sum(points$in_circle)
+  
+  # Calcola π
+  pi_approx <- 4 * count / n
+  
+  # Genera il grafico
+  ggplot(points, aes(x, y, color = color)) +
+    geom_point(size = 1, alpha = 0.5) +
+    labs(
+      title = paste("Monte Carlo Approximation of π ≈", round(pi_approx, 3)),
+      subtitle = paste(count, "points inside the circle out of", n, "total points"),
+      x = "x",
+      y = "y"
+    ) +
+    coord_equal() 
+}
+```
+
+Eseguiamo la simulazione per diverse dimensioni del campione:
+
+```{r}
+# Simulazioni con diverse quantità di punti
+r <- 1
+n_points <- c(50, 500, 5000)
+
+# Ciclo per calcolare π e generare i grafici
+for (n in n_points) {
+  cat("Stima di π con", n, "punti:\n")
+  print(approx_pi(r, n))
+}
+```
+
+## Simulazione di Monte Carlo in Stan
+
+Simuliamo π utilizzando **Stan**, un potente strumento per la modellazione probabilistica. Definiamo il modello in Stan come segue:
+
+```
+generated quantities {
+  real x = uniform_rng(0, 1);
+  real y = uniform_rng(0, 1);
+  int inside = x^2 + y^2 <= 1;
+  real pi_estimate = 4 * inside;
+}
+```
+Utilizziamo il pacchetto `cmdstanr` per compilare ed eseguire il modello Stan.
+
+```{r}
+# Definisce il modello Stan
+stan_code <- "
+generated quantities {
+  real x = uniform_rng(0, 1);
+  real y = uniform_rng(0, 1);
+  int inside = x^2 + y^2 <= 1;
+  real pi_estimate = 4 * inside;
+}
+"
+
+# Scrive il modello su un file temporaneo
+writeLines(stan_code, con = "monte_carlo_pi.stan")
+
+# Compila il modello
+model <- cmdstan_model("monte_carlo_pi.stan")
+
+# Esegue il campionamento
+samples <- model$sample(
+  chains = 1, 
+  iter_sampling = 10000, 
+  iter_warmup = 0, 
+  seed = 42, 
+  fixed_param = TRUE, 
+  show_messages = FALSE
+)
+
+# Analisi dei risultati
+pi_samples <- samples$draws(variables = "pi_estimate", format = "df")
+
+# Calcolo di π stimato
+pi_est <- mean(pi_samples$pi_estimate)
+cat("Stima di π:", round(pi_est, 3), "\n")
+```
+
+Questa combinazione di R e Stan dimostra l'efficacia e la flessibilità del **Metodo Monte Carlo** e delle sue varianti. Sia per problemi semplici come la stima di $\pi$, sia per applicazioni più complesse come l'integrazione e l'importance sampling, questi strumenti offrono soluzioni potenti e scalabili.
+
