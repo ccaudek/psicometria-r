@@ -1,0 +1,580 @@
+# La regressione lineare bivariata: un approccio frequentista {#sec-linear-models-biv-model-frequentist}
+
+::: callout-note
+## In questo capitolo imparerai a:
+
+- comprendere il funzionamento del modello lineare secondo l’approccio frequentista;
+- stimare i coefficienti del modello utilizzando il metodo dei minimi quadrati e interpretarli correttamente;
+- valutare la qualità del modello attraverso l’indice di determinazione ($R^2$).
+:::
+
+::: callout-tip
+## Prerequisiti
+
+- Consulta l'appendice @sec-apx-lin-func per un'introduzione alle funzioni lineari.
+:::
+
+::: callout-important
+## Preparazione del Notebook
+
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(broom)
+```
+:::
+
+## Introduzione
+
+I modelli lineari sono stati impiegati in molteplici contesti per lungo tempo. Come descritto da @stigler1986, il metodo dei minimi quadrati, una tecnica per adattare una regressione lineare bivariata, veniva già utilizzato nel XVIII secolo per affrontare problemi di analisi dei dati in astronomia. Ad esempio, questo metodo era impiegato per determinare il moto della Luna e per riconciliare i movimenti non periodici di Giove e Saturno. All'epoca, gli astronomi erano tra i primi a sentirsi a proprio agio nell'uso di tali metodi, poiché raccoglievano personalmente le loro osservazioni e sapevano che le condizioni di raccolta dei dati erano omogenee, anche se i valori osservati potevano differire. Questo contrastava con l'approccio più cauto delle scienze sociali, dove la riluttanza a combinare dati eterogenei ritardava l'adozione dei modelli lineari [@stigler1986].
+
+In questo capitolo verrà introdotto il modello di regressione lineare bivariata secondo l'approccio frequentista. Questo modello consente di predire una variabile continua $y$ a partire da un unico predittore continuo $x$, utilizzando una relazione lineare. La relazione tra le due variabili è descritta dall'equazione della retta di regressione:
+
+$$
+y_i = a + b x_i + e_i, \quad i = 1, \dots, n,
+$$
+
+dove $a$ rappresenta l'intercetta, $b$ la pendenza della retta (coefficiente di regressione) e $e_i$ l'errore residuo per ciascuna osservazione.
+
+Saranno illustrati i seguenti aspetti:
+
+1. **Stima dei coefficienti di regressione**: Come calcolare $a$ e $b$.
+2. **Interpretazione dei coefficienti**: Il significato pratico di $a$ e $b$ nella descrizione della relazione tra $x$ e $y$.
+3. **Valutazione del modello**: Come misurare la bontà di adattamento del modello ai dati osservati, attraverso indicatori come l'indice di determinazione ($R^2$) e l'analisi dei residui.
+
+## La Predizione dell'Intelligenza
+
+Nella presente discussione, esamineremo i dati `kidiq` che consistono in una raccolta di dati provenienti da una survey su donne adulte americane e i loro figli, selezionati da un sotto-campione del National Longitudinal Survey of Youth [@gelman2021regression]. 
+
+Nello specifico, ci concentreremo sulla relazione tra il punteggio di intelligenza del bambino (`kid_score`) e quello della madre (`mom_iq`). Ci proponiamo di valutare se e in quale misura l'intelligenza della madre possa prevedere l'intelligenza del bambino. Per fare ciò, inizieremo ad importare i dati nell'ambiente R.
+
+```{r}
+# Caricamento dei dati
+kidiq <- rio::import(here::here("data", "kidiq.dta"))
+```
+
+```{r}
+# Anteprima dei dati
+head(kidiq)
+```
+
+Un diagramma a dispersione per i dati di questo campione suggerisce la presenza di un'associazione positiva tra l'intelligenza del bambino (`kid_score`) e l'intelligenza della madre (`mom_iq`).
+
+```{r}
+ggplot(kidiq, aes(x = mom_iq, y = kid_score)) +
+  geom_point(alpha = 0.4) +
+  labs(x = "QI della madre", y = "QI del bambino") +
+  ggtitle("Diagramma a dispersione")
+```
+
+## Stima del modello di regressione lineare
+
+Calcoliamo i coefficienti della retta di regressione utilizzando la funzione `lm`.
+
+```{r}
+# Modello di regressione lineare
+mod <- lm(kid_score ~ mom_iq, data = kidiq)
+```
+
+```{r}
+# Coefficienti stimati
+coef(mod)
+```
+
+Ci sono però infinite rette che, in linea di principio, possono essere usate per "approssimare" la nube di punti nel diagramma a dispersione. È dunque necessario introdurre dei vincoli per selezionare una di queste possibili rette. Il vincolo che viene introdotto dal modello di regressione è quello di costringere la retta a passare per il punto $(\bar{x}, \bar{y})$.
+
+```{r}
+ggplot(kidiq, aes(x = mom_iq, y = kid_score)) +
+  geom_point(alpha = 0.4) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(x = "QI della madre", y = "QI del bambino") +
+  ggtitle("Retta di regressione")
+```
+
+Una retta di regressione che passa per il punto medio $(\bar{x}, \bar{y})$ (che rappresenta il centro di massa dei dati) è preferibile dal punto di vista statistico poiché minimizza la somma dei quadrati degli errori residui.
+
+Il campione è costituito da $n$ coppie di osservazioni ($x, y$). Per ciascuna coppia di valori $x_i, y_i$, il modello di regressione si aspetta che il valore $y_i$ sia associato al corrispondente valore $x_i$ come indicato dalla seguente equazione:
+
+$$
+\begin{equation}
+\mathbb{E}(y_i) = a + b x_i .
+\end{equation}
+$$
+
+I valori $y_i$ corrispondono, nell'esempio che stiamo discutendo, alla variabile `kid_score`. I primi 10 valori della variabile $y$ sono i seguenti:
+
+```{r}
+kidiq$kid_score[0:10]
+```
+
+Per fare riferimento a ciascuna osservazione usiamo l'indice $i$. Quindi, ad esempio, $y_2$ è uguale a
+
+```{r}
+kidiq$kid_score[2]
+```
+
+Il modello di regressione lineare bivariata, rappresentato dall'equazione $y_i = a + b x_i + e_i$, descrive la relazione tra le variabili $x$ e $y$, dove $y$ è la variabile dipendente (nel nostro esempio, la variabile `kid_score`) e $x$ è la variabile indipendente (nel nostro esempio, la variabile `mom_iq`). Il valore di $y$ è la somma di due componenti: la componente deterministica, $\hat{y}_i = a + b x_i$, e la componente aleatoria, $e_i$. La componente deterministica rappresenta la porzione della $y$ che è prevedibile conoscendo il valore di $x$, mentre la componente aleatoria rappresenta la porzione della $y$ che non è prevedibile dal modello.
+
+Il modello lineare cerca di trovare i coefficienti $a$ e $b$ che permettono di prevedere la componente deterministica di $y$ conoscendo il valore di $x$. Tuttavia, poiché la retta è solo un'approssimazione della relazione tra $x$ e $y$, la componente deterministica rappresenta solo una stima approssimata della vera relazione tra le due variabili.
+
+Per valutare l'accuratezza del modello di regressione lineare, è necessario calcolare il residuo $e_i = y_i - (a + b x_i)$, ovvero la differenza tra il valore osservato di $y$ e il valore previsto dal modello, $\hat{y}$. La dimensione del residuo indica quanto la componente aleatoria contribuisce al valore osservato di $y$.
+
+Il modello di regressione lineare ha tre obiettivi [@fox2015applied]: 
+
+1. il primo è quello di trovare i coefficienti $a$ e $b$ che permettono di prevedere la componente deterministica di $y$ conoscendo il valore di $x$; 
+2. il secondo obiettivo è quello di valutare l'accuratezza della predizione fornita dal modello di regressione lineare;
+3. infine, il terzo obiettivo è quello dell'inferenza, ovvero quello di capire quali relazioni esistono tra la relazione tra $x$ e $y$ osservata nel campione e la relazione tra le due variabili nella popolazione.
+
+## Stima dei coefficienti di regressione
+
+In breve, stiamo cercando di descrivere una relazione tra due variabili, il QI della madre e il QI del bambino, utilizzando un modello di regressione lineare. L'equazione lineare che descrive la relazione tra le due variabili è della forma $\hat{y}_i = a_i + bx_i$, dove $\hat{y}_i$ rappresenta la previsione per il QI del bambino $i$-esimo, $a_i$ e $b$ sono i coefficienti di regressione che vogliamo trovare e $x_i$ è il QI della madre del bambino $i$-esimo.
+
+Per trovare i coefficienti di regressione, dobbiamo introdurre dei vincoli per limitare lo spazio delle possibili soluzioni. Il primo vincolo è che la retta di regressione deve passare per il baricentro del grafico a dispersione. Il secondo vincolo è che vogliamo minimizzare la somma dei quadrati dei residui, ovvero la differenza tra il valore osservato e il valore previsto dal modello. I coefficienti di regressione che soddisfano questi vincoli si chiamano **coefficienti dei minimi quadrati**.
+
+Il problema di trovare i coefficienti di regressione $a$ e $b$ che minimizzano la somma dei quadrati dei residui ha una soluzione analitica. Questa soluzione si ottiene trovando il punto di minimo di una superficie tridimensionale che rappresenta la somma dei quadrati dei residui. Il punto di minimo è quello per cui il piano tangente alla superficie nelle due direzioni $a$ e $b$ è piatto, cioè le derivate parziali rispetto ad $a$ e $b$ sono uguali a zero. In pratica, ciò significa risolvere un sistema di equazioni lineari con due incognite $a$ e $b$, noto come equazioni normali.
+
+La soluzione delle equazioni normali ci fornisce i coefficienti di regressione stimati, che minimizzano la somma dei quadrati dei residui.  La formula per il coefficiente $a$ è
+
+$$
+a = \bar{y} - b \bar{x}.
+$$
+
+La formula per il coefficiente $b$ è
+
+$$
+b = \frac{Cov(x, y)}{Var(x)},
+$$
+
+dove $\bar{x}$ e $\bar{y}$ sono le medie delle variabili $x$ e $y$, $Cov(x,y)$ è la covarianza tra $x$ e $y$ e $Var(x)$ è la varianza di $x$.
+
+Queste equazioni rappresentano la stima dei minimi quadrati dei coefficienti di regressione che ci permettono di trovare la retta che minimizza la somma dei quadrati dei residui.
+
+### Calcolo manuale dei coefficienti di regressione
+
+Per calcolare i coefficienti di regressione $a$ (intercetta) e $b$ (pendenza), utilizziamo la covarianza e la varianza:
+
+```{r}
+# Calcolo manuale dei coefficienti
+cov_xy <- cov(kidiq$kid_score, kidiq$mom_iq)  # Covarianza tra le due variabili
+var_x <- var(kidiq$mom_iq)  # Varianza della variabile indipendente
+b <- cov_xy / var_x  # Pendenza (coefficiente b)
+b
+```
+
+```{r}
+# Intercetta (coefficiente a)
+a <- mean(kidiq$kid_score) - b * mean(kidiq$mom_iq)
+a
+```
+
+### Interpretazione
+
+Il coefficiente $a$ indica l'intercetta della retta di regressione nel diagramma a dispersione. Questo valore rappresenta il punto in cui la retta di regressione interseca l'asse $y$ del sistema di assi cartesiani. Tuttavia, in questo caso specifico, il valore di $a$ non è di particolare interesse poiché corrisponde al valore della retta di regressione quando l'intelligenza della madre è pari a 0, il che non ha senso nella situazione reale. Successivamente, vedremo come è possibile trasformare i dati per fornire un'interpretazione utile del coefficiente $a$.
+
+Invece, il coefficiente $b$ indica la pendenza della retta di regressione, ovvero di quanto aumenta (se $b$ è positivo) o diminuisce (se $b$ è negativo) la retta di regressione in corrispondenza di un aumento di 1 punto della variabile $x$. Nel caso specifico del QI delle madri e dei loro figli, il coefficiente $b$ ci indica che un aumento di 1 punto del QI delle madri è associato, in media, a un aumento di 0.61 punti del QI dei loro figli.
+
+In pratica, il modello di regressione lineare cerca di prevedere le medie dei punteggi del QI dei figli in base al QI delle madri. Ciò significa che non è in grado di prevedere esattamente il punteggio di ciascun bambino in funzione del QI della madre, ma solo una stima della media dei punteggi dei figli quando il QI delle madri aumenta o diminuisce di un punto.
+
+Il coefficiente $b$ ci dice di quanto aumenta (o diminuisce) in media il QI dei figli per ogni unità di aumento (o diminuzione) del QI della madre. Nel nostro caso, se il QI della madre aumenta di un punto, il QI dei figli aumenta in media di 0.61 punti.
+
+È importante comprendere che il modello statistico di regressione lineare non è in grado di prevedere il valore preciso di ogni singolo bambino, ma solo una stima della media dei punteggi del QI dei figli quando il QI delle madri aumenta o diminuisce. Questa stima è basata su una distribuzione di valori possibili che si chiama distribuzione condizionata $p(y \mid x_i)$.
+
+Una rappresentazione grafica del valore predetto dal modello di regressione, $\hat{y}_i = a + bx_i$ è stato fornito in precedenza. Il diagramma presenta ciascun valore $\hat{y}_i = a + b x_i$ in funzione di $x_i$. I valori predetti dal modello di regressione sono i punti che stanno sulla retta di regressione.
+
+## Residui 
+
+In precedenza abbiamo detto che il residuo, ovvero la componente di ciascuna osservazione $y_i$ che non viene predetta dal modello di regressione, corrisponde alla *distanza verticale* tra il valore $y_i$ osservato e il valore $\hat{y}_i$ predetto dal modello di regressione:
+
+$$
+e_i = y_i - (a + b x_i).
+$$
+
+Per fare un esempio numerico, consideriamo il punteggio osservato del QI del primo bambino.
+
+```{r}
+kidiq$kid_score[1]
+```
+
+Il QI della madre è
+
+```{r}
+kidiq$mom_iq[1]
+```
+
+Per questo bambino, il valore predetto dal modello di regressione è
+
+```{r}
+a + b * kidiq$mom_iq[1]
+```
+
+L'errore che compiamo per predire il QI del bambino utilizzando il modello di regressione (ovvero, il residuo) è
+
+```{r}
+kidiq$kid_score[1] - (a + b * kidiq$mom_iq[1])
+```
+
+Per tutte le osservazioni abbiamo
+
+```{r}
+res <- kidiq$kid_score - (a + b * kidiq$mom_iq)
+```
+
+È una proprietà del modello di regressione (calcolato con il metodo dei minimi quadrati) che la somma dei residui sia uguale a zero.
+
+```{r}
+sum(res)
+```
+
+Questo significa che ogni valore osservato $y_i$ viene scomposto dal modello di regressione in due componenti distinte. La componente deterministica $\hat{y}_i$, che è predicibile da $x_i$, è data da $\hat{y}_i = a + b x_i$. Il residuo, invece, è dato da $e_i = y_i - \hat{y}_i$. La somma di queste due componenti, ovviamente, riproduce il valore osservato.
+
+```{r}
+# Creazione di un data frame con i valori calcolati
+df <- data.frame(
+  kid_score = kidiq$kid_score,
+  mom_iq = kidiq$mom_iq,
+  y_hat = a + b * kidiq$mom_iq,
+  e = kidiq$kid_score - (a + b * kidiq$mom_iq),
+  y_hat_plus_e = (a + b * kidiq$mom_iq) + (kidiq$kid_score - (a + b * kidiq$mom_iq))
+)
+
+# Visualizzazione dei primi 6 valori
+head(df)
+```
+
+## Trasformazione dei dati
+
+In generale, per variabili a livello di scala ad intervalli, l'intercetta del modello di regressione lineare non ha un'interpretazione utile. Questo perché l'intercetta indica il valore atteso di $y$ quando $x = 0$, ma in caso di variabili a scala di intervalli, il valore "0" di $x$ è arbitrario e non corrisponde ad un "assenza" della variabile $x$. Ad esempio, un QI della madre pari a 0 non indica un'assenza di intelligenza, ma solo un valore arbitrario del test usato per misurare il QI. Quindi, sapere il valore medio del QI dei bambini quando il QI della madre è 0 non è di alcun interesse.
+
+Per fornire all'intercetta del modello di regressione un'interpretazione più utile, dobbiamo trasformare le osservazioni di $x$. Per esempio, esprimiamo $x$ come differenza dalla media. Chiamiamo questa nuova variabile $xd$:
+
+```{r}
+kidiq$xd <- kidiq$mom_iq - mean(kidiq$mom_iq)
+
+kidiq |> 
+  head()
+```
+
+Se ora usiamo le coppie di osservazioni $(xd_i, y_i)$, il diagramma a dispersione assume la forma seguente.
+
+```{r}
+# Aggiungiamo una nuova variabile centrata (scarti dalla media)
+kidiq <- kidiq %>%
+  mutate(xd = mom_iq - mean(mom_iq))
+
+# Calcolo della retta di regressione
+b <- cov(kidiq$xd, kidiq$kid_score) / var(kidiq$xd)
+a <- mean(kidiq$kid_score) - b * mean(kidiq$xd)
+
+# Grafico con ggplot2
+ggplot(kidiq, aes(x = xd, y = kid_score)) +
+  geom_point(alpha = 0.4) +  # Punti del grafico
+  geom_abline(intercept = a, slope = b, color = "blue") +  # Retta di regressione
+  labs(
+    x = "QI della madre (scarti dalla media)", 
+    y = "QI del bambino"
+  ) +
+  ggtitle("Retta di regressione sui dati centrati")
+
+```
+
+In pratica, abbiamo spostato tutti i punti del grafico lungo l'asse delle $x$, in modo tale che la media dei valori di $x$ sia uguale a 0. Questo non ha cambiato la forma dei punti nel grafico, ma ha solo spostato l'origine dell'asse $x$. La pendenza della linea di regressione tra $x$ e $y$ rimane la stessa, sia per i dati originali che per quelli trasformati. L'unica cosa che cambia è il valore dell'intercetta della linea di regressione, che ora ha un'interpretazione più significativa.
+
+```{r}
+fm1 <- lm(kid_score ~ xd, data = kidiq)
+coef(fm1)
+```
+
+L'intercetta rappresenta il punto in cui la retta di regressione incontra l'asse $y$ nel diagramma a dispersione. Nel caso dei dati trasformati, abbiamo spostato la nube di punti lungo l'asse $x$ di una quantità pari a $x - \bar{x}$, ma le relazioni spaziali tra i punti rimangono invariate. Pertanto, la pendenza della retta di regressione non cambia rispetto ai dati non trasformati. Tuttavia, il valore dell'intercetta viene influenzato dalla trasformazione. In particolare, poiché $xd = 0$ corrisponde a $x = \bar{x}$ nei dati grezzi, l'intercetta del modello di regressione lineare calcolata sui dati trasformati corrisponde al valore atteso di $y$ quando $x$ assume il valore medio sulla scala dei dati grezzi. In altre parole, l'intercetta del modello di regressione lineare sui dati trasformati rappresenta il valore atteso del QI dei bambini corrispondente al QI medio delle madri.
+
+## Il metodo dei minimi quadrati
+
+Per stimare i coefficienti $a$ e $b$, possiamo minimizzare la somma dei quadrati dei residui tra i valori osservati $y_i$ e quelli previsti $a + b x_i$.
+
+Iniziamo con il creare una griglia per i valori di $b$. Supponiamo che il valore di $a$ sia noto ($a = 25.79978$). Usiamo R per creare una griglia di valori possibili per $b$.
+
+```{r}
+# Griglia di valori per b
+b_grid <- seq(0, 1, length.out = 1001)
+a <- 25.79978  # Intercetta nota
+```
+
+Definiamo ora una funzione che calcola la somma dei quadrati dei residui ($SSE$) per ciascun valore di $b$.
+
+```{r}
+# Funzione per la somma dei quadrati dei residui
+sse <- function(a, b, x, y) {
+  sum((y - (a + b * x))^2)
+}
+```
+
+Applichiamo la funzione `sse` alla griglia di valori $b$ per calcolare la somma dei quadrati dei residui per ogni valore di $b$.
+
+```{r}
+# Calcolo di SSE per ciascun valore di b
+sse_vals <- sapply(b_grid, function(b) sse(a, b, kidiq$mom_iq, kidiq$kid_score))
+```
+
+Tracciamo un grafico che mostra la somma dei quadrati dei residui ($SSE$) in funzione dei valori di $b$, evidenziando il minimo.
+
+```{r}
+# Identificazione del valore di b che minimizza SSE
+b_min <- b_grid[which.min(sse_vals)]
+
+# Grafico
+plot(
+  b_grid, sse_vals, type = "l", col = "blue", lwd = 2,
+  xlab = expression(paste("Possibili valori di ", hat(beta))),
+  ylab = "Somma dei quadrati dei residui (SSE)",
+  main = "Minimizzazione dei residui quadratici"
+)
+points(b_min, min(sse_vals), pch = 19, col = "red")
+legend("topright", legend = expression(hat(beta)), col = "red", pch = 19)
+```
+
+Infine, identifichiamo il valore di $b$ che minimizza la somma dei quadrati dei residui.
+
+```{r}
+b_min
+```
+
+Con questa simulazione, abbiamo stimato il coefficiente $b$ minimizzando la somma dei quadrati dei residui. Questo approccio può essere esteso per stimare simultaneamente entrambi i coefficienti ($a$ e $b$) utilizzando metodi di ottimizzazione più avanzati, come `optim` in R.
+
+```{r}
+optim_result <- optim(
+  par = c(a = 25, b = 0.5),  # Valori iniziali
+  fn = function(params) {
+    a <- params[1]
+    b <- params[2]
+    sse(a, b, kidiq$mom_iq, kidiq$kid_score)
+  }
+)
+
+# Coefficienti stimati
+optim_result$par
+``` 
+
+Questa simulazione illustra come, tramite il metodo dei minimi quadrati, sia possibile stimare i parametri di un modello bivariato di regressione.
+
+## L'errore standard della regressione
+
+Il secondo obiettivo del modello di regressione lineare è quello di misurare quanto della variabilità di $y$ possa essere spiegata dalla variabilità di $x$ per ogni osservazione. L'indice di bontà di adattamento del modello viene fornito dalla deviazione standard dei residui, chiamata anche "errore standard della stima" (o errore standard della regressione), $s_e$. Per calcolare $s_e$, si sommano i quadrati dei residui $e_i$ per ogni osservazione e si divide per $n-2$, dove $n$ rappresenta la numerosità del campione e $2$ il numero di coefficienti stimati nel modello di regressione. Si prende poi la radice quadrata del risultato. L'indice $s_e$ possiede la stessa unità di misura di $y$ ed è una stima della deviazione standard dei residui nella popolazione.
+
+Illustriamo il calcolo di $s_e$ con i dati a disposizione. I residui $e$ possono essere calcolati sottraendo ai valori osservati $y_i$ i valori predetti dal modello $a + b x_i$:
+
+```{r}
+# Calcolo dei residui
+e <- kidiq$kid_score - (a + b * kidiq$mom_iq)
+
+# Mostriamo i primi 10 residui
+head(e, 10)
+```
+
+Calcoliamo il valore medio assoluto dei residui per avere un'indicazione della deviazione media rispetto alla retta di regressione.
+
+```{r}
+# Media assoluta dei residui
+mean(abs(e))
+```
+
+L'errore standard della stima $s_e$ si calcola come la radice quadrata della somma dei quadrati dei residui divisa per $n-2$:
+
+```{r}
+# Calcolo di s_e
+se <- sqrt(sum(e^2) / (length(e) - 2))
+se
+```
+
+Notiamo che il valore medio assoluto dei residui e l'errore standard $s_e$ non sono identici, ma hanno lo stesso ordine di grandezza. $s_e$ è una misura più rigorosa della deviazione standard dei residui. 
+
+Questa analisi dimostra come $s_e$ consenta di valutare quanto le previsioni del modello si discostino (in media) dai dati osservati.
+
+### Sottostima dell'Errore nel Modello di Regressione
+
+Come discusso da @gelman2021regression, la **radice quadrata media dei residui**, calcolata come 
+
+$$
+\sqrt{\frac{1}{n} \sum_{i=1}^n \big(y_i - (\hat{a} + \hat{b}x_i)\big)^2},
+$$
+
+tende a sottostimare la deviazione standard $\sigma$ dell'errore nel modello di regressione. Questa sottostima è dovuta al fenomeno del **sovradimensionamento**, dato che i parametri $a$ e $b$ sono stimati utilizzando gli stessi $n$ punti dati su cui vengono calcolati i residui. In altre parole, i residui non sono del tutto indipendenti dal modello.
+
+Un approccio alternativo per valutare l'errore predittivo e mitigare il problema del sovradimensionamento è la **validazione incrociata**. In particolare, l'approccio leave-one-out (LOOCV) offre una soluzione semplice ed efficace. Questo metodo consiste nell'adattare il modello $n$ volte, escludendo ogni volta un punto dati, adattando il modello ai rimanenti $n-1$ punti, e utilizzando tale modello per predire l'osservazione esclusa.
+
+#### Procedura Leave-One-Out:
+
+- Per $i = 1, \ldots, n$:
+  1. Adatta il modello $y = a + bx + \text{errore}$ ai $n-1$ punti dati $(x, y)_j, j \neq i$. Denomina i coefficienti stimati come $\hat{a}_{-i}$ e $\hat{b}_{-i}$.
+  2. Calcola il residuo validato incrociato:
+  
+     $$
+     r_{\text{CV}} = y_i - (\hat{a}_{-i} + \hat{b}_{-i} x_i).
+     $$
+     
+  3. Salva il residuo al quadrato per il calcolo successivo.
+
+- Calcola infine la stima di $\sigma_{\text{CV}}$ come:
+
+  $$
+  \sigma_{\text{CV}} = \sqrt{\frac{1}{n} \sum_{i=1}^n r_{\text{CV}}^2}.
+  $$
+
+#### Applicazione Pratica:
+
+Ecco un esempio applicato al modello che predice l'intelligenza del bambino ($\texttt{kid\_score}$) in funzione dell'intelligenza della madre ($\texttt{mom\_iq}$) utilizzando il dataset `kidiq`.
+
+```{r}
+options(round = 5)
+
+# Array per salvare i residui validati incrociati
+residuals_cv <- numeric(nrow(kidiq))
+
+# Loop per la validazione incrociata leave-one-out
+for (i in 1:nrow(kidiq)) {
+  # Dati di training escludendo l'i-esimo punto
+  train_data <- kidiq[-i, ]
+  test_data <- kidiq[i, ]
+  
+  # Addestramento del modello
+  model <- lm(kid_score ~ mom_iq, data = train_data)
+  
+  # Predizione sull'i-esimo punto
+  y_pred <- predict(model, newdata = test_data)
+  
+  # Calcolo del residuo validato incrociato
+  residual_cv <- test_data$kid_score - y_pred
+  residuals_cv[i] <- residual_cv^2
+}
+
+# Calcolo di sigma_cv
+sigma_cv <- sqrt(mean(residuals_cv))
+
+cat("Stima di σ_CV:", sigma_cv, "\n")
+```
+
+#### Confronto con la Stima Tradizionale
+
+Calcoliamo la stima tradizionale di $\sigma$ utilizzando il modello completo e confrontiamola con $\sigma_{\text{CV}}$.
+
+```{r}
+# Modello completo
+fm2 <- lm(kid_score ~ mom_iq, data = kidiq)
+
+# Stima tradizionale dell'errore standard della regressione
+res <- summary(fm2)
+cat("Errore standard della regressione (tradizionale):", res$sigma, "\n")
+```
+
+La stima tradizionale di $\sigma$ si basa sulla seguente formula:
+
+$$
+\hat{\sigma}_e = \sqrt{\frac{\sum_{i=1}^n (e_i - \bar{e})^2}{n - p}},
+$$
+
+dove $e_i$ sono i residui del modello e $p = 2$ è il numero di parametri stimati ($a$ e $b$).
+
+#### Interpretazione
+
+Nel caso analizzato, i valori stimati di $\sigma_{\text{CV}}$ e $\hat{\sigma}_e$ tradizionale possono risultare molto simili. Tuttavia, in generale, la stima di $\sigma_{\text{CV}}$ tende a essere leggermente superiore, in quanto riflette meglio l'errore predittivo su dati non utilizzati per adattare il modello. Questo rende $\sigma_{\text{CV}}$ una misura più robusta e conservativa dell'incertezza del modello.
+
+La validazione incrociata, e in particolare l'approccio LOOCV, rappresenta uno strumento importante per valutare le performance predittive di un modello di regressione e per ottenere stime più affidabili della deviazione standard dell'errore.
+
+## Indice di determinazione
+
+Un importante risultato dell'analisi di regressione riguarda la scomposizione della varianza della variabile dipendente $y$ in due componenti: la varianza spiegata dal modello e la varianza residua. Questa scomposizione è descritta mediante l'indice di determinazione $R^2$, che fornisce una misura della bontà di adattamento del modello ai dati del campione. 
+
+Per una generica osservazione $x_i, y_i$, la deviazione di $y_i$ rispetto alla media $\bar{y}$ può essere espressa come la somma di due componenti: il residuo $e_i=y_i- \hat{y}_i$ e lo scarto di $\hat{y}_i$ rispetto alla media $\bar{y}$:
+
+$$
+y_i - \bar{y} = (y_i- \hat{y}_i) + (\hat{y}_i - \bar{y}) = e_i + (\hat{y}_i - \bar{y}).
+$$
+
+La varianza totale di $y$ può quindi essere scritta come:
+
+$$
+\sum_{i=1}^{n}(y_i - \bar{y})^2 = \sum_{i=1}^{n}(e_i + (\hat{y}_i - \bar{y}))^2.
+$$
+
+Sviluppando il quadrato e sommando, si ottiene:
+
+$$
+\sum_{i=1}^{n}(y_i - \bar{y})^2 = \sum_{i=1}^{n}(y_i - \hat{y}_i)^2 + \sum_{i=1}^{n}(\hat{y}_i - \bar{y})^2.
+$$
+
+Il primo termine rappresenta la varianza residua, mentre il secondo termine rappresenta la varianza spiegata dal modello. L'indice di determinazione $R^2$ è definito come il rapporto tra la varianza spiegata e la varianza totale:
+
+$$
+R^2 = \frac{\sum_{i=1}^{n}(\hat{y}_i - \bar{y})^2}{\sum_{i=1}^{n}(y_i - \bar{y})^2}.
+$$
+
+Questo indice varia tra 0 e 1 e indica la frazione di varianza totale di $y$ spiegata dal modello di regressione lineare. Un valore alto di $R^2$ indica che il modello di regressione lineare si adatta bene ai dati, in quanto una grande parte della varianza di $y$ è spiegata dalla variabile indipendente $x$.
+
+Per l'esempio in discussione, possiamo calcolare la devianza totale, la devianza spiegata e l'indice di determinazione $R^2$ come segue:
+
+La devianza totale misura la variabilità complessiva dei punteggi osservati $y$ rispetto alla loro media:
+
+```{r}
+# Devianza totale
+dev_t <- sum((kidiq$kid_score - mean(kidiq$kid_score))^2)
+dev_t
+```
+
+La devianza spiegata misura la variabilità che il modello è in grado di spiegare, considerando i valori predetti $a + b x$:
+
+```{r}
+# Devianza spiegata
+dev_r <- sum(((a + b * kidiq$mom_iq) - mean(kidiq$kid_score))^2)
+dev_r
+```
+
+L'indice $R^2$ è il rapporto tra la devianza spiegata e la devianza totale, e indica la frazione della variabilità totale che è spiegata dal modello di regressione:
+
+```{r}
+# Indice di determinazione
+R2 <- dev_r / dev_t
+round(R2, 3)
+```
+
+Per verificare i calcoli, utilizziamo il modello di regressione lineare in R e leggiamo $R^2$ direttamente dal sommario del modello:
+
+```{r}
+# Modello di regressione lineare
+mod <- lm(kid_score ~ mom_iq, data = kidiq)
+
+# Sommario del modello per leggere R^2
+summary(mod)$r.squared
+```
+
+Il risultato mostra che circa il 20% della variabilità nei punteggi del QI dei bambini è spiegabile conoscendo il QI delle madri. Questo significa che il modello cattura una porzione rilevante della relazione, ma lascia anche spazio a fattori non inclusi nel modello che influenzano il QI dei bambini.
+
+## Inferenza sul modello di regressione
+
+Il terzo obiettivo del modello di regressione è l'inferenza. Nell'approccio frequentista, l'inferenza viene effettuata calcolando la distribuzione campionaria dei parametri e gli intervalli di fiducia per i parametri. Ad esempio, se si vuole determinare se la pendenza della retta di regressione è maggiore di zero, si calcola l'intervallo di fiducia al 95% per il parametro $\beta$. Se l'intervallo non include lo zero e se il limite inferiore dell'intervallo è maggiore di zero, si conclude che c'è evidenza di un'associazione lineare positiva tra $x$ e $y$ con un grado di confidenza del 95%.[^1] Il prossimo capitolo spiegherà come effettuare l'inferenza sui coefficienti del modello di regressione lineare in un contesto bayesiano.
+
+[^1]: Per un approfondimento sull'approccio frequentista alla regressione, si veda, per esempio, @caudek2001statistica.
+
+## Riflessioni Conclusive
+
+Il modello lineare bivariato è uno strumento fondamentale nell'analisi delle relazioni tra due variabili e rappresenta una pietra miliare dell'approccio frequentista. Questo capitolo ha mostrato come il modello consenta di quantificare il grado di associazione tra una variabile indipendente $x$ e una variabile dipendente $y$, utilizzando una relazione lineare.
+
+Grazie all'approccio frequentista, abbiamo imparato a stimare i coefficienti $a$ (intercetta) e $b$ (pendenza) attraverso il metodo dei minimi quadrati, che minimizza la somma dei quadrati dei residui per trovare la retta che meglio approssima i dati osservati. Inoltre, l'indice di determinazione ($R^2$) ci ha permesso di valutare la bontà di adattamento del modello e di quantificare quanta parte della variabilità di $y$ è spiegata dalla variabile $x$.
+
+In pratica, il modello lineare bivariato consente di rispondere a domande fondamentali, come: 
+
+- **Se il valore della variabile indipendente aumenta o diminuisce, come si comporta la variabile dipendente?** 
+- **Qual è l'intensità e il segno della relazione tra le due variabili?**
+
+La semplicità del modello lo rendono uno strumento utile non solo per descrivere e analizzare relazioni tra variabili, ma anche per effettuare previsioni. Pur limitandosi a un singolo predittore, il modello lineare bivariato fornisce una base per comprendere relazioni più complesse, come quelle coinvolgenti più variabili indipendenti (regressione multivariata).
+
+L'approccio frequentista offre una metodologia consolidata per stimare i parametri e valutare il modello, fornendo inferenze utili per analisi pratiche e decisioni informate. Con una solida comprensione di questi concetti, si è pronti a esplorare modelli lineari più complessi e a estendere queste tecniche a scenari più articolati.
+
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
+
+```{r}
+sessionInfo()
+```
+
+## Bibliografia {.unnumbered}
+

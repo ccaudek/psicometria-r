@@ -45,12 +45,18 @@ options(
   width = 77 # 80 - 3 for #> comment
 )
 
-ggplot2::theme_set(ggplot2::theme_gray(12))
+# ggplot2::theme_set(ggplot2::theme_gray(12))
+color_scheme_set("brightblue") # bayesplot
 
 # Theme Settings ---------------------------------------------------------------
 
-# theme_set(bayesplot::theme_default(base_size = 18, base_family = "sans"))
+theme_set(bayesplot::theme_default(base_size = 13, base_family = "sans"))
 
 # Seed -------------------------------------------------------------------------
 
 set.seed(42) # Fissa il seme per la riproducibilità
+
+options(digits = 3)
+options(tidyverse.quiet = TRUE)
+
+

@@ -1,20 +1,20 @@
----
-execute:
-  freeze: auto
----
-
 # Relazioni tra variabili {#sec-correlation}
 
-**Prerequisiti**
+::: callout-note
+## In questo capitolo imparerai a
+
+- comprendere e calcolare la correlazione e la covarianza;
+- interpretare correttamente gli indici di correlazione e covarianza nel contesto dell’analisi dei dati.
+:::
+
+::: callout-tip
+## Prerequisiti
 
 - Leggere l'introduzione dell'articolo "The curious case of the cross-sectional correlation" [@hamaker2024curious].
+:::
 
-**Concetti e competenze chiave**
-
-- Comprendere e calcolare la correlazione e la covarianza;
-- Interpretare correttamente gli indici di correlazione e covarianza nel contesto dell’analisi dei dati.
-
-**Preparazione del Notebook**
+::: callout-important
+## Preparazione del Notebook
 
 ```{r}
 here::here("code", "_common.R") |> 
@@ -22,8 +22,9 @@ here::here("code", "_common.R") |>
 
 # Load packages
 if (!requireNamespace("pacman")) install.packages("pacman")
-pacman::p_load(mice, labelled, haven, pointblank)
+pacman::p_load(readr)
 ```
+:::
 
 ## Introduzione 
 
@@ -77,10 +78,10 @@ Per rendere l'idea più chiara, consideriamo i dati dello studio condotto da @ze
 
 ```{r}
 # Leggi i dati dal file CSV
-df = rio::import(here::here("data", "data.mood.csv"))
+df <- rio::import(here::here("data", "data.mood.csv"))
 
 # Seleziona le colonne di interesse
-df <- df |> 
+df <- df |>
   dplyr::select("esm_id", "group", "bdi", "cesd_sum")
 
 # Rimuovi le righe duplicate
@@ -112,15 +113,38 @@ x_values <- seq(min(df$bdi), max(df$bdi), length.out = 100)
 
 # Plot scatter plot and regression line
 ggplot() +
-  geom_point(data = mdd_data, aes(x = bdi, y = cesd_sum, color = "Pazienti"), alpha = 0.7) +
-  geom_point(data = ctl_data, aes(x = bdi, y = cesd_sum, color = "Controlli"), alpha = 0.7) +
-  geom_line(aes(x = x_values, y = line_combined(x_values)), linetype = "dashed", color = "orange") +
-  geom_vline(aes(xintercept = mean(mdd_data$bdi, na.rm = TRUE)), color = "blue", alpha = 0.2) +
-  geom_vline(aes(xintercept = mean(ctl_data$bdi, na.rm = TRUE)), color = "red", alpha = 0.2) +
-  geom_hline(aes(yintercept = mean(mdd_data$cesd_sum, na.rm = TRUE)), color = "blue", alpha = 0.2) +
-  geom_hline(aes(yintercept = mean(ctl_data$cesd_sum, na.rm = TRUE)), color = "red", alpha = 0.2) +
+  geom_point(
+    data = mdd_data,
+    aes(x = bdi, y = cesd_sum, color = "Pazienti"), alpha = 0.7
+  ) +
+  geom_point(
+    data = ctl_data,
+    aes(x = bdi, y = cesd_sum, color = "Controlli"), alpha = 0.7
+  ) +
+  geom_line(
+    aes(x = x_values, y = line_combined(x_values)),
+    linetype = "dashed", color = "orange"
+  ) +
+  geom_vline(
+    aes(xintercept = mean(mdd_data$bdi, na.rm = TRUE)),
+    color = "blue", alpha = 0.2
+  ) +
+  geom_vline(
+    aes(xintercept = mean(ctl_data$bdi, na.rm = TRUE)),
+    color = "red", alpha = 0.2
+  ) +
+  geom_hline(
+    aes(yintercept = mean(mdd_data$cesd_sum, na.rm = TRUE)),
+    color = "blue", alpha = 0.2
+  ) +
+  geom_hline(
+    aes(yintercept = mean(ctl_data$cesd_sum, na.rm = TRUE)),
+    color = "red", alpha = 0.2
+  ) +
   labs(x = "BDI-II", y = "CESD", color = "Gruppo") +
-  scale_color_manual(values = c("Pazienti" = "blue", "Controlli" = "red"))
+  scale_color_manual(
+    values = c("Pazienti" = "blue", "Controlli" = "red")
+  )
 ```
 
 Osservando il grafico a dispersione, è evidente che i dati mostrano una tendenza a distribuirsi in modo approssimativamente lineare. In termini statistici, ciò suggerisce una relazione di associazione lineare tra i punteggi CES-D e BDI-II.
@@ -157,13 +181,13 @@ Se prevalgono punti nel I e III quadrante, allora la nuvola di punti avrà un an
 cov_value <- function(x, y) {
   mean_x <- sum(x) / length(x)
   mean_y <- sum(y) / length(y)
-  
+
   sub_x <- x - mean_x
   sub_y <- y - mean_y
-  
+
   sum_value <- sum(sub_y * sub_x)
   denom <- length(x)
-  
+
   cov <- sum_value / denom
   return(cov)
 }
@@ -172,8 +196,8 @@ cov_value <- function(x, y) {
 Per i dati mostrati nel diagramma, la covarianza tra BDI-II e CESD è 207.4
 
 ```{r}
-x = df$bdi
-y = df$cesd_sum
+x <- df$bdi
+y <- df$cesd_sum
 
 cov_value(x, y)
 ```
@@ -243,8 +267,8 @@ Replichiamo il risultato implementando l'eq. {eq}`eq-cor-def`:
 
 ```{r}
 s_xy <- mean((x - mean(x)) * (y - mean(y)))
-s_x <- sqrt(mean((x - mean(x))^2))  # Deviazione standard popolazione
-s_y <- sqrt(mean((y - mean(y))^2))  # Deviazione standard popolazione
+s_x <- sqrt(mean((x - mean(x))^2)) # Deviazione standard popolazione
+s_y <- sqrt(mean((y - mean(y))^2)) # Deviazione standard popolazione
 r_xy <- s_xy / (s_x * s_y)
 print(r_xy)
 ```
@@ -252,8 +276,10 @@ print(r_xy)
 Un altro modo ancora per trovare la correlazione tra i punteggi BDI-II e CESD è quello di applicare l'@eq-cor-def2:
 
 ```{r}
-z_x <- (x - mean(x)) / sqrt(mean((x - mean(x))^2))  # Standardizzazione con deviazione standard popolazione
-z_y <- (y - mean(y)) / sqrt(mean((y - mean(y))^2))  # Standardizzazione con deviazione standard popolazione
+z_x <- (x - mean(x)) / sqrt(mean((x - mean(x))^2)) 
+# Standardizzazione con deviazione standard popolazione
+z_y <- (y - mean(y)) / sqrt(mean((y - mean(y))^2)) 
+# Standardizzazione con deviazione standard popolazione
 mean(z_x * z_y)
 ```
 
@@ -279,11 +305,17 @@ Per fornire un esempio, consideriamo due variabili di scala ordinale e calcoliam
 cor.test(c(1, 2, 3, 4, 5), c(5, 6, 7, 8, 7), method = "spearman")
 ```
 
-## Correlazione nulla
+## Oltre la correlazione e la covarianza: quando l’associazione tra variabili è più complessa
 
-Un aspetto finale da sottolineare riguardo alla correlazione è che essa descrive la direzione e l'intensità della **relazione lineare** tra due variabili. Tuttavia, la correlazione non cattura relazioni non lineari tra le variabili, anche se possono essere molto forti. È fondamentale comprendere che una correlazione pari a zero non implica l'assenza di una relazione tra le due variabili, ma indica solamente l'assenza di una relazione lineare tra di esse.
+In questo capitolo abbiamo introdotto due misure fondamentali per descrivere la relazione tra due variabili: **covarianza** e **correlazione**. La covarianza fornisce un’indicazione del modo in cui due variabili si discostano congiuntamente dalle proprie medie, mentre la correlazione ne standardizza i valori, permettendo un confronto più immediato tra diverse coppie di variabili e garantendo un indice compreso tra -1 e +1. Una correlazione vicina a +1 indica una forte relazione lineare positiva, vicina a -1 una forte relazione lineare negativa, mentre un valore vicino a 0 segnala l’assenza di una chiara relazione lineare.
 
-La figura seguente fornisce tredici esempi di correlazione nulla in presenza di una chiara relazione (non lineare) tra due variabili. In questi tredici insiemi di dati i coefficienti di correlazione di Pearson sono sempre uguali a 0. Ma questo non significa che non vi sia alcuna relazione tra le variabili.
+Tuttavia, è cruciale comprendere che la correlazione descrive esclusivamente **la dimensione lineare** della relazione tra due variabili. Questo significa che una correlazione nulla (pari a zero) non implica affatto che non vi sia alcuna relazione tra le variabili, ma semplicemente che non esiste una relazione lineare. Possono esistere relazioni non lineari anche molto forti, non catturate da questo indice. Inoltre, altre situazioni possono trarre in inganno, come nei casi in cui i dati siano raggruppati in sottogruppi con proprietà differenti o siano frutto di particolari processi di selezione.
+
+### Correlazione nulla e relazioni non lineari
+
+Una correlazione pari a zero può nascondere relazioni non lineari anche molto marcate. Per esempio, se una variabile Y aumenta solo quando X è molto alta o molto bassa, ma rimane costante per valori intermedi di X, questa curva a “U” può generare una correlazione vicina allo zero, pur esistendo un forte legame non lineare.
+
+Un esempio illustrativo è fornito dal cosiddetto **Datasaurus Dozen**, un insieme di tredici dataset con la stessa media, deviazione standard e correlazione tra le variabili, ma con distribuzioni visivamente e strutturalmente molto diverse. In ognuno di questi dataset la correlazione di Pearson è pari a zero, ma l’ispezione grafica rivela pattern e forme ben definite. Questo ci ricorda che è sempre bene accompagnare le misure numeriche con una visualizzazione grafica dei dati.
 
 ```{r}
 datasaurus_data <- read.csv("../../data/datasaurus.csv")
@@ -299,56 +331,163 @@ datasaurus_summary <- datasaurus_data %>%
     y_std = sd(y, na.rm = TRUE)
   )
 
-print(datasaurus_summary)
+datasaurus_summary
 ```
 
 ```{r fig.asp=1}
-datasaurus_data |> 
+datasaurus_data |>
   ggplot(aes(x = x, y = y)) +
   geom_point(alpha = 0.7) +
-  facet_wrap(~ dataset, nrow = 4, ncol = 4) +
+  facet_wrap(~dataset, nrow = 4, ncol = 4) +
   labs(x = NULL, y = NULL)
 ```
 
-## Due Paradossi Comuni
+Tutti questi esempi rafforzano l’idea che l’assenza di correlazione lineare non significa assenza di relazione: potremmo avere strutture curve, pattern complessi o punti anomali (outlier) capaci di modificare radicalmente la forma della relazione tra le variabili.
 
-Esistono due situazioni comuni in cui le associazioni tra variabili possono ingannarci, e che vale la pena esaminare esplicitamente: il paradosso di Simpson e il paradosso di Berkson.
+Oltre alle relazioni non lineari, esistono situazioni in cui la correlazione, da sola, può fornire un’immagine distorta dei dati. Tra queste ricordiamo due fenomeni noti come il **paradosso di Simpson** e il **paradosso di Berkson**.
 
 ### Paradosso di Simpson
 
-Il paradosso di Simpson si verifica quando stimiamo una relazione per sottoinsiemi dei nostri dati, ma otteniamo una relazione diversa considerando l'intero dataset (Simpson 1951). È un caso particolare della fallacia ecologica, che si verifica quando cerchiamo di fare affermazioni sugli individui basandoci sui loro gruppi. Ad esempio, potrebbe esserci una relazione positiva tra i voti universitari e la performance alla scuola di specializzazione in due dipartimenti considerati individualmente. Tuttavia, se i voti universitari tendono a essere più alti in un dipartimento rispetto all'altro, mentre la performance alla scuola di specializzazione tende a essere opposta, potremmo trovare una relazione negativa tra i voti universitari e la performance alla scuola di specializzazione.
+Il paradosso di Simpson si verifica quando, guardando i dati raggruppati per sottogruppi, si osserva una certa relazione tra due variabili, ma aggregando i dati di tutti i sottogruppi insieme emerge una relazione opposta. In altre parole, la tendenza che appare quando si considerano i dati divisi per gruppi scompare o si inverte quando si esamina l’intero campione senza tenere conto della suddivisione in sottogruppi.
+
+Immaginiamo di avere due dipartimenti universitari, A e B. All’interno di ciascun dipartimento, la relazione tra il voto di laurea (X) e la performance in un successivo programma di specializzazione (Y) è positiva: all’aumentare del voto di laurea aumenta, in media, la performance nella scuola di specializzazione.
+
+Tuttavia, supponiamo che il Dipartimento A abbia in generale voti di laurea mediamente più bassi, ma ottime performance nella specializzazione; mentre il Dipartimento B abbia voti di laurea mediamente più alti, ma performance alla specializzazione un po’ più basse. Se uniamo tutti gli studenti dei due dipartimenti senza considerarne l’appartenenza, potremmo osservare una relazione negativa tra voto di laurea e performance, sovvertendo le conclusioni tratte guardando ai singoli sottogruppi.
+
+Ecco come possiamo simulare questi dati in R:
+
+```{r}
+set.seed(123)
+
+# Numero di osservazioni per dipartimento
+n <- 100
+
+# Dipartimento A:
+# Voti di laurea (X) più bassi, ma performance (Y) più alta.
+# Creiamo un legame positivo tra X e Y all'interno di A.
+X_A <- rnorm(n, mean = 50, sd = 5)    # Voti laurea mediamente più bassi
+Y_A <- X_A + rnorm(n, mean = 20, sd = 5) # Performance alta e correlata positivamente con X
+
+# Dipartimento B:
+# Voti di laurea (X) più alti, ma performance (Y) più bassa.
+# Anche qui creiamo un legame positivo tra X e Y all'interno di B, 
+# ma con un offset tale che globalmente i voti alti coincidano con performance minori.
+X_B <- rnorm(n, mean = 60, sd = 5)    # Voti laurea mediamente più alti
+Y_B <- X_B - rnorm(n, mean = 10, sd = 5) # Performance più bassa ma comunque correlata positivamente con X all’interno di B
+
+# Creiamo un dataframe con tutti i dati
+dipartimento <- c(rep("A", n), rep("B", n))
+X <- c(X_A, X_B)
+Y <- c(Y_A, Y_B)
+dati <- data.frame(dipartimento, X, Y)
+
+# Correlazioni all'interno dei dipartimenti
+cat("Correlazione nel Dipartimento A:", cor(X_A, Y_A), "\n")
+cat("Correlazione nel Dipartimento B:", cor(X_B, Y_B), "\n")
+
+# Correlazione sull'intero dataset (senza distinguere i dipartimenti)
+cat("Correlazione globale:", cor(X, Y), "\n")
+
+# Visualizziamo i dati
+ggplot(dati, aes(x = X, y = Y, color = dipartimento)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(
+    title = "Paradosso di Simpson",
+    x = "Voto di laurea", 
+    y = "Performance nella specializzazione"
+  ) 
+```
+
+- **All’interno del Dipartimento A**: la correlazione tra voto di laurea (X) e performance (Y) è positiva. Ciò significa che, per gli studenti di A, avere un voto di laurea più alto è associato a una performance maggiore nella specializzazione.
+
+- **All’interno del Dipartimento B**: la correlazione tra X e Y è anch’essa positiva, indicando che anche nel secondo dipartimento voti più alti tendono ad accompagnarsi a performance più alte.
+
+- **Considerando entrambi i dipartimenti insieme**: a causa delle differenze nei livelli medi di X e Y tra i dipartimenti, unendo i dati senza distinguere il gruppo di appartenenza otteniamo una correlazione globale negativa. Questo significa che, ignorando la suddivisione in dipartimenti, sembra che aumentare il voto di laurea sia associato a una diminuzione della performance nella specializzazione — una conclusione opposta a quella tratta dall’analisi separata dei due sottogruppi.
+
+Questo è un esempio concreto del paradosso di Simpson: la relazione osservata in sottogruppi omogenei si inverte quando si aggregano i dati, mettendo in guardia sulla necessità di considerare con attenzione la struttura dei dati e i fattori confondenti prima di trarre conclusioni.
 
 ### Paradosso di Berkson
 
-Il paradosso di Berkson si verifica quando stimiamo una relazione basandoci sul dataset che abbiamo, ma a causa della selezione del dataset, la relazione risulta diversa in un dataset più generale (Berkson 1946). Ad esempio, se abbiamo un dataset di ciclisti professionisti, potremmo non trovare una relazione tra il loro VO2 max e la possibilità di vincere una gara di ciclismo (Coyle et al. 1988; Podlogar, Leo, and Spragg 2022). Tuttavia, se avessimo un dataset della popolazione generale, potremmo trovare una relazione tra queste due variabili. Il dataset professionale è così selezionato che la relazione scompare; non si può diventare ciclisti professionisti senza avere un VO2 max adeguato, ma tra i ciclisti professionisti, tutti hanno un VO2 max sufficiente.
+Il paradosso di Berkson è un fenomeno legato alla selezione del campione. Se il dataset non è rappresentativo della popolazione generale, la relazione osservata può risultare artificiale o opposta a quella esistente su un campione più ampio. Per esempio, analizzando solo ciclisti professionisti, potremmo non vedere alcuna relazione tra VO2 max e probabilità di vincere una gara, poiché tutti hanno già superato una certa soglia di VO2 max. Considerando la popolazione generale, invece, potrebbe emergere chiaramente una relazione positiva tra questi due fattori. Questo paradosso evidenzia l’importanza di considerare il processo di selezione dei dati e di chiedersi se il campione analizzato sia adeguato a rispondere alla domanda di ricerca.
 
-## Considerazioni conclusive
+### Limiti delle statistiche riassuntive semplici
 
-In questo capitolo, abbiamo approfondito i concetti di correlazione e covarianza, strumenti chiave per quantificare le relazioni tra variabili nei fenomeni psicologici. L'aspetto cruciale non risiede tanto nel saper calcolare queste misure, quanto nel comprendere le informazioni che esse offrono. È fondamentale ricordare che le associazioni osservate non indicano necessariamente i meccanismi causali sottostanti.
+Un esempio particolarmente famoso che dimostra i limiti delle semplici statistiche descrittive — come media, deviazione standard e correlazione — è il quartetto di Anscombe. Questo insieme di quattro piccoli dataset possiede identiche medie, varianze e correlazioni tra variabili, ma rappresenta relazioni estremamente differenti tra X e Y [@anscombe1973graphs].
 
-Le relazioni tra variabili possono presentarsi in diversi scenari:
+Importiamo il dataset `anscombe` già disponibile nel pacchetto `datasets` di R:
 
-1. **Causalità diretta**: Quando una variabile $X$ influisce direttamente su una variabile $Y$, l'associazione tra le due sarà evidente. In un contesto ideale, con un effetto causale lineare e isolato, la correlazione rifletterebbe esattamente la forza e la direzione dell'effetto causale. Tuttavia, questo scenario è teorico e raramente applicabile ai fenomeni psicologici complessi.
+```{r}
+data("anscombe")
 
-2. **Influenza di altre variabili**: Nella realtà, anche quando esiste una relazione causale diretta tra $X$ e $Y$, l'intervento di altre variabili può modificare l'associazione osservata. Come vedremo nel prossimo capitolo, la struttura delle relazioni causali può portare a correlazioni positive, nulle o persino negative, pur in presenza di un effetto causale positivo.
+anscombe |> 
+  head()
+```
 
-3. **Associazioni spurie**: È possibile riscontrare associazioni tra variabili che non sono causate da una relazione diretta tra di esse. Questo fenomeno evidenzia l'importanza di non confondere correlazione e causalità, e di essere cauti nelle interpretazioni.
+Il dataset `anscombe` contiene quattro serie di dati (x1, y1), (x2, y2), (x3, y3) e (x4, y4), ognuna costituita da 11 coppie di valori (x, y). Per comprendere meglio le loro caratteristiche, iniziamo calcolando alcune statistiche descrittive. La funzione `apply()` consente di applicare una funzione (ad esempio, `mean`) a tutte le colonne di un data frame. Usandola sulle colonne di `anscombe`, otteniamo le medie di ciascuna delle otto variabili (le quattro x e le quattro y):
 
-Questi scenari mettono in luce un principio fondamentale: l'osservazione di un'associazione tra due variabili non è sufficiente per inferire una relazione causale. Le associazioni, considerate isolatamente, forniscono informazioni limitate sul fenomeno in esame.
+```{r}
+apply(anscombe, MARGIN = 2, mean)
+```
 
-Tuttavia, in alcuni contesti, le associazioni possono rivelarsi utili:
+Osserviamo che le medie delle quattro variabili x sono identiche fino a sei cifre decimali, e le medie delle quattro variabili y differiscono solo in modo trascurabile (circa lo 0.01%). Analogamente, se calcoliamo le deviazioni standard per ciascuna variabile, notiamo una notevole somiglianza:
 
-- quando vengono misurate molteplici variabili e si utilizzano tecniche psicometriche come l'analisi fattoriale o lo scaling psicologico;
-- quando si ha una chiara comprensione dei meccanismi causali che regolano il dominio di studio, permettendo di controllare le variabili confondenti tramite l'uso di metodi statistici avanzati.
+```{r}
+apply(anscombe, MARGIN = 2, sd)
+```
 
-Nel capitolo successivo, ci concentreremo su queste tematiche, esplorando strumenti e metodologie che ci consentiranno di andare oltre la semplice osservazione delle associazioni, per avvicinarci a una comprensione più profonda e causale dei fenomeni psicologici.
+Anche in questo caso, le deviazioni standard per le x coincidono fino alla sesta cifra decimale, mentre quelle delle y differiscono di meno dello 0.06%. Inoltre, se calcoliamo i coefficienti di correlazione tra x e y in ognuno dei quattro dataset, scopriamo che sono quasi identici:
 
-## Informazioni sull'Ambiente di Sviluppo
+```{r}
+# Calcoliamo la correlazione per ciascuna coppia (x1,y1), (x2,y2), (x3,y3), (x4,y4)
+for (i in 1:4) {
+  x_var <- anscombe[[paste0("x", i)]]
+  y_var <- anscombe[[paste0("y", i)]]
+  
+  corr_value <- cor(x_var, y_var)
+  cat("Correlazione tra x", i, "e y", i, ":", corr_value, "\n")
+}
+```
+
+Se ci limitassimo a guardare queste statistiche (media, deviazione standard, correlazione), potremmo facilmente essere indotti a concludere che i quattro dataset sono tra loro sostanzialmente indistinguibili. Tuttavia, la realtà è molto diversa. Le statistiche descrittive, prese da sole, non offrono una visione completa e possono nascondere importanti differenze nella struttura dei dati.
+
+Questa differenza diventa evidente non appena decidiamo di visualizzare i dati. La rappresentazione grafica fornisce informazioni che non emergono dalle sole statistiche riassuntive:
+
+```{r fig.asp=1}
+anscombe_m <- tibble()
+
+for (i in 1:4) {
+  anscombe_m <- rbind(
+    anscombe_m, tibble(set = i, x = anscombe[, i], y = anscombe[, i + 4])
+  )
+}
+
+ggplot(anscombe_m, aes(x, y)) +
+  geom_point(size = 5, color = "red", fill = "orange", shape = 21) +
+  geom_smooth(method = "lm", fill = NA, fullrange = TRUE) +
+  facet_wrap(~set, ncol = 2)
+```
+
+
+Osservando i grafici, notiamo subito che i quattro dataset sono profondamente diversi: 
+
+- **Dataset 1:** Qui la relazione tra x e y è approssimativamente lineare, e la correlazione riflette in modo appropriato il legame tra le due variabili.
+- **Dataset 2:** Sebbene la correlazione sia simile a quella del Dataset 1, i dati mostrano una relazione curvilinea e non lineare. La semplice correlazione lineare non ne cattura la forma.
+- **Dataset 3:** La presenza di un singolo outlier distorce la percezione della relazione tra le variabili, altrimenti lineare. La correlazione alta è influenzata in modo sproporzionato da questo punto anomalo.
+- **Dataset 4:** Qui i dati non mostrano alcuna relazione lineare. La correlazione elevata è il frutto di un pattern fortemente atipico (ad esempio, una sola coppia di punti allineata).
+
+Il quartetto di Anscombe mette in luce un principio fondamentale: statistiche descrittive come media, deviazione standard e correlazione non sono sempre sufficienti per comprendere la natura dei dati. La visualizzazione grafica è essenziale per cogliere relazioni, pattern non lineari, outlier e altre caratteristiche che le semplici statistiche non riescono a rivelare. In definitiva, questo esempio dimostra che analizzare i dati soltanto attraverso poche statistiche di sintesi può portare a conclusioni fuorvianti, mentre l’integrazione con la rappresentazione grafica fornisce una visione più completa e accurata.
+
+## Riflessioni Conclusive
+
+La covarianza e la correlazione sono strumenti preziosi per capire l’intensità e la direzione lineare di una relazione tra due variabili. Tuttavia, non dobbiamo confondere la loro semplicità con completezza d’informazione. Una correlazione nulla non implica assenza di relazione, ma solo assenza di una relazione lineare. Inoltre, il paradosso di Simpson e il paradosso di Berkson dimostrano che la semplice osservazione di correlazioni può essere fuorviante se non si tiene conto della struttura dei dati o del processo di selezione del campione.
+
+Infine, esempi come il quartetto di Anscombe sottolineano quanto sia fondamentale accompagnare le statistiche riassuntive con analisi grafiche e un’attenzione costante ai possibili pattern non lineari, agli outlier e alle caratteristiche peculiari del dataset. Nel prossimo capitolo esamineremo approcci che consentono di avvicinarsi alla comprensione causale dei fenomeni, andando oltre la semplice osservazione dell’associazione tra variabili.
+
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered}
 
 ```{r}
 sessionInfo()
 ```
 
 ## Bibliografia {.unnumbered}
-
-

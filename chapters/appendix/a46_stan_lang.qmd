@@ -1,0 +1,248 @@
+# Linguaggio Stan {#sec-apx-stan-lang}
+
+È possibile accedere al linguaggio [Stan](https://mc-stan.org/) tramite diverse interfacce:
+
+-   `CmdStanPy` - integrazione con il linguaggio di programmazione Python;
+-   `PyStan` - integrazione con il linguaggio di programmazione Python;
+-   `CmdStan` - eseguibile da riga di comando,
+-   `RStan` - integrazione con il linguaggio $\mathsf{R}$;
+-   `MatlabStan` - integrazione con MATLAB;
+-   `Stan.jl` - integrazione con il linguaggio di programmazione Julia;
+-   `StataStan` - integrazione con Stata.
+-   `ScalaStan` - integrazione con Scala.
+
+Inoltre, vengono fornite interfacce di livello superiore con i pacchetti che utilizzano Stan come backend, sia in Python che in Linguaggio $\mathsf{R}$:
+
+- `Arviz` - ArviZ è una libreria Python per l'analisi esplorativa dei modelli bayesiani. Essa funge da strumento indipendente dal backend per diagnosticare e visualizzare l'inferenza bayesiana.
+-   `shinystan` - interfaccia grafica interattiva per l'analisi della distribuzione a posteriori e le diagnostiche MCMC in $\mathsf{R}$;
+-   `bayesplot` - insieme di funzioni utilizzabili per creare grafici relativi all'analisi della distribuzione a posteriori, ai test del modello e alle diagnostiche MCMC in $\mathsf{R}$;
+-   `brms` - fornisce un'ampia gamma di modelli lineari e non lineari specificando i modelli statistici mediante la sintassi usata in $\mathsf{R}$;
+-   `rstanarm` - fornisce un sostituto per i modelli frequentisti forniti da base $\mathsf{R}$ e `lme4` utilizzando la sintassi usata in $\mathsf{R}$ per la specificazione dei modelli statistici;
+-   `cmdstanr` - un'interfaccia $\mathsf{R}$ per `CmdStan`.
+
+## Interfaccia `cmdstanr`
+
+Negli esempi di questa dispensa verrà utilizzata l'interfaccia `cmdstanr`. CmdStanR è un'interfaccia R per Stan che consente di definire, eseguire e analizzare modelli bayesiani in modo semplice ed efficace. Questa libreria integra l'interfaccia a riga di comando di CmdStan con una serie di funzioni R intuitive, che permettono di gestire modelli, dati e risultati dell'inferenza a posteriori.
+
+Per installare CmdStanR, è possibile seguire la guida ufficiale disponibile a [questo link](https://mc-stan.org/cmdstanr/).
+
+## Codice Stan
+
+Stan consente agli utenti di definire un modello bayesiano attraverso il linguaggio Stan. Questo modello, di solito, viene salvato in un file di testo con estensione `.stan`. 
+
+Il codice Stan deve poi essere compilato. Il processo di compilazione di un modello in Stan avviene in due fasi: innanzitutto, Stan traduce il modello dal formato `.stan` in codice C++, il quale viene successivamente compilato in codice macchina. 
+
+Dopo la compilazione del modello (ovvero, dopo che il codice macchina è stato generato), l'utente può utilizzare l'interfaccia prescelta (per esempio, CmdStan) per campionare la distribuzione definita dal modello e per eseguire altri calcoli correlati al modello stesso. 
+
+Il codice Stan è costituito da una serie di blocchi che vengono usati per specificare un modello statistico. In ordine, questi blocchi sono: 
+
+```stan
+functions {
+  // ... function declarations and definitions ...
+}
+data {
+  // ... declarations ...
+}
+transformed data {
+   // ... declarations ... statements ...
+}
+parameters {
+   // ... declarations ...
+}
+transformed parameters {
+   // ... declarations ... statements ...
+}
+model {
+   // ... declarations ... statements ...
+}
+generated quantities {
+   // ... declarations ... statements ...
+}
+```
+
+Questi blocchi devono sempre essere in questo ordine, ma non tutti i programmi Stan richiedono tutti i blocchi. 
+
+### Blocco `data`
+
+Nel blocco `data` vengono specificate le variabili di input utilizzate nel modello Stan. Per ogni variabile, è necessario definire il tipo di dato, le dimensioni e, se necessario, applicare vincoli sui valori che tali variabili possono assumere.
+
+**Esempio di blocco `data`:**
+
+```stan
+data {
+  int<lower=0> ntrials; // Numero di prove
+  int<lower=0> y;       // Successi osservati
+  real<lower=0> alpha_prior; // Parametro alpha per il prior Beta
+  real<lower=0> beta_prior;  // Parametro beta per il prior Beta
+}
+```
+
+Stan offre diversi tipi di dati per le variabili, tra cui:
+
+- **int:** Rappresenta numeri interi senza parte decimale. Esempio: `int N = 10;`.
+- **real:** Rappresenta numeri reali, inclusi i decimali. Esempio: `real pi = 3.14159;`.
+- **vector:** Un vettore unidimensionale di numeri reali. Esempio: `vector[3] y;`.
+- **matrix:** Una matrice bidimensionale di numeri reali. Esempio: `matrix[2,3] A;`.
+- **array:** Tipo generico per contenere elementi di qualsiasi tipo, incluso array di array. Esempio: `array[3] int my_array;`.
+
+#### Dichiarazione di dimensioni e applicazione di vincoli
+
+Quando si dichiara una variabile, è essenziale specificarne le dimensioni e, se appropriato, applicare vincoli sui valori che può assumere. I vincoli più comuni sono:
+
+- **lower:** Specifica il valore minimo.
+- **upper:** Specifica il valore massimo.
+
+Esempio di variabile reale compresa tra 0 e 1:
+
+```stan
+real<lower=0, upper=1> x;
+```
+
+### Tipi di Dati in Stan
+
+#### Interi
+
+Le variabili intere vengono dichiarate con la parola chiave `int`. Per dichiarare un intero positivo, si aggiunge un vincolo inferiore:
+
+```stan
+int<lower=1> N;
+```
+
+#### Reali
+
+Le variabili reali, dichiarate con `real`, possono essere vincolate allo stesso modo degli interi:
+
+```stan
+real<lower=0> sigma;
+```
+
+#### Tipi di Dati Vettoriali e Matriciali
+
+- **Vector:** Rappresenta una sequenza unidimensionale di numeri reali. Esempio: `vector[3] u;`.
+- **Matrix:** Una matrice bidimensionale di numeri reali. Esempio: `matrix[3, 3] A;`.
+
+Le variabili vettoriali e matriciali possono contenere solo valori reali, non interi, e sono trattate come strutture dati distinte dagli array.
+
+##### Vettori
+
+I vettori in Stan sono vettori colonna. Esempio di vettore reale di lunghezza 3:
+
+```stan
+vector[3] u;
+```
+
+##### Matrici
+
+Le matrici vengono dichiarate specificando il numero di righe e colonne:
+
+```stan
+matrix[3, 3] A;
+matrix[M, N] B;
+```
+
+Le dimensioni devono essere definite come variabili intere nel blocco dati.
+
+#### Array
+
+Gli array possono contenere variabili di qualsiasi tipo (inclusi array di array). Ad esempio, un array di interi:
+
+```stan
+array[5] int n;
+```
+
+Gli array multidimensionali sono array di array. Un array bidimensionale di interi si dichiara così:
+
+```stan
+array[3, 4] int a;
+```
+
+### Indicizzazione e Miscelazione dei Tipi
+
+- Stan indicizza vettori, matrici e array a partire da 1.
+- Non è possibile assegnare tra loro variabili di tipo array, vettore o matrice, anche se hanno le stesse dimensioni.
+
+### Liste in CmdStanR
+
+Quando si forniscono dati a Stan tramite CmdStanR, questi devono essere organizzati in una lista R. Ogni elemento della lista corrisponde a una variabile dichiarata nel blocco `data` di Stan, e il valore associato rappresenta i dati forniti al modello.
+
+Esempio di lista:
+
+```r
+data_list <- list(
+  ntrials = 100,
+  y = 45,
+  alpha_prior = 2.0,
+  beta_prior = 5.0
+)
+```
+
+Questa struttura consente di mappare correttamente i dati alle variabili definite nel modello Stan.
+
+In Stan, ogni variabile deve avere un tipo di dato ben definito, con la possibilità di applicare vincoli per garantire validità e coerenza. I tipi principali includono numeri interi, numeri reali, vettori, matrici e array, ciascuno progettato per supportare operazioni specifiche e migliorare l'efficienza computazionale.
+
+### Blocco `parameters`
+
+I parametri da stimare sono definiti all'interno del blocco `parameters`. 
+
+Ad esempio, consideriamo il seguente codice, dove viene dichiarata la variabile `theta` per rappresentare una probabilità. Si notino i vincoli che specificano che i valori possibili per `theta` devono essere contenuti nell'intervallo [0, 1].
+
+```stan
+parameters {
+  real<lower=0, upper=1> theta; // Parametro stimato, limitato tra 0 e 1
+}
+```
+
+### Blocco `model`
+
+La sezione `model` è il cuore di un modello Stan, dove si specificano le relazioni statistiche tra i dati osservati e i parametri incogniti. In questa sezione, si definisce la *verosimiglianza*, ovvero la distribuzione di probabilità dei dati condizionata dai parametri, e si assegnano le *distribuzioni a priori* ai parametri stessi.
+
+- La verosimiglianza modella il processo generativo dei dati. Essa descrive come i dati osservati si sarebbero potuti generare a partire da specifici valori dei parametri. In Stan, la verosimiglianza viene specificata utilizzando il simbolo `~` (tilde).
+- Le distribuzioni a priori riflettono le nostre conoscenze o credenze a priori sui parametri prima di osservare i dati. Esse agiscono come regolarizzatori, prevenendo sovrastima o sottostima dei parametri.
+
+Ad esempio, nel codice seguente
+
+```stan
+model {
+  // Modello Beta-Binomiale
+  theta ~ beta(alpha_prior, beta_prior); // Distribuzione a priori di theta
+  y ~ binomial(ntrials, theta); // Verosimiglianza binomiale
+}
+```
+
+* `theta ~ beta(alpha_prior, beta_prior);`: Questa riga assegna una distribuzione a priori Beta al parametro `theta`, con parametri di forma `alpha_prior` e `beta_prior`. 
+* `y ~ binomial(ntrials, theta);`: Questa riga specifica che i dati osservati `y` seguono una distribuzione binomiale con `ntrials` prove e probabilità di successo `theta`. 
+
+In generale, possiamo leggere il simbolo `~` come "è distribuito come". Pertanto, l'esempio sopra può essere scritto anche come:
+
+$$
+p(\theta \mid \alpha_p, \beta_p) = \text{Beta}(\alpha_p, \beta_p)
+$$
+
+e
+
+$$
+p(y \mid \theta) = \text{Binomiale}(y \mid n, \theta).
+$$
+
+La notazione compatta usata da Stan facilita la definizione delle relazioni probabilistiche nel modello.
+
+In assenza di specifiche, Stan assume una distribuzione non informativa, ovvero una distribuzione a priori uniforme tra meno infinito e più infinito. Per ulteriori raccomandazioni sulle scelte delle distribuzioni a priori, è possibile consultare questo [link](https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations).
+
+In sintesi, la sezione `model` definisce il modello statistico completo, combinando la nostra conoscenza a priori sui parametri (attraverso le distribuzioni a priori) con le informazioni contenute nei dati (attraverso la verosimiglianza). Stan utilizza poi tecniche di inferenza Bayesiana per stimare i valori più probabili dei parametri alla luce dei dati osservati.
+
+### Blocchi opzionali
+
+Ci sono inoltre tre blocchi opzionali:
+
+-   Il blocco `transformed data` consente il pre-processing dei dati. È possibile trasformare i parametri del modello; solitamente ciò viene fatto nel caso dei modelli più avanzati per consentire un campionamento MCMC più efficiente.
+-   Il blocco `transformed parameters` consente la manipolazione dei parametri prima del calcolo della distribuzione a posteriori.
+-   Il blocco `generated quantities` consente il post-processing riguardante qualsiasi quantità che non fa parte del modello ma può essere calcolata a partire dai parametri del modello, per ogni iterazione dell'algoritmo. Esempi includono la generazione dei campioni a posteriori e le dimensioni degli effetti.
+
+### Sintassi
+
+Il codice Stan richiede i punti e virgola (`;`) alla fine di ogni istruzione di assegnazione. Questo accade per le dichiarazioni dei dati, per le dichiarazioni dei parametri e ovunque si acceda ad un elemento di un tipo `data` e lo si assegni a qualcos'altro. I punti e virgola non sono invece richiesti all'inizio di un ciclo o di un'istruzione condizionale, dove non viene assegnato nulla.
+
+In Stan, qualsiasi stringa che segue il marcatore `//` denota un commento e viene ignorata dal programma. 
+
+Una descrizione dettagliata della sintassi del linguaggio Stan è disponibile al seguente [link](https://mc-stan.org/docs/reference-manual/).
+

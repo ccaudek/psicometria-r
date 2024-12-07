@@ -21,10 +21,7 @@ here::here("code", "_common.R") |>
 
 # Load packages
 if (!requireNamespace("pacman")) install.packages("pacman")
-pacman::p_load(cmdstanr, posterior)
-
-color_scheme_set("brightblue")
-options(digits = 3)
+pacman::p_load(cmdstanr, posterior, easystats)
 ```
 :::
 
@@ -162,16 +159,24 @@ dim(theta2_samples)
 
 Questo indica la struttura dell'array estratto dal modello Stan. Significa che il campionamento ha prodotto **2000 iterazioni per ciascuna delle 4 catene**. L'ultimo valore (`1`) rappresenta il numero di variabili monitorate nel modello (in questo caso, una sola variabile). Quindi, il formato dell'array è `(iterazioni, catene, variabili)`.
 
-Per analizzare i campioni generati, possiamo utilizzare istogrammi e tracce MCMC. In R, possiamo creare un istogramma della distribuzione a posteriori di $\theta$. 
+```{r}
+theta2_samples |> 
+  glimpse()
+```
 
-Convertiamo i campioni in un vettore:
+Per maneggiare più facilmente i campioni a posteriori possiamo convertire l'oggetto `theta2_samples` in un vettore:
 
 ```{r}
 theta2_vector <- as.vector(theta2_samples)
 length(theta2_vector)
 ```
 
-Creiamo un istogramma della distribuzione a posteriori di $\theta$:
+```{r}
+theta2_vector |> 
+  head()
+```
+
+Per analizzare i campioni generati, possiamo utilizzare istogrammi e tracce MCMC.. Creiamo un istogramma della distribuzione a posteriori di $\theta$:
 
 ```{r}
 ggplot(data.frame(theta = theta2_vector), aes(x = theta)) +
@@ -183,24 +188,55 @@ ggplot(data.frame(theta = theta2_vector), aes(x = theta)) +
   )
 ```
 
-Questo grafico ci permette di visualizzare la distribuzione a posteriori, valutando sia la modalità (valore più probabile) che l'incertezza (larghezza della distribuzione).
+Lo stesso risultato può essere ottenuto con le funzioni di **bayesplot** che prende come argomento l'oggetto `fit2`, senza bisogno di altre trasformazioni:
+  
+```{r}
+mcmc_hist(fit2$draws("theta"))
+```
 
-Interpretazione dell'istogramma:
+Questo grafico ci permette di visualizzare la distribuzione a posteriori, valutando sia la modalità (valore più probabile) che l'incertezza (larghezza della distribuzione):
 
 - se l'istogramma mostra una distribuzione stretta attorno a un valore, significa che c'è poca incertezza nella stima di $\theta$.
 - una distribuzione ampia indica maggiore incertezza, suggerendo che i dati osservati non forniscono una stima precisa di $\theta$.
 
-Questo esempio dimostra come utilizzare prior debolmente informativi per modellare dati binomiali in Stan. Si noti come la stima putuale a posteriori e l'intervallo di credibilità riproducono i valori ottenuti utilizzando l'algoritmo di Metropolis (@sec-mcmc-metropolis).
+Si noti come la stima putuale a posteriori e l'intervallo di credibilità riproducono i valori ottenuti utilizzando l'algoritmo di Metropolis (@sec-mcmc-metropolis).
+
+In alternativa, è possibile visualizzare la distribuzione a posteriori di `theta` utilizzando stime della densità kernel al posto degli istogrammi, distinguendo i risultati per ciascuna catena:
+
+```{r}
+bayesplot::mcmc_dens_overlay(fit2$draws("theta"))
+```
+
+Usando la funzione `mcmc_trace()` possiamo ottenere un trace plot di `theta`:
+
+```{r}
+ bayesplot::mcmc_trace(fit2$draws("theta"), n_warmup=2000)
+```
+
+```{r}
+bayesplot::mcmc_intervals(fit2$draws("theta"), prob_outer = 0.94)
+```
 
 ## Diagnostiche di Campionamento
 
-Per valutare la qualità del campionamento, possiamo utilizzare la statistica $\widehat{R}$ e il numero effettivo di campioni ($N_{\text{eff}}$):
+Per valutare la qualità del campionamento, possiamo utilizzare la statistica $\widehat{R}$.
+
+```{r}
+rhats <- rhat(fit2$draws("theta"))
+print(rhats)
+```
+
+```{r}
+bayesplot::mcmc_rhat(rhats)
+```
+
+Un valore di $\widehat{R}$ vicino a 1 indica che le catene sono convergenti.
+
+È anche possibile considerare il numero effettivo di campioni ($N_{\text{eff}}$): un $N_{\text{eff}}$ elevato suggerisce una stima precisa dei parametri.
 
 ```{r}
 fit2$summary()
 ```
-
-Un valore di $\widehat{R}$ vicino a 1 indica che le catene sono convergenti, mentre un $N_{\text{eff}}$ elevato suggerisce una stima precisa dei parametri.
 
 Le colonne dell'output di `summary()` rappresentano:
 
@@ -211,7 +247,30 @@ Le colonne dell'output di `summary()` rappresentano:
 - **`rhat`**: Statistica di convergenza. Un valore di 1 indica che le catene sono ben miscelate e hanno raggiunto la convergenza.
 - **`ess_bulk`**: Dimensione campionaria effettiva, che misura il numero di campioni indipendenti. È alta per entrambe le variabili (`3699` per `lp__` e `2553` per `theta`), segnalando un'efficienza del campionamento.
 
-È anche possibile usare la funzione `diagnostic_summary()`:
+
+
+
+
+
+### Dimensione del Campione Effettivo ed Errore Monte Carlo
+
+Quando si utilizzano metodi basati su catene di Markov (MCMC), i campioni successivi possono essere correlati. La _dimensione del campione effettivo_ ($N_{\text{eff}}$) misura il numero di campioni indipendenti equivalenti e viene calcolata come:
+
+$$
+N_{\text{eff}} = \frac{M}{\text{IAT}},
+$$
+
+dove $\text{IAT}$ è il tempo di autocorrelazione integrata. Un $N_{\text{eff}}$ elevato indica che il campionamento è efficace, riducendo l'errore Monte Carlo. Stan riporta anche l'_errore standard MCMC_ per ogni parametro, dato da:
+
+$$
+\text{mcmc-se} = \frac{\text{sd}[\Theta \mid Y = y]}{\sqrt{N_{\text{eff}}}}.
+$$
+
+Questo valore riflette la precisione delle stime ottenute.
+
+### Divergenze, `max_treedepth` e Efficienza
+
+La qualità del campionamento viene ulteriormente verificata mediante la funzione `diagnostic_summary()`:
 
 ```{r}
 fit2$diagnostic_summary()
@@ -223,13 +282,11 @@ fit2$diagnostic_summary()
 
 3. **`ebfmi`**: Efficienza dell'Hamiltonian Monte Carlo calcolata tramite il *Energy Bayesian Fraction of Missing Information* (EBFMI). Tutti i valori sono superiori a 1, indicando un campionamento efficace e nessun problema con l'esplorazione dello spazio dei parametri.
 
-I risultati ottenuti mostrano che il campionamento è stato efficace:
+Nel caso presente, i risultati ottenuti mostrano che il campionamento è stato efficace:
 
 - Le catene hanno convergenza ($\hat{R} = 1$).
 - Non ci sono stati problemi tecnici come transizioni divergenti o massima profondità raggiunta.
 - Le diagnostiche di efficienza ($N_{\text{eff}}$, EBFMI) confermano un campionamento affidabile.
-
-In sintesi, Stan, grazie alla sua implementazione dell'algoritmo NUTS, offre un framework potente e flessibile per l'inferenza bayesiana. Attraverso una combinazione di modelli probabilistici ben strutturati, diagnostica avanzata e strumenti di visualizzazione, è possibile affrontare con successo problemi complessi, dalle simulazioni in avanti alle stime inverse dei parametri.
 
 ## Verifica dei Priors
 
@@ -305,12 +362,6 @@ ggplot(data.frame(theta = theta3_vector), aes(x = theta)) +
   )
 ```
 
-Lo stesso risultato può essere ottenuto con le funzioni di **bayesplot**:
-  
-```{r}
-mcmc_hist(fit3$draws("theta"))
-```
-
 In conclusione, osserviamo che la distribuzione a priori per $\theta$ include la proporzione campionaria, ma la maggior parte della massa di probabilità si concentra su valori più elevati. Questo suggerisce che la scelta della distribuzione Beta come prior potrebbe non essere completamente ottimale per rappresentare il parametro in questione. Sarà necessario valutare se un prior diverso potrebbe migliorare l'inferenza, garantendo una rappresentazione più accurata delle conoscenze a priori e dei dati osservati.
 
 ## Stime Puntuali Bayesiane
@@ -338,6 +389,12 @@ theta_hat <- mean(theta2_vector)
 theta_hat
 ```
 
+Oppure possiamo usare la funzione `summary()` applicata all'oggetto `fit2`:
+
+```{r}
+fit2$summary()
+```
+
 ### Stimatore della Mediana Posteriori
 
 Un'altra stima puntuale è la mediana posteriori, $\theta^+$. Essa è definita come il valore che divide la distribuzione a posteriori in due parti uguali, cioè:
@@ -355,18 +412,6 @@ theta_plus
 
 Se la distribuzione a posteriori è simmetrica, media e mediana coincideranno o saranno molto simili. Tuttavia, per distribuzioni asimmetriche, la mediana è più robusta, in quanto minimizza l'errore assoluto atteso rispetto alla media.
 
-### Quantili e Intervalli di Credibilità
-
-I quantili forniscono una descrizione più completa della distribuzione a posteriori. Un intervallo di credibilità è un intervallo di quantili che cattura una proporzione specificata della massa di probabilità. Ad esempio, un intervallo di credibilità al 90% è dato dai quantili al 5% e al 95%. In R, possiamo calcolarli così:
-
-```{r}
-quantile_05 <- quantile(theta2_vector, 0.05)
-quantile_95 <- quantile(theta2_vector, 0.95)
-c(quantile_05, quantile_95)
-```
-
-Questi valori rappresentano un intervallo che contiene il 90% della distribuzione a posteriori di $\theta$, con il 5% al di sotto e al di sopra di esso.
-
 ### Stimatore della Moda Posteriori
 
 La moda posteriori rappresenta il valore di $\theta$ che massimizza la densità a posteriori. Formalmente, è definita come:
@@ -380,52 +425,69 @@ Questa stima, spesso chiamata _Maximum A Posteriori_ (MAP), si focalizza sul pun
 ### Proprietà degli Stimatori Bayesiani
 
 Ogni stimatore presenta vantaggi e limitazioni:
+
 - La media posteriori minimizza l'errore quadratico medio atteso. Tuttavia, è sensibile ai valori estremi, specialmente per distribuzioni con code ampie.
 - La mediana posteriori minimizza l'errore assoluto atteso, rendendola più robusta ai valori anomali.
 - La moda posteriori non considera l'incertezza, ma è utile per individuare il valore più probabile.
 
-### Bias e Errore di Stima
+## Quantili e Intervalli di Credibilità
 
-L'errore di una stima è definito come la differenza tra il valore stimato e quello vero:
+I quantili offrono una descrizione dettagliata della distribuzione a posteriori, fornendo informazioni sulle sue diverse sezioni. Gli intervalli di credibilità, in particolare, rappresentano una porzione specificata della massa di probabilità della distribuzione. Ad esempio, un intervallo di credibilità al 90% è delimitato dai quantili al 5% e al 95%, che includono il 90% della massa di probabilità totale, lasciando il 5% fuori da ciascun lato.
 
-$$
-\text{err} = \hat{\theta} - \theta.
-$$
+### Calcolo dei Quantili con `quantile()`
 
-Il bias di uno stimatore è l'errore atteso rispetto alla distribuzione dei dati:
+In R, i quantili possono essere calcolati direttamente sui campioni estratti dalla distribuzione a posteriori:
 
-$$
-\text{bias} = \mathbb{E}[\hat{\theta}(Y) - \theta].
-$$
+```{r}
+quantile_05 <- quantile(theta2_vector, 0.05)
+quantile_95 <- quantile(theta2_vector, 0.95)
+c(quantile_05, quantile_95)
+```
 
-Un bias nullo indica che lo stimatore è corretto in media, cioè non tende a sovrastimare o sottostimare sistematicamente il valore vero.
+Questo calcolo restituisce i limiti inferiori e superiori dell'intervallo di credibilità al 90% della distribuzione di $\theta$, con il 5% della probabilità distribuito rispettivamente sotto e sopra l'intervallo.
 
-### Dimensione del Campione Effettivo ed Errore Monte Carlo
+### Uso di `posterior_interval()` con **rstanarm**
 
-Quando si utilizzano metodi basati su catene di Markov (MCMC), i campioni successivi possono essere correlati. La _dimensione del campione effettivo_ ($N_{\text{eff}}$) misura il numero di campioni indipendenti equivalenti e viene calcolata come:
+Un metodo alternativo è utilizzare la funzione `posterior_interval()` del pacchetto **rstanarm**, che calcola automaticamente gli intervalli di credibilità. Tuttavia, questa funzione richiede che i campioni siano forniti in formato matrice. Pertanto, è necessario estrarre i campioni come matrice da un oggetto di **cmdstanr**. 
 
-$$
-N_{\text{eff}} = \frac{M}{\text{IAT}},
-$$
+Ecco il processo completo:
 
-dove $\text{IAT}$ è il tempo di autocorrelazione integrata. Un $N_{\text{eff}}$ elevato indica che il campionamento è efficace, riducendo l'errore Monte Carlo. Stan riporta anche l'_errore standard MCMC_ per ogni parametro, dato da:
+1. **Estrazione dei Campioni come Matrice**
 
-$$
-\text{mcmc-se} = \frac{\text{sd}[\Theta \mid Y = y]}{\sqrt{N_{\text{eff}}}}.
-$$
+Usiamo l'opzione `format = "matrix"` per convertire i campioni estratti in una matrice compatibile con `posterior_interval()`:
 
-Questo valore riflette la precisione delle stime ottenute.
+```{r}
+theta_draws_matrix <- fit2$draws("theta", format = "matrix")
+```
 
-### Conclusione
+2. **Calcolo degli Intervalli di Credibilità**
+
+Una volta convertiti i campioni, possiamo calcolare l'intervallo di credibilità al 90% con:
+
+```{r}
+rstanarm::posterior_interval(theta_draws_matrix, prob = 0.90)
+```
+
+3. **Alternative con Altri Pacchetti**
+
+È possibile eseguire il calcolo in modo simile usando il pacchetto **rstantools**:
+
+```{r}
+rstantools::posterior_interval(
+  fit2$draws("theta", format = "matrix"), 
+  prob = 0.90
+)
+```
+
+In sintesi, entrambi i metodi — `quantile()` e `posterior_interval()` — forniscono una stima accurata degli intervalli di credibilità. Il primo approccio offre flessibilità ed è utile per analisi rapide, mentre il secondo è più strutturato e fornisce un'interfaccia standardizzata per analisi bayesiane avanzate.
+
+## Riflessioni Conclusive
+
+Stan, grazie alla sua implementazione dell'algoritmo NUTS, offre un framework potente e flessibile per l'inferenza bayesiana. Attraverso una combinazione di modelli probabilistici ben strutturati, diagnostica avanzata e strumenti di visualizzazione, è possibile affrontare con successo problemi complessi, dalle simulazioni in avanti alle stime inverse dei parametri.
+
+Abbiamo visto come il pacchetto **bayesplot** offra varie funzioni per visualizzare le distribuzioni a posteriori dei parametri del modello.
 
 La scelta dello stimatore dipende dal contesto e dalle proprietà della distribuzione a posteriori. La media è preferita per la sua capacità di minimizzare l'errore quadratico medio, mentre la mediana è utile per la sua robustezza. La moda può essere utile per individuare il valore più probabile, ma è meno comune nell'analisi bayesiana. La comprensione del bias, dell'errore Monte Carlo e della dimensione del campione effettivo è cruciale per valutare la qualità delle stime e interpretare correttamente i risultati.
-
-
-
-
-
-
-
 
 ## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
 
