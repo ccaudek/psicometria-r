@@ -41,9 +41,9 @@ pacman::p_load(mice)
 > “Mai,” disse Guglielmo, “ma sono molto sicuri dei loro errori.”  
 > (Umberto Eco: *Il Nome della Rosa*)
 
-L'approccio bayesiano alla statistica non si limita all'applicazione del Teorema di Bayes, ma si caratterizza per una gestione rigorosa dell'incertezza e per la rappresentazione delle soluzioni attraverso distribuzioni di probabilità. Il processo di modellazione bayesiana, noto come *workflow bayesiano* [@baribault2023troubleshooting], si articola in più fasi: dalla costruzione del modello, all'applicazione del Teorema di Bayes, fino all'analisi critica dei risultati. Questo ciclo iterativo permette un apprendimento continuo, migliorando progressivamente le stime e adattandole alle nuove evidenze che emergono.
+L’approccio bayesiano non si limita all’applicazione del Teorema di Bayes, ma si distingue per una gestione esplicita dell’incertezza e per l’uso delle distribuzioni di probabilità per rappresentare stime e soluzioni. Il processo di modellazione bayesiana, noto come **workflow bayesiano** [@baribault2023troubleshooting], comprende più fasi iterative: dalla costruzione del modello, all’applicazione del Teorema di Bayes, fino all’analisi critica dei risultati. Questo approccio permette un continuo affinamento delle stime, adattandole alle nuove evidenze.
 
-L'obiettivo dell'approccio bayesiano non è quello di raggiungere una verità assoluta, ma di aggiornare razionalmente le credenze su una determinata ipotesi, integrando progressivamente nuove informazioni. Questo approccio è particolarmente utile in psicologia, dove i fenomeni analizzati sono complessi e le misurazioni soggette a molte fonti di incertezza.
+L’obiettivo dell’approccio bayesiano non è scoprire una "verità assoluta", ma aggiornare razionalmente le credenze riguardo a un’ipotesi integrando nuove informazioni. In psicologia, dove le misurazioni sono soggette a incertezza e i fenomeni complessi, questa capacità è cruciale.
 
 ## Il Valore dell'Incertezza
 
@@ -114,53 +114,38 @@ Con l'aumento dei dati osservati, la distribuzione a posteriori si concentra sem
 
 In sintesi, l'aggiornamento bayesiano fornisce un quadro flessibile e sistematico per trattare l'incertezza e integrare nuove informazioni. È particolarmente utile nelle scienze psicologiche e sociali, dove la complessità e la variabilità dei fenomeni rendono difficile ottenere stime precise. Questo approccio consente di migliorare costantemente la comprensione dei fenomeni, adattando le credenze man mano che emergono nuovi dati.
 
+
 ```{r}
 #| echo: false
 #| tags: [hide-input]
+#| message: false
+#| warning: false
 
-# Beta function
-beta_function <- function(W, L, p) {
-  return(factorial(W + L + 1) / (factorial(W) * factorial(L)) * p^W * (1 - p)^L)
+# Funzione per calcolare la distribuzione beta aggiornata
+beta_posterior <- function(W, L, p) {
+  dbeta(p, W + 1, L + 1)
 }
 
-# Function to plot the beta distribution from observations
-plot_beta_from_observations <- function(observations, resolution = 50, ...) {
-  n_W <- sum(strsplit(observations, NULL)[[1]] == "W")
-  n_L <- nchar(observations) - n_W
-  proportions <- seq(0, 1, length.out = resolution)
+# Funzione per tracciare l'aggiornamento bayesiano
+plot_beta_update <- function(observations) {
+  W <- cumsum(observations == "W")
+  L <- cumsum(observations == "L")
+  par(mfrow = c(3, 3), mar = c(2, 2, 2, 1))
+  p_grid <- seq(0, 1, length.out = 100)
   
-  probs <- sapply(proportions, function(p) beta_function(n_W, n_L, p))
-  
-  plot(proportions, probs, type = "l", ylab = "", xlab = "", ...)
-  title(observations)
-}
-
-# Tossing the globe
-observations <- "WLWWWLWLW"
-par(mfrow = c(3, 3), mar = c(4, 4, 2, 2))
-for (ii in 1:9) {
-  # Set the current axis
-  plot.new()
-  plot.window(xlim = c(0, 1), ylim = c(0, max(beta_function(0, 0, seq(0, 1, length.out = 50)))))
-  
-  # Plot previous observations (if any)
-  if (ii > 1) {
-    plot_beta_from_observations(substr(observations, 1, ii - 1), col = "black", lty = 2)
-  } else {
-    plot_beta_from_observations("", col = "black", lty = 2)
-  }
-  
-  # Set the color based on the observation
-  color <- ifelse(substr(observations, ii, ii) == "W", "red", "blue")
-  
-  # Plot the current observation
-  plot_beta_from_observations(substr(observations, 1, ii), col = color, lwd = 4, alpha = 0.5)
-  
-  # Y-axis label every 3rd plot
-  if (ii %% 3 == 1) {
-    mtext("posterior probability", side = 2, line = 2)
+  for (i in seq_along(observations)) {
+    post <- beta_posterior(W[i], L[i], p_grid)
+    plot(p_grid, post, type = "l", lwd = 2, col = "blue", ylim = c(0, max(post)), 
+         main = paste("Lancio", i, "\n(W =", W[i], ", L =", L[i], ")"),
+         xlab = "Proporzione d'acqua (p)", ylab = "Densità")
+    if (i > 1) lines(p_grid, beta_posterior(W[i-1], L[i-1], p_grid), col = "gray", lty = 2)
   }
 }
+
+# Eseguire l'esperimento
+osservazioni <- c("W", "L", "W", "W", "L", "W", "L", "W", "W")
+plot_beta_update(osservazioni)
+
 ```
 
 Il grafico precedente illustra un processo di aggiornamento bayesiano, in cui vengono progressivamente aggiornate le credenze sulla proporzione di superficie coperta d'acqua ($p$) del globo terrestre, man mano che vengono raccolti nuovi dati.

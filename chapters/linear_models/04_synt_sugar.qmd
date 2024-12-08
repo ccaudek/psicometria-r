@@ -1,0 +1,318 @@
+# Zucchero sintattico {#sec-linar-models-brms}
+
+::: callout-note
+## In questo capitolo imparerai a
+
+- utilizzare `brm` per costruire e adattare modelli;
+- analizzare i risultati con `brm`.
+:::
+
+::: callout-tip
+## Prerequisiti
+
+- Consultare [The brms Book: Applied Bayesian Regression Modelling Using R and Stan](https://paulbuerkner.com/software/brms-book/brms-book.pdf).
+:::
+
+::: callout-important
+## Preparazione del Notebook
+
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(brms, posterior, cmdstanr)
+```
+:::
+
+## Introduzione
+
+I modelli lineari sono così ampiamente utilizzati che sono stati sviluppati appositamente una sintassi, dei metodi e delle librerie per la regressione. Una di queste librerie è *{brms}* (Bayesian Regression Models using Stan), già introdotta nel @sec-linmod-bayesian-reg. *{brms}* è un pacchetto R progettato per adattare modelli gerarchici generalizzati lineari (di cui il modello lineare bivariato è un caso particolare), utilizzando una sintassi simile a quella presente nei pacchetti R, come *{lme4}*, *{nlme}*, *{rstanarm}*. *{brms}* si basa su Stan, ma offre un'API di livello superiore.
+
+In questo capitolo esploreremo in maniera dettagliata come condurre un'analisi di regressione utilizzando *{brms}* invece di Stan.
+
+## Interfaccia *{brms}*  
+
+Per fare un esempio, applicheremo il modello di regressione bivariato alla relazione tra altezza e peso. I dati contenuti nel file Howell_18.csv sono parte di un censimento parziale della popolazione !Kung San dell’area di Dobe, raccolti tramite interviste condotte da Nancy Howell alla fine degli anni ’60 [@McElreath_rethinking]. I !Kung San sono una delle popolazioni di raccoglitori-cacciatori più conosciute del ventesimo secolo e sono stati oggetto di numerosi studi antropologici. In questa analisi, consideriamo un sottocampione di dati relativi alla popolazione adulta (di età superiore ai 18 anni).
+
+Importiamo i dati contenuti nel file Howell_18.csv.
+
+```{r}
+df <- rio::import(here::here("data", "Howell_18.csv"))
+```
+
+```{r}
+df |> 
+  head()
+```
+
+Generiamo un diagramma a dispersione:
+
+```{r}
+ggplot(df, aes(x = weight, y = height)) +
+  geom_point() +  
+  labs(x = "Weight", y = "Height") 
+```
+
+*{brms}* si concentra sui modelli di regressione, e questa specializzazione permette di adottare una sintassi più semplice, conosciuta come sintassi di Wilkinson [@wilkinson1973symbolic].
+
+Ad esempio, il modello $y = \alpha + \beta x + \varepsilon$ si implementa come segue:
+
+```r
+a_model = brm(y ∼ 1 + x, data = df)
+```
+
+Nella sintassi di Wilkinson, il simbolo tilde (∼) separa la variabile dipendente (a sinistra) dalle variabili indipendenti (a destra). 
+
+In questo caso, stiamo specificando solo la media ($\mu$). *{brms}* assume di default che la distribuzione di verosimiglianza sia gaussiana, ma è possibile modificarla tramite l'argomento `family`.
+
+La notazione `1` si riferisce all'intercetta. L'intercetta viene inclusa di default. Per cui il modello precedente si può anche scrivere, in maniera equivalente, come
+
+```r
+a_model = brm(y ∼ x, data = df)
+```
+
+Se desideriaamo escludere l'intercetta dal modello, possiamo farlo in questo modo
+
+```r
+no_intercept_model = brm(y ∼ 0 + x, data = df)
+```
+
+oppure in questo modo
+
+```r
+no_intercept_model = brm(y ∼ -1 + x, data = df)
+```
+
+Per includere ulteriori variabili nel modello, possiamo procedere così:
+
+```r
+model_2 = brm("y ∼ x + z", data)
+```
+
+*{brms}* consente anche di includere effetti a livello di gruppo (gerarchici). Ad esempio, se desideriamo un modello ad effetti misti nel quale abbiamo un effetto diverso di $x$ in ciascun gruppo `g`, possiamo usare la seguente sintassi:
+
+```r
+model_h = brm(y ∼ x + z + (x | g), data = df)
+```
+
+La sintassi delle formule non specifica le distribuzioni a priori, ma solo come le variabili dipendenti e indipendenti sono collegate. *{brms}* definirà automaticamente delle distribuzioni a priori debolmente informative per noi,  rendendo superflua la loro definizione esplicita. Tuttavia, se preferiamo avere un maggiore controllo, possiamo specificarle manualmente, come vedremo in seguito.
+
+### Centrare le Variabili
+
+Per interpretare più facilmente l'intercetta, centriamo il peso rispetto alla media del campione:
+
+```{r}
+df$weight_c = df$weight - mean(df$weight)
+```
+
+Ora, l'intercetta ($\alpha$) rappresenterà l'altezza media quando il peso corrisponde alla media del campione.
+
+### Adattamento del modello e sintesi dei risultati
+
+Adattiamo un modello lineare con peso centrato e esaminiamo i risultati:
+
+```{r}
+#| message: false
+#| warning: false
+#| output: false
+#| 
+
+fit_1 = brm(
+  bf(height ~ 1 + weight_c, center = FALSE), 
+  data = df, 
+  backend = "cmdstanr", 
+  silent = 0
+)
+```
+
+L'output fornisce informazioni sui parametri del modello:
+
+- la relazione lineare tra peso e altezza (β),
+- l'intercetta (α),
+- la deviazione standard residua (σ).
+
+```{r}
+summary(fit_1)
+```
+
+### Visualizzazione dei Risultati
+
+Per comprendere la relazione stimata, utilizziamo la funzione `conditional_effects`:
+
+```{r}
+conditional_effects(fit_1, effects = "weight_c")
+```
+
+Il grafico generato mostra:
+
+- Media posteriore: La linea rappresenta la stima centrale dell'altezza per un dato peso.
+- Intervallo di densità più alta (HDI): L'area evidenziata intorno alla linea mostra l'incertezza delle stime con un intervallo di probabilità del 94%.
+
+## Distribuzione a Posteriori dei Parametri
+
+Per esaminare la distribuzione a posteriori:
+
+```{r}
+mcmc_plot(fit_1, type = "dens")
+```
+
+```{r}
+mcmc_trace(fit_1)
+```
+
+Possiamo anche ottenere un sommario numerico dei parametri stimati:
+
+```{r}
+draws <- posterior::as_draws(fit_1, variable = "^b_", regex = TRUE)
+posterior::summarise_draws(draws, "mean", "sd", "mcse_mean", "mcse_sd")
+```
+
+Utilizziamo la funzione `as_draws()` che trasforma un oggetto R in un formato compatibile con *{posterior}*. Gli argomenti `variable = "^b_"` e `regex = TRUE`consentono di selezionare solo i parametri il cui nome inizia con `b_`: nel nostro caso saranno l'intercetta e la pendenza del modello di regressione lineare.
+
+Successivamente usiamo la funzione `summarise_draws()` con gli argomenti specificati per un sommario della distribuzione a posteriori dei parametri prescelti.
+
+## Specificare i Priors
+
+Se vogliamo personalizzare i priors, possiamo utilizzare la funzione `get_prior` per esplorare quelli predefiniti:
+
+```{r}
+get_prior(height ~ 1 + weight_c, data = df)
+```
+
+Impostiamo priors espliciti e adattiamo un nuovo modello:
+
+```{r}
+prior_guassian <-
+  prior(normal(160, 10), class = "b", coef = "Intercept") +
+  prior(normal(0, 5), class = "b", coef = "weight_c") +
+  prior(cauchy(0, 5), class = "sigma")
+```
+
+```{r}
+#| message: false
+#| warning: false
+#| output: false
+#| 
+fit_2 = brm(
+  bf(height ~ 1 + weight_c, center = FALSE), 
+  prior = prior_guassian,
+  data = df, 
+  backend = "cmdstanr", 
+  silent = 0
+)
+```
+
+Otteniamo un sommario numerico dei parametri stimati:
+
+```{r}
+draws <- posterior::as_draws(fit_2, variable = "^b_", regex = TRUE)
+posterior::summarise_draws(draws, "mean", "sd", "mcse_mean", "mcse_sd")
+```
+
+## Predizioni Predittive a Posteriori
+
+Verifichiamo le predizioni del modello confrontandole con i dati osservati:
+
+```{r}
+pp_check(fit_2)
+```
+
+```{r}
+pp_check(fit_1, type = "error_scatter_avg")
+```
+
+Vediamo che i residui bayesiani sono distribuiti in maniera omogenea rispetto alla retta di regressione (non indicata). 
+
+## Regressione Robusta
+
+I modelli robusti sono utili in presenza di outlier. Ad esempio, introduciamo un outlier nei dati:
+ 
+```{r}
+df_outlier <- df
+df_outlier$height[1] <- 200
+df_outlier$weight_c[1] <- -15
+```
+
+```{r}
+df_outlier |> 
+  ggplot(aes(x = weight_c, y = height)) +
+    geom_point() +  
+    labs(x = "Weight", y = "Height") 
+```
+
+Notiamo come la presenza di un solo outlier introduce una distorsione nei risultati:
+
+```{r}
+#| message: false
+#| warning: false
+#| output: false
+#| 
+fit_3 = brm(
+  bf(height ~ 1 + weight_c, center = FALSE), 
+  prior = prior_guassian,
+  data = df_outlier, 
+  backend = "cmdstanr", 
+  silent = 0
+)
+```
+
+```{r}
+draws <- posterior::as_draws(fit_3, variable = "^b_", regex = TRUE)
+posterior::summarise_draws(draws, "mean", "sd", "mcse_mean", "mcse_sd")
+```
+
+Adattiamo ora un modello robusto utilizzando una distribuzione $t$ di Student:
+
+```{r}
+#| message: false
+#| warning: false
+#| output: false
+#| 
+fit_4 = brm(
+  bf(height ~ 1 + weight_c, center = FALSE), 
+  prior = prior_guassian,
+  family = student(),
+  data = df_outlier, 
+  backend = "cmdstanr", 
+  silent = 0
+)
+```
+
+I risultati mostrano che il modello $t$ è meno influenzato dagli outlier rispetto al modello gaussiano. 
+
+```{r}
+draws <- posterior::as_draws(fit_4, variable = "^b_", regex = TRUE)
+posterior::summarise_draws(draws, "mean", "sd", "mcse_mean", "mcse_sd")
+```
+
+Il parametro $\nu$ della $t$ di Student viene stimato dal modello. Nel caso presente
+
+```{r}
+draws <- posterior::as_draws(fit_4, variable = "nu")
+posterior::summarise_draws(draws, "mean", "sd", "mcse_mean", "mcse_sd")
+```
+
+Con un parametro $\nu$ = 6, la $t$ di Student ha delle "code" molto maggiori di una gaussiana, e questo le consene di "assorbire" gli outliers in maniera maggiore che la gaussiana.
+
+## Indice di Determinazione Bayesiano
+
+Con *{brms}* è anche possibile ottenere l'equivalente bayesiano dell'indice di determinazione:
+
+```{r}
+bayes_R2(fit_4)
+```
+
+## Riflessioni conclusive
+
+Questo capitolo ha mostrato come utilizzare *{brms}* per costruire e interpretare modelli lineari, evidenziando le sue capacità di gestione dei priors, diagnostica e modellizzazione robusta. Grazie alla sua semplicità e flessibilità, *{brms}* rappresenta un potente strumento per l'inferenza bayesiana.
+
+
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
+
+```{r}
+sessionInfo()
+```
+
+## Bibliografia {.unnumbered}

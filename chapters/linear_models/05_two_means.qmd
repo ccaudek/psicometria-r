@@ -1,0 +1,521 @@
+# Confronto tra le medie di due gruppi {#sec-linear-models-two-groups}
+
+::: callout-note
+## In questo capitolo imparerai a
+
+- condurre un confronto bayesiano tra le medie di due gruppi utilizzando la  funzione `brm()` del pacchetto *{brms}*.
+:::
+
+::: callout-tip
+## Prerequisiti
+
+- Consultare l'articolo "Bayesian estimation supersedes the t test" [@kruschke2013bayesian]. 
+:::
+
+::: callout-important
+## Preparazione del Notebook
+
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(cmdstanr, posterior, brms, bayestestR, insight)
+```
+:::
+
+## Introduzione 
+
+Nel capitolo precedente (@sec-two-groups-comparison), abbiamo analizzato la differenza tra le medie di due campioni indipendenti adottando un approccio bayesiano. In quel contesto, i due gruppi erano considerati entità separate, e la differenza tra le medie è stata calcolata direttamente.
+
+Un'alternativa a questo approccio consiste nell’utilizzo di un modello di regressione. In questo caso, anziché calcolare direttamente la differenza tra le medie, si introduce una variabile indicatrice (o "dummy") $D$ nel modello di regressione, come segue:
+
+$$
+y_i = \alpha + \gamma D_i + \varepsilon_i.
+$$
+
+La variabile indicatrice $D$ specifica l’appartenenza ai gruppi attraverso valori binari: 0 per il gruppo di riferimento e 1 per il gruppo di confronto, definita come:
+
+$$
+D_i =
+\begin{cases} 
+0 & \text{se l'osservazione } i \text{ appartiene al gruppo 0,} \\
+1 & \text{se l'osservazione } i \text{ appartiene al gruppo 1.}
+\end{cases}
+$$
+
+Entrambi i metodi sono appropriati per studiare la differenza tra le medie di due gruppi indipendenti. Tuttavia, il modello di regressione offre maggiore flessibilità e possibilità di estensione. Questa metodologia consente di includere ulteriori variabili esplicative, migliorando la comprensione dei fattori che influenzano l’esito di interesse. Tale flessibilità diventa particolarmente utile per esplorare come altre variabili incidano sulla differenza tra le medie o per analizzare contemporaneamente più variabili.
+
+## Regressione bayesiana per due gruppi indipendenti
+
+In un approccio bayesiano, il modello di regressione può essere espresso come:
+
+$$
+\begin{align*}
+y_i & \sim \mathcal{N}(\mu_i, \sigma), \\
+\mu_i & = \alpha + \gamma D_i.
+\end{align*}
+$$
+
+In questo modello:
+
+- $\alpha$ rappresenta l’intercetta, corrispondente alla media del gruppo con $D = 0$ (gruppo di riferimento),
+- $\gamma$ quantifica la differenza attesa tra le medie dei due gruppi,
+- $\sigma$ rappresenta la deviazione standard associata agli errori casuali.
+
+Per il gruppo di riferimento ($D = 0$), il modello si riduce a:
+
+$$
+\begin{align*}
+y_i & \sim \mathcal{N}(\mu_i, \sigma), \\
+\mu_i & = \alpha.
+\end{align*}
+$$
+
+In questo caso, $\alpha$ rappresenta direttamente la media del gruppo 0.
+
+Per il gruppo di confronto ($D = 1$), il modello diventa:
+
+$$
+\begin{align*}
+y_i & \sim \mathcal{N}(\mu_i, \sigma), \\
+\mu_i & = \alpha + \gamma.
+\end{align*}
+$$
+
+Qui, $\alpha + \gamma$ rappresenta la media del gruppo 1, mentre $\gamma$ riflette la differenza tra la media del gruppo 1 e quella del gruppo 0.
+
+Di conseguenza, l’analisi della differenza tra le medie dei due gruppi si traduce nell’inferenza sul parametro $\gamma$. In un contesto bayesiano, ciò comporta l’esame della distribuzione a posteriori di $\gamma$, che consente di effettuare confronti diretti e di valutare l’incertezza associata alla stima di tale differenza.
+
+## Un esempio illustrativo
+
+Riprendiamo il dataset relativo al quoziente di intelligenza (QI) dei bambini, distinguendo tra quelli le cui madri hanno completato la scuola superiore e quelli le cui madri non l'hanno completata. L'obiettivo è replicare i risultati precedenti utilizzando un'analisi di regressione bayesiana. Vediamo come implementare questa analisi passo per passo.
+
+### Esplorazione iniziale dei dati
+
+Carichiamo i dati e osserviamo una sintesi delle prime righe per capire la struttura del dataset:
+
+```{r}
+kidiq <- rio::import(here::here("data", "kidiq.dta"))
+kidiq |> 
+  head()
+```
+
+Successivamente, analizziamo la distribuzione dei bambini nei due gruppi, in base all'educazione delle madri:
+
+```{r}
+kidiq |> 
+  group_by(mom_hs) |> 
+  summarize(
+    n = n()
+)
+```
+
+I risultati mostrano che:
+
+- **93 bambini** hanno madri che non hanno completato la scuola superiore.
+- **341 bambini** hanno madri diplomate.
+
+Calcoliamo le medie e le deviazioni standard del QI dei bambini per ciascun gruppo:
+
+```{r}
+summary_stats <- kidiq %>%
+  group_by(mom_hs) %>%
+  summarise(
+    mean_kid_score = mean(kid_score, na.rm = TRUE),
+    sd_kid_score = sd(kid_score, na.rm = TRUE)
+  )
+summary_stats
+```
+
+La differenza tra le medie può essere calcolata direttamente come:
+
+```{r}
+mean(kidiq[kidiq$mom_hs == 1, ]$kid_score) - 
+  mean(kidiq[kidiq$mom_hs == 0, ]$kid_score)
+```
+
+Questa analisi preliminare evidenzia la differenza media tra i gruppi.
+
+Per comprendere meglio la distribuzione dei dati, utilizziamo un violin plot, che mostra la densità stimata dei punteggi del QI nei due gruppi:
+
+```{r}
+ggplot(kidiq, aes(x = as.factor(mom_hs), y = kid_score)) +
+  geom_violin(trim = FALSE) + 
+  labs(
+    x = "Livello di istruzione della madre",
+    y = "QI del bambino",
+    title = "Distribuzione dei punteggi QI in base all'istruzione materna"
+  ) +
+  scale_x_discrete(labels = c("0" = "Non diplomata", "1" = "Diplomata"))
+```
+
+## Modello di regressione bayesiana
+
+Utilizziamo il pacchetto `bambi` per costruire un modello di regressione bayesiano, che esprime il punteggio del QI come funzione della variabile indicatrice `mom_hs` (0 = non diplomata, 1 = diplomata). La sintassi è semplice e le distribuzioni a priori sono selezionate automaticamente.
+
+Definiamo e stimiamo il modello:
+
+```{r}
+#| message: false
+#| warning: false
+#| output: false
+#| 
+fit_1 <- brm(
+  kid_score ~ mom_hs, 
+  backend = "cmdstanr", 
+  silent = 0,
+  data = kidiq
+)
+```
+
+### Analisi dei risultati
+
+#### Riassunto dei parametri del modello
+Ispezioniamo i parametri posteriori principali del modello:
+
+```{r}
+draws <- posterior::as_draws(fit_1, variable = "^b_", regex = TRUE)
+posterior::summarise_draws(draws, "mean", "sd", "mcse_mean", "mcse_sd")
+```
+
+#### Intervallo di credibilità
+
+Calcoliamo l'intervallo di credibilità a densità massima (HDI) per il parametro associato a `mom_hs`, utilizzando un livello di credibilità del 89%:
+
+```{r}
+bayestestR::hdi(fit_1, parameters = "mom_hs", ci = 0.89)
+```
+
+#### Verifica del modello
+
+Effettuiamo un controllo grafico per confrontare i dati osservati con quelli predetti dal modello:
+
+```{r}
+pp_check(fit_1)
+```
+
+#### R² bayesiano
+
+Infine, calcoliamo il coefficiente di determinazione (Bayesiano $R^2$) per valutare la capacità del modello di spiegare la variabilità nei dati:
+
+```{r}
+bayes_R2(fit_1)
+```
+
+Questo esempio dimostra come l'analisi di regressione bayesiana consenta di replicare e approfondire i risultati ottenuti in precedenza. Il modello non solo stima la differenza tra i gruppi, ma offre anche un quadro completo dell'incertezza associata, evidenziando la flessibilità e la potenza di questo approccio.
+
+## Una Parametrizzazione Alternativa
+
+Poiché il **posterior predictive check** (pp-check) ha evidenziato una leggera discrepanza tra i valori osservati ($y$) e quelli predetti dal modello, consideriamo una parametrizzazione alternativa. Adottiamo un modello gaussiano esteso con un parametro aggiuntivo per modellare l'asimmetria nella distribuzione, utilizzando una famiglia di distribuzioni skew-normal.
+
+Ecco come definiamo e stimiamo il nuovo modello:
+
+```{r}
+#| message: false
+#| warning: false
+#| output: false
+#| 
+fit_2 <- brm(
+  kid_score ~ mom_hs, 
+  family = skew_normal(),
+  backend = "cmdstanr", 
+  silent = 0,
+  data = kidiq
+)
+```
+
+### Verifica del modello
+
+Dopo aver stimato il modello, eseguiamo nuovamente il pp-check per confrontare i dati osservati con quelli predetti:
+
+```{r}
+pp_check(fit_2)
+```
+
+I risultati mostrano un miglioramento nell'adattamento del modello, indicando che l'aggiunta del parametro per l'asimmetria ha contribuito a ridurre le discrepanze.
+
+### Valutazione delle stime
+
+Analizziamo le stime posteriori dei parametri per verificare eventuali variazioni rispetto al modello precedente:
+
+```{r}
+draws <- posterior::as_draws(fit_2, variable = "^b_", regex = TRUE)
+posterior::summarise_draws(draws, "mean", "sd", "mcse_mean", "mcse_sd")
+```
+
+### Intervallo di credibilità
+
+Calcoliamo l'intervallo di credibilità a densità massima (HDI) per il parametro associato a `mom_hs`:
+
+```{r}
+bayestestR::hdi(fit_2, parameters = "mom_hs", ci = 0.89)
+```
+
+### Valutazione della variabilità spiegata
+
+Infine, calcoliamo il coefficiente di determinazione Bayesiano ($R^2$) per quantificare la capacità del modello di spiegare la variabilità nei dati:
+
+```{r}
+bayes_R2(fit_2)
+```
+
+In conclusioni, il modello con distribuzione skew-normal offre un adattamento migliore rispetto al modello gaussiano standard, come evidenziato dal pp-check. Tuttavia, le stime posteriori dei parametri differiscono solo marginalmente rispetto al modello precedente. Questo suggerisce che, sebbene l'aggiunta dell'asimmetria migliori l'adattamento, l'effetto sulla stima della relazione tra `kid_score` e `mom_hs` è limitato.
+
+## Prior Predictive Checks
+
+Il punto di partenza per valutare le prestazioni predittive dei priori consiste nell'effettuare **controlli predittivi grafici sui priori**. In `brms`, questi controlli possono essere eseguiti in modo quasi identico ai posterior predictive checks. Basta indicare a `brms` di ignorare i dati durante il campionamento, concentrandosi unicamente sui priori. Per fare ciò, è fondamentale che tutti i parametri abbiano priori propri e, idealmente, non eccessivamente ampi o poco plausibili.
+
+Partiamo specificando priori debolmente informativi per il nostro modello gaussiano applicato ai dati `kidiq`. Esaminiamo prima i priori predefiniti da `brms`:
+
+```{r}
+get_prior(kid_score ~ mom_hs, data = kidiq)
+```
+
+### Specifica dei Priori
+
+Modifichiamo i priori predefiniti per utilizzare prior debolmente informativi personalizzati:
+
+```{r}
+prior_gaussian <- 
+  prior(normal(90, 20), class = "b", coef = "Intercept") +
+  prior(normal(0, 15), class = "b", coef = "mom_hs") +
+  prior(cauchy(0, 20), class = "sigma")
+```
+
+### Aggiunta dei Priori al Modello
+
+Aggiungiamo i priori definiti alla funzione `brm`:
+
+```{r}
+#| message: false
+#| warning: false
+#| output: false
+#| 
+fit_3 <- brm(
+  bf(kid_score ~ 1 + mom_hs, center = FALSE), 
+  kid_score ~ mom_hs, 
+  prior = prior_gaussian,
+  family = gaussian(),
+  backend = "cmdstanr", 
+  silent = 0,
+  data = kidiq
+)
+```
+
+Le stime a posteriori per i parametri $\alpha$ e $\beta$ corrispondono ai valori ottenuti in precedenza:
+
+```{r}
+draws <- posterior::as_draws(fit_3, variable = "^b_", regex = TRUE)
+posterior::summarise_draws(draws, "mean", "sd", "mcse_mean", "mcse_sd")
+```
+
+### Esame della Distribuzione Predittiva a Priori
+
+Per generare campioni unicamente dalla distribuzione dei priori, specifichiamo l'argomento `sample_prior = "only"`:
+
+```{r}
+#| message: false
+#| warning: false
+#| output: false
+#| 
+fit_4 <- brm(
+  bf(kid_score ~ 1 + mom_hs, center = FALSE), 
+  kid_score ~ mom_hs, 
+  prior = prior_gaussian,
+  family = gaussian(),
+  backend = "cmdstanr", 
+  silent = 0,
+  data = kidiq,
+  sample_prior = "only"
+)
+```
+
+Quando analizziamo il sommario del modello, osserviamo che i valori stimati dai "posteriori" riflettono effettivamente i priori:
+
+```{r}
+summary(fit_4)
+```
+
+Possiamo utilizzare `pp_check` per visualizzare i prior predictive checks:
+
+```{r}
+pp_check(fit_4, ndraws = 100) + xlim(10, 180)
+```
+
+La distribuzione predittiva a priori risulta più ampia rispetto alla distribuzione dei dati osservati, ma rimane comunque dello stesso ordine di grandezza. Questo è esattamente ciò che ci aspettiamo: i priori dovrebbero essere abbastanza ampi da consentire flessibilità, ma non così eccessivi da risultare irrealistici. Sebbene questo controllo non garantisca con certezza che tutti i priori siano ragionevoli, è utile per identificare priori potenzialmente troppo ampi o poco informativi.
+
+## Massima Verosimiglianza
+
+In questa sezione confrontiamo diverse metodologie per stimare e testare la differenza tra due gruppi, adottando un approccio basato sulla **massima verosimiglianza** e confrontandolo sia con il test $t$ di Student che con l'approccio bayesiano.
+
+### Modello di Regressione
+
+Utilizziamo un modello lineare per stimare la differenza tra i due gruppi nel dataset `kidiq`, in cui il punteggio di QI del bambino (`kid_score`) è predetto dall'istruzione della madre (`mom_hs`):
+
+```{r}
+fm <- lm(kid_score ~ mom_hs, data = kidiq)
+summary(fm)
+```
+
+Il modello calcola i parametri utilizzando la massimizzazione della funzione di verosimiglianza. I coefficienti stimati hanno la seguente interpretazione:
+
+- **Intercetta**: rappresenta la media del punteggio QI per i bambini con madri non diplomate (`mom_hs = 0`).
+- **Coefficiente di mom_hs**: rappresenta la differenza attesa nel punteggio medio di QI tra i bambini con madri diplomate (`mom_hs = 1`) e quelli con madri non diplomate.
+
+### Test $t$ di Student
+
+Un altro approccio frequente per confrontare due gruppi indipendenti è il **test $t$ di Student**. Questo test verifica l'ipotesi nulla che le medie delle due popolazioni siano uguali:
+
+```{r}
+t.test(kid_score ~ mom_hs, data = kidiq)
+```
+
+I risultati del test includono:
+
+- **Statistica t**: quantifica la differenza standardizzata tra le medie dei gruppi.
+- **p-value**: la probabilità di osservare una differenza almeno così estrema se l'ipotesi nulla fosse vera.
+- **Intervallo di fiducia frequentista**: l'intervallo in cui è plausibile trovare la differenza media vera tra i gruppi.
+
+### Equivalenza tra Modello di Regressione e Test $t$
+
+Il test $t$ di Student è matematicamente equivalente al test frequentista sull'ipotesi che il coefficiente di regressione associato a `mom_hs` sia pari a zero. Entrambi assumono che i dati siano gaussiani e che le varianze dei gruppi siano uguali (o usano un'adeguata correzione in caso di varianze non uguali). 
+
+Nel caso del modello lineare, la stima puntuale della differenza tra i gruppi e l'intervallo di fiducia coincidono con quelli del test $t$. Questo dimostra come il test $t$ possa essere considerato una formulazione specifica del modello lineare per due gruppi.
+
+### Confronto con l'Approccio Bayesiano
+
+Nell'approccio bayesiano, abbiamo calcolato la differenza tra i due gruppi utilizzando priori debolmente informativi e stimando una distribuzione a posteriori per il parametro di interesse:
+
+```r
+fit_1 <- brm(kid_score ~ mom_hs, data = kidiq, prior = prior_gaussian)
+```
+
+I risultati del modello bayesiano sono:
+
+- **Simili ai metodi frequentisti** quando i priori sono debolmente informativi e il campione è grande.
+- **Più informativi**, in quanto forniscono una distribuzione a posteriori per la differenza tra i gruppi, invece di limitarsi a un valore puntuale e un intervallo di fiducia [per un approfondimento, si veda @kruschke2013bayesian].
+
+### Differenze Chiave tra i Metodi
+
+1. **Test $t$ di Student**:
+   - Offre una statistica test e un intervallo di fiducia frequentista.
+   - È rapido e semplice da calcolare per due gruppi indipendenti.
+   - Non consente di incorporare informazioni a priori.
+
+2. **Modello di Regressione**:
+   - Fornisce una maggiore flessibilità, permettendo di includere ulteriori predittori e interazioni.
+   - È matematicamente equivalente al test $t$ per due gruppi indipendenti.
+
+3. **Approccio Bayesiano**:
+   - Consente di combinare i dati osservati con informazioni a priori.
+   - Produce una distribuzione a posteriori che può essere utilizzata per testare ipotesi e calcolare probabilità.
+   - È particolarmente utile con campioni piccoli o quando si vuole includere conoscenze pregresse.
+
+In conclusioni, sebbene il test $t$ e il modello di regressione basato sulla massima verosimiglianza producano risultati identici per due gruppi, l'approccio bayesiano si distingue per la sua flessibilità e capacità di incorporare informazioni a priori. In questo caso, utilizzando dei prior debolmente informativi, i risultati di tutti e tre i metodi sono coerenti, evidenziando che la differenza tra i due gruppi può essere stimata in modo robusto con ciascun approccio.
+
+## Test di Ipotesi Bayesiano
+
+Nel contesto bayesiano, il test di ipotesi non si basa sul rifiuto o accettazione di un'ipotesi nulla come avviene nei test frequentisti. Invece, si calcolano le probabilità a posteriori associate a specifiche ipotesi, fornendo un quadro più intuitivo e flessibile.
+
+Un test bayesiano di ipotesi consiste nel determinare la probabilità che un parametro, come $\beta_{mean\_diff}$ (la differenza tra le medie dei due gruppi), sia maggiore di un valore specifico $\mu_0$. Qui, $\mu_0$ rappresenta un valore arbitrario scelto in base all'ipotesi che desideriamo testare.
+
+Ad esempio, possiamo calcolare la probabilità che la differenza tra i due gruppi sia maggiore di 10. Questo si traduce matematicamente nella probabilità a posteriori:
+
+$$
+P(\beta_{mean\_diff} > 10 \mid \text{dati}).
+$$
+
+Con il pacchetto `brms`, tale calcolo è molto semplice grazie alla funzione `hypothesis()`:
+
+```{r}
+hypothesis(fit_3, "mom_hs > 10")
+```
+
+L'output della funzione `hypothesis()` fornisce diverse informazioni utili:
+
+1. **Probabilità a posteriori**: La probabilità che $\beta_{mean\_diff}$ sia maggiore di 10, calcolata sulla base della distribuzione a posteriori stimata dal modello.
+   
+2. **Intervallo di Credibilità**: Un intervallo intorno al valore stimato di $\beta_{mean\_diff}$ che contiene una percentuale specificata di probabilità (es. 89% di default).
+
+3. **Bayes Factor (opzionale)**: In alcuni casi, viene calcolato un Bayes Factor per confrontare la plausibilità dell'ipotesi testata con la sua negazione (es. $P(\beta_{mean\_diff} > 10)$ contro $P(\beta_{mean\_diff} \leq 10)$).
+
+### Vantaggi del Test Bayesiano
+
+- **Informazione Diretta**: Fornisce una probabilità interpretabile, come "c'è una probabilità del 95% che la differenza tra i due gruppi sia maggiore di 10".
+- **Flessibilità**: Permette di testare qualsiasi valore ipotizzato per $\mu_0$, senza vincoli legati all'ipotesi nulla.
+- **Nessun Valore Critico Arbitrario**: Non richiede una soglia convenzionale (es. $p < 0.05$) per giudicare i risultati.
+
+### Confronto con i Test Frequentisti
+
+Nel test frequentista, il risultato sarebbe espresso come un $p$-value che indica la probabilità di ottenere dati così estremi (o più) sotto l'ipotesi nulla $\beta_{mean\_diff} \leq \mu_0$. Tuttavia, il $p$-value non quantifica direttamente la probabilità che l'ipotesi alternativa sia vera, a differenza dell'approccio bayesiano.
+
+In conclusioni, il test di ipotesi bayesiano, come mostrato in questo esempio, rappresenta un approccio intuitivo e informativo per valutare ipotesi sui parametri di un modello, superando alcune delle limitazioni concettuali dei test frequentisti.
+
+## Bonus
+
+Un modello di regressione con **sola intercetta** è uno strumento estremamente utile per fare inferenza sulla media della popolazione, specialmente in un contesto bayesiano. Questo modello è equivalente a stimare la media di un campione e consente di costruire intervalli di credibilità (nel caso bayesiano) o intervalli di confidenza (nel caso frequentista) per la stima della media.
+
+### Modello di Regressione con Sola Intercetta
+
+Quando utilizziamo un modello di regressione con sola intercetta, l'equazione del modello si semplifica a:
+
+$$
+y_i = \mu + \varepsilon_i,
+$$
+
+dove:
+
+- $\mu$ è l'intercetta, che rappresenta la media stimata della popolazione,
+- $\varepsilon_i$ è l'errore casuale, solitamente distribuito come $\mathcal{N}(0, \sigma^2)$.
+
+### Inferenza sulla Media
+
+Nel contesto bayesiano, il modello consente di stimare $\mu$ e $\sigma$ sulla base della distribuzione a posteriori, ottenuta combinando i dati osservati con le distribuzioni a priori. Questo approccio permette di calcolare:
+
+- **L'intervallo di credibilità**: un intervallo entro cui si trova la media della popolazione con una certa probabilità (es., 89% o 95%).
+- **La distribuzione a posteriori di $\mu$**: che fornisce un quadro completo dell'incertezza associata alla stima della media.
+
+Nel contesto frequentista, un modello equivalente calcola la media campionaria e costruisce un **intervallo di confidenza** basato su ipotesi di normalità e su una stima puntuale della varianza campionaria.
+
+### Confronto con il Test $t$ di Student
+
+Il modello di regressione con sola intercetta è concettualmente analogo al **test $t$ di Student** per una singola media. Nel caso del test $t$, l'ipotesi nulla è che la media della popolazione sia uguale a un valore specifico $\mu_0$:
+
+$$
+H_0: \mu = \mu_0.
+$$
+
+Il test calcola la statistica $t$ come:
+
+$$
+t = \frac{\bar{y} - \mu_0}{s / \sqrt{n}},
+$$
+
+dove $\bar{y}$ è la media campionaria, $s$ è la deviazione standard campionaria, e $n$ è la dimensione del campione.
+
+Nel caso bayesiano, invece di testare un'ipotesi nulla, si calcola direttamente la probabilità a posteriori che $\mu$ sia maggiore, minore o uguale a $\mu_0$, offrendo un'inferenza più intuitiva e flessibile.
+
+### Vantaggi del Modello Bayesiano
+
+1. **Intervalli di Credibilità**: Forniscono una probabilità esplicita che la media della popolazione si trovi in un certo intervallo, mentre gli intervalli di confidenza frequentisti si basano su ripetizioni ipotetiche del campionamento.
+   
+2. **Incorporazione di Priori**: Il modello bayesiano consente di integrare conoscenze pregresse (attraverso i priori), il che può essere particolarmente utile in contesti con campioni piccoli o conoscenze preesistenti.
+
+3. **Inferenza Diretta**: Piuttosto che concentrarsi su una statistica test, l'approccio bayesiano fornisce una distribuzione a posteriori che descrive completamente l'incertezza sulla media.
+
+In conclusione, il modello di regressione con sola intercetta rappresenta un'alternativa elegante e versatile al test $t$ per una singola media, sia in un contesto frequentista che bayesiano. La flessibilità del metodo bayesiano lo rende particolarmente adatto per analisi che richiedono una rappresentazione più completa e probabilistica dell'incertezza.
+
+## Riflessioni Conclusive
+
+In questo capitolo abbiamo esplorato le numerose funzionalità offerte da *{brms}* per la modellazione bayesiana, dimostrando come questo pacchetto consenta di implementare analisi sofisticate in modo intuitivo e flessibile. Abbiamo visto come specificare modelli, eseguire controlli predittivi sui priori e posteriori, testare ipotesi bayesiane e interpretare i risultati in termini probabilistici. La semplicità della sintassi e l'automatizzazione di aspetti complessi, come la scelta dei priori, rendono *{brms}* uno strumento potente e accessibile per affrontare una vasta gamma di problemi statistici, permettendo di ottenere inferenze solide e interpretabili con un approccio moderno e rigoroso.
+
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
+
+```{r}
+sessionInfo()
+```
+
+## Bibliografia {.unnumbered}
+

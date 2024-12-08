@@ -1,0 +1,404 @@
+# Disegno della ricerca e potere statistico {#sec-linear-models-power}
+
+
+::: callout-note
+## In questo capitolo imparerai a
+
+- verificare, pulire e trasformare i dati 
+- applicare regole coerenti per denominazione e codifica
+:::
+
+::: callout-tip
+## Prerequisiti
+
+- Consultare *Regression and Other Stories* [@gelman2021regression].
+  - Prestare particolare attenzione al capitolo 16, "Design and sample size decisions", che offrono una guida dettagliata al tema del “statistical power,” which when studied naively yields unrealistic expectations of success and can lead to the design of ineffective, noisy studies.
+:::
+
+::: callout-important
+## Preparazione del Notebook
+
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(mice, labelled, haven, pointblank)
+```
+:::
+
+
+## Introduzione
+
+La potenza statistica è definita come la probabilità, calcolata prima che uno studio venga condotto, che un determinato confronto raggiunga un livello predefinito di "significatività statistica" (tipicamente un p-value inferiore a 0,05), dato un effetto reale ipotizzato. Per calcolare la potenza, si parte da un'ipotesi sulla dimensione dell’effetto, si fanno assunzioni sulla variabilità dei dati e sulla dimensione del campione, e si utilizzano calcoli probabilistici per determinare la probabilità che il p-value sia inferiore alla soglia stabilita.
+
+La visione convenzionale sconsiglia di condurre studi con bassa potenza, poiché hanno basse probabilità di "successo". Tuttavia, in casi in cui i costi sono molto bassi rispetto ai potenziali benefici, un ricercatore potrebbe decidere di correre il rischio. Come vedremo, però, questa scelta può nascondere insidie significative.
+
+## La maledizione del vincitore negli studi a bassa potenza
+
+In uno studio con bassa potenza, il "successo" apparente di un risultato statisticamente significativo può essere ingannevole. Quando il segnale è debole e il rumore elevato, i risultati significativi tendono a essere erronei (esagerati o nel segno sbagliato), con scarse probabilità di replicabilità. Questi errori sono noti come errori di tipo **M** (esagerazione della dimensione dell’effetto) e di tipo **S** (errore nel segno dell’effetto). Di conseguenza, uno studio a bassa potenza rischia di generare informazioni fuorvianti, contribuendo alla crisi di replicazione.
+
+---
+
+## Stimare la dimensione del campione
+
+Prima di raccogliere dati, è utile stimare la dimensione del campione necessaria per ottenere un certo livello di precisione o per garantire una potenza desiderata. Vediamo i calcoli dettagliati.
+
+### Determinazione della dimensione del campione per un errore standard specifico
+
+Supponiamo di voler stimare un valore medio $\theta$ della popolazione utilizzando un campione casuale di dimensione $n$. La stima $\bar{y}$, cioè la media campionaria, ha un errore standard dato da:
+
+$$
+\text{s.e.}(\bar{y}) = \frac{\sigma}{\sqrt{n}},
+$$
+
+dove:
+
+- $\text{s.e.}(\bar{y})$ è l'errore standard della media campionaria,
+- $\sigma$ è la deviazione standard della popolazione,
+- $n$ è la dimensione del campione.
+
+Se vogliamo ottenere un errore standard specifico, denotato con $\text{s.e.}$, impostiamo l’equazione:
+
+$$
+\text{s.e.} = \frac{\sigma}{\sqrt{n}}.
+$$
+
+Per risolvere rispetto a $n$, procediamo come segue:
+
+1. Moltiplichiamo entrambi i lati per $\sqrt{n}$ per eliminare il denominatore:
+   $$
+   \text{s.e.} \cdot \sqrt{n} = \sigma.
+   $$
+
+2. Dividiamo entrambi i lati per $\text{s.e.}$:
+   $$
+   \sqrt{n} = \frac{\sigma}{\text{s.e.}}.
+   $$
+
+3. Eleviamo al quadrato entrambi i lati per eliminare la radice:
+   $$
+   n = \left(\frac{\sigma}{\text{s.e.}}\right)^2.
+   $$
+
+Questa formula ci dice che la dimensione del campione necessaria per ottenere un determinato errore standard è proporzionale al quadrato del rapporto tra la deviazione standard $\sigma$ e l'errore standard desiderato $\text{s.e.}$.
+
+---
+
+### Dimensione del campione per una potenza dell’80%
+
+Supponiamo ora di voler determinare la dimensione del campione necessaria per ottenere l'80% di potenza nel distinguere un valore $\theta$ dalla media ipotizzata $\theta_0$.
+
+L'errore standard della differenza $\theta - \theta_0$ è dato da:
+
+$$
+\text{s.e.} = \frac{\sigma}{\sqrt{n}}.
+$$
+
+Per ottenere l'80% di potenza, vogliamo che la differenza osservata $\theta - \theta_0$ sia sufficientemente grande da essere rilevata con il livello di significatività prefissato (ad esempio, 5%).
+
+#### Passaggi algebrici per derivare la formula:
+
+1. Per una potenza dell’80%, la differenza $\theta - \theta_0$ deve essere almeno 2,8 volte l’errore standard, dove il valore $2.8$ è dato dalla somma dei quantili della distribuzione normale per il 95% di confidenza ($1.96$) e per l’80% di potenza ($0.84$):
+   $$
+   \theta - \theta_0 = 2.8 \cdot \frac{\sigma}{\sqrt{n}}.
+   $$
+
+2. Risolviamo per $\sqrt{n}$:
+   $$
+   \sqrt{n} = \frac{2.8 \cdot \sigma}{\theta - \theta_0}.
+   $$
+
+3. Eleviamo al quadrato entrambi i lati:
+   $$
+   n = \left(\frac{2.8 \cdot \sigma}{\theta - \theta_0}\right)^2.
+   $$
+
+Questa formula fornisce la dimensione del campione necessaria per ottenere l’80% di potenza, dove $2.8$ rappresenta il valore soglia della distribuzione normale standard.
+
+#### Esempio pratico
+
+Se vogliamo distinguere $\theta$ da $\theta_0$ con $\sigma = 10$ e una differenza minima rilevabile di $\theta - \theta_0 = 5$, possiamo calcolare $n$ come segue:
+
+$$
+n = \left(\frac{2.8 \cdot 10}{5}\right)^2 = \left(5.6\right)^2 = 31.36.
+$$
+
+Arrotondando, servono almeno 32 osservazioni.
+
+---
+
+### Correzione per campioni piccoli e distribuzione t
+
+Per studi con pochi gradi di libertà, l’incertezza sulla stima di $\sigma$ aumenta, e la distribuzione t di Student diventa più appropriata. In questi casi, il valore $2.8$ deve essere sostituito con un valore più grande, dipendente dai gradi di libertà, per compensare l’incertezza aggiuntiva.
+
+Ad esempio, per uno studio che confronta due gruppi di 6 pazienti ciascuno, i gradi di libertà sono 10. In R, la somma dei quantili della distribuzione t con 10 gradi di libertà per l'80% di potenza e il 95% di confidenza è $3.1$, quindi $2.8$ viene sostituito da $3.1$ nei calcoli per la potenza dell'80%.
+
+```{r}
+# Gradi di libertà
+df <- 10
+
+# Calcola il quantile per l'80% di potenza (quindi 0.8) e il 95% di confidenza (quindi 0.975)
+t_value_80 <- qt(0.8, df)
+t_value_95 <- qt(0.975, df)
+
+# Somma dei due quantili
+t_total <- t_value_80 + t_value_95
+t_total
+```
+
+Eseguendo questo codice in R, otteniamo il valore **3.107**, che sostituisce il valore $2.8$ nei calcoli per la potenza dell'80% quando si lavora con piccoli campioni e si utilizza la distribuzione t invece della normale standard.
+
+---
+
+### Nota
+
+Questo esempio evidenzia come la distribuzione t tenga conto della maggiore variabilità introdotta dalla stima della deviazione standard in campioni di piccole dimensioni, aumentando leggermente il valore soglia richiesto per la potenza desiderata.
+
+## Confronto di Medie
+
+Esaminiamo ora il caso del confronto tra le medie di due gruppi indipendenti. Vogliamo determinare la dimensione del campione necessaria per rilevare una differenza significativa $\Delta$ tra le due medie con una potenza statistica dell'80%.
+
+### Errore Standard della Differenza tra Due Medie
+
+L'errore standard della differenza tra le medie campionarie $\bar{y}_1$ e $\bar{y}_2$ è dato da:
+
+$$
+\text{s.e.}(\bar{y}_1 - \bar{y}_2) = \sqrt{\frac{\sigma_1^2}{n_1} + \frac{\sigma_2^2}{n_2}},
+$$
+
+dove:
+
+- $\sigma_1^2$ e $\sigma_2^2$ sono le varianze delle popolazioni dei due gruppi,
+- $n_1$ e $n_2$ sono le dimensioni dei campioni nei due gruppi.
+
+#### Caso di Varianze e Dimensioni del Campione Uguali
+
+Se assumiamo che:
+
+- le varianze sono uguali: $\sigma_1 = \sigma_2 = \sigma$,
+- le dimensioni dei campioni sono uguali: $n_1 = n_2 = n$,
+
+l'errore standard diventa:
+
+1. Sostituiamo le varianze e le dimensioni dei campioni:
+
+   $$
+   \text{s.e.} = \sqrt{\frac{\sigma^2}{n} + \frac{\sigma^2}{n}} = \sqrt{\frac{2\sigma^2}{n}}.
+   $$
+
+2. Semplifichiamo l'espressione:
+
+   $$
+   \text{s.e.} = \frac{\sqrt{2}\sigma}{\sqrt{n}}.
+   $$
+
+### Dimensione del Campione per un Errore Standard Specifico
+
+Se desideriamo ottenere un errore standard specifico $\text{s.e.}$, possiamo determinare la dimensione del campione $n$ seguendo questi passaggi:
+
+1. Partiamo dall'espressione dell'errore standard:
+
+   $$
+   \text{s.e.} = \frac{\sqrt{2}\sigma}{\sqrt{n}}.
+   $$
+
+2. Risolviamo per $\sqrt{n}$:
+
+   $$
+   \sqrt{n} = \frac{\sqrt{2}\sigma}{\text{s.e.}}.
+   $$
+
+3. Eleviamo al quadrato entrambi i membri:
+
+   $$
+   n = \left( \frac{\sqrt{2}\sigma}{\text{s.e.}} \right)^2 = \frac{2\sigma^2}{\text{s.e.}^2}.
+   $$
+
+### Dimensione del Campione per una Differenza $\Delta$ con l'80% di Potenza
+
+Per garantire una **potenza dell'80%** nel rilevare una differenza $\Delta$ tra le due medie, seguiamo questi passaggi:
+
+#### Determinazione del Valore Critico
+
+Per un test bilaterale al livello di significatività del **5%**, i valori critici della distribuzione normale standard sono:
+
+- **$z_{\alpha/2} = 1.96$** (per il 95% di confidenza),
+- **$z_{\text{potenza}} = 0.84$** (per l'80% di potenza).
+
+La somma totale è:
+
+$$
+z_{\text{totale}} = z_{\alpha/2} + z_{\text{potenza}} = 1.96 + 0.84 = 2.8.
+$$
+
+#### Relazione tra $\Delta$ ed Errore Standard
+
+La differenza minima rilevabile $\Delta$ è legata all'errore standard dalla relazione:
+
+1. Impostiamo l'equazione:
+
+   $$
+   \Delta = z_{\text{totale}} \times \text{s.e.} = 2.8 \times \text{s.e.}.
+   $$
+
+2. Sostituiamo l'espressione per $\text{s.e.}$:
+
+   $$
+   \Delta = 2.8 \times \frac{\sqrt{2}\sigma}{\sqrt{n}}.
+   $$
+
+3. Calcoliamo il coefficiente:
+
+   $$
+   2.8 \times \sqrt{2} = 2.8 \times 1.4142 \approx 3.96.
+   $$
+
+   Quindi:
+
+   $$
+   \Delta = 3.96 \times \frac{\sigma}{\sqrt{n}}.
+   $$
+
+4. Risolviamo per $\sqrt{n}$:
+
+   $$
+   \sqrt{n} = \frac{3.96 \sigma}{\Delta}.
+   $$
+
+5. Eleviamo al quadrato entrambi i membri:
+
+   $$
+   n = \left( \frac{3.96 \sigma}{\Delta} \right)^2.
+   $$
+
+### Formula Finale per la Dimensione del Campione
+
+La dimensione del campione necessaria **per ciascun gruppo** è data da:
+
+$$
+n = \left( \frac{3.96 \sigma}{\Delta} \right)^2.
+$$
+
+Per semplificare i calcoli, possiamo arrotondare $3.96$ a **$4$**:
+
+$$
+n = \left( \frac{4 \sigma}{\Delta} \right)^2.
+$$
+
+**Nota Importante:** Questa formula si applica quando:
+
+- **Le varianze delle popolazioni sono uguali** ($\sigma_1 = \sigma_2 = \sigma$).
+- **Le dimensioni dei campioni nei due gruppi sono uguali** ($n_1 = n_2 = n$).
+- **Il totale dei campioni è $N = 2n$**.
+
+### Interpretazione della Formula
+
+- **Se la deviazione standard $\sigma$ è elevata**: C'è maggiore variabilità nei dati, quindi è necessario un campione più grande per rilevare una differenza $\Delta$ con la stessa potenza.
+- **Se la differenza $\Delta$ è piccola**: Serve un campione più grande per garantire che la differenza sia rilevabile con l'80% di potenza.
+
+### Esempio Pratico
+
+Supponiamo di voler rilevare una differenza $\Delta = 5$ unità tra due gruppi, con una deviazione standard comune $\sigma = 10$ unità.
+
+**Calcolo della dimensione del campione per ciascun gruppo**:
+
+1. Utilizziamo la formula:
+
+   $$
+   n = \left( \frac{4 \times 10}{5} \right)^2 = \left( \frac{40}{5} \right)^2 = \left( 8 \right)^2 = 64.
+   $$
+
+2. Risultato:
+
+   - **64 partecipanti per gruppo**.
+   - **Totale di 128 partecipanti**.
+
+### Caso con Campione Totale Fissato
+
+Se il campione totale è fissato a **$n$**, con dimensioni dei gruppi $n_1 = n_2 = n/2$, l'errore standard cambia leggermente.
+
+#### Calcolo dell'Errore Standard
+
+1. Sostituiamo $n_1 = n_2 = n/2$ nell'errore standard:
+
+   $$
+   \text{s.e.} = \sqrt{\frac{\sigma^2}{n/2} + \frac{\sigma^2}{n/2}} = \sqrt{2 \times \frac{\sigma^2}{n/2}}.
+   $$
+
+2. Semplifichiamo l'espressione:
+
+   $$
+   \text{s.e.} = \sqrt{\frac{4\sigma^2}{n}} = \frac{2\sigma}{\sqrt{n}}.
+   $$
+
+#### Dimensione del Campione
+
+1. Relazione tra $\Delta$ ed errore standard:
+
+   $$
+   \Delta = 2.8 \times \text{s.e.} = 2.8 \times \frac{2\sigma}{\sqrt{n}} = \frac{5.6 \sigma}{\sqrt{n}}.
+   $$
+
+2. Risolviamo per $\sqrt{n}$:
+
+   $$
+   \sqrt{n} = \frac{5.6 \sigma}{\Delta}.
+   $$
+
+3. Eleviamo al quadrato:
+
+   $$
+   n = \left( \frac{5.6 \sigma}{\Delta} \right)^2.
+   $$
+
+In questo scenario, la dimensione **totale** del campione è $n$, con $n/2$ partecipanti per ciascun gruppo.
+
+### Scelta della Formula Adeguata
+
+- Se $n$ rappresenta la dimensione del campione per gruppo:
+
+  $$
+  n = \left( \frac{4 \sigma}{\Delta} \right)^2.
+  $$
+
+- Se $n$ rappresenta la dimensione totale del campione:
+
+  $$
+  n = \left( \frac{5.6 \sigma}{\Delta} \right)^2.
+  $$
+
+Assicurarsi di chiarire come si definisce $n$ è fondamentale per applicare correttamente le formule.
+
+### Sintesi
+
+- **Varianze e dimensioni uguali nei due gruppi** semplificano i calcoli.
+- **La dimensione del campione aumenta** con l'aumentare della deviazione standard $\sigma$ e con la diminuzione della differenza $\Delta$ che si vuole rilevare.
+- **Essere chiari sulla definizione di $n$** (per gruppo o totale) evita errori nei calcoli.
+
+::: {#exm-}
+
+Se la differenza $\Delta$ che vogliamo rilevare è pari a metà della deviazione standard ($\Delta = 0.5\sigma$), allora la formula ci dirà quanti partecipanti sono necessari in ciascun gruppo per rilevare questa differenza con l'80% di potenza. Ad esempio, se $\Delta = 0.5\sigma$, la dimensione totale del campione sarà:
+
+$$
+n = \left(\frac{5.6 \sigma}{0.5\sigma}\right)^2 = (11.2)^2 = 125.44 \approx 126.
+$$
+
+Quindi, servirebbero 63 partecipanti per gruppo.
+:::
+
+## Riflessioni Conclusive
+
+La determinazione della dimensione del campione è un passaggio cruciale nella progettazione degli studi, poiché garantisce che le inferenze siano robuste e i risultati affidabili. Questo capitolo ha mostrato come le caratteristiche dei dati, come la deviazione standard e la differenza attesa tra i gruppi, influenzino direttamente la dimensione del campione necessaria per ottenere una potenza statistica adeguata. Inoltre, l’attenzione ai dettagli, come l’uso della distribuzione t per piccoli campioni, sottolinea l’importanza di considerare le fonti di variabilità e incertezza nei calcoli. Pianificare con rigore la dimensione del campione non solo aumenta la probabilità di rilevare effetti significativi, ma contribuisce anche a ridurre il rischio di risultati fuorvianti, migliorando così la qualità complessiva della ricerca scientifica.
+
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
+
+```{r}
+sessionInfo()
+```
+
+## Bibliografia {.unnumbered}
+
+
+
