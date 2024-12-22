@@ -1,15 +1,11 @@
----
-execute:
-  freeze: auto
----
-
 # Esplorare i dati qualitativi {#sec-eda-qualitative-data}
 
-::: callout-note
+::: callout-important
 ## In questo capitolo imparerai a
 
-- calcolare proporzioni e tabelle di contingenza
-- costruire grafici a barre
+- calcolare proporzioni e organizzare i dati in tabelle di contingenza; 
+- costruire grafici a barre per rappresentare dati qualitativi;
+- creare visualizzazioni per esplorare le relazioni tra due o più variabili qualitative.  
 :::
 
 ::: callout-tip
@@ -18,7 +14,7 @@ execute:
 - Leggere il capitolo [Exploring categorical data](https://openintro-ims.netlify.app/explore-categorical) di [Introduction to Modern Statistics (2e)](https://openintro-ims.netlify.app) di Mine Çetinkaya-Rundel e Johanna Hardin.
 :::
 
-::: callout-important
+::: callout-caution
 ## Preparazione del Notebook
 
 ```{r}
@@ -27,7 +23,7 @@ here::here("code", "_common.R") |>
 
 # Load packages
 if (!requireNamespace("pacman")) install.packages("pacman")
-pacman::p_load(tidyr, viridis, vcd)
+pacman::p_load(tidyr, viridis, vcd, janitor)
 ```
 :::
 
@@ -75,10 +71,12 @@ df |>
 
 Una *tabella di contingenza* è uno strumento utilizzato per riassumere i dati di due variabili categoriali, ovvero variabili qualitative che assumono valori all'interno di un insieme finito di categorie. In una tabella di contingenza, ogni cella mostra quante volte si è verificata una combinazione specifica di categorie per le due variabili considerate.
 
-Per esempio, se prendiamo in esame due variabili categoriali come "island" e "species" all'interno di un DataFrame `df`, ciascuna delle quali rappresenta rispettivamente l'isola di provenienza e la specie dei pinguini, possiamo costruire una tabella che mostra quante volte ciascuna combinazione di "island" e "species" appare nel nostro campione. In altre parole, la tabella di contingenza ci permette di vedere quante osservazioni ci sono per ogni combinazione di categorie tra queste due variabili.
+Per esempio, se prendiamo in esame due variabili categoriali come "island" e "species" all'interno di un DataFrame `df`, ciascuna delle quali rappresenta rispettivamente l'isola di provenienza e la specie dei pinguini, possiamo costruire una tabella che mostra quante volte ciascuna combinazione di "island" e "species" appare nel nostro campione. In altre parole, la tabella di contingenza ci permette di vedere quante osservazioni ci sono per ogni combinazione di categorie tra queste due variabili. Usiamo la funzione `tably()` del pacchetto `janitor`.
 
 ```{r}
-table(df$island, df$species)
+df |> 
+  tabyl(island, species) |> 
+  adorn_totals(c("row", "col")) 
 ```
 
 Questa tabella di contingenza mostra la distribuzione di tre specie di pinguini (Adelie, Chinstrap, Gentoo) rispetto a tre isole (Biscoe, Dream, Torgersen). Ogni cella rappresenta il numero di pinguini di una determinata specie presenti su ciascuna isola. Ecco un'interpretazione dettagliata:
@@ -87,7 +85,7 @@ Questa tabella di contingenza mostra la distribuzione di tre specie di pinguini 
 - **Isola Dream**: Questa isola ospita 55 pinguini Adelie e 68 pinguini Chinstrap, ma nessun pinguino della specie Gentoo.
 - **Isola Torgersen**: Su quest'isola sono presenti solo 47 pinguini della specie Adelie, e nessun pinguino delle specie Chinstrap o Gentoo.
 
-Possiamo dunque commentare dicendo: 
+Possiamo commentare dicendo: 
 
 1. La specie **Adelie** è distribuita su tutte e tre le isole, con numeri notevoli sia su Biscoe (44), Dream (55), che Torgersen (47).
 2. La specie **Chinstrap** si trova solo sull'isola Dream (68 esemplari) e non è presente sulle altre due isole.
@@ -136,6 +134,7 @@ Ad esempio, visualizziamo il numero di pinguini per specie e isola. A qusto fine
 ```{r}
 ggplot(df, aes(x = island, fill = species)) +
   geom_bar(position = "stack") +
+  scale_fill_okabeito() +
   ggtitle("Numero di pinguini per specie e isola") +
   xlab("Isola") +
   ylab("Numero di pinguini") +
@@ -147,6 +146,7 @@ In alternativa, è possibile creare un grafico a barre dove le specie sono rappr
 ```{r}
 ggplot(df, aes(x = species, fill = island)) +
   geom_bar(position = "stack") +
+  scale_fill_okabeito() +
   ggtitle("Numero di pinguini per isola e specie") +
   xlab("Specie") +
   ylab("Numero di pinguini") +
@@ -158,6 +158,7 @@ In alternativa all'uso delle frequenze assolute, possiamo rappresentare i dati u
 ```{r}
 ggplot(df, aes(x = island, fill = species)) +
   geom_bar(position = "fill") +
+  scale_fill_okabeito() +
   ggtitle("Proporzione di pinguini per specie e isola") +
   xlab("Isola") +
   ylab("Proporzione") +
@@ -171,8 +172,37 @@ Il *Mosaic plot* è una tecnica di visualizzazione particolarmente adatta per ra
 In altre parole, il Mosaic plot non solo mostra come si distribuiscono le categorie di una variabile secondaria all'interno di ogni gruppo della variabile principale, ma fornisce anche un'idea visiva della grandezza complessiva dei gruppi. Questo lo rende uno strumento utile per analizzare e interpretare le relazioni tra due variabili categoriali, evidenziando sia la proporzione all'interno di ciascun gruppo, sia la grandezza relativa tra i gruppi stessi.
 
 ```{r}
-mosaic(~ species + island, data = df, main = "Mosaic Plot of Species and Island")
+mosaic(
+  ~ species + island, 
+  data = df, 
+  main = "Mosaic Plot of Species and Island",
+  shade = TRUE
+)
 ```
+
+- **`island`**: Variabile rappresentata come suddivisione orizzontale all'interno di ogni gruppo di `species` (variabile principale).
+- **`species`**: Variabile rappresentata lungo l'asse verticale (variabile secondaria suddivisa all'interno di ogni gruppo di `island`). 
+
+#### Interpretazione 
+
+1. **Dimensione dei Rettangoli**:
+   - La **larghezza** dei rettangoli corrisponde alla dimensione relativa dei gruppi della variabile `island`.
+   - L'**altezza** dei rettangoli rappresenta la proporzione delle categorie di `species` all'interno di ciascun gruppo di `island`.
+
+2. **Colorazione (se `shade = TRUE`)**:
+   - I colori indicano deviazioni rispetto all'indipendenza statistica tra le variabili.
+   - Un rettangolo scuro rappresenta una frequenza maggiore o minore di quella attesa in caso di indipendenza tra `species` e `island`.
+
+3. **Osservazioni Specifiche**:
+   - **Rettangoli alti e larghi**: Indicano una categoria di `species` molto rappresentata su un’isola specifica.
+   - **Rettangoli sottili o stretti**: Indicano una rappresentazione meno significativa o assente di una specie su un’isola.
+
+In conclusione, il Mosaic plot è uno strumento grafico efficace per analizzare le relazioni tra due variabili categoriali. Ti permette di esplorare:
+
+1. La **proporzione interna** delle categorie.
+2. Le **dimensioni relative** dei gruppi della variabile principale.
+
+Questo grafico è particolarmente utile per individuare schemi o associazioni, come una specie predominante su un’isola specifica o una distribuzione equilibrata tra gruppi. La sua rappresentazione intuitiva lo rende ideale per ricerche in psicologia, scienze sociali e biologia.
 
 ## Proporzioni di Riga e Colonna
 
@@ -183,37 +213,21 @@ Questo ci permetterà di comprendere meglio le relazioni tra le due variabili, v
 Calcoliamo le proporzioni di specie per isola.        
 
 ```{r}
-# Calcola le proporzioni di riga
-row_proportions <- df |> 
-  count(island, species) |> 
-  group_by(island) |> 
-  mutate(proportion = n / sum(n)) |> 
-  pivot_wider(names_from = species, values_from = proportion, values_fill = 0)
-
-# Aggiungi una colonna "Totale" che rappresenta il totale di ciascuna riga
-row_proportions_with_total <- row_proportions |> 
-  mutate(Totale = rowSums(across(where(is.numeric))))
-
-# Mostra la tabella con proporzioni di riga e il totale
-print(row_proportions_with_total)
+df %>%
+  tabyl(island, species) %>%  # Crea la tabella di contingenza
+  adorn_percentages("row") %>%  # Calcola le proporzioni per riga
+  adorn_totals("col") %>%  # Aggiunge la colonna dei totali
+  adorn_pct_formatting(digits = 2)  # Formatta le percentuali con 2 decimali
 ```
 
 Calcoliamo nuovamente le proporzioni, ma questa volta in funzione delle colonne (per isola).
 
 ```{r}
-# Calcola la tabella di contingenza
-contingency_table <- xtabs(~ island + species, data = df)
-
-# Calcola le proporzioni di colonna
-column_proportions <- prop.table(contingency_table, margin = 2)
-
-# Aggiungi una riga "Totale" con la somma di ciascuna colonna
-column_proportions_with_total <- rbind(
-  column_proportions, Totale = colSums(column_proportions)
-)
-
-# Mostra la tabella con proporzioni di colonna e il totale
-print(column_proportions_with_total)
+df |> 
+  tabyl(island, species) |> 
+  adorn_percentages("col") |> 
+  adorn_totals("row") |> 
+  adorn_pct_formatting(digits = 2) # Formatta le percentuali con 2 decimali
 ```
 
 ## Confronto tra Gruppi
@@ -225,6 +239,7 @@ Qui consideriamo due variabili qualitative. Creiamo un grafico a barre per confr
 ```{r}
 ggplot(df, aes(x = species, fill = sex)) +
   geom_bar(position = "dodge") +
+  scale_fill_okabeito() +
   ggtitle("Distribuzione del genere per specie") +
   xlab("Specie") +
   ylab("Conteggio")
@@ -236,9 +251,16 @@ Nel grafico seguente, confrontiamo la distribuzione del peso corporeo (`body_mas
 
 ```{r}
 ggplot(df, aes(x = species, y = body_mass_g, fill = sex)) +
-  geom_violin(position = position_dodge(width = 0.9), alpha = 0.5) +
-  geom_boxplot(position = position_dodge(width = 0.9), width = 0.2, alpha = 0.8) +
-  ggtitle("Distribuzione della massa corporea\nin base alla specie e al genere") +
+  geom_violin(
+    position = position_dodge(width = 0.9), alpha = 0.5
+  ) +
+  geom_boxplot(
+    position = position_dodge(width = 0.9), width = 0.2, alpha = 0.8
+  ) +
+  scale_fill_okabeito() +
+  ggtitle(
+    "Distribuzione della massa corporea\nin base alla specie e al genere"
+  ) +
   xlab("Specie") +
   ylab("Massa corporea (g)") +
   labs(fill = "Genere")

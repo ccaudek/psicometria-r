@@ -1,6 +1,4 @@
-# Predizione e inferenza {#sec-linear-models-sample-size}
-
-# Flusso di lavoro per la pulizia dei dati {#sec-data-cleaning}
+# Predizione e inferenza {#sec-linear-models-prediction}
 
 ::: callout-note
 ## In questo capitolo imparerai a
@@ -11,7 +9,7 @@
 ::: callout-tip
 ## Prerequisiti
 
-- Leggere *Regression and Other Stories* [@gelman2020regression].
+- Leggere *Regression and Other Stories* [@gelman2021regression].
   - Prestare particolare attenzione al capitolo 9, "Prediction and Bayesian inference", che offrono una guida dettagliata ai temi della predizione e dell'inferenza nel modello bayesiano di regressione lineare bivariata.
 :::
 
@@ -24,7 +22,7 @@ here::here("code", "_common.R") |>
 
 # Load packages
 if (!requireNamespace("pacman")) install.packages("pacman")
-pacman::p_load(mice, labelled, haven, pointblank)
+pacman::p_load(cmdstanr, posterior)
 ```
 :::
 
@@ -36,57 +34,54 @@ pacman::p_load(mice, labelled, haven, pointblank)
 
 Per discutere i temi della predizione e dell'inferenza bayesiana nel contesto del modello bayesiano di regressione lineare bivariata, esamineremo nuovamente il set di esaminati nel @sec-bivariate-bayesian-regression e relativi alla relazione tra Tense Arousal e ansia di stato.
 
-```{python}
-#| ExecuteTime: {end_time: '2024-08-13T07:54:58.864353Z', start_time: '2024-08-13T07:54:58.840502Z'}
-# Definire il percorso del file CSV
-file_path = os.path.join(project_directory, "data", "affect.csv")
-
-# Leggere il file CSV in un DataFrame pandas
-data = pd.read_csv(file_path)
-
-# Selezionare le colonne state1 e TA1
-df = data[["state1", "TA1"]]
+```{r}
+df <- rio::import(here::here("data", "affect.csv")) |> 
+  dplyr::select(state1, TA1)
+df |> 
+  head()
 ```
 
-Consideriamo il modello bayesiano di regressione lineare bivariata che include prior uniformi per i parametri $\alpha$, $\beta$ e $\sigma$ che abbiamo discusso nel @sec-bivariate-bayesian-regression. Compiliamo e stampiamo tale modello.
+Consideriamo il modello bayesiano di regressione lineare bivariata che include prior uniformi per i parametri $\alpha$, $\beta$ e $\sigma$ che abbiamo discusso nel @sec-bivariate-bayesian-regression. Compiliamo il modello.
 
-```{python}
-#| ExecuteTime: {end_time: '2024-08-13T07:55:03.831002Z', start_time: '2024-08-13T07:55:02.740249Z'}
-stan_file = os.path.join(project_directory, 'stan', 'arousal_model_prior_raw.stan')
-model1 = CmdStanModel(stan_file=stan_file)
-print(model1.code())
+
+```{r}
+model <- cmdstan_model(here::here("stan", "arousal_model_prior_raw.stan"))
+```
+
+Il modello ha questa forma:
+
+```{r}
+model$print()
 ```
 
 Sistemiamo i dati in un dizionario come richiesto dal modello Stan.
 
-```{python}
-#| ExecuteTime: {end_time: '2024-08-13T07:55:07.139389Z', start_time: '2024-08-13T07:55:07.136512Z'}
-stan_data = {
-    "N": len(df["TA1"]),
-    "x": df["state1"],
-    "y": df["TA1"]
-}
+```{r}
+stan_data = list(
+  N = length(df$TA1),
+  x = df$state1,
+  y = df$TA1
+)
 ```
 
 Eseguiamo il campionamento MCMC.
 
-```{python}
-#| ExecuteTime: {end_time: '2024-08-13T07:55:09.800428Z', start_time: '2024-08-13T07:55:09.446318Z'}
-fit1 = model1.sample(
-    data=stan_data,
-    iter_warmup=1_000,
-    iter_sampling=2_000,
-    seed=123,
-    show_progress=False,
-    show_console=False
+```{r}
+#| message: false
+#| 
+fit1 <- model$sample(
+  data = stan_data,
+  seed = 123,
+  iter_warmup = 2000,
+  iter_sampling = 2000,
+  show_message = FALSE
 )
 ```
 
-Esaminiamo le distribuzioni a posteriori dei parametri.
+Esaminiamo le distribuzioni a posteriori dei parametri:
 
-```{python}
-#| ExecuteTime: {end_time: '2024-08-13T07:55:13.273357Z', start_time: '2024-08-13T07:55:13.216011Z'}
-az.summary(fit1, var_names=(["alpha", "beta", "sigma"]), hdi_prob=0.94)
+```{r}
+fit1$summary(variables = c("alpha", "beta", "sigma"))
 ```
 
 Il punto importante qui è che la distribuzione a posteriori non fornisce solo informazioni sui singoli parametri, ma anche sulle loro interdipendenze. Queste relazioni sono riflesse nei campioni a posteriori, che possono essere trasformati in vari modi. Ad esempio, possiamo calcolare la predizione a posteriori del modello lineare per il valore atteso di Tense Arousal quando l'ansia di stato è pari a 30 usando il seguente comando nel blocco `generated quantities`:
@@ -95,34 +90,36 @@ Il punto importante qui è che la distribuzione a posteriori non fornisce solo i
 
 Modifichiamo il modello Stan che include la specifica di distribuzioni debolmente informative sui  parametri $\alpha$, $\beta$ e $\sigma$ per aggiungere questo comando nel blocco `generated quantities` e compiliamo il modello.
 
-```{python}
-#| ExecuteTime: {end_time: '2024-08-13T07:55:17.527381Z', start_time: '2024-08-13T07:55:17.408297Z'}
-stan_file = os.path.join(project_directory, "stan", "arousal_model2.stan")
-model2 = CmdStanModel(stan_file=stan_file)
-print(model2.code())
+```{r}
+model2 <- cmdstan_model(here::here("stan", "arousal_model2.stan"))
+```
+
+Il modello ha questa forma:
+
+```{r}
+model2$print()
 ```
 
 In questo modello Stan aggiornato, il blocco `generated quantities` calcola la predizione a posteriori `pred` per una variabile predittore con valore 30. Questa modifica permette di ottenere la distribuzione a posteriori della predizione per un valore specifico del predittore.
 
 Eseguiamo il campionamento.
 
-```{python}
-#| ExecuteTime: {end_time: '2024-08-13T07:55:21.024795Z', start_time: '2024-08-13T07:55:20.768963Z'}
-fit2 = model2.sample(
-    data=stan_data,
-    iter_warmup=2_000,
-    iter_sampling=2_000,
-    seed=123,
-    show_progress=False,
-    show_console=False,
+```{r}
+#| message: false
+#| 
+fit2 <- model2$sample(
+  data = stan_data,
+  seed = 123,
+  iter_warmup = 2000,
+  iter_sampling = 2000,
+  show_message = FALSE
 )
 ```
 
 Esaminiamo la stima a posteriori del valore atteso di Tense Arousal quando l'ansia di stato è pari a 30. Questa analisi fornirà sia una stima puntuale di Tense Arousal che una misura dell'incertezza associata, rappresentata dall'intervallo di credibilità al livello di confidenza scelto.
 
-```{python}
-#| ExecuteTime: {end_time: '2024-08-13T07:55:23.797774Z', start_time: '2024-08-13T07:55:23.751993Z'}
-az.summary(fit2, var_names=(["pred"]), hdi_prob=0.94)
+```{r}
+fit2$summary(variables = "pred")
 ```
 
 ## Quantificazione dell'incertezza
@@ -131,7 +128,7 @@ Per quantificare l'incertezza complessiva nelle predizioni del modello, possiamo
 
 Per fare ciò, modifichiamo il blocco `generated quantities` nel seguente modo:
 
-```stan
+```
 generated quantities {
   vector[N] y_rep; // Predizioni a posteriori per ciascun valore di x
   
@@ -159,155 +156,147 @@ Modifichiamo il modello imponendo distribuzioni a priori debolmente informative 
 - Per $\alpha$ e $\beta$, utilizziamo una distribuzione Normale centrata su 0 con una deviazione standard di 2.
 - Per $\sigma$, utilizziamo una distribuzione di Cauchy centrata su 0 con una scala di 2.
 
-```{python}
-#| ExecuteTime: {end_time: '2024-08-13T07:55:28.646291Z', start_time: '2024-08-13T07:55:28.531783Z'}
-stan_file = os.path.join(project_directory, "stan", "arousal_model3.stan")
-model3 = CmdStanModel(stan_file=stan_file)
-print(model3.code())
+
+```{r}
+model3 <- cmdstan_model(here::here("stan", "arousal_model3.stan"))
+```
+
+Il modello ha questa forma:
+
+```{r}
+model3$print()
 ```
 
 Eseguiamo il campionamento.
 
-```{python}
-#| ExecuteTime: {end_time: '2024-08-13T07:55:31.633815Z', start_time: '2024-08-13T07:55:31.353690Z'}
-fit3 = model3.sample(
-    data=stan_data,
-    iter_warmup=2_000,
-    iter_sampling=2_000,
-    seed=123,
-    show_progress=False,
-    show_console=False,
+```{r}
+#| message: false
+#| 
+fit3 <- model3$sample(
+  data = stan_data,
+  seed = 123,
+  iter_warmup = 2000,
+  iter_sampling = 2000,
+  show_message = FALSE
 )
 ```
 
 Esaminiamo la distribuzione a posteriori dei parametri.
 
-```{python}
-#| ExecuteTime: {end_time: '2024-08-13T07:55:34.397093Z', start_time: '2024-08-13T07:55:34.339091Z'}
-az.summary(fit3, var_names=(["alpha", "beta", "sigma"]), hdi_prob=0.94)
+```{r}
+fit3$summary(variables = c("alpha", "beta", "sigma"))
 ```
 
 ### Manipolare le Stime a Posteriori dei Parametri
 
-Costruiamo ora un grafico che rappresenta i valori osservati insieme alla linea di regressione stimata tramite il modello bayesiano. Al grafico aggiungeremo diverse linee di regressione, ciascuna orientata in base ai valori campionati casualmente dalla distribuzione a posteriori dei parametri $\alpha$ e $\beta$.
+Costruiamo un grafico che rappresenta i valori osservati e la linea di regressione stimata tramite un modello bayesiano. Al grafico aggiungeremo diverse linee di regressione, ognuna basata su valori campionati casualmente dalla distribuzione a posteriori dei parametri $\alpha$ e $\beta$.
 
-Poniamoci dunque il problema di recuperare le stime a posteriori dei parametri dall'oggetto `fit3`, creato dal metodo `sample()`. La [User's Guide](https://mc-stan.org/cmdstanpy/users-guide/hello_world.html#accessing-the-results) specifica quanto segue:
+#### Recuperare le Stime a Posteriori
 
-> The sampler outputs are the set of per-chain Stan CSV files, a non-standard CSV file format. Each data row of the Stan CSV file contains the per-iteration estimate of the Stan model parameters, transformed parameters, and generated quantities variables. 
+Con cmdstanr, i risultati del campionamento sono accessibili come oggetti `draws_matrix`, `draws_array`, o `draws_df`. Per estrarre le distribuzioni a posteriori di specifici parametri, possiamo usare il metodo `draws()` o `as_draws_df()`. Ad esempio, per estrarre i campioni di $\alpha$ e $\beta$ dall'oggetto `fit3`, utilizziamo:
 
-Utilizzando il metodo `stan_variable()`, possiamo ottenere un `numpy.ndarray` la cui struttura corrisponde a quella delle variabili del programma Stan, ossia i valori della distribuzione a posteriori di ciascun parametro. In questo caso, otteniamo i valori della distribuzione a posteriori di $\alpha$ e $\beta$:
-
-```{python}
-#| ExecuteTime: {end_time: '2024-08-13T07:55:37.744474Z', start_time: '2024-08-13T07:55:37.737798Z'}
-# Extract posterior samples
-alpha_samples = fit3.stan_variable("alpha")
-beta_samples = fit3.stan_variable("beta")
+```{r}
+# Estrazione dei campioni a posteriori
+alpha_samples <- as_draws_df(fit3)$alpha
+beta_samples <- as_draws_df(fit3)$beta
 ```
 
-Per esempio, stampiamo i primi 20 valori di `alpha_samples`:
+Stampiamo i primi 20 valori di `alpha_samples` per verificare:
 
-```{python}
-#| ExecuteTime: {end_time: '2024-08-13T07:55:40.693114Z', start_time: '2024-08-13T07:55:40.690774Z'}
-print(alpha_samples[0:20])
+```{r}
+head(alpha_samples, 20)
 ```
 
-```{python}
-#| ExecuteTime: {end_time: '2024-08-13T07:55:43.387728Z', start_time: '2024-08-13T07:55:43.382032Z'}
-len(alpha_samples)
+#### Calcolare le Stime Puntuali
+
+Possiamo calcolare la media a posteriori dei parametri per stimare la retta di regressione media:
+
+```{r}
+mean_alpha <- mean(alpha_samples)
+mean_beta <- mean(beta_samples)
+
+cat("Mean alpha:", mean_alpha, "\nMean beta:", mean_beta)
 ```
 
-Avendo ottenuto 8,000 stime della distribuzione a posteriori dei parametri $\alpha$ e $\beta$ (2,000 valori per ciascuna delle 4 catene), possiamo calcolare la stima puntuale a posteriori dei parametri nel seguente modo:
+#### Grafico della Regressione con Incertezza
 
-```{python}
-#| ExecuteTime: {end_time: '2024-08-13T07:55:45.816548Z', start_time: '2024-08-13T07:55:45.796478Z'}
-mean_alpha = np.mean(alpha_samples)
-mean_beta = np.mean(beta_samples)
+Sovrapponiamo una retta di regressione media e linee basate sui campioni a posteriori:
 
-print(mean_alpha, mean_beta)
+```{r}
+# Dati osservati
+x <- df$state1
+y <- df$TA1
+
+# Creazione del data frame per ggplot
+plot_data <- data.frame(x = x, y = y)
+
+# Costruzione del grafico
+ggplot(plot_data, aes(x = x, y = y)) +
+  geom_point(color = "blue", size = 1) +
+  # Linee di regressione basate sui campioni
+  geom_abline(aes(intercept = mean_alpha, slope = mean_beta),
+              color = "red", size = 1, alpha = 0.8) +
+  lapply(1:300, function(i) {
+    geom_abline(aes(intercept = alpha_samples[i], slope = beta_samples[i]),
+                color = "gray", alpha = 0.1)
+  }) +
+  labs(
+    title = "Regressione con Incertezza Posteriori",
+    x = "State Anxiety",
+    y = "Tense Arousal"
+  ) 
 ```
 
-Possiamo sovrapporre la retta di regressione al grafico a dispersione utilizzando le stime a posteriori dei parametri.
+---
 
-```{python}
-#| ExecuteTime: {end_time: '2024-08-13T07:55:49.084018Z', start_time: '2024-08-13T07:55:48.198068Z'}
-# Plot y vs x
-x = df["state1"] 
-plt.scatter(
-    x, df["TA1"], label="Data", s=10
-)  # s is the size of the point
+#### Incertezza delle Predizioni con $\texttt{y\_rep}$
 
-# Draw lines from posterior samples
-for i in range(300):  # assuming you have at least 300 samples
-    plt.plot(
-        x,
-        alpha_samples[i] + beta_samples[i] * x,
-        color="gray",
-        linestyle="-",
-        linewidth=0.5,
-        alpha=0.05,
-    )
+Un approccio alternativo consiste nel rappresentare l'incertezza delle predizioni usando $\texttt{y\_rep}$, la distribuzione a posteriori delle osservazioni simulate:
 
-# Line using the mean of posterior estimates
-mean_alpha = np.mean(alpha_samples)
-mean_beta = np.mean(beta_samples)
-color_edge = "#8f2727"
-plt.plot(
-    x,
-    mean_alpha + mean_beta * x,
-    color=color_edge,
-    linewidth=2,
-    label="Mean Posterior Prediction",
+```{r}
+# Estrazione dei campioni posteriori di y_rep
+y_rep_samples <- as_draws_df(fit3)
+y_rep_matrix <- y_rep_samples[, grep("y_rep", colnames(y_rep_samples))]
+
+# Compute posterior mean and intervals
+y_rep_mean <- colMeans(y_rep_matrix)
+y_rep_lower <- apply(y_rep_matrix, 2, quantile, 0.025)
+y_rep_upper <- apply(y_rep_matrix, 2, quantile, 0.975)
+
+# Create plot_data with y_rep summaries
+plot_data <- data.frame(
+  x = df$state1,
+  y = df$TA1,
+  y_rep_mean = y_rep_mean,
+  y_rep_lower = y_rep_lower,
+  y_rep_upper = y_rep_upper
 )
 
-# Additional plot formatting
-plt.xlabel("x")
-plt.ylabel("y")
-plt.title("Regression with Posterior Samples")
-plt.legend()
-plt.show()
+ggplot(plot_data, aes(x = x, y = y)) +
+  geom_point(color = "blue", size = 1) +
+  geom_line(aes(y = y_rep_mean), color = "red", size = 1, alpha = 0.8) +
+  geom_ribbon(aes(ymin = y_rep_lower, ymax = y_rep_upper),
+              fill = "gray", alpha = 0.3) +
+  labs(
+    title = "Incertezza delle Predizioni del Modello",
+    x = "State Anxiety",
+    y = "Tense Arousal"
+  ) 
 ```
 
-Le numerose linee di regressione presenti nel grafico visualizzano la nostra incertezza riguardo l'inclinazione esatta della linea di regressione principale. Tuttavia, il grafico mostra chiaramente che questa incertezza è minima.
+---
 
-Possiamo procedere in un altro modo per descrivere l'incertezza della stima. Anziché utilizzare le distribuzioni a posteriori di `alpha` e `beta`, possiamo utilizzare la distribuzione a posteriori di `y_rep`. Procedendo in questo modo otteniamo il grafico mostrato qui sotto.
+#### Confronto tra Approcci
 
-In questo plot, la linea rossa rappresenta la media delle predizioni a posteriori, mentre l'area grigia rappresenta l'intervallo di credibilità al 95%, mostrando l'incertezza delle predizioni del modello. Questo approccio fornisce una visione più completa e realistica dell'incertezza nelle predizioni rispetto all'approccio che utilizza solo `alpha` e `beta`.
+1. **Distribuzioni a Posteriori di $\alpha$ e $\beta$**: 
+   - Visualizza l'incertezza nei parametri del modello ($\alpha$ e $\beta$).
+   - Le linee di regressione rappresentano variazioni nella pendenza e intercetta dovute all'incertezza dei parametri.
 
-```{python}
-#| ExecuteTime: {end_time: '2024-08-13T07:55:56.447393Z', start_time: '2024-08-13T07:55:56.268715Z'}
-# Estrai i campioni posteriori di y_rep
-y_rep_samples = fit3.stan_variable("y_rep")
+2. **Distribuzione a Posteriori di $\texttt{y\_rep}$**:
+   - Include sia l'incertezza dei parametri sia la variabilità residua ($\sigma$).
+   - Fornisce una descrizione più completa dell'incertezza predittiva.
 
-# Calcola la media e l'intervallo di credibilità (ad esempio, 95%) per y_rep
-y_rep_mean = np.mean(y_rep_samples, axis=0)
-y_rep_lower = np.percentile(y_rep_samples, 2.5, axis=0)
-y_rep_upper = np.percentile(y_rep_samples, 97.5, axis=0)
-
-# Plot y vs x
-x = df["state1"]
-y = df["TA1"]
-plt.scatter(x, y, label="Dati", s=10)
-
-# Plot della media delle predizioni a posteriori
-plt.plot(x, y_rep_mean, color=color_edge, linewidth=2, label="Media delle predizioni")
-
-# Plot dell'intervallo di credibilità
-plt.fill_between(
-    x,
-    y_rep_lower,
-    y_rep_upper,
-    color="gray",
-    alpha=0.3,
-    label="Intervallo di credibilità 95%",
-)
-
-# Formattazione del plot
-plt.xlabel("State Anxiety")
-plt.ylabel("Tense Arousal")
-plt.title("Incertezza delle predizioni del modello")
-plt.legend()
-plt.show()
-```
+Entrambi gli approcci sono utili per esplorare diverse sfaccettature dell'incertezza nel modello bayesiano.
 
 Nel primo approccio, calcoliamo l'incertezza delle predizioni utilizzando le distribuzioni a posteriori di `alpha` e `beta`. Questo metodo consiste nel generare predizioni lineari per ciascun campione a posteriori di `alpha` e `beta`, tracciando quindi le linee di regressione risultanti. Questo ci permette di vedere come varia la linea di regressione in base alle incertezze nei parametri `alpha` e `beta`. Questo metodo visualizza come l'incertezza nei parametri del modello si traduce in incertezza nelle predizioni.
 
@@ -319,59 +308,6 @@ Le due descrizioni dell'incertezza delle predizioni del modello sono diverse per
 
 2. **Distribuzione a posteriori di `y_rep`**: Questo approccio include non solo l'incertezza nei parametri `alpha` e `beta`, ma anche l'incertezza residua (`sigma`). La distribuzione di `y_rep` riflette la variabilità totale nel modello, inclusa la variabilità nei dati osservati. Pertanto, l'incertezza nelle predizioni è maggiore perché tiene conto di tutte le fonti di variabilità.
 
-## Verifica Predittiva delle Distribuzioni a Priori
-
-Le verifiche predittive delle distribuzioni a priori (*prior predictive checks*) costituiscono una parte fondamentale del flusso di lavoro nella modellazione bayesiana. In sostanza, queste verifiche offrono due principali vantaggi:
-
-- Consentono di verificare se si sta effettivamente incorporando la conoscenza scientifica nel modello. In altre parole, aiutano a controllare la credibilità delle ipotesi formulate prima di osservare i dati. Questo passaggio è essenziale per assicurarsi che le assunzioni del modello riflettano realisticamente la realtà che si sta cercando di modellare.
-
-- Possono facilitare il processo di campionamento, limitando lo spazio dei risultati e dei parametri a valori "ragionevoli". In pratica, questa restrizione contribuisce a migliorare l'efficienza del campionamento, evitando che il modello esplori aree dello spazio dei parametri che sono poco plausibili o che producono previsioni irrealistiche.
-
-Consideriamo qui il odello precedente che impone le seguenti distribuzioni a priori sui parametri `alpha`, `beta` e `sigma` del modello di regressione:
-
-$$
-\alpha \sim \text{Normal}(0, 5),
-$$
-$$
-\beta \sim \text{Normal}(0, 2.5),
-$$
-$$
-\sigma \sim \text{Chaucy}(0, 5).
-$$
-
-La verificha predittiva delle distribuzioni a priori genera un grafico nel quale vengono mostrate un certo numero (qui 30) di rette di regressione, ciascuna delle quali determinata da un valore a caso estratto dalla distribuzione a priori di alpha e un valore a caso estratto dalla distribuzione a priori di beta. 
-
-```{python}
-#| ExecuteTime: {end_time: '2024-08-13T07:56:03.774218Z', start_time: '2024-08-13T07:56:03.437480Z'}
-# Number of samples to generate from the prior
-num_samples = 50
-
-# Define the prior distributions for alpha and beta
-alpha_prior = np.random.normal(0, 5.0, num_samples)
-beta_prior = np.random.normal(0, 2.5, num_samples)
-
-# Prepare a figure for plotting
-plt.figure(figsize=(10, 6))
-
-# Plot 30 regression lines from the prior distribution
-for i in range(num_samples):
-    alpha_sample_prior = alpha_prior[i]
-    beta_sample_prior = beta_prior[i]
-
-    # Calculate the predicted y_hat without the noise term (sigma)
-    y_hat = alpha_sample_prior + beta_sample_prior * x
-
-    # Plot the regression line
-    plt.plot(x, y_hat, color="blue", alpha=0.3)
-
-# Optional: Add labels and title to the plot
-plt.xlabel("x")
-plt.ylabel("y_hat")
-plt.title("Prior Predictive Checks with 50 Regression Lines")
-plt.show()
-```
-
-Queste distribuzioni a priori consentono di modellare relazioni plausibili tra la variabile dipendente e il predittore. Esse garantiscono che i valori dell'esito rimangano entro un intervallo ragionevole, permettendo al contempo che sia l'intercetta che il coefficiente angolare possano assumere valori sia positivi che negativi.
 
 ## Posterior-predictive check
 
@@ -385,158 +321,18 @@ Il Posterior Predictive Check (PPC) è un passaggio cruciale nella modellazione 
 
 Per creare il PPC plot, usiamo ArviZ. Creiamo un oggetto `InferenceData` che contiene sia le predizioni a posteriori che i dati osservati, organizzati nel formato richiesto da ArviZ.
 
-```{python}
-#| ExecuteTime: {end_time: '2024-08-13T07:56:21.981493Z', start_time: '2024-08-13T07:56:21.956270Z'}
-idata = az.from_cmdstanpy(
-    posterior=fit3,
-    posterior_predictive="y_rep",
-    observed_data={"y": df["TA1"]},
-)
-```
+```{r}
+# Estrai i campioni y_rep
+y_rep <- fit3$draws("y_rep", format = "matrix")
 
-Avendo generato l'oggetto `idata`, possiamo ora creare il pp-check plot. 
-
-```{python}
-#| ExecuteTime: {end_time: '2024-08-13T07:56:25.804383Z', start_time: '2024-08-13T07:56:24.805774Z'}
-_ = az.plot_ppc(idata, data_pairs={"y": "y_rep"}, num_pp_samples=200)
+# Crea il plot di controllo posteriore predittivo
+ppc_plot <- ppc_dens_overlay(stan_data$y, y_rep[1:100, ])
+print(ppc_plot)
 ```
 
 Il Posterior Predictive Check è uno strumento potente per verificare la validità del modello dopo l'analisi, assicurando che le predizioni del modello siano realistiche e che riflettano accuratamente le osservazioni effettive.
 
-::: {#exm-}
-
-Il modo più fondamentale per verificare l'adeguatezza di un modello è visualizzare i dataset replicati e confrontarli con i dati effettivi. Qui illustriamo questo concetto con un semplice esempio tratto da un famoso dataset storico che non si adattava alla distribuzione normale. L'obiettivo di questo esempio è dimostrare come la mancanza di adattamento possa essere osservata utilizzando repliche predittive.
-
-I dati provengono da una serie di misurazioni effettuate da Simon Newcomb nel 1882, nell'ambito di un esperimento per stimare la velocità della luce. Abbiamo (inappropriatamente) adattato una distribuzione normale a questi dati, cosa che nel contesto della regressione può essere fatta tramite una regressione lineare senza predittori. Il nostro modello implicito per la regressione lineare prevede errori distribuiti normalmente, e stimare la media è equivalente a fare una regressione su una costante.
-
-Importiamo i dati:
-
-```{python}
-data_file = os.path.join(project_directory, "data", "newcomb.txt")
-newcomb = pd.read_csv(data_file)
-newcomb.head()
-```
-
-Esaminiamo i dati con un istogramma. Si vede che ci sono alcune osservazioni devianti.
-
-```{python}
-plt.hist(newcomb["y"], bins=30, color="blue", edgecolor="black", alpha=0.3)
-plt.xlabel("y")
-plt.ylabel("Frequency")
-plt.title("Histogram of y")
-plt.show()
-```
-
-Il valore mediano stimato, nei termini di una deviazione dal valore di 24.800 nanosecondi, è
-
-```{python}
-np.median(newcomb["y"])
-```
-
-Per questi dati adattiamo un modello normale, ovvero un modello di regressione con la sola intercetta. Importiamo e compiliamo il codice Stan:
-
-```{python}
-stan_file = os.path.join(project_directory, "stan", "newcomb_model.stan")
-model = CmdStanModel(stan_file=stan_file)
-print(model.code())
-```
-
-Creiamo un dizionario con i dati nel formato atteso da Stan:
-
-```{python}
-stan_data = {"N": len(newcomb["y"]), "y": newcomb["y"]}
-```
-
-Eseguiamo il campionamento.
-
-```{python}
-fit = model.sample(
-    data=stan_data,
-    iter_warmup=2_000,
-    iter_sampling=2_000,
-    seed=123,
-    show_progress=False,
-    show_console=False,
-)
-```
-
-Esaminiamo la distribuzione a posteriori del parametro $\alpha$.
-
-```{python}
-_ = az.plot_trace(fit, var_names=(["alpha", "sigma"]))
-```
-
-```{python}
-az.summary(fit, var_names=(["alpha", "sigma"]), hdi_prob=0.94)
-```
-
-Esaminiamo la distribuzione predittiva a posteriori.
-
-```{python}
-idata = az.from_cmdstanpy(
-    posterior=fit,
-    posterior_predictive="y_rep",
-    observed_data={"y": newcomb["y"]},
-)
-_ = az.plot_ppc(idata, data_pairs={"y": "y_rep"})
-```
-
-È evidente che il modello non riesce a predire adeguatamente i dati osservati nel campione.
-
-L'istogramma precedente rivela la presenza di alcune osservazioni anomale. Di conseguenza, è più appropriato utilizzare un modello "robusto", come la distribuzione t di Student, che è meglio in grado di gestire i dati devianti presenti nelle code della distribuzione.
-
-Modifichiamo quindi il codice Stan per utilizzare una verosimiglianza basata sulla distribuzione t di Student, stimando i gradi di libertà direttamente dal modello.
-
-```{python}
-stan2_file = os.path.join(project_directory, "stan", "newcomb_t_model.stan")
-model2 = CmdStanModel(stan_file=stan2_file)
-print(model2.code())
-```
-
-Eseguiamo il campionamento con la nuova versione del modello.
-
-```{python}
-fit2 = model2.sample(
-    data=stan_data,
-    iter_warmup=2_000,
-    iter_sampling=2_000,
-    seed=123,
-    show_progress=False,
-    show_console=False,
-)
-```
-
-Esaminiamo la distribuzione a posteriori dei parametri.
-
-```{python}
-_ = az.plot_trace(fit2, var_names=(["alpha", "nu", "sigma"]))
-```
-
-```{python}
-az.summary(fit2, var_names=(["alpha", "nu", "sigma"]), hdi_prob=0.94)
-```
-
-```{python}
-idata2 = az.from_cmdstanpy(
-    posterior=fit2,
-    posterior_predictive="y_rep",
-    observed_data={"y": newcomb["y"]},
-)
-# Plot the posterior predictive checks
-_ = az.plot_ppc(idata2, data_pairs={"y": "y_rep"})
-plt.xlim(0, 50)
-plt.show()
-```
-
-Il posterior predictive check è ora adeguato.
-
-La stima della deviazione dal valore di 24.800 nanosecondi è ora di 27.436.
-
-Senza entrare nei dettagli delle trasformazioni algebriche, questo porta a una stima della velocità della luce di 299.762.442 m/s. Sebbene questo valore sia una sottostima rispetto al valore "accettato" di 299.792.458 m/s, l'errore è inferiore a quello che si otterrebbe utilizzando una stima a posteriori di 26.226, che condurrebbe a una stima della velocità della luce di 296.992.741 m/s.
-
-:::
-
-## Commenti e Considerazioni Finali
+## Riflessioni Conclusive
 
 In questo capitolo, abbiamo approfondito i temi della predizione bayesiana nel contesto del modello di regressione bivariato, evidenziando l'importanza delle verifiche predittive a priori e a posteriori per la valutazione e la validazione del modello.
 

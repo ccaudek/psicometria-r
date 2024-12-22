@@ -1,6 +1,6 @@
 # La regressione lineare bivariata: un approccio frequentista {#sec-linear-models-biv-model-frequentist}
 
-::: callout-note
+::: callout-important
 ## In questo capitolo imparerai a:
 
 - comprendere il funzionamento del modello lineare secondo l’approccio frequentista;
@@ -14,7 +14,7 @@
 - Consulta l'appendice @sec-apx-lin-func per un'introduzione alle funzioni lineari.
 :::
 
-::: callout-important
+::: callout-caution
 ## Preparazione del Notebook
 
 ```{r}
@@ -35,7 +35,7 @@ In questo capitolo verrà introdotto il modello di regressione lineare bivariata
 
 $$
 y_i = a + b x_i + e_i, \quad i = 1, \dots, n,
-$$
+$$ {#eq-reglin-model}
 
 dove $a$ rappresenta l'intercetta, $b$ la pendenza della retta (coefficiente di regressione) e $e_i$ l'errore residuo per ciascuna osservazione.
 
@@ -87,21 +87,59 @@ coef(mod)
 Ci sono però infinite rette che, in linea di principio, possono essere usate per "approssimare" la nube di punti nel diagramma a dispersione. È dunque necessario introdurre dei vincoli per selezionare una di queste possibili rette. Il vincolo che viene introdotto dal modello di regressione è quello di costringere la retta a passare per il punto $(\bar{x}, \bar{y})$.
 
 ```{r}
+# Calcola le medie per mom_iq e kid_score
+mean_x <- mean(kidiq$mom_iq, na.rm = TRUE)
+mean_y <- mean(kidiq$kid_score, na.rm = TRUE)
+
+# Aggiungi il punto medio al grafico
 ggplot(kidiq, aes(x = mom_iq, y = kid_score)) +
   geom_point(alpha = 0.4) +
   geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  annotate(
+    "point", x = mean_x, y = mean_y, color = "red", size = 5, 
+    shape = 4, stroke = 3) +
   labs(x = "QI della madre", y = "QI del bambino") +
   ggtitle("Retta di regressione")
 ```
 
 Una retta di regressione che passa per il punto medio $(\bar{x}, \bar{y})$ (che rappresenta il centro di massa dei dati) è preferibile dal punto di vista statistico poiché minimizza la somma dei quadrati degli errori residui.
 
-Il campione è costituito da $n$ coppie di osservazioni ($x, y$). Per ciascuna coppia di valori $x_i, y_i$, il modello di regressione si aspetta che il valore $y_i$ sia associato al corrispondente valore $x_i$ come indicato dalla seguente equazione:
+Il campione è costituito da $n$ coppie di osservazioni ($x, y$). 
+
+$$
+\begin{array}{cc}
+\hline
+x_1 & y_1 \\
+x_2 & y_2 \\
+x_3 & y_3 \\
+\vdots & \vdots \\
+x_n & y_n \\
+\hline
+\end{array}
+$$
+
+Per ciascuna coppia di valori $x_i, y_i$, il modello di regressione si aspetta che il valore $y_i$ sia associato al corrispondente valore $x_i$ come indicato dalla seguente equazione
 
 $$
 \begin{equation}
-\mathbb{E}(y_i) = a + b x_i .
+\mathbb{E}(y_i) = a + b x_i ,
 \end{equation}
+$$ {#eq-reglin-exp-val}
+
+ovvero:
+
+$$
+\begin{array}{ccc}
+\hline
+x_i & y_i & \mathbb{E}(y_i) = a + b x_i \\
+\hline
+x_1 & y_1 & a + b x_1 \\
+x_2 & y_2 & a + b x_2 \\
+x_3 & y_3 & a + b x_3 \\
+\vdots & \vdots & \vdots \\
+x_n & y_n & a + b x_n \\
+\hline
+\end{array}
 $$
 
 I valori $y_i$ corrispondono, nell'esempio che stiamo discutendo, alla variabile `kid_score`. I primi 10 valori della variabile $y$ sono i seguenti:
@@ -116,11 +154,22 @@ Per fare riferimento a ciascuna osservazione usiamo l'indice $i$. Quindi, ad ese
 kidiq$kid_score[2]
 ```
 
-Il modello di regressione lineare bivariata, rappresentato dall'equazione $y_i = a + b x_i + e_i$, descrive la relazione tra le variabili $x$ e $y$, dove $y$ è la variabile dipendente (nel nostro esempio, la variabile `kid_score`) e $x$ è la variabile indipendente (nel nostro esempio, la variabile `mom_iq`). Il valore di $y$ è la somma di due componenti: la componente deterministica, $\hat{y}_i = a + b x_i$, e la componente aleatoria, $e_i$. La componente deterministica rappresenta la porzione della $y$ che è prevedibile conoscendo il valore di $x$, mentre la componente aleatoria rappresenta la porzione della $y$ che non è prevedibile dal modello.
+Il modello di regressione lineare bivariata, rappresentato dall'equazione $y_i = a + b x_i + e_i$, descrive la relazione tra le variabili $x$ e $y$, dove $y$ è la variabile dipendente (nel nostro esempio, la variabile `kid_score`) e $x$ è la variabile indipendente (nel nostro esempio, la variabile `mom_iq`). 
+
+Il valore di $y$ è la somma di due componenti: 
+
+- la **componente deterministica**, $\hat{y}_i = a + b x_i$, rappresenta la porzione della $y$ che è prevedibile conoscendo il valore di $x$; 
+- la **componente aleatoria**, $e_i$, rappresenta la porzione della $y$ che non è prevedibile dal modello.
 
 Il modello lineare cerca di trovare i coefficienti $a$ e $b$ che permettono di prevedere la componente deterministica di $y$ conoscendo il valore di $x$. Tuttavia, poiché la retta è solo un'approssimazione della relazione tra $x$ e $y$, la componente deterministica rappresenta solo una stima approssimata della vera relazione tra le due variabili.
 
-Per valutare l'accuratezza del modello di regressione lineare, è necessario calcolare il residuo $e_i = y_i - (a + b x_i)$, ovvero la differenza tra il valore osservato di $y$ e il valore previsto dal modello, $\hat{y}$. La dimensione del residuo indica quanto la componente aleatoria contribuisce al valore osservato di $y$.
+Per valutare l'accuratezza del modello di regressione lineare, è necessario calcolare il residuo 
+
+$$
+e_i = y_i - (a + b x_i) ,
+$$ {#eq-reglin-res}
+
+ovvero la differenza tra il valore osservato di $y$ e il valore previsto dal modello, $\hat{y}$. La dimensione del residuo indica quanto la componente aleatoria contribuisce al valore osservato di $y$.
 
 Il modello di regressione lineare ha tre obiettivi [@fox2015applied]: 
 
@@ -139,14 +188,14 @@ Il problema di trovare i coefficienti di regressione $a$ e $b$ che minimizzano l
 La soluzione delle equazioni normali ci fornisce i coefficienti di regressione stimati, che minimizzano la somma dei quadrati dei residui.  La formula per il coefficiente $a$ è
 
 $$
-a = \bar{y} - b \bar{x}.
-$$
+a = \bar{y} - b \bar{x} ,
+$$ {#eq-reglin-coef-a}
 
-La formula per il coefficiente $b$ è
+la formula per il coefficiente $b$ è
 
 $$
 b = \frac{Cov(x, y)}{Var(x)},
-$$
+$$ {#eq-reglin-coef-b}
 
 dove $\bar{x}$ e $\bar{y}$ sono le medie delle variabili $x$ e $y$, $Cov(x,y)$ è la covarianza tra $x$ e $y$ e $Var(x)$ è la varianza di $x$.
 
@@ -154,7 +203,7 @@ Queste equazioni rappresentano la stima dei minimi quadrati dei coefficienti di 
 
 ### Calcolo manuale dei coefficienti di regressione
 
-Per calcolare i coefficienti di regressione $a$ (intercetta) e $b$ (pendenza), utilizziamo la covarianza e la varianza:
+Calcoliamo i coefficientii dei minimi quadrati con l'@eq-reglin-coef-a e l'@eq-reglin-coef-b:
 
 ```{r}
 # Calcolo manuale dei coefficienti
@@ -169,6 +218,8 @@ b
 a <- mean(kidiq$kid_score) - b * mean(kidiq$mom_iq)
 a
 ```
+
+I risultati replicano quelli ottenuti in precedenza con `lm()`.
 
 ### Interpretazione
 
@@ -314,8 +365,25 @@ Applichiamo la funzione `sse` alla griglia di valori $b$ per calcolare la somma 
 
 ```{r}
 # Calcolo di SSE per ciascun valore di b
-sse_vals <- sapply(b_grid, function(b) sse(a, b, kidiq$mom_iq, kidiq$kid_score))
+sse_vals <- sapply(
+  b_grid, 
+  function(b) sse(a, b, kidiq$mom_iq, kidiq$kid_score)
+)
 ```
+
+- **`sapply`**:
+  - È una funzione di R che applica una funzione ad ogni elemento di un vettore (o lista) e restituisce i risultati in un vettore.
+  - Qui, applica la funzione `sse` a ciascun valore di $b$ contenuto in `b_grid`.
+
+- **`function(b)`**:
+  - È una funzione anonima definita al volo per specificare come calcolare $SSE$ per ciascun valore di $b$.
+  - All'interno, viene chiamata la funzione `sse(a, b, x, y)` con i seguenti parametri:
+    - `a`: il valore dell'intercetta (fissato in precedenza o noto).
+    - `b`: il valore corrente nella griglia `b_grid`.
+    - `x`: la variabile indipendente del dataset (`kidiq$mom_iq`).
+    - `y`: la variabile dipendente del dataset (`kidiq$kid_score`).
+
+- Il risultato è un vettore, `sse_vals`, che contiene i valori di $SSE$ corrispondenti a ciascun valore di $b$ in `b_grid`.
 
 Tracciamo un grafico che mostra la somma dei quadrati dei residui ($SSE$) in funzione dei valori di $b$, evidenziando il minimo.
 
@@ -323,15 +391,25 @@ Tracciamo un grafico che mostra la somma dei quadrati dei residui ($SSE$) in fun
 # Identificazione del valore di b che minimizza SSE
 b_min <- b_grid[which.min(sse_vals)]
 
-# Grafico
-plot(
-  b_grid, sse_vals, type = "l", col = "blue", lwd = 2,
-  xlab = expression(paste("Possibili valori di ", hat(beta))),
-  ylab = "Somma dei quadrati dei residui (SSE)",
-  main = "Minimizzazione dei residui quadratici"
-)
-points(b_min, min(sse_vals), pch = 19, col = "red")
-legend("topright", legend = expression(hat(beta)), col = "red", pch = 19)
+# Creazione del dataframe per ggplot
+dat <- data.frame(b_grid = b_grid, sse_vals = sse_vals)
+
+# Genera il grafico
+ggplot(dat, aes(x = b_grid, y = sse_vals)) +
+  geom_line(color = "blue", linewidth = 1) +  
+  annotate(
+    "point", x = b_min, y = min(sse_vals),
+    color = "red", size = 3
+  ) +  # Punto minimo
+  labs(
+    x = expression(paste("Possibili valori di ", hat(beta))),
+    y = "Somma dei quadrati dei residui (SSE)",
+    title = "Minimizzazione dei residui quadratici"
+  ) +
+  annotate(
+    "text", x = b_min, y = min(sse_vals), 
+    label = expression(hat(beta)), color = "red", vjust = -1, hjust = 0.5
+  )
 ```
 
 Infine, identifichiamo il valore di $b$ che minimizza la somma dei quadrati dei residui.
@@ -340,7 +418,9 @@ Infine, identifichiamo il valore di $b$ che minimizza la somma dei quadrati dei 
 b_min
 ```
 
-Con questa simulazione, abbiamo stimato il coefficiente $b$ minimizzando la somma dei quadrati dei residui. Questo approccio può essere esteso per stimare simultaneamente entrambi i coefficienti ($a$ e $b$) utilizzando metodi di ottimizzazione più avanzati, come `optim` in R.
+Con questa simulazione, abbiamo stimato il coefficiente $b$ minimizzando la somma dei quadrati dei residui. 
+
+Questo approccio può essere esteso per stimare simultaneamente entrambi i coefficienti ($a$ e $b$) utilizzando metodi di ottimizzazione più avanzati, come `optim` in R.
 
 ```{r}
 optim_result <- optim(
@@ -360,7 +440,15 @@ Questa simulazione illustra come, tramite il metodo dei minimi quadrati, sia pos
 
 ## L'errore standard della regressione
 
-Il secondo obiettivo del modello di regressione lineare è quello di misurare quanto della variabilità di $y$ possa essere spiegata dalla variabilità di $x$ per ogni osservazione. L'indice di bontà di adattamento del modello viene fornito dalla deviazione standard dei residui, chiamata anche "errore standard della stima" (o errore standard della regressione), $s_e$. Per calcolare $s_e$, si sommano i quadrati dei residui $e_i$ per ogni osservazione e si divide per $n-2$, dove $n$ rappresenta la numerosità del campione e $2$ il numero di coefficienti stimati nel modello di regressione. Si prende poi la radice quadrata del risultato. L'indice $s_e$ possiede la stessa unità di misura di $y$ ed è una stima della deviazione standard dei residui nella popolazione.
+Il secondo obiettivo del modello di regressione lineare è quello di misurare quanto della variabilità di $y$ possa essere spiegata dalla variabilità di $x$ per ogni osservazione. L'indice di bontà di adattamento del modello viene fornito dalla deviazione standard dei residui, chiamata anche **errore standard della stima** (o **errore standard della regressione**), $s_e$. 
+
+Per calcolare $s_e$, si sommano i quadrati dei residui $e_i$ per ogni osservazione e si divide per $n-2$, dove $n$ rappresenta la numerosità del campione e $2$ il numero di coefficienti stimati nel modello di regressione. Si prende poi la radice quadrata del risultato:
+
+$$
+\sqrt{\frac{1}{n-2} \sum_{i=1}^n \big(y_i - (\hat{a} + \hat{b}x_i)\big)^2},
+$$ {#eq-reglin-err-standard-regr}
+
+L'indice $s_e$ possiede la stessa unità di misura di $y$ ed è una stima della deviazione standard dei residui nella popolazione.
 
 Illustriamo il calcolo di $s_e$ con i dati a disposizione. I residui $e$ possono essere calcolati sottraendo ai valori osservati $y_i$ i valori predetti dal modello $a + b x_i$:
 
@@ -393,15 +481,9 @@ Questa analisi dimostra come $s_e$ consenta di valutare quanto le previsioni del
 
 ### Sottostima dell'Errore nel Modello di Regressione
 
-Come discusso da @gelman2021regression, la **radice quadrata media dei residui**, calcolata come 
+Come discusso da @gelman2021regression, l'errore standard della regressione tende a sottostimare la vera deviazione standard $\sigma$ dell'errore nel modello di regressione nella popolazione. Questa sottostima è dovuta al fenomeno del **sovradimensionamento**, dato che i parametri $a$ e $b$ sono stimati utilizzando gli stessi $n$ punti dati su cui vengono calcolati i residui. In altre parole, i residui non sono del tutto indipendenti dal modello.
 
-$$
-\sqrt{\frac{1}{n} \sum_{i=1}^n \big(y_i - (\hat{a} + \hat{b}x_i)\big)^2},
-$$
-
-tende a sottostimare la deviazione standard $\sigma$ dell'errore nel modello di regressione. Questa sottostima è dovuta al fenomeno del **sovradimensionamento**, dato che i parametri $a$ e $b$ sono stimati utilizzando gli stessi $n$ punti dati su cui vengono calcolati i residui. In altre parole, i residui non sono del tutto indipendenti dal modello.
-
-Un approccio alternativo per valutare l'errore predittivo e mitigare il problema del sovradimensionamento è la **validazione incrociata**. In particolare, l'approccio leave-one-out (LOOCV) offre una soluzione semplice ed efficace. Questo metodo consiste nell'adattare il modello $n$ volte, escludendo ogni volta un punto dati, adattando il modello ai rimanenti $n-1$ punti, e utilizzando tale modello per predire l'osservazione esclusa.
+Un approccio alternativo per valutare l'errore predittivo e mitigare il problema del sovradimensionamento è la **validazione incrociata**. In particolare, l'approccio leave-one-out (LOOCV) offre una soluzione semplice ed efficace. Questo metodo consiste nell'adattare il modello $n$ volte, escludendo ogni volta un punto dati, adattando il modello ai rimanenti $n-1$ punti, e utilizzando tale modello per predire l'osservazione esclusa. 
 
 #### Procedura Leave-One-Out:
 
@@ -410,7 +492,7 @@ Un approccio alternativo per valutare l'errore predittivo e mitigare il problema
   2. Calcola il residuo validato incrociato:
   
      $$
-     r_{\text{CV}} = y_i - (\hat{a}_{-i} + \hat{b}_{-i} x_i).
+     e_{\text{CV}} = y_i - (\hat{a}_{-i} + \hat{b}_{-i} x_i).
      $$
      
   3. Salva il residuo al quadrato per il calcolo successivo.
@@ -418,7 +500,7 @@ Un approccio alternativo per valutare l'errore predittivo e mitigare il problema
 - Calcola infine la stima di $\sigma_{\text{CV}}$ come:
 
   $$
-  \sigma_{\text{CV}} = \sqrt{\frac{1}{n} \sum_{i=1}^n r_{\text{CV}}^2}.
+  \sigma_{\text{CV}} = \sqrt{\frac{1}{n} \sum_{i=1}^n e_{\text{CV}}^2}.
   $$
 
 #### Applicazione Pratica:
@@ -454,9 +536,7 @@ sigma_cv <- sqrt(mean(residuals_cv))
 cat("Stima di σ_CV:", sigma_cv, "\n")
 ```
 
-#### Confronto con la Stima Tradizionale
-
-Calcoliamo la stima tradizionale di $\sigma$ utilizzando il modello completo e confrontiamola con $\sigma_{\text{CV}}$.
+Calcoliamo ora la stima tradizionale di $\sigma$ utilizzando il modello completo e confrontiamola con $\sigma_{\text{CV}}$.
 
 ```{r}
 # Modello completo
@@ -467,19 +547,9 @@ res <- summary(fm2)
 cat("Errore standard della regressione (tradizionale):", res$sigma, "\n")
 ```
 
-La stima tradizionale di $\sigma$ si basa sulla seguente formula:
-
-$$
-\hat{\sigma}_e = \sqrt{\frac{\sum_{i=1}^n (e_i - \bar{e})^2}{n - p}},
-$$
-
-dove $e_i$ sono i residui del modello e $p = 2$ è il numero di parametri stimati ($a$ e $b$).
-
-#### Interpretazione
-
 Nel caso analizzato, i valori stimati di $\sigma_{\text{CV}}$ e $\hat{\sigma}_e$ tradizionale possono risultare molto simili. Tuttavia, in generale, la stima di $\sigma_{\text{CV}}$ tende a essere leggermente superiore, in quanto riflette meglio l'errore predittivo su dati non utilizzati per adattare il modello. Questo rende $\sigma_{\text{CV}}$ una misura più robusta e conservativa dell'incertezza del modello.
 
-La validazione incrociata, e in particolare l'approccio LOOCV, rappresenta uno strumento importante per valutare le performance predittive di un modello di regressione e per ottenere stime più affidabili della deviazione standard dell'errore.
+In conclusione, la validazione incrociata, e in particolare l'approccio LOOCV, rappresenta uno strumento importante per valutare le performance predittive di un modello di regressione e per ottenere stime più affidabili della deviazione standard dell'errore.
 
 ## Indice di determinazione
 
@@ -489,7 +559,7 @@ Per una generica osservazione $x_i, y_i$, la deviazione di $y_i$ rispetto alla m
 
 $$
 y_i - \bar{y} = (y_i- \hat{y}_i) + (\hat{y}_i - \bar{y}) = e_i + (\hat{y}_i - \bar{y}).
-$$
+$$ 
 
 La varianza totale di $y$ può quindi essere scritta come:
 
@@ -501,13 +571,15 @@ Sviluppando il quadrato e sommando, si ottiene:
 
 $$
 \sum_{i=1}^{n}(y_i - \bar{y})^2 = \sum_{i=1}^{n}(y_i - \hat{y}_i)^2 + \sum_{i=1}^{n}(\hat{y}_i - \bar{y})^2.
-$$
+$$ {#eq-reglin-dev}
 
-Il primo termine rappresenta la varianza residua, mentre il secondo termine rappresenta la varianza spiegata dal modello. L'indice di determinazione $R^2$ è definito come il rapporto tra la varianza spiegata e la varianza totale:
+Il primo termine rappresenta la **varianza residua**, mentre il secondo termine rappresenta la **varianza spiegata** dal modello. Questa scomposizione della devianza va sotto il nome di **teorema della scomposizione della devianza**.
+
+L'indice di determinazione $R^2$ è definito come il rapporto tra la varianza spiegata e la varianza totale:
 
 $$
 R^2 = \frac{\sum_{i=1}^{n}(\hat{y}_i - \bar{y})^2}{\sum_{i=1}^{n}(y_i - \bar{y})^2}.
-$$
+$$ {#eq-reglin-r2}
 
 Questo indice varia tra 0 e 1 e indica la frazione di varianza totale di $y$ spiegata dal modello di regressione lineare. Un valore alto di $R^2$ indica che il modello di regressione lineare si adatta bene ai dati, in quanto una grande parte della varianza di $y$ è spiegata dalla variabile indipendente $x$.
 
@@ -563,8 +635,8 @@ Grazie all'approccio frequentista, abbiamo imparato a stimare i coefficienti $a$
 
 In pratica, il modello lineare bivariato consente di rispondere a domande fondamentali, come: 
 
-- **Se il valore della variabile indipendente aumenta o diminuisce, come si comporta la variabile dipendente?** 
-- **Qual è l'intensità e il segno della relazione tra le due variabili?**
+- Se il valore della variabile indipendente aumenta o diminuisce, come si comporta la variabile dipendente?
+- Qual è l'intensità e il segno della relazione tra le due variabili?
 
 La semplicità del modello lo rendono uno strumento utile non solo per descrivere e analizzare relazioni tra variabili, ma anche per effettuare previsioni. Pur limitandosi a un singolo predittore, il modello lineare bivariato fornisce una base per comprendere relazioni più complesse, come quelle coinvolgenti più variabili indipendenti (regressione multivariata).
 

@@ -1,9 +1,4 @@
----
-execute:
-  freeze: auto
----
-
-# Modello gamma-esponenziale
+# Modello gamma-esponenziale {#sec-bayes-inference-gamma-exp}
 
 **Prerequisiti**
 
@@ -19,12 +14,12 @@ execute:
 **Preparazione del Notebook**
 
 ```{r}
-here::here("code", "_common.R") |> 
+here::here("code", "_common.R") |>
   source()
 
 # Load packages
 if (!requireNamespace("pacman")) install.packages("pacman")
-pacman::p_load(mice)
+pacman::p_load(tidyr)
 ```
 
 ## Introduzione 
@@ -68,7 +63,7 @@ Disegniamo la funzione di densità esponenziale per tempi di attesa compresi tra
 
 ```{r}
 # Creazione dei valori di y1 su cui valutare la funzione
-y1_values <- seq(0, 10, length.out = 500)  # Intervallo da 0 a 10 ore
+y1_values <- seq(0, 10, length.out = 500) # Intervallo da 0 a 10 ore
 
 # Definizione della funzione di densità esponenziale
 exponential_density <- function(y1, lambda_value) {
@@ -80,12 +75,18 @@ f_values <- exponential_density(y1_values, lambda_value)
 
 # Creazione del grafico
 plot(
-  y1_values, f_values, type = "l", col = "blue",
-  main = expression(paste("Funzione di Densità Esponenziale con ", lambda, " = 1/2")),
+  y1_values, f_values,
+  type = "l", lwd = 2,
+  main = expression(paste(
+    "Funzione di Densità Esponenziale con ",
+    lambda, " = 1/2"
+  )),
   xlab = "Tempo di attesa (ore)", ylab = "Densità"
 )
-legend("topright", legend = expression(f(y[1] ~ "|" ~ lambda) == lambda ~ e^(-lambda * y[1])),
-       col = "blue", lty = 1, bty = "n")
+legend("topright",
+  legend = expression(f(y[1] ~ "|" ~ lambda) == lambda ~ e^(-lambda * y[1])),
+  lty = 1, bty = "n"
+)
 ```
 
 Questo codice crea un grafico della funzione di densità esponenziale per $\lambda = 1/2$ e tempi di attesa compresi tra 0 e 10 ore.
@@ -130,7 +131,6 @@ Questa forma semplificata della log-verosimiglianza è utile per stimare il para
 
 Nell'approccio bayesiano, non consideriamo solo i dati, ma anche le nostre conoscenze a priori sul parametro $\lambda$. Assegniamo a $\lambda$ una distribuzione a priori, tipicamente una distribuzione Gamma. Combinando la verosimiglianza con la distribuzione a priori, otteniamo la distribuzione a posteriori di $\lambda$, che rappresenta la nostra conoscenza aggiornata alla luce dei dati. La proprietà della coniugazione assicura che la distribuzione a posteriori sia anch'essa una Gamma, facilitando i calcoli.
 
-
 Per fare un esempio concreto, simuleremo un campione di dati. Immaginiamo di raccogliere dati che rappresentano il tempo, misurato in ore, che intercorre tra episodi di ansia in individui con disturbi d'ansia. La distribuzione esponenziale può essere utilizzata per modellare questo tempo di attesa tra un episodio di ansia e il successivo. Ad esempio, possiamo ipotizzare che, una volta concluso un episodio, l'insorgenza del prossimo segua un processo stocastico con un tasso costante, indipendentemente dal tempo trascorso dall'episodio precedente. In questo contesto, il parametro $\lambda$ della distribuzione esponenziale rappresenta il tasso medio di occorrenza degli episodi di ansia, ossia quanti episodi ci si aspetta in media in una certa unità di tempo (ad esempio, in un giorno). 
 
 Se $\lambda$ è elevato, ciò indica che gli episodi di ansia sono più frequenti, con tempi di attesa più brevi tra un episodio e l'altro.
@@ -141,7 +141,7 @@ set.seed(42)
 
 # Parametro medio (tempo medio di attesa in ore)
 mean_time <- 3.0
-lambda_param <- 1 / mean_time  # Parametro lambda per la distribuzione esponenziale
+lambda_param <- 1 / mean_time # Parametro lambda per la distribuzione esponenziale
 
 # Numero di osservazioni nel campione
 n <- 15
@@ -184,8 +184,8 @@ Verifichiamo che questi parametri corrispondano alla media e alla varianza desid
 
 ```{r}
 # Parametri della distribuzione Gamma
-alpha_prior <- 0.45  # Forma
-beta_prior <- 1.5    # Tasso (inverso della scala)
+alpha_prior <- 0.45 # Forma
+beta_prior <- 1.5 # Tasso (inverso della scala)
 
 # Calcolo della media e della varianza della distribuzione Gamma per λ
 mean_lambda <- alpha_prior / beta_prior
@@ -214,16 +214,17 @@ x <- seq(0, 2, length.out = 500)
 gamma_pdf <- dgamma(x, shape = alpha_prior, rate = beta_prior)
 
 # Creazione del grafico
-plot(x, gamma_pdf, type = "l", col = "blue", lwd = 2,
-     main = bquote("Funzione di Densità Gamma con " ~ alpha == .(alpha_prior) ~ "," ~ beta == .(beta_prior)),
-     xlab = expression(lambda),
-     ylab = "Densità di probabilità")
+plot(x, gamma_pdf,
+  type = "l", lwd = 2,
+  main = bquote("Funzione di Densità Gamma con " ~ alpha == .(alpha_prior) ~ "," ~ beta == .(beta_prior)),
+  xlab = expression(lambda),
+  ylab = "Densità di probabilità"
+)
 legend(
-  "topright", 
-  legend = "Distribuzione a Priori", 
-  col = "blue", 
-  lty = 1, 
-  lwd = 2, 
+  "topright",
+  legend = "Distribuzione a Priori",
+  lty = 1,
+  lwd = 2,
   bty = "n"
 )
 ```
@@ -254,7 +255,7 @@ set.seed(42)
 
 # Parametro medio (tempo medio di attesa in ore)
 mean_time <- 3.0
-lambda_param <- 1 / mean_time  # Parametro λ per la distribuzione esponenziale
+lambda_param <- 1 / mean_time # Parametro λ per la distribuzione esponenziale
 
 # Numero di osservazioni nel campione
 n <- 15
@@ -269,7 +270,7 @@ Calcoliamo la log-verosimiglianza per ciascun valore di $\lambda$ nella griglia:
 ```{r}
 # Calcolo della log-verosimiglianza per ciascun valore di lambda
 log_likelihood <- sapply(
-  lambda_grid, 
+  lambda_grid,
   function(lam) sum(dexp(y, rate = lam, log = TRUE))
 )
 ```
@@ -293,10 +294,10 @@ Normalizziamo la distribuzione a posteriori:
 
 ```{r}
 # Calcolo del passo nella griglia
-delta_lambda <- diff(lambda_grid)[1]  # Assumendo che la griglia sia equispaziata
+delta_lambda <- diff(lambda_grid)[1] # Assumendo che la griglia sia equispaziata
 
 # Normalizzazione della distribuzione a posteriori
-posterior <- 
+posterior <-
   posterior_unnormalized / sum(posterior_unnormalized * delta_lambda)
 ```
 
@@ -304,12 +305,20 @@ posterior <-
 
 ```{r}
 # Grafico della distribuzione a posteriori e a priori
-plot(lambda_grid, posterior, type = "l", col = "blue", lwd = 2,
-     xlab = expression(lambda), ylab = "Densità di probabilità",
-     main = "Distribuzione a Posteriori di λ")
-lines(lambda_grid, prior, col = "red", lwd = 2, lty = 2)
-legend("topright", legend = c("Posteriori", "Priori"),
-       col = c("blue", "red"), lty = c(1, 2), lwd = 2, bty = "n")
+plot(lambda_grid, posterior,
+  type = "l",
+  lwd = 2,
+  xlab = expression(lambda),
+  ylab = "Densità di probabilità",
+  main = "Distribuzione a Posteriori di λ"
+)
+lines(lambda_grid, prior, lwd = 2, lty = 2)
+legend("topright",
+  legend = c("Posteriori", "Priori"),
+  lty = c(1, 2), 
+  lwd = 2, 
+  bty = "n"
+)
 ```
 
 Dal grafico, possiamo osservare come la distribuzione a posteriori di $\lambda$ sia aggiornata rispetto alla distribuzione a priori in base ai dati osservati. La distribuzione a posteriori riflette sia le informazioni a priori sia l'evidenza fornita dai dati, fornendo una stima aggiornata del tasso di occorrenza degli episodi di ansia.
@@ -323,7 +332,7 @@ Possiamo calcolare la media e la varianza a posteriori di $\lambda$ utilizzando 
 posterior_mean_lambda <- sum(lambda_grid * posterior * delta_lambda)
 
 # Calcolo della varianza a posteriori di λ
-posterior_variance_lambda <- 
+posterior_variance_lambda <-
   sum((lambda_grid - posterior_mean_lambda)^2 * posterior * delta_lambda)
 
 # Stampiamo i risultati
@@ -411,7 +420,8 @@ Per il caso dell'esempio in discussione:
 - La somma delle osservazioni nel campione è:
 
 $$
-\sum_{i=1}^{n} y_i = 1 + 9 + 4 + 3 + 1 + 1 + 0 + 6 + 3 + 4 + 0 + 11 + 5 + 1 + 1 = 50.
+\sum_{i=1}^{n} y_i = 
+1 + 9 + 4 + 3 + 1 + 1 + 0 + 6 + 3 + 4 + 0 + 11 + 5 + 1 + 1 = 50.
 $$
 
 La distribuzione a posteriori per $\lambda$ segue una distribuzione Gamma aggiornata con i seguenti parametri:
@@ -461,17 +471,21 @@ posterior_pdf <- dgamma(lambda_grid, shape = alpha_post, rate = beta_post)
 
 # Creazione del grafico
 plot(
-  lambda_grid, posterior_pdf, type = "l", col = "blue", lwd = 2,
-  main = bquote("Distribuzione Gamma a Posteriori con " ~ alpha[post] == 
-                  .(alpha_post) ~ "," ~ beta[post] == .(beta_post)),
+  lambda_grid, posterior_pdf,
+  type = "l", lwd = 2,
+  main = bquote(
+    "Distribuzione Gamma a Posteriori con " ~ alpha[post] ==
+      .(alpha_post) ~ "," ~ beta[post] == .(beta_post)
+  ),
   xlab = expression(lambda), ylab = "Densità di probabilità"
 )
 legend(
-  "topright", 
-  legend = bquote(Gamma(alpha[post] == .(alpha_post) ~ "," ~ beta[post] == .(beta_post))),
-  col = "blue", 
-  lty = 1, 
-  lwd = 2, 
+  "topright",
+  legend = bquote(
+    Gamma(alpha[post] == .(alpha_post) ~ "," ~ beta[post] == .(beta_post))
+  ),
+  lty = 1,
+  lwd = 2,
   bty = "n"
 )
 ```
@@ -565,7 +579,8 @@ lambda_samples <- rgamma(n_samples, shape = alpha_post, rate = beta_post)
 waiting_time_samples <- 1 / lambda_samples
 
 # Calcolo della probabilità che il tempo di attesa sia compreso tra 2 e 5 ore
-prob_between_2_and_5_mc <- mean(waiting_time_samples >= 2 & waiting_time_samples <= 5)
+prob_between_2_and_5_mc <-
+  mean(waiting_time_samples >= 2 & waiting_time_samples <= 5)
 
 # Stampa del risultato
 cat(sprintf("Probabilità che il tempo di attesa sia tra 2 e 5 ore: %.4f\n", prob_between_2_and_5_mc))
@@ -590,4 +605,3 @@ In conclusione, il modello esponenziale, integrato in un framework bayesiano con
 ```{r}
 sessionInfo()
 ```
-

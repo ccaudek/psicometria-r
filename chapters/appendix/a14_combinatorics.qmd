@@ -1,60 +1,81 @@
 # Calcolo combinatorio {#sec-apx-combinatorics}
 
-Il **calcolo combinatorio** si occupa di determinare il numero di modi in cui è possibile combinare, ordinare o disporre elementi di uno o più insiemi, seguendo regole predefinite. Molti problemi di probabilità richiedono l'applicazione di tecniche combinatorie per calcolare le probabilità di eventi complessi. In questo capitolo, esploreremo le nozioni fondamentali del calcolo combinatorio, mettendo in relazione i suoi concetti con i vari metodi di **campionamento dall'urna**.
-
-## Introduzione al calcolo combinatorio con R
-
-Verranno introdotti i principi fondamentali del calcolo combinatorio, come il **principio del prodotto** e il **principio della somma**, insieme al modello dell'urna, che rappresenta un approccio classico per risolvere problemi di probabilità. Saranno inoltre esaminate le nozioni di **permutazioni**, **disposizioni** e **combinazioni**, collegandole ai diversi tipi di campionamento.
-
 ```{r}
-# Caricamento delle librerie necessarie
-suppressPackageStartupMessages({
-  library(gtools)
-library(combinat)
-})
+here::here("code", "_common.R") |>
+    source()
+
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(gtools, combinat)
 ```
+
+Il **calcolo combinatorio** si occupa di determinare il numero di modi in cui è possibile combinare, ordinare o disporre elementi di uno o più insiemi, seguendo regole predefinite. Molti problemi di probabilità richiedono l'applicazione di tecniche combinatorie per calcolare le probabilità di eventi complessi. In questo capitolo, esploreremo le nozioni fondamentali del calcolo combinatorio, mettendo in relazione i suoi concetti con i vari metodi di **campionamento dall'urna**. Descriveremo i principi della somma e del prodotto che costituiscono le basi del calcolo combinatorio e trovano applicazione in problemi più complessi, come permutazioni, disposizioni e combinazioni.
 
 ---
 
-### Principio del prodotto
+## Principio della somma
 
-Il principio del prodotto viene applicato quando un'operazione può essere suddivisa in più fasi indipendenti. Se al passo $i$ ci sono $n_i$ possibilità, il numero totale di combinazioni è il prodotto di tutte le possibilità:
+Il **principio della somma** si applica quando un insieme può essere suddiviso in sottoinsiemi **disgiunti** (cioè senza sovrapposizioni). In questo caso, il numero totale di elementi è dato dalla somma degli elementi dei sottoinsiemi:
 
 $$
-n_{\text{tot}} = n_1 \cdot n_2 \cdot \dots \cdot n_k
+n_{\text{tot}} = n_1 + n_2 + \dots + n_k .
 $$
 
-::: {#exm-}
-Ho a disposizione 2 paia di scarpe, 3 paia di pantaloni e 5 magliette. In quanti modi posso vestirmi?
+::: {#exm-} 
+
+Un distributore contiene tre diversi scomparti di caramelle:
+
+- Scomparto A: 10 caramelle alla menta,
+- Scomparto B: 8 caramelle alla frutta,
+- Scomparto C: 12 caramelle al cioccolato.
+
+Quante caramelle diverse ci sono in totale nel distributore?
+
+Secondo il **principio della somma**, il totale è dato dalla somma delle caramelle nei tre scomparti:
+
+$$
+n_{\text{tot}} = n_A + n_B + n_C .
+$$
+
+Calcolo in R:
 
 ```{r}
-scarpe <- 2
-pantaloni <- 3
-magliette <- 5
-modi_totali <- scarpe * pantaloni * magliette
-modi_totali
+A <- 10
+B <- 8
+C <- 12
+
+totale_caramelle <- A + B + C
+totale_caramelle
 ```
+
+**Risultato**: Nel distributore ci sono 30 caramelle in totale.
 :::
-
-::: {#exm-}
-In Minnesota, le targhe automobilistiche consistono in tre lettere (da A a Z) seguite da tre numeri (da 0 a 9). Qual è la proporzione di targhe che iniziano con "GZN"?
-
-```{r}
-n_targhe <- 26^3 * 10^3
-n_gzn <- 10^3
-proporzione <- n_gzn / n_targhe
-proporzione
-```
-:::
-
 ---
 
-### Principio della somma
+## Principio del prodotto
 
-Il principio della somma si applica quando un insieme può essere suddiviso in sottoinsiemi disgiunti. Il numero totale di elementi è la somma degli elementi dei sottoinsiemi.
+Il **principio del prodotto** si applica quando un'operazione può essere suddivisa in più **fasi indipendenti**, ciascuna con un numero di possibilità specifico. Il numero totale di combinazioni è dato dal prodotto delle possibilità offerte da ciascuna fase:
+
+$$
+n_{\text{tot}} = n_1 \cdot n_2 \cdot \dots \cdot n_k .
+$$
 
 ::: {#exm-}
-Quanti insiemi di due palline, ciascuna estratta da urne differenti, si possono formare?
+Poniamo di avere quattro urne:  
+
+- Urna A: 5 palline,  
+- Urna B: 6 palline,  
+- Urna C: 3 palline,  
+- Urna D: 2 palline.  
+
+Vogliamo formare insiemi di due palline, ciascuna estratta da urne differenti.  
+
+Secondo il **principio del prodotto**, per ogni coppia di urne, il numero di combinazioni è dato dal prodotto delle palline nelle due urne. Successivamente, usiamo il **principio della somma** per sommare tutte le possibilità. 
+
+$$
+n_{\text{tot}} = AB + AC + AD + BC + BD + CD
+$$
+
+Calcolo in R:
 
 ```{r}
 AB <- 5 * 6
@@ -67,9 +88,10 @@ CD <- 3 * 2
 totale_insiemi <- AB + AC + AD + BC + BD + CD
 totale_insiemi
 ```
+
+**Risultato**: Si possono formare 91 insiemi di due palline, ciascuna estratta da urne differenti.
 :::
 
----
 
 ### Il modello dell'urna e i metodi di campionamento
 
@@ -81,108 +103,223 @@ I problemi combinatori spesso si riducono a modelli di **estrazione di palline d
 4. **Senza ripetizione e senza ordine**: si contano le combinazioni senza rimettere la pallina.
 
 ::: {#exm-}
-Campionamenti possibili da un'urna con elementi {a, b, c}.
 
 ```{r}
 urna <- c("a", "b", "c")
-```
 
-Con ripetizione e ordine:
+# Con ripetizione e ordine
+campionamento1 <- expand.grid(urna, urna) |>
+    rename(Elemento1 = Var1, Elemento2 = Var2)
 
-```{r}
-campionamento1 <- expand.grid(urna, urna)
-print(campionamento1)
-```
+# Senza ripetizione e con ordine
+campionamento2 <- permutations(n = length(urna), r = 2, v = urna) |>
+    as.data.frame() |>
+    rename(Elemento1 = V1, Elemento2 = V2)
 
-Senza ripetizione e con ordine:
-
-```{r}
-campionamento2 <- permutations(n = length(urna), r = 2, v = urna)
-campionamento2
-```
-
-Con ripetizione e senza ordine:
-
-```{r}
+# Con ripetizione e senza ordine
 campionamento3 <- combinations(
-  n = length(urna), r = 2, v = urna, repeats.allowed = TRUE
+    n = length(urna), r = 2, v = urna, repeats.allowed = TRUE
+) |>
+    as.data.frame() |>
+    rename(Elemento1 = V1, Elemento2 = V2)
+
+# Senza ripetizione e senza ordine
+campionamento4 <- combinations(n = length(urna), r = 2, v = urna) |>
+    as.data.frame() |>
+    rename(Elemento1 = V1, Elemento2 = V2)
+
+# Risultati
+list(
+    `Con ripetizione e ordine` = campionamento1,
+    `Senza ripetizione e con ordine` = campionamento2,
+    `Con ripetizione e senza ordine` = campionamento3,
+    `Senza ripetizione e senza ordine` = campionamento4
 )
-campionamento3
 ```
 
-Senza ripetizione e senza ordine:
-
-```{r}
-campionamento4 <- combinations(n = length(urna), r = 2, v = urna)
-campionamento4
-```
 :::
 
 ---
 
-### Permutazioni semplici
+### Permutazioni Semplici
 
-Le **permutazioni** rappresentano tutte le disposizioni di $n$ elementi distinti. Il loro numero è dato da:
+Le **permutazioni** rappresentano tutte le disposizioni possibili di un insieme di $n$ elementi distinti, considerando l'ordine. Il numero totale di permutazioni è dato dalla formula:
 
 $$
 P_n = n!
 $$
 
+dove $n!$ (n fattoriale) indica il prodotto di tutti i numeri interi da 1 a $n$:
+
+$$
+n! = n \cdot (n-1) \cdot (n-2) \cdot \dots \cdot 1 .
+$$
+
 ::: {#exm-}
-Permutazioni dell'insieme $\{a, b, c\}$.
+
+Calcoliamo tutte le permutazioni possibili per un insieme di tre elementi distinti $\{a, b, c\}$. Il numero di permutazioni atteso è:
+
+$$
+P_3 = 3! = 3 \cdot 2 \cdot 1 = 6 .
+$$
+
+Implementazione in R:
 
 ```{r}
+# Insieme di partenza
 A <- c("a", "b", "c")
+
+# Calcolo delle permutazioni
 perm <- permutations(n = length(A), r = length(A), v = A)
+
+# Visualizzazione delle permutazioni
 print(perm)
+
+# Verifica del numero di permutazioni
 nrow(perm)
 ```
+
+Le permutazioni dell'insieme sono:
+
+  $$
+  \begin{aligned}
+  &\{a, b, c\}, \{a, c, b\}, \{b, a, c\}, \{b, c, a\}, \{c, a, b\}, \{c, b, a\} .
+  \end{aligned}
+  $$
+
+Il numero totale è $P_3 = 6$.
 :::
 
 ---
 
-### Disposizioni semplici
+#### Caratteristiche delle Permutazioni
 
-Le **disposizioni** sono sequenze ordinate di $k$ elementi scelti da un insieme di $n$ elementi distinti:
+Le permutazioni rappresentano un caso di **campionamento senza ripetizione con ordine**:
+
+- **Senza ripetizione**: Ogni elemento può essere utilizzato una sola volta.
+- **Con ordine**: La disposizione degli elementi è importante.
+
+---
+
+### Disposizioni Semplici
+
+Le **disposizioni semplici** sono sequenze ordinate di $k$ elementi scelti da un insieme di $n$ elementi distinti. Il numero totale di disposizioni si calcola con la formula:
 
 $$
 D_{n,k} = \frac{n!}{(n-k)!}
 $$
 
+dove:
+
+- $n!$ (fattoriale di $n$) è il prodotto dei numeri interi da 1 a $n$,
+- $(n-k)!$ rappresenta il fattoriale della differenza tra il numero totale di elementi e quelli scelti.
+
 ::: {#exm-}
-Disposizioni di 2 elementi da $\{a, b, c\}$.
+
+Consideriamo l'insieme$\{a, b, c\}$ ($n = 3$) e calcoliamo tutte le disposizioni possibili di 2 elementi ($k = 2$).  
+Il numero di disposizioni atteso è:
+
+$$
+D_{3,2} = \frac{3!}{(3-2)!} = \frac{3 \cdot 2 \cdot 1}{1} = 6 .
+$$
+
+Implementazione in R:
 
 ```{r}
-disp <- permutations(n = 3, r = 2, v = A)
+# Insieme di partenza
+A <- c("a", "b", "c")
+
+# Calcolo delle disposizioni di 2 elementi
+disp <- permutations(n = length(A), r = 2, v = A)
+
+# Visualizzazione delle disposizioni
 print(disp)
+
+# Verifica del numero di disposizioni
 nrow(disp)
 ```
-:::
 
-Le disposizioni semplici effettivamente corrispondono a un campionamento senza ripetizione e con ordine. Qui l'ordine degli elementi estratti è importante, e ogni elemento può essere estratto solo una volta.
+- Le disposizioni di 2 elementi sono:
+  $$
+  \{a, b\}, \{a, c\}, \{b, a\}, \{b, c\}, \{c, a\}, \{c, b\} .
+  $$
+- Il numero totale è $D_{3,2} = 6$. 
+
+:::
 
 ---
 
-### Combinazioni semplici
+#### Caratteristiche delle Disposizioni Semplici
 
-Le **combinazioni** rappresentano i modi di scegliere $k$ elementi da un insieme di $n$ elementi senza considerare l'ordine:
+Le disposizioni semplici rappresentano un caso di **campionamento senza ripetizione e con ordine**:
+
+- **Senza ripetizione**: Ogni elemento può essere utilizzato una sola volta.
+- **Con ordine**: La disposizione degli elementi selezionati è importante.
+
+---
+
+### Combinazioni Semplici
+
+Le **combinazioni semplici** rappresentano i modi di selezionare $k$ elementi da un insieme di $n$ elementi **senza considerare l'ordine**. Il numero totale di combinazioni si calcola con la formula:
 
 $$
 C_{n,k} = \binom{n}{k} = \frac{n!}{k!(n-k)!}
 $$
 
-::: {#exm-}
-Combinazioni di 2 elementi da $\{a, b, c\}$.
+dove:
 
-```{r}
-comb <- combinations(n = 3, r = 2, v = A)
-print(comb)
-nrow(comb)
-```
-:::
-
-Le combinazioni semplici corrispondono a un campionamento senza ripetizione e senza ordine. In questo caso, l'ordine degli elementi estratti non è rilevante, e ogni elemento può essere estratto solo una volta.
+- $n!$ è il fattoriale di $n$,
+- $k!$ è il fattoriale di $k$,
+- $(n-k)!$ è il fattoriale della differenza tra il numero totale di elementi e quelli scelti.
 
 ---
 
-Questo capitolo ha illustrato i legami tra i metodi del calcolo combinatorio e le diverse modalità di campionamento, mostrando come implementare questi concetti in **R** per affrontare problemi pratici di probabilità e statistica.
+::: {#exm-}
+
+Consideriamo l'insieme $\{a, b, c\}$ ($n = 3$) e calcoliamo tutte le combinazioni possibili di 2 elementi ($k = 2$).  
+
+Il numero di combinazioni atteso è:
+
+$$
+C_{3,2} = \binom{3}{2} = \frac{3!}{2! \cdot (3-2)!} = \frac{3 \cdot 2 \cdot 1}{2 \cdot 1 \cdot 1} = 3 .
+$$
+
+Implementazione in R:
+
+```{r}
+# Insieme di partenza
+A <- c("a", "b", "c")
+
+# Calcolo delle combinazioni di 2 elementi
+comb <- combinations(n = length(A), r = 2, v = A)
+
+# Visualizzazione delle combinazioni
+print(comb)
+
+# Verifica del numero di combinazioni
+nrow(comb)
+```
+
+- Le combinazioni di 2 elementi sono:
+  $$
+  \{a, b\}, \{a, c\}, \{b, c\} .
+  $$
+- Il numero totale è $C_{3,2} = 3$.
+
+::: 
+
+---
+
+#### Caratteristiche delle Combinazioni Semplici
+
+Le combinazioni semplici rappresentano un caso di **campionamento senza ripetizione e senza ordine**:
+
+- **Senza ripetizione**: Ogni elemento può essere selezionato una sola volta.
+- **Senza ordine**: L'ordine degli elementi selezionati non ha importanza ($\{a, b\}$ è uguale a$\{b, a\}$).
+
+---
+
+Questo capitolo ha illustrato i legami tra i metodi del calcolo combinatorio e le diverse modalità di campionamento, mostrando come implementare questi concetti in R. 
+
+## Bibliografia {.unnumbered}
+

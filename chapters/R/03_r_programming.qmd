@@ -1,0 +1,505 @@
+# Programmazione in R {#sec-r-programming}
+
+::: callout-important
+## In questo capitolo imparerai a
+
+- Conoscere e sapere utilizzare le funzioni, le istruzioni condizionali e i cicli.
+:::
+
+::: callout-tip
+## Prerequisiti
+
+- Consultare [Introduction to Data Science: Data Wrangling and Visualization with R](https://rafalab.dfci.harvard.edu/dsbook-part-1/) [@irizarry2024introduction]
+- Leggere [R for Data Science (2e)](https://r4ds.hadley.nz/).
+:::
+
+::: callout-caution
+## Preparazione del Notebook
+
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(tidyr)
+```
+:::
+
+
+## Introduzione
+
+In questo capitolo esploreremo tre strumenti fondamentali per la scrittura di codice in R: le funzioni, le istruzioni condizionali e i cicli. Questi elementi costituiscono la base per sviluppare script flessibili, efficienti e riutilizzabili, essenziali per ogni programmatore o analista che utilizza R.
+
+## Funzioni
+
+R offre un'ampia gamma di funzioni integrate per supportare l'analisi statistica, la manipolazione dei dati e la visualizzazione grafica, rendendolo uno strumento estremamente versatile per diverse esigenze.
+
+Esempi di funzioni comuni includono:  
+
+```{r}
+# Sommare numeri
+sum(1, 2, 3)  # Restituisce la somma dei numeri
+```
+
+```{r}
+# Creare un grafico semplice
+plot(1:10, 1:10)  # Crea un grafico a dispersione dei valori
+```
+
+In sostanza, una funzione è un blocco di codice progettato per svolgere un’operazione specifica. Puoi pensare a una funzione come a una "macchina": fornisci un input (i dati), la funzione elabora l'informazione attraverso le sue istruzioni e restituisce un output (il risultato). Questo approccio modulare semplifica il lavoro, permettendo di riutilizzare e combinare facilmente diverse operazioni. 
+
+### Creare Funzioni Personalizzate
+
+La creazione di funzioni personalizzate in R è uno strumento essenziale per migliorare la programmazione, soprattutto per gestire operazioni ripetitive o complesse. Le funzioni consentono di rendere il codice più leggibile, efficiente e riutilizzabile, promuovendo un approccio organizzato e chiaro alla risoluzione dei problemi.
+
+#### Vantaggi delle Funzioni Personalizzate
+
+L'uso di funzioni personalizzate offre numerosi benefici:
+
+- **Chiarezza e leggibilità**: Un nome descrittivo permette di comprendere immediatamente lo scopo della funzione, anche a distanza di tempo o per altri utenti che leggono il codice.  
+- **Manutenzione semplificata**: Modificare il codice all'interno di una funzione aggiorna automaticamente tutte le sue occorrenze, riducendo il rischio di errori e semplificando il debugging.  
+- **Riduzione degli errori**: Si evitano gli errori tipici del copia-e-incolla, come omissioni o incoerenze nei programmi complessi.  
+- **Riutilizzabilità**: Una funzione ben progettata può essere utilizzata in più contesti o progetti, risparmiando tempo e sforzi.  
+
+#### Quando Creare una Funzione?
+
+Un buon criterio per decidere se creare una funzione è osservare se il medesimo blocco di codice viene copiato più volte. Se ti trovi a ripetere lo stesso codice più di due volte, probabilmente è il momento di creare una funzione. Questo aiuta a scrivere codice più pulito, scalabile e professionale, migliorando anche la sostenibilità del lavoro a lungo termine.
+
+---
+
+### Sintassi di una Funzione
+
+La struttura base di una funzione in R è la seguente:
+
+```r
+nome_funzione <- function(argomenti) {
+  # Corpo della funzione
+  codice
+  return(risultato)  # Facoltativo: restituisce il valore calcolato
+}
+```
+
+- **`nome_funzione`**: Nome della funzione, scelto per descrivere chiaramente la sua finalità.  
+- **`argomenti`**: Parametri necessari per eseguire le operazioni all'interno della funzione.  
+- **`codice`**: Le istruzioni che definiscono il comportamento della funzione.  
+- **`risultato`**: Il valore restituito dalla funzione. Se non si usa `return()`, R restituisce l'ultimo valore calcolato.  
+
+---
+
+### Esempio Pratico
+
+Immaginiamo di voler creare una funzione per sommare due numeri. 
+
+```r
+somma_due <- function(a, b) {
+  a + b  # Restituisce la somma dei due numeri
+}
+```
+
+Per utilizzarla, basta richiamarla specificando i parametri:
+
+```r
+somma_due(5, 3)  # Restituisce 8
+```
+
+Questo approccio aiuta a scrivere codice più leggibile e facile da gestire. Ad esempio, se in futuro volessi modificare il comportamento della somma (ad esempio, aggiungere un messaggio di log), basterà intervenire solo all’interno della funzione.
+
+### Tre Tipi di Funzioni
+
+Seguendo @wickham2023r, esaminiamo tre tipi di funzioni:
+
+- **Funzioni per vettori**: accettano uno o più vettori come input e restituiscono un vettore.
+- **Funzioni per data frame**: accettano un data frame e restituiscono un altro data frame.
+- **Funzioni per grafici**: accettano un data frame e restituiscono un grafico.
+
+#### Funzioni per Vettori
+
+Supponiamo di voler riscalare i valori di diverse colonne di un data frame tra 0 e 1. Scriviamo la funzione `rescale01`. La funzione seguente riscalerà un vettore tra 0 e 1:
+
+```{r}
+rescale01 <- function(x) {
+    rng <- range(x, na.rm = TRUE)
+    (x - rng[1]) / (rng[2] - rng[1])
+}
+```
+
+::: {#exm-}
+
+```{r}
+df <- tibble(
+    x = c(3, 2, 6, 3, 1),
+    y = c(2, 3, 3, 2, 5),
+    grp = c("a", "a", "b", "b", "a")
+)
+
+df |>
+    mutate(across(where(is.numeric), rescale01))
+```
+:::
+
+#### Funzioni per Data Frame
+
+Poniamoci il problema di creare una funzione per riassumere variabili. Un esempio di funzione che calcola statistiche di base:
+
+```{r}
+summary_stats <- function(data, var) {
+    data |> summarize(
+        min = min({{ var }}, na.rm = TRUE),
+        mean = mean({{ var }}, na.rm = TRUE),
+        max = max({{ var }}, na.rm = TRUE),
+        .groups = "drop"
+    )
+}
+```
+
+::: {#exm-}
+
+```{r}
+summary_stats(df, x)
+```
+
+Si noti la selezione dinamica con `{}` (embracing). Se devi passare nomi di variabili come argomenti, usa `{{ }}`:
+
+```{r}
+grouped_mean <- function(df, group_var, mean_var) {
+    df |>
+        group_by({{ group_var }}) |>
+        summarize(mean = mean({{ mean_var }}, na.rm = TRUE))
+}
+```
+
+```{r}
+grouped_mean(df, grp, y)
+```
+:::
+
+#### Funzioni per Grafici
+
+Creare un istogramma personalizzato.
+
+```{r}
+my_histogram <- function(df, var, binwidth = NULL) {
+    df |>
+        ggplot(aes(x = {{ var }})) +
+        geom_histogram(binwidth = binwidth)
+}
+```
+
+::: {#exm-}
+
+```{r}
+diamonds |>
+    my_histogram(carat, 0.1)
+```
+:::
+
+### Stile e Nomenclatura
+
+È consigliato di usare nomi di funzioni chiari e descrittivi, preferibilmente verbi (es. `compute_mean()`). Inoltre, è importante mantenere una struttura leggibile, con spazi coerenti e indentazione.
+
+## Istruzioni Condizionali in R
+
+Le istruzioni condizionali permettono di introdurre logica nel tuo codice. Ad esempio, l’operazione `x * y` si limita a moltiplicare i valori di `x` e `y`, senza alcuna logica aggiunta. Con le istruzioni condizionali, puoi dire al programma di eseguire diverse operazioni a seconda che una condizione sia vera (`TRUE`) o falsa (`FALSE`).
+
+L’istruzione condizionale più comune in R è `if`. Può essere letta come: **"Se la condizione è vera, esegui un’azione"**. Con `else`, si estende la logica: **"Se la condizione è vera, fai qualcosa; altrimenti fai qualcos’altro"**.
+
+La struttura generale è questa:
+
+```R
+if (condizione) {
+  # Codice eseguito se la condizione è TRUE
+} else {
+  # Codice eseguito se la condizione è FALSE
+}
+```
+
+Immagina questa situazione:
+
+- Un programmatore riceve la richiesta: "Vai al negozio e compra una confezione di latte, e se hanno le uova, prendi sei confezioni di latte".
+- Il programmatore torna con **sei confezioni di latte**.
+- Il partner chiede: "Perché hai comprato sei confezioni di latte?"
+- Risposta: "Perché c’erano le uova".
+
+Il problema qui sta nell’interpretazione condizionale: se ci sono uova (condizione vera), si doveva prendere una confezione di latte **e anche** sei uova.
+
+In R, questo può essere scritto così:
+
+```{r}
+eggs <- TRUE # Indica se il negozio ha le uova
+
+if (eggs == TRUE) {
+    n_milk <- 6 # Prendi 6 confezioni di latte
+} else {
+    n_milk <- 1 # Prendi 1 confezione di latte
+}
+
+n_milk
+```
+
+Questo codice però ha lo stesso errore della barzelletta: il focus è sul latte, non sulle uova.
+
+### Uso di `ifelse()`
+
+Un’alternativa più compatta a `if` e `else` è la funzione `ifelse()`, utile soprattutto per vettori. Ad esempio:
+
+```{r}
+eggs <- TRUE
+n_milk <- ifelse(eggs == TRUE, yes = 6, no = 1)
+
+n_milk
+```
+
+La logica è: **"Se ci sono uova, assegna 6 a `n_milk`; altrimenti assegna 1"**. Questo approccio è utile per evitare codice ripetitivo.
+
+### Creare una funzione con istruzioni condizionali
+
+Le istruzioni condizionali possono essere racchiuse in una funzione per rendere il codice più flessibile e riutilizzabile. Ecco come trasformare l’esempio sopra in una funzione:
+
+```{r}
+milk <- function(eggs) {
+    if (eggs == TRUE) {
+        6
+    } else {
+        1
+    }
+}
+
+milk(eggs = TRUE)
+```
+
+Ora possiamo chiamare la funzione con `eggs = TRUE` o `eggs = FALSE` per determinare quante confezioni di latte prendere.
+
+In conclusione, le istruzioni condizionali come `if`, `else` e `ifelse()` sono strumenti fondamentali per introdurre logica e controllo nel tuo codice. Puoi usarle per prendere decisioni, gestire errori e rendere il tuo codice più flessibile ed efficiente. Creare funzioni che incorporano queste istruzioni è un passo fondamentale per scrivere codice ordinato e riutilizzabile.
+
+### Combinare operatori logici in R
+
+Finora abbiamo creato funzioni abbastanza semplici e mirate. Ora proviamo a realizzare una funzione leggermente più complessa. Immaginiamo di voler determinare se una persona ha avuto **una buona giornata** basandoci su due criteri:
+
+1. **Livello di stress**: basso (`TRUE`) o alto (`FALSE`).
+2. **Livello di supporto sociale percepito**: alto (`TRUE`) o basso (`FALSE`).
+
+Vogliamo creare una funzione che prenda questi due fattori e restituisca un messaggio che descrive come potrebbe essere stata la giornata della persona.
+
+Ecco come possiamo costruire la funzione:
+
+```{r}
+good_day <- function(low_stress, high_support) {
+    if (low_stress == TRUE && high_support == TRUE) {
+        "Giornata fantastica! Ti senti calmo e supportato."
+    } else if (low_stress == FALSE && high_support == TRUE) {
+        "Il supporto sociale ti aiuta a gestire lo stress elevato."
+    } else if (low_stress == TRUE && high_support == FALSE) {
+        "Nonostante lo stress sia basso, la mancanza di supporto sociale pesa."
+    } else if (low_stress == FALSE && high_support == FALSE) {
+        "Giornata difficile: stress elevato e poco supporto sociale."
+    }
+}
+```
+
+Esempi di utilizzo.
+
+Caso 1: Stress basso e supporto sociale alto
+
+```{r}
+good_day(low_stress = TRUE, high_support = TRUE)
+```
+
+Caso 2: Stress elevato e supporto sociale alto.
+
+```{r}
+good_day(FALSE, TRUE)
+```
+
+Caso 3: Stress basso e supporto sociale basso.
+
+```{r}
+good_day(TRUE, FALSE)
+```
+
+Caso 4: Stress elevato e supporto sociale basso.
+
+```{r}
+good_day(FALSE, FALSE)
+```
+
+La funzione considera tutte le combinazioni di stress e supporto sociale:
+
+1. **Stress basso e supporto alto**: giornata ideale.
+2. **Stress elevato e supporto alto**: il supporto aiuta a mitigare lo stress.
+3. **Stress basso e supporto basso**: la mancanza di supporto rovina una situazione potenzialmente buona.
+4. **Stress elevato e supporto basso**: la situazione peggiore.
+
+
+Nell'esempio abbiamo usato i seguenti operatori logici:
+
+- **`&&` (AND logico)**: Entrambe le condizioni devono essere vere.
+- **`==` (uguale a)**: Verifica se una variabile è vera o falsa.
+
+Ad esempio, questa condizione:
+
+```R
+if (low_stress == TRUE && high_support == TRUE)
+```
+verifica se il livello di stress è basso **e** il supporto sociale è alto.
+
+In conclusione, questa funzione dimostra come combinare condizioni logiche complesse utilizzando operatori logici come `&&` (AND) e `||` (OR). Grazie a questi strumenti, possiamo gestire facilmente logiche più articolate, mantenendo il codice leggibile e funzionale.
+
+### Gli operatori logici in R
+
+Gli operatori logici sono essenziali per definire le condizioni nelle istruzioni `if`. Ecco una tabella riassuntiva con i principali operatori:
+
+| **Operatore** | **Descrizione tecnica**         | **Significato**                     | **Esempio**                        |
+|---------------|---------------------------------|-------------------------------------|-------------------------------------|
+| `&&`          | AND logico                     | Entrambe le condizioni devono essere vere | `if(cond1 == test && cond2 == test)` |
+| `||`          | OR logico                      | Almeno una condizione deve essere vera | `if(cond1 == test || cond2 == test)` |
+| `<`           | Minore di                     | X è minore di Y                    | `if(X < Y)`                        |
+| `>`           | Maggiore di                   | X è maggiore di Y                  | `if(X > Y)`                        |
+| `<=`          | Minore o uguale a             | X è minore o uguale a Y            | `if(X <= Y)`                       |
+| `>=`          | Maggiore o uguale a           | X è maggiore o uguale a Y          | `if(X >= Y)`                       |
+| `==`          | Uguale a                      | X è uguale a Y                     | `if(X == Y)`                       |
+| `!=`          | Diverso da                    | X è diverso da Y                   | `if(X != Y)`                       |
+
+## Cicli in R
+
+R è particolarmente efficace nell'eseguire attività ripetitive. Quando dobbiamo ripetere un'operazione più volte, possiamo utilizzare un **ciclo**. I cicli eseguono un insieme di istruzioni per un numero specifico di volte o fino a quando una determinata condizione non è soddisfatta. 
+
+In R esistono tre tipi principali di cicli:
+
+1. **Ciclo `for`**: ripete un'operazione per un numero definito di iterazioni.
+2. **Ciclo `while`**: continua a eseguire le istruzioni fino a quando una condizione logica è soddisfatta.
+3. **Ciclo `repeat`**: itera indefinitamente fino a quando non viene esplicitamente interrotto con un'istruzione `break`.
+
+I cicli sono strumenti essenziali in tutti i linguaggi di programmazione, ma in R il loro utilizzo dovrebbe essere valutato attentamente, poiché spesso esistono alternative più efficienti come le funzioni della famiglia `apply`.
+
+### Il ciclo `for`
+
+Il ciclo `for` è il più utilizzato per eseguire un’operazione un numero definito di volte. Ecco un esempio base:
+
+```{r}
+for (i in 1:5) {
+    print(i)
+}
+```
+
+**Come funziona?**
+
+- L'indice `i` prende il primo valore della sequenza `1:5` (cioè 1).
+- Il corpo del ciclo, ovvero il codice tra `{ }`, viene eseguito.
+- Al termine di ogni iterazione, `i` assume il valore successivo nella sequenza, e il processo si ripete fino all'ultimo valore (5 in questo caso).
+
+**Aggiungere logica nel corpo del ciclo**
+
+Possiamo aggiungere operazioni all'interno del ciclo, come ad esempio sommare 1 a ogni valore:
+
+```{r}
+for (i in 1:5) {
+    print(i + 1)
+}
+```
+
+### Il ciclo `while`
+
+Il ciclo `while` continua a eseguire le istruzioni fino a quando una condizione logica è soddisfatta. Ecco un esempio:
+
+```{r}
+i <- 0
+while (i <= 4) {
+    i <- i + 1
+    print(i)
+}
+```
+
+**Come funziona?**
+
+- La condizione logica (`i <= 4`) viene verificata prima di ogni iterazione.
+- Se la condizione è vera, il ciclo esegue il codice tra `{ }`.
+- Quando la condizione diventa falsa (`i > 4`), il ciclo si interrompe.
+
+### Ciclo `repeat`
+
+Il ciclo `repeat` esegue il codice indefinitamente, a meno che non venga interrotto con un’istruzione `break`:
+
+```{r}
+i <- 0
+repeat {
+    i <- i + 1
+    print(i)
+    if (i >= 5) {
+        break
+    }
+}
+```
+
+**Quando usarlo?**
+
+Il ciclo `repeat` è raro e viene utilizzato solo in situazioni molto particolari. Nella maggior parte dei casi, `for` o `while` sono più adatti.
+
+### Evitare i cicli: la famiglia di funzioni `apply`
+
+I cicli in R sono relativamente lenti, specialmente con dataset di grandi dimensioni. Quando possibile, è preferibile usare funzioni della famiglia `apply` per ottenere lo stesso risultato in modo più efficiente e con meno rischi di errore.
+
+#### La funzione `lapply()`
+
+`lapply()` esegue una funzione su ciascun elemento di una lista o vettore e restituisce una lista con i risultati.
+
+Esempio:
+
+```{r}
+lapply(0:4, function(a) {
+    a + 1
+})
+```
+
+#### La funzione `sapply()`
+
+`lapply()` restituisce una lista, ma se vuoi un vettore come output, usa `sapply()`:
+
+```{r}
+sapply(0:4, function(a) {
+    a + 1
+})
+```
+
+### Quando usare i cicli?
+
+I cicli sono utili quando:
+
+- Devi simulare modelli complessi (es. modelli ricorsivi).
+- Hai bisogno di operazioni che dipendono dai risultati delle iterazioni precedenti.
+
+In tutti gli altri casi, considera alternative come `apply()`, `lapply()` o funzioni simili per un codice più efficiente e meno soggetto a errori.
+
+## Linee Guida per Scrivere Codice
+
+Di seguito trovi alcune linee guida per scrivere codice chiaro, conciso e riutilizzabile:
+
+1. **Evita di ripeterti**: Segui il principio *Don't Repeat Yourself* (DRY). Scrivi funzioni e utilizza funzioni come `map` (per applicare un pezzo di codice iterativamente a tutti gli elementi di un oggetto) per evitare di copiare e incollare variazioni minime dello stesso codice in più parti del progetto.
+
+2. **Segui uno stile coerente**: Adotta una guida di stile per mantenere uniformità nel tuo codice. Per R, raccomandiamo la [guida di stile](https://style.tidyverse.org/) del “tidyverse”, scritta da Hadley Wickham. Questa guida, derivata dalla Google R Style Guide, fornisce istruzioni dettagliate su sintassi del codice, nomi delle variabili, spaziature, indentazioni, commenti, convenzioni per scrivere funzioni, utilizzo delle pipe (metodo per concatenare funzioni), e altro ancora. 
+
+3. **Commenta abbondantemente**: Usa i commenti (ad esempio, con `#`) per spiegare perché ogni parte del codice è necessaria e cosa fa. I commenti rendono il codice più leggibile e facilitano la manutenzione futura.
+
+4. **Testa il tuo codice**: Ogni volta che scrivi codice, verifica che funzioni come previsto. Puoi farlo scrivendo funzioni di test specifiche o controllando manualmente che l’output corrisponda alle aspettative. Abituati a pensare a eventuali *edge cases* (casi limite) in cui il tuo codice potrebbe non comportarsi come previsto.
+
+5. **Esegui una revisione del codice**: Quando possibile, fai revisionare il tuo codice da un’altra persona per individuare errori e incoerenze. Se non hai nessuno a disposizione, puoi rivedere il tuo codice autonomamente: rileggendo con attenzione, è sorprendente il numero di errori che si possono individuare!
+
+Seguendo queste linee guida, potrai scrivere codice più robusto, leggibile e facile da mantenere nel tempo.[^1]
+
+[^1]: Un’ottima introduzione alle regole di stile per un progetto di analisi dei dati è fornita in questo [capitolo](https://datamgmtinedresearch.com/style).
+
+## Riflessioni Conclusive
+
+Scrivere funzioni è un passaggio essenziale per migliorare la leggibilità, l’efficienza e la riutilizzabilità del codice. Funzioni ben progettate semplificano le modifiche, riducono errori e rendono il lavoro più chiaro, sia per te stesso che per i collaboratori futuri. Se trovi che stai copiando e incollando codice più volte, è il momento di pensare a creare una funzione.
+
+Le istruzioni condizionali, come `if`, `else` e `ifelse()`, sono fondamentali per introdurre logica e controllo nel codice. Permettono di gestire scenari diversi e prendere decisioni dinamiche, migliorando la flessibilità e l’efficienza dei tuoi script. Combinando queste istruzioni con operatori logici come `&&` e `||`, puoi affrontare situazioni complesse con un codice chiaro e leggibile.
+
+I cicli sono potenti strumenti per eseguire operazioni ripetitive, ma in R il loro utilizzo dovrebbe essere limitato ai casi in cui non esistono alternative più efficienti. Le funzioni `apply()` e simili rappresentano spesso un’opzione migliore per manipolare dati in modo più rapido e leggibile.
+
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered}
+
+```{r}
+sessionInfo()
+```
+
+## Bibliografia {.unnumbered}

@@ -5,32 +5,33 @@ execute:
 
 # Probabilità condizionata {#sec-prob-conditional-prob}
 
-**Prerequisiti**
+::: callout-important
+## In questo capitolo imparerai a:
 
-**Concetti e competenze chiave**
+- comprendere e applicare i concetti di probabilità congiunta, marginale e condizionata;
+- approfondire la comprensione e l'applicazione dei principi di indipendenza e probabilità condizionata;
+- analizzare e interpretare il paradosso di Simpson;
+- applicare il Teorema della Probabilità Composta per calcolare la probabilità di eventi interdipendenti;
+- utilizzare il Teorema della Probabilità Totale per scomporre e calcolare probabilità complesse. 
+:::
 
-In questo capitolo esploreremo alcuni concetti chiave per una comprensione approfondita dell'aggiornamento bayesiano:
+::: callout-tip
+## Prerequisiti
 
-- *Probabilità Congiunta*: Questa è la probabilità che due eventi avvengano insieme. Per esempio, potrebbe riferirsi alla probabilità di estrarre una pallina rossa e poi una verde da un'urna in sequenza.
-- *Probabilità Marginale*: Si tratta della probabilità di verificarsi di un singolo evento, considerato a prescindere da altri eventi. Ad esempio, potremmo voler calcolare la probabilità di estrarre una pallina verde da un'urna, senza considerare altri eventi.
-- *Probabilità Condizionata*: Indica la probabilità che un evento si verifichi, dato che un altro evento correlato è già accaduto. Un esempio potrebbe essere la probabilità di estrarre una seconda pallina verde, sapendo che la prima estratta era verde.
+- Leggere il capitolo *Conditional probability* di **Introduction to Probability** [@blitzstein2019introduction]. 
+:::
 
-Questi concetti sono fondamentali per navigare nel processo di inferenza bayesiana e per comprendere come le probabilità si aggiornano in risposta a nuove informazioni. Inoltre, esamineremo i principali teoremi legati alla probabilità condizionata. 
-
-**Preparazione del Notebook**
+::: callout-caution
+## Preparazione del Notebook
 
 ```{r}
 here::here("code", "_common.R") |> 
   source()
-
-# Load packages
-if (!requireNamespace("pacman")) install.packages("pacman")
-pacman::p_load(mice)
 ```
+:::
+
 
 ## Introduzione
-
-La probabilità è un linguaggio che ci consente di esprimere il nostro grado di credenza o incertezza riguardo all'occorrenza di eventi futuri. Questo concetto è strettamente legato all'idea di probabilità condizionata, che è fondamentale nella teoria della probabilità.
 
 La probabilità condizionata si riferisce al calcolo della probabilità di un evento, tenendo conto che un altro evento si è già verificato. Questo concetto è cruciale perché riflette come aggiorniamo le nostre credenze alla luce di nuove evidenze o informazioni. Per esempio, immaginiamo di voler stimare la probabilità di pioggia per domani. La nostra stima iniziale cambia se oggi osserviamo un cielo nuvoloso. Il fatto che oggi sia nuvoloso "condiziona" la nostra valutazione della probabilità di pioggia per domani.
 
@@ -40,80 +41,70 @@ In sintesi, la probabilità condizionata ci fornisce un framework per comprender
 
 ## Indipendenza Stocastica
 
-Nel contesto della probabilità condizionata, il concetto di indipendenza gioca un ruolo fondamentale. Questa caratteristica permette di semplificare notevolmente il calcolo delle probabilità in molti problemi, evidenziando come la conoscenza di un evento non fornisca alcuna informazione aggiuntiva sull'altro.
+Il concetto di indipendenza è cruciale nel contesto della probabilità condizionata, facilitando notevolmente i calcoli in numerosi problemi e indicando come la presenza di un evento non influenzi l'occorrenza di un altro.
 
 ### Indipendenza di Due Eventi
 
-Due eventi $A$ e $B$ sono detti **indipendenti** se il verificarsi di uno non influenza la probabilità di verificarsi dell'altro. Formalmente, questa condizione è espressa come:
+Due eventi, $A$ e $B$, sono considerati **indipendenti** se la realizzazione di uno non altera la probabilità di occorrenza dell'altro. Formalmente, questa relazione è espressa come:
 
-$$\mathbb{P}(A \cap B) = \mathbb{P}(A) \mathbb{P}(B),$$
+$$P(A \cap B) = P(A) P(B),$$
 
-dove $\mathbb{P}(A \cap B)$ rappresenta la probabilità che entrambi gli eventi $A$ e $B$ si verifichino simultaneamente.
-
-Se questa condizione è soddisfatta, scriviamo $A \text{ ⫫ } B$, il che significa "A è indipendente da B".
+dove $P(A \cap B)$ è la probabilità che $A$ e $B$ si verifichino contemporaneamente. Se questa condizione è verificata, denotiamo $A \text{ ⫫ } B$, indicando che $A$ è indipendente da $B$.
 
 ### Indipendenza di un Insieme di Eventi
 
-L'indipendenza stocastica è un concetto fondamentale nell'applicazione della probabilità in campo statistico. Un insieme di eventi $\{ A_i : i \in I \}$ è detto **indipendente** se per ogni sottoinsieme finito $J$ di $I$, la probabilità dell'intersezione degli eventi nel sottoinsieme $J$ è uguale al prodotto delle loro singole probabilità. Formalmente:
+L'indipendenza stocastica è un principio fondamentale nell'applicazione statistica della probabilità. Un insieme di eventi $\{ A_i : i \in I \}$ è definito **indipendente** se per ogni sottoinsieme finito $J$ di $I$, la probabilità dell'intersezione degli eventi in $J$ equivale al prodotto delle loro probabilità individuali:
 
-$$\mathbb{P} \left( \cap_{i \in J} A_i \right) = \prod_{i \in J} \mathbb{P}(A_i).$$
+$$P \left( \bigcap_{i \in J} A_i \right) = \prod_{i \in J} P(A_i).$$
 
-Questo significa che ogni combinazione finita di eventi nell'insieme è indipendente.
+Questo implica che ogni combinazione finita di eventi nell'insieme agisce in maniera indipendente.
 
-L'indipendenza può essere **assunta** o **derivata** a seconda del contesto. In alcuni modelli o situazioni, assumiamo che certi eventi siano indipendenti perché questa assunzione semplifica i calcoli o riflette una conoscenza previa. In altri casi, l'indipendenza può essere derivata dai dati o da altre proprietà del modello.
+L'indipendenza può essere **assunta** o **derivata**, a seconda del contesto. In alcuni modelli o situazioni, assumiamo l'indipendenza per semplificare i calcoli o per riflettere una conoscenza preesistente. In altri contesti, l'indipendenza può emergere dai dati o da altre proprietà del modello.
 
 ### Eventi Disgiunti e Indipendenza
 
-Eventi disgiunti (o mutuamente esclusivi) sono quelli che non possono verificarsi simultaneamente, cioè $\mathbb{P}(A \cap B) = 0$. Se due eventi disgiunti hanno una probabilità positiva di verificarsi, allora non possono essere indipendenti. Questo perché per eventi disgiunti con $\mathbb{P}(A) > 0$ e $\mathbb{P}(B) > 0$, l'equazione di indipendenza $\mathbb{P}(A \cap B) = \mathbb{P}(A) \mathbb{P}(B)$ non può essere soddisfatta, dato che $\mathbb{P}(A \cap B) = 0$ e $\mathbb{P}(A) \mathbb{P}(B) > 0$.
+Eventi disgiunti, o mutuamente esclusivi, sono quelli che non possono verificarsi contemporaneamente, ossia $\mathbb{P}(A \cap B) = 0$. Se due eventi disgiunti hanno probabilità positive, essi non possono essere indipendenti, poiché l'equazione $P(A \cap B) = P(A) P(B)$ non può essere soddisfatta; $P(A \cap B) = 0$ non uguaglia $P(A) P(B) > 0$.
 
-## Probabilità condizionata su altri eventi {#sec-v}
+## Probabilità Condizionata
 
-La probabilità di un evento è intrinsecamente condizionata dal nostro stato di informazione. In presenza di un determinato insieme di informazioni, attribuiamo a un evento una probabilità specifica di occorrenza. Tuttavia, qualora il nostro stato informativo subisca una modifica, anche la probabilità associata all'evento verrà corrispondentemente aggiornata.
+La probabilità di un evento è sempre contestualizzata e varia a seconda del nostro stato di informazione. Con un insieme di informazioni disponibile, attribuiamo una probabilità specifica a un evento. Se lo stato informativo cambia, anche la probabilità associata deve essere aggiornata. In sostanza, tutte le probabilità possono essere considerate condizionate, anche se l'evento condizionante non è esplicitato.
 
-In realtà, tutte le probabilità possono essere intese come probabilità condizionate, anche quando la variabile o l'evento condizionante non è esplicitamente specificato. Ciò implica che le probabilità sono sempre contestualizzate e dipendono dal set informativo disponibile in un dato scenario.
-
-Questo quadro concettuale ci induce a considerare le probabilità come una 'misura di plausibilità' che riflette la nostra conoscenza corrente del sistema o del fenomeno sotto indagine. A seguito dell'acquisizione di nuove informazioni o di cambiamenti nel contesto, la nostra misura di plausibilità, e quindi la probabilità attribuita agli eventi, può essere rivista.
-
-::: {#thm-def}
-Siano $A$ e $B$ due eventi definiti su uno spazio campionario $S$. Supponendo che l'evento $B$ si verifichi, la *probabilità condizionata* di $A$ dato $B$ è data da
+La **probabilità condizionata** di un evento $A$ dato un altro evento $B$, con $P(B) > 0$, è definita come:
 
 $$ 
-P(A \mid B) = \frac{P(A \cap B)}{P(B)}, \quad \text{per}\, P(B) > 0,
-$$ {#eq-prob-cond-def}
-
-dove $P(A \cap B)$ rappresenta la *probabilità congiunta* dei due eventi, ovvero la probabilità che entrambi si verifichino.
-:::
-
-Nell'@eq-prob-cond-def, $P(A \cap B)$ è la probabilità congiunta che entrambi gli eventi si verifichino, mentre $P(B)$ è la probabilità marginale dell'evento $B$. Riorganizzando i termini, otteniamo la regola della moltiplicazione:
-
-$$ 
-P(A \cap B) = P(A \mid B)P(B) = P(B \mid A)P(A). 
+P(A \mid B) = \frac{P(A \cap B)}{P(B)},
 $$
 
-Utilizzando questa regola, possiamo derivare una forma alternativa della legge della probabilità totale:
+dove $P(A \cap B)$ è la probabilità congiunta di $A$ e $B$. Questa relazione permette di derivare la regola della moltiplicazione:
 
 $$ 
-P(A) = P(A \mid B)P(B) + P(A \mid B^c)P(B^c).
+P(A \cap B) = P(A \mid B)P(B) = P(B \mid A)P(A), 
 $$
 
-Dove $B^c$ rappresenta il complemento dell'evento $B$.
+e una forma alternativa della legge della probabilità totale:
 
-È importante notare che $P(A \mid B)$ non è definita se $P(B) = 0$.
+$$ 
+P(A) = P(A \mid B)P(B) + P(A \mid B^c)P(B^c),
+$$
 
-La probabilità condizionata può essere interpretata come una ricalibrazione dello spazio campionario da $S$ a $B$. Per spazi campionari discreti, la probabilità condizionata è espressa come
+dove $B^c$ rappresenta il complemento di $B$.
+
+Per spazi campionari discreti, possiamo esprimere la probabilità condizionata come:
 
 $$
 P(A \mid B) = \frac{| A \cap B |}{| B |}.
 $$
 
-::: {#exm-1}
+La probabilità condizionata ricalibra lo spazio campionario, riducendolo da $S$ a $B$, e non è definita se $P(B) = 0$.
+
+::: {#exm-}
 Lanciamo due dadi equilibrati e vogliamo calcolare la probabilità che la somma dei punteggi ottenuti sia minore di 8.
 
 Inizialmente, quando non abbiamo ulteriori informazioni, possiamo calcolare la probabilità in modo tradizionale. Ci sono 21 risultati possibili con somma minore di 8. Poiché ci sono 36 possibili combinazioni di lancio dei due dadi, la probabilità di ottenere una somma minore di 8 è 21/36, che equivale a circa 0.58.
 
 Supponiamo ora di sapere che la somma del lancio di due dadi ha prodotto un risultato dispari. In questo caso, ci sono solo 18 possibili combinazioni di lancio dei due dadi (dato che abbiamo escluso i risultati pari). Tra essi, vi sono 12 risultati che soddisfano la condizione per cui la somma è minore di 8. Quindi, la probabilità di ottenere una somma minore di 8 cambia da circa 0.58 a 12/18, ovvero 0.67 quando consideriamo l'informazione aggiuntiva del risultato dispari.
 
-Svolgiamo il problema in Python.
+Svolgiamo il problema in R:
 
 ```{r}
 r <- 1:6
@@ -145,7 +136,7 @@ $$
 Questo esempio illustra come la probabilità di un evento possa variare in base alle informazioni aggiuntive di cui disponiamo. Nel secondo caso, avendo l'informazione che la somma è dispari, la probabilità di ottenere una somma minore di 8 aumenta notevolmente rispetto al caso iniziale in cui non avevamo questa informazione.
 :::
 
-::: {#exm-2}
+::: {#exm-}
 
 Consideriamo uno screening per la diagnosi precoce del tumore mammario utilizzando un test con determinate caratteristiche:
 
@@ -182,7 +173,7 @@ Questo esempio illustra come la conoscenza di ulteriori informazioni (il risulta
 
 :::
 
-::: {#exm-3a}
+::: {#exm-}
 
 Il problema di Monty Hall è diventato famoso grazie alla rubrica tenuta da Marilyn vos Savant nella rivista *Parade*, che rispose alla seguente lettera, pubblicata il 9 settembre 1990:
 
@@ -218,7 +209,7 @@ Il primo passo è identificare tutti i possibili esiti dell'esperimento. Nel pro
 
 Un diagramma ad albero può aiutarci a visualizzare il problema, dato che il numero di esiti non è troppo grande e la struttura è semplice. Il primo evento casuale è la posizione dell'auto, che rappresentiamo con tre rami in un albero. Ogni ramo corrisponde a una delle porte. La seconda quantità casuale è la porta scelta dal giocatore, rappresentata nel secondo livello dell'albero, e la terza quantità casuale è la porta che il conduttore apre, mostrata nel terzo livello.
 
-Ecco un esempio di diagramma ad albero in Python che rappresenta questa situazione:
+Ecco un esempio di diagramma ad albero che rappresenta questa situazione:
 
 ::: {#fig-monthy-hall-tree}
 ![](../../figures/monthy-hall-tree.png){width="75%"}
@@ -291,7 +282,7 @@ Quando il conduttore apre una porta mostrando una capra, fornisce nuove informaz
 
 :::
 
-::: {#exm-3}
+::: {#exm-}
 
 Per confermare il risultato inaspettato del Problema di Monty Hall, è possibile eseguire una simulazione. In questa simulazione, consideriamo due scenari: uno in cui il concorrente mantiene la sua scelta iniziale e un altro in cui cambia la sua scelta dopo che Monty Hall ha svelato una capra. Ripetendo questa simulazione migliaia di volte, possiamo confrontare i risultati empirici e confermare come effettivamente il cambiamento di scelta aumenti le probabilità del concorrente di vincere l'automobile.
 
@@ -333,7 +324,7 @@ La simulazione mostra che, effettivamente, la probabilità di vincere la macchin
 
 Nel campo della probabilità condizionata, uno dei fenomeni più interessanti e, nel contempo, più controintuitivi, è rappresentato dal paradosso di Simpson. Il paradosso di Simpson è un fenomeno statistico in cui una tendenza che appare in diversi gruppi separati di dati scompare o si inverte quando i dati vengono combinati. Questo paradosso mette in luce l'importanza di considerare le variabili confondenti e di analizzare i dati con attenzione per evitare conclusioni errate.
 
-::: {#exm-4}
+::: {#exm-}
 
 Due psicoterapeuti, Rossi e Bianchi, praticano due tipi di terapie: terapia per disturbi d'ansia e coaching per migliorare le prestazioni lavorative. Ogni terapia può avere un esito positivo o negativo. 
 
@@ -377,34 +368,54 @@ L'aggregazione dei dati tra diversi tipi di terapia presenta un quadro fuorviant
 
 :::
 
-## Teorema della probabilità composta
+## Teorema della Probabilità Composta
 
-È possibile scrivere l'@eq-prob-cond-def nella forma:
+Il **Teorema della Probabilità Composta**, noto anche come **regola moltiplicativa** o **regola della catena**, permette di calcolare la probabilità congiunta di due o più eventi in termini delle loro probabilità individuali e condizionate. Questo teorema deriva direttamente dalla definizione di probabilità condizionata.
+
+Per due eventi $A$ e $B$, possiamo esprimere la probabilità congiunta $P(A \cap B)$ utilizzando la relazione:
 
 $$
 P(A \cap B) = P(B)P(A \mid B) = P(A)P(B \mid A).
 $$ {#eq-probcondinv}
 
-Questo secondo modo di scrivere l'@eq-prob-cond-def è chiamato *teorema della probabilità composta* (o regola moltiplicativa, o regola della catena). La legge della probabilità composta ci dice che la probabilità che si verifichino contemporaneamente due eventi $A$ e $B$ è pari alla probabilità di uno dei due eventi moltiplicata per la probabilità dell'altro evento condizionata al verificarsi del primo.
+Questa formula ci dice che la probabilità che entrambi gli eventi si verifichino è data dalla probabilità che uno dei due eventi accada, moltiplicata per la probabilità che l'altro evento si verifichi dato il primo. 
 
-L'l'@eq-probcondinv si estende al caso di $n$ eventi $A_1, \dots, A_n$ nella forma seguente:
+Il teorema della probabilità composta si estende facilmente al caso di $n$ eventi $A_1, A_2, \dots, A_n$. In questo caso, la probabilità che tutti gli eventi si verifichino può essere scritta come:
 
 $$
-P\left( \bigcap_{k=1}^n A_k \right) = \prod_{k=1}^n P\left(  A_k  \ \Biggl\lvert \ \bigcap_{j=1}^{k-1} A_j \right).
+P\left( \bigcap_{k=1}^n A_k \right) = \prod_{k=1}^n P\left( A_k \ \Bigg\lvert \ \bigcap_{j=1}^{k-1} A_j \right).
 $$ {#eq-probcomposte}
 
-Per esempio, nel caso di quattro eventi abbiamo
+Questo significa che per calcolare la probabilità congiunta di tutti gli eventi, dobbiamo moltiplicare:
+
+1. La probabilità del primo evento.
+2. La probabilità del secondo evento, condizionata al primo.
+3. La probabilità del terzo evento, condizionata ai primi due.
+4. E così via, fino all'$n$-esimo evento, condizionato a tutti quelli precedenti.
+
+Per fare un esempio, consideriamo il caso di quattro eventi $A_1, A_2, A_3, A_4$. La probabilità congiunta è:
 
 $$
-\begin{split}
-P(&A_1 \cap A_2 \cap A_3 \cap A_4) =  \\
- & P(A_1) \cdot P(A_2 \mid A_1) \cdot  P(A_3 \mid A_1 \cap A_2) \cdot P(A_4 \mid A_1 \cap A_2 \cap A_{3}).\notag
-\end{split}
+P(A_1 \cap A_2 \cap A_3 \cap A_4) = P(A_1) \cdot P(A_2 \mid A_1) \cdot P(A_3 \mid A_1 \cap A_2) \cdot P(A_4 \mid A_1 \cap A_2 \cap A_3).
 $$
 
-::: {#exm-5}
+In questa espressione:
 
-Per fare un esempio, consideriamo il problema seguente. Da un'urna contenente 6 palline bianche e 4 nere si estrae una pallina per volta, senza reintrodurla nell'urna. Indichiamo con $B_i$ l'evento: "esce una pallina bianca alla $i$-esima estrazione" e con $N_i$ l'estrazione di una pallina nera. L'evento: "escono due palline bianche nelle prime due estrazioni" è rappresentato dalla intersezione $\{B_1 \cap B_2\}$ e, per l'@eq-probcondinv, la sua probabilità vale
+- La probabilità di $A_1$ è considerata incondizionata.
+- La probabilità di $A_2$ dipende da $A_1$.
+- La probabilità di $A_3$ dipende sia da $A_1$ che da $A_2$.
+- La probabilità di $A_4$ dipende da tutti gli eventi precedenti.
+
+Il Teorema della Probabilità Composta è una delle basi teoriche più importanti della probabilità e viene utilizzato frequentemente in contesti come:
+
+- La modellazione di processi sequenziali o temporali.
+- La decomposizione di probabilità complesse in calcoli più semplici.
+- La teoria delle reti bayesiane e la probabilità condizionata.
+
+Grazie a questo teorema, possiamo affrontare problemi complessi frammentandoli in parti più gestibili, utilizzando le probabilità condizionate per costruire una soluzione graduale e sistematica.
+
+::: {#exm-}
+Da un'urna contenente 6 palline bianche e 4 nere si estrae una pallina per volta, senza reintrodurla nell'urna. Indichiamo con $B_i$ l'evento: "esce una pallina bianca alla $i$-esima estrazione" e con $N_i$ l'estrazione di una pallina nera. L'evento: "escono due palline bianche nelle prime due estrazioni" è rappresentato dalla intersezione $\{B_1 \cap B_2\}$ e, per l'@eq-probcondinv, la sua probabilità vale
 
 $$
 P(B_1 \cap B_2) = P(B_1)P(B_2 \mid B_1).
@@ -445,37 +456,58 @@ $$
 :::
 
 
-## Il teorema della probabilità totale
+## Il Teorema della Probabilità Totale
 
-Il *teorema della probabilità totale* (detto anche teorema delle partizioni) afferma che se abbiamo una partizione di uno spazio campionario $\Omega$ in $n$ eventi mutualmente esclusivi e tali che la loro unione formi $\Omega$, allora la probabilità di un qualsiasi evento in $\Omega$ può essere calcolata sommando la probabilità dell'evento su ciascun sottoinsieme della partizione, pesata in base alla probabilità del sottoinsieme.
+Il **teorema della probabilità totale** (o **teorema delle partizioni**), che abbiamo già discusso nel capitolo precedente, può essere riformulato nei termini della probabilità condizionata. Il teorema afferma che, dato uno spazio campionario $\Omega$ suddiviso in una partizione di $n$ eventi mutualmente esclusivi (cioè non sovrapposti) e tali che la loro unione formi $\Omega$, è possibile calcolare la probabilità di un qualsiasi evento $E \subseteq \Omega$ sommando la probabilità di $E$ su ciascun sottoinsieme della partizione, pesata per la probabilità del sottoinsieme.
 
-In altre parole, se $H_1, H_2, \dots, H_n$ sono eventi mutualmente esclusivi e tali che $\bigcup_{i=1}^n H_i = \Omega$, allora per ogni evento $E \subseteq \Omega$, la probabilità di $E$ è data dalla formula:
+### Definizione Formale
+
+Siano $H_1, H_2, \dots, H_n$ eventi che costituiscono una partizione dello spazio campionario $\Omega$, ossia:
+
+1. $H_i \cap H_j = \varnothing$ per $i \neq j$ (mutualmente esclusivi),
+2. $\bigcup_{i=1}^n H_i = \Omega$ (copertura completa dello spazio campionario).
+
+Allora, per ogni evento $E \subseteq \Omega$, la probabilità di $E$ è data da:
 
 $$
 P(E) = \sum_{i=1}^n P(E \mid H_i)P(H_i),
 $$ {#eq-prob-tot}
 
-dove $P(E \mid H_i)$ rappresenta la probabilità condizionata di $E$ dato che si è verificato l'evento $H_i$, e $P(H_i)$ è la probabilità dell'evento $H_i$. 
+dove:
 
-Il teorema della probabilità totale riveste un ruolo fondamentale in quanto fornisce il denominatore  nel teorema di Bayes, svolgendo la funzione di costante di normalizzazione. Questa costante di normalizzazione è di vitale importanza per assicurare che la distribuzione a posteriori sia una distribuzione di probabilità valida. Per ulteriori dettagli e approfondimenti, è possibile fare riferimento al @sec-subj-prop.
+- $P(E \mid H_i)$ è la probabilità condizionata di $E$ dato che si è verificato l'evento $H_i$,
+- $P(H_i)$ è la probabilità dell'evento $H_i$.
 
-Nell'ambito della probabilità discreta, questo teorema viene usato quando abbiamo una partizione dello spazio campionario e vogliamo calcolare la probabilità di un evento, sfruttando le probabilità dei singoli eventi della partizione. Il caso più semplice è quello di una partizione dello spazio campione in due sottoinsiemi: $P(E) = P(E \cap H_1) + P(E \cap H_2)$.
+Il teorema afferma dunque che la probabilità di un evento $E$ può essere calcolata considerando il contributo di ciascun sottoinsieme della partizione. Ogni termine nella somma rappresenta la probabilità di $E$ "passando" attraverso un sottoinsieme $H_i$, pesata per la probabilità che $H_i$ si verifichi.
+
+Il teorema della probabilità totale è cruciale in molte applicazioni della probabilità, in particolare:
+
+- **Teorema di Bayes**: Fornisce il denominatore necessario per normalizzare la probabilità condizionata e garantire che la distribuzione a posteriori sia valida.
+- **Problemi con partizioni**: È utile per calcolare la probabilità di un evento $E$ quando si conoscono le probabilità condizionate $P(E \mid H_i)$ e le probabilità dei sottoinsiemi $P(H_i)$.
+
+Nella sua forma più semplice, l'applicazione del teorema si basa su una partizione dello spazio campionario $\Omega$ in due sottoinsiemi disgiunti, $H_1$ e $H_2$.
 
 ::: {#fig-bayes}
 ![](../../figures/bayes_theorem.png){width="50%"}
 
-Partizione dello spazio campionario per il teorema di Bayes.
+Partizione dello spazio campionario in due sottoinsiemi.
 :::
 
-In tali circostanza abbiamo che
+La probabilità di un evento $E$ può essere calcolata come
+
+$$
+P(E) = P(E \cap H_1) + P(E \cap H_2),
+$$
+
+ovvero
 
 $$
 P(E) = P(E \mid H_1) P(H_1) + P(E \mid H_2) P(H_2).
-$$ 
+$$
 
-L'@eq-prob-tot è utile per calcolare $P(E)$, se $P(E \mid H_i)$ e $P(H_i)$ sono facili da trovare. 
+In sintesi, l'@eq-prob-tot ci consente di calcolare probabilità complesse sfruttando partizioni dello spazio campionario. È particolarmente utile quando $P(E \mid H_i)$ e $P(H_i)$ sono disponibili, consentendo una valutazione della probabilità di $E$.
 
-::: {#exm-6}
+::: {#exm-}
 
 Abbiamo tre urne, ciascuna delle quali contiene 100 palline:
 
@@ -503,11 +535,11 @@ $$
 
 :::
 
-### Indipendenza e probabilità condizionata
+## Indipendenza e Probabilità Condizionata
 
-L'indipendenza tra due eventi $A$ e $B$ può essere espressa in modo intuitivo utilizzando la probabilità condizionata. Se $A$ e $B$ sono indipendenti, il verificarsi di uno degli eventi non influisce sulla probabilità del verificarsi dell'altro. In altre parole, la probabilità che $A$ accada non cambia se sappiamo che $B$ è avvenuto, e viceversa.
+L’indipendenza tra due eventi $A$ e $B$ può essere interpretata intuitivamente attraverso la probabilità condizionata. Due eventi sono indipendenti se il verificarsi di uno non influenza la probabilità di verificarsi dell’altro. In altre parole, conoscere che $B$ è accaduto non modifica la probabilità di $A$, e viceversa.
 
-Possiamo esprimere questa idea con le seguenti equazioni:
+Questa relazione può essere formalizzata con le seguenti equazioni:
 
 $$
 P(A \mid B) = \frac{P(A \cap B)}{P(B)} = P(A),
@@ -517,7 +549,7 @@ $$
 P(B \mid A) = \frac{P(A \cap B)}{P(A)} = P(B).
 $$
 
-Quindi, due eventi $A$ e $B$ sono indipendenti se soddisfano le condizioni:
+Pertanto, $A$ e $B$ sono indipendenti se e solo se:
 
 $$
 P(A \mid B) = P(A),
@@ -527,26 +559,45 @@ $$
 P(B \mid A) = P(B).
 $$
 
-Questo significa che la probabilità di $A$ rimane invariata indipendentemente dal fatto che $B$ sia accaduto o meno, e lo stesso vale per $B$.
+Queste condizioni significano che la probabilità di $A$ non cambia, indipendentemente dal fatto che $B$ sia accaduto, e lo stesso vale per $B$.
 
-#### Indipendenza di Tre Eventi
+<!-- ### Un'Altra Forma di Indipendenza -->
 
-Tre eventi $A$, $B$ e $C$ sono indipendenti se soddisfano le seguenti condizioni:
+<!-- L'indipendenza può essere espressa anche in termini di probabilità congiunta: -->
 
-$$
-\begin{align}
-P(A \cap B) &= P(A) P(B), \\
-P(A \cap C) &= P(A) P(C), \\
-P(B \cap C) &= P(B) P(C), \\
-P(A \cap B \cap C) &= P(A) P(B) P(C).
-\end{align}
-$$
+<!-- $$ -->
+<!-- P(A \cap B) = P(A) P(B). -->
+<!-- $$ -->
 
-Le prime tre condizioni verificano l'indipendenza a due a due, ovvero l'indipendenza di ciascuna coppia di eventi. Tuttavia, per essere completamente indipendenti, deve essere soddisfatta anche l'ultima condizione, che riguarda l'intersezione di tutti e tre gli eventi. Solo se tutte queste condizioni sono soddisfatte possiamo dire che $A$, $B$ e $C$ sono completamente indipendenti.
+<!-- Se questa condizione è soddisfatta, possiamo affermare che $A$ e $B$ sono indipendenti. Questo approccio si basa sull'idea che, per eventi indipendenti, la probabilità che si verifichino entrambi è semplicemente il prodotto delle loro probabilità individuali. -->
 
-In sintesi, l'indipendenza tra eventi implica che la conoscenza del verificarsi di uno non fornisce alcuna informazione sulla probabilità del verificarsi degli altri.
+### Indipendenza di Tre Eventi
 
-::: {#exm-7}
+La definizione di indipendenza si estende naturalmente a tre eventi $A$, $B$, e $C$, ma con condizioni aggiuntive. Tre eventi sono **indipendenti** se:
+
+1. Ogni coppia di eventi è indipendente:
+
+   $$
+   \begin{align}
+   P(A \cap B) &= P(A) P(B), \\
+   P(A \cap C) &= P(A) P(C), \\
+   P(B \cap C) &= P(B) P(C).
+   \end{align}
+   $$
+
+2. La probabilità congiunta di tutti e tre gli eventi è uguale al prodotto delle loro probabilità individuali:
+
+   $$
+   P(A \cap B \cap C) = P(A) P(B) P(C).
+   $$
+
+Le prime tre condizioni verificano l’indipendenza a coppie (indipendenza a due a due), mentre l’ultima condizione garantisce che i tre eventi siano **completamente indipendenti**. È importante notare che l’indipendenza a due a due non implica necessariamente l’indipendenza completa: per essere indipendenti nel senso completo, tutte e quattro le condizioni devono essere soddisfatte.
+
+In sintesi, l’indipendenza tra eventi implica che il verificarsi di uno di essi non fornisce alcuna informazione sulla probabilità del verificarsi degli altri. Nel caso di due eventi, questa proprietà si traduce nell’invarianza della probabilità condizionata. Per tre o più eventi, l’indipendenza richiede sia l’indipendenza a coppie sia la condizione più forte sull’intersezione di tutti gli eventi.
+
+Questi concetti sono fondamentali nella probabilità e nella statistica, poiché semplificano molti calcoli e forniscono una base per modelli più complessi.
+
+::: {#exm-}
 
 Consideriamo un esempio utilizzando un mazzo di 52 carte. Ogni seme contiene 13 carte e ci sono 4 regine in totale. Definiamo i seguenti eventi:
 
@@ -591,72 +642,19 @@ $$ \frac{1}{51} \neq \frac{52}{2601} $$
 Poiché $\frac{1}{51} \neq \frac{52}{2601}$, gli eventi $A$ e $B$ non sono più indipendenti dopo la rimozione del due di quadri.
 
 Questo esempio mostra come l'indipendenza tra due eventi dipenda dal contesto. Con un mazzo completo, i due eventi sono indipendenti. Tuttavia, rimuovendo una carta dal mazzo, le probabilità cambiano e gli eventi non sono più indipendenti. Questo evidenzia l'importanza di considerare la composizione e le condizioni iniziali quando si analizzano probabilità e indipendenza. Modifiche nella composizione del mazzo possono alterare le probabilità, influenzando le relazioni di indipendenza tra eventi specifici.
-
-In generale, l'indipendenza tra due eventi significa che la probabilità di uno non è influenzata dal verificarsi dell'altro. Questo concetto è cruciale per analisi probabilistiche e modelli statistici più complessi.
-
-:::
-
-::: {#exm-8}
-
-Nel lancio di due dadi non truccati, si considerino gli eventi: $A$ = "esce un 1 o un 2 nel primo lancio" e $B$ = "il punteggio totale è 8". Gli eventi $A$ e $B$ sono indipendenti?
-
-Calcoliamo $P(A)$:
-
-```{r}
-r <- 1:6
-sample <- expand.grid(i = r, j = r)
-A <- subset(sample, i == 1 | i == 2)
-print(A)
-cat(nrow(A), "/", nrow(sample), "\n")
-```
-
-Calcoliamo $P(B)$:
-
-```{r}
-B <- subset(sample, i + j == 8)
-print(B)
-cat(nrow(B), "/", nrow(sample), "\n")
-```
-
-Calcoliamo $P(A \cap B)$:
-
-```{r}
-I <- subset(sample, (i == 1 | i == 2) & (i + j == 8))
-print(I)
-cat(nrow(I), "/", nrow(sample), "\n")
-```
-
-Gli eventi $A$ e $B$ non sono statisticamente indipendenti dato che $P(A \cap B) \neq P(A)P(B)$:
-
-```{r}
-12/36 * 5/36 == 1/36
-```
-
 :::
 
 ## Riflessioni Conclusive
 
-La probabilità condizionata riveste un ruolo fondamentale in statistica, poiché consente di definire con precisione il concetto di indipendenza statistica. Uno degli aspetti cruciali dell'analisi statistica è la valutazione dell'associazione tra due variabili. In questo capitolo, ci siamo focalizzati sul concetto di indipendenza, che indica l'assenza di relazione tra le variabili. Tuttavia, in futuro esploreremo come effettuare inferenze sulla correlazione tra variabili, ovvero come determinare se esiste una relazione statistica credibile tra di esse.
+La probabilità condizionata è uno dei concetti fondamentali della statistica, poiché fornisce il quadro teorico necessario per comprendere l'indipendenza statistica e molte altre relazioni tra eventi e variabili. 
 
-Il concetto di probabilità condizionata ci permette di enunciare due regole fondamentali della probabilità:
+Un punto chiave è che l'indipendenza implica l'assenza di una **associazione** tra due variabili. Nei capitoli successivi esploreremo strumenti per misurare la correlazione correlazione, ovvero la presenza e l'intensità di una relazione **lineare** tra di esse.
 
-- **La regola della congiunzione** (regola del "e" o del prodotto):
+La probabilità condizionata ha inoltre permesso di riformulare la legge della probabilità totale, che consente di scomporre probabilità complesse utilizzando partizioni dello spazio campionario. Questa legge si rivela cruciale per il teorema di Bayes, uno degli strumenti cardine dell'inferenza statistica.
 
-  $$
-  P(A \cap B\,|\,C) = P(A\,|\,C) \times P(B\,|\,A, C) = P(B\,|\,C) \times P(A\,|\,B, C).
-  $$
+In particolare, nel contesto dell'inferenza bayesiana, il condizionamento assume un ruolo fondamentale. Grazie a questo principio, è possibile aggiornare continuamente le credenze o le incertezze riguardo a ipotesi, integrando nuove informazioni man mano che diventano disponibili. Questa capacità di adattamento rende l'inferenza bayesiana uno strumento estremamente flessibile e potente, capace di modellare situazioni complesse e dinamiche.
 
-- **La regola della disgiunzione** (regola del "o" o della somma):
-
-  $$
-  P(A \cup B\,|\,C) = P(A\,|\,C) + P(B\,|\,C) - P(A \cap B\,|\,C).
-  $$
-
-Un'altra importante regola della probabilità è la **legge della probabilità totale**, che gioca un ruolo cruciale nel teorema di Bayes.
-
-Nel contesto dell'inferenza bayesiana, il condizionamento è uno strumento essenziale. Questo approccio statistico utilizza il condizionamento per rivedere e aggiornare le credenze o incertezze riguardo a determinate ipotesi, basandosi sull'introduzione di nuove informazioni.
-
-In sintesi, la probabilità condizionata non solo è fondamentale per comprendere l'indipendenza statistica, ma anche per applicare metodi inferenziali avanzati come l'inferenza bayesiana. Questa forma di inferenza ci permette di aggiornare continuamente le nostre conoscenze e credenze alla luce di nuove informazioni, rendendo il processo decisionale statistico dinamico e adattabile.
+In sintesi, la probabilità condizionata non solo è essenziale per comprendere l'indipendenza statistica, ma costituisce anche la base di metodi inferenziali avanzati, come l'inferenza bayesiana. Attraverso di essa, possiamo costruire modelli che evolvono e migliorano con l'aggiunta di nuove informazioni, rendendo l'analisi statistica uno strumento dinamico e versatile per interpretare il mondo reale.
 
 ## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
 
@@ -664,4 +662,5 @@ In sintesi, la probabilità condizionata non solo è fondamentale per comprender
 sessionInfo()
 ```
 
+## Bibliografia {.unnumbered}
 

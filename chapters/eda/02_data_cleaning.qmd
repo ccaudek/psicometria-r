@@ -1,11 +1,6 @@
----
-execute:
-  freeze: auto
----
-
 # Flusso di lavoro per la pulizia dei dati {#sec-data-cleaning}
 
-::: callout-note
+::: callout-important
 ## In questo capitolo imparerai a
 
 - verificare, pulire e trasformare i dati per l'analisi
@@ -26,7 +21,7 @@ execute:
 
 :::
 
-::: callout-important
+::: callout-caution
 ## Preparazione del Notebook
 
 ```{r}
@@ -35,9 +30,11 @@ here::here("code", "_common.R") |>
 
 # Load packages
 if (!requireNamespace("pacman")) install.packages("pacman")
-pacman::p_load(mice, labelled, haven, pointblank)
+pacman::p_load(mice, labelled, haven, pointblank, mice)
 ```
 :::
+
+> If you ensure that your data is tidy, you’ll spend less time fighting with the tools and more time working on your analysis (Hadley Wickham).
 
 ## Introduzione
 
@@ -274,77 +271,104 @@ df <- df %>%
 print(df)
 ```
 
-#### Affrontare il Problema dei Dati Mancanti
+### Affrontare il Problema dei Dati Mancanti
 
-L'imputazione è una tecnica utilizzata per gestire i dati mancanti in un dataset, un problema comune in molte analisi. Lasciare i valori mancanti nel DataFrame può compromettere la qualità dell'analisi, poiché molti algoritmi statistici non sono in grado di gestire direttamente i dati incompleti, portando a risultati distorti o poco affidabili.
+I dati mancanti sono un problema comune nelle ricerche psicologiche e in molte altre discipline. Quando mancano delle informazioni in un dataset, possono verificarsi gravi problemi per l'analisi statistica, come risultati distorti, riduzione della precisione delle stime o, in casi estremi, l'impossibilità di applicare alcuni algoritmi.
 
-I valori mancanti possono causare diversi problemi:
+#### Perché i Dati Mancanti Sono un Problema?
 
-- *Bias dei risultati*: I dati mancanti possono introdurre un bias nelle stime se i valori mancanti non sono distribuiti in modo casuale.
-- *Riduzione della potenza statistica*: Quando si eliminano le righe con dati mancanti (rimozione listwise), si riduce la dimensione del campione, diminuendo la potenza dell'analisi.
-- *Impossibilità di utilizzare alcuni algoritmi*: Molti algoritmi di statistica richiedono che tutti i valori siano presenti per eseguire correttamente i calcoli.
+Immagina di voler capire il rendimento medio di una classe in un test, ma alcuni studenti hanno lasciato delle risposte in bianco. Se ignoriamo le risposte mancanti o eliminiamo gli studenti con dati incompleti, rischiamo di ottenere una stima che non rappresenta correttamente la realtà. Questo succede perché:
+- **Bias dei risultati**: Se i dati mancanti non sono casuali (ad esempio, mancano più spesso in studenti con basso rendimento), le conclusioni possono essere errate.
+- **Riduzione della potenza statistica**: Eliminare dati incompleti riduce il numero totale di osservazioni, rendendo più difficile trovare risultati significativi.
+- **Impossibilità di applicare alcuni metodi**: Molti algoritmi statistici richiedono dati completi e non funzionano con valori mancanti.
 
-Esistono vari approcci per affrontare i dati mancanti:
+#### Come Gestire i Dati Mancanti?
 
-1. *Imputazione Semplice*:
-   - *Media/Mediana*: Un metodo comune e semplice è sostituire i valori mancanti con la media o la mediana della colonna. Questo metodo è facile da implementare, ma può ridurre la variabilità dei dati e portare a una sottostima della varianza.
-   - *Mode (moda)*: Per le variabili categoriche, è possibile sostituire i valori mancanti con la moda (il valore più frequente). Tuttavia, questo può portare a una distorsione se la distribuzione dei dati è molto eterogenea.
+Ci sono diversi modi per affrontare i dati mancanti. Vediamo prima i metodi più semplici e poi quelli più avanzati.
 
-2. *Imputazione Multipla*:
-   - *Regressione Iterativa*: L'imputazione multipla, come implementata con algoritmi come `IterativeImputer`, è una procedura più sofisticata che predice i valori mancanti in modo iterativo utilizzando un modello basato sulle altre variabili del dataset. Questa tecnica tiene conto delle relazioni tra le variabili, migliorando l'accuratezza delle imputazioni rispetto ai metodi semplici.
-   - L'imputazione multipla conserva la variabilità nei dati e riduce il bias, fornendo stime più accurate rispetto ai metodi di imputazione semplice.
+1. **Esclusione dei Casi Incompleti (Complete Case Analysis)**  
+   Un approccio comune, ma spesso non ideale, è quello di analizzare solo i casi completi, eliminando tutte le righe con valori mancanti. In R, questo si può fare con il seguente comando:
 
-L'imputazione dei dati mancanti è essenziale per garantire che l'analisi statistica sia accurata e robusta. Sebbene i metodi semplici come la sostituzione con la media possano essere utili in alcuni casi, l'imputazione multipla offre un approccio più completo e sofisticato, particolarmente utile quando si desidera preservare le relazioni tra le variabili e mantenere l'integrità statistica del dataset. Questo argomento verrà ulteriormente discusso nel @sec-missing-data.
+   ```{r}
+   svy_comp <- svy |>
+     drop_na()
+   dim(svy_comp)
+   ```
 
-Applichiamo la procedura dell'imputazione multipla al caso presente.
+   **Limite**: Questo metodo può introdurre bias se i dati mancanti non sono casuali e riduce il campione, compromettendo l'affidabilità delle analisi.
+
+2. **Imputazione Semplice**  
+   Sostituire i valori mancanti con stime semplici:
+   - **Media o mediana**: Per le variabili numeriche, sostituire i valori mancanti con la media o la mediana. Questo metodo è facile da implementare, ma può ridurre la variabilità nei dati.
+   - **Moda**: Per le variabili categoriche, sostituire i valori mancanti con il valore più frequente. Tuttavia, può introdurre distorsioni se i dati sono molto eterogenei.
+
+3. **Imputazione Multipla**  
+   Un approccio più avanzato è l'imputazione multipla, che utilizza modelli statistici per stimare i valori mancanti in modo iterativo. L'idea di base è semplice: ogni valore mancante viene stimato tenendo conto delle relazioni con tutte le altre variabili.
+
+   **Esempio Intuitivo**: Immagina che in una classe manchino le risposte di alcuni studenti per alcune domande, ma che tu conosca il rendimento degli studenti in altre materie. Con l'imputazione multipla, utilizzi queste informazioni per prevedere i voti mancanti. Ripeti il processo più volte (iterativamente) per migliorare l'accuratezza delle stime.
+
+   **Vantaggi**:
+   - Mantiene la variabilità dei dati.
+   - Preserva le relazioni tra le variabili.
+   - Riduce il rischio di bias rispetto ai metodi semplici.
+
+#### Applicazione Pratica: Imputazione Multipla con `mice` in R
+
+Supponiamo di avere un dataset con alcune colonne numeriche che contengono valori mancanti. Possiamo utilizzare il pacchetto `mice` per imputare i dati mancanti.
+
+Selezioniamo le colonne numeriche da imputare.
 
 ```{r}
-# Supponiamo di avere un data frame chiamato 'd'
-d <- svy %>% as_tibble()
-
-# Mantieni l'indice originale 
-original_index <- rownames(d)
-
-# Converti solo le colonne numeriche relative ai punteggi in numerico per l'imputazione
 numeric_columns <- c("math1", "math2", "math3", "math4")
-d <- d %>%
+svy <- svy %>%
   mutate(across(all_of(numeric_columns), as.numeric))
-
-# Applica mice per l'imputazione multipla
-imputed <- mice(d[numeric_columns], m = 1, maxit = 10, method = "norm.predict", seed = 0)
-
-# Estrai il dataset imputato
-df_imputed <- complete(imputed)
-
-# Arrotonda i valori imputati ai numeri interi più vicini
-df_imputed <- df_imputed %>%
-  mutate(across(everything(), round))
-
-# Inserisci i valori imputati e arrotondati nel data frame originale
-d[numeric_columns] <- df_imputed
-
-# Mostra il data frame dopo l'imputazione e l'arrotondamento
-cat("\nDataFrame dopo l'imputazione e l'arrotondamento:\n")
-print(d)
 ```
 
-Per eseguire l'imputazione multipla in R, utilizziamo il pacchetto **`mice`**, uno strumento avanzato per gestire i valori mancanti nei dati. Questo approccio si basa su metodi di regressione iterativa, in cui ogni valore mancante viene stimato utilizzando un modello predittivo che considera tutte le altre variabili presenti nel dataset.
+Eseguiamo l'imputazione multipla.
 
-- **Selezione delle colonne numeriche per l'imputazione**:
-   - Abbiamo identificato le colonne numeriche che richiedono l'imputazione (`math1`, `math2`, `math3`, `math4`).
+```{r}
+imputed <- mice(
+  svy[numeric_columns], 
+  m = 1, 
+  maxit = 10, 
+  method = "norm.predict", 
+  seed = 123
+)
+```
 
-- **Imputazione Multipla con `mice`**:
-   - Il pacchetto `mice` utilizza un processo iterativo per stimare i valori mancanti. Ogni variabile con valori mancanti viene modellata a turno come una funzione delle altre variabili, utilizzando metodi specifici (ad esempio, regressione lineare o modelli bayesiani).
-   - L'imputazione iterativa procede in cicli successivi. Durante ogni ciclo, i valori mancanti di una variabile vengono stimati utilizzando le imputazioni correnti delle altre variabili.
-   - **Parametro `maxit=10`**: Il processo iterativo viene ripetuto fino a un massimo di 10 volte, o fino al raggiungimento della convergenza (stabilità dei valori imputati).
+Ottieniamo il dataset con i valori imputati.
 
-- **Applicazione e Arrotondamento**:
-   - Dopo l'imputazione, i valori stimati vengono reinseriti nel dataset. Per le variabili numeriche che rappresentano conteggi o valori discreti, i valori imputati sono stati arrotondati al numero intero più vicino.
+```{r}
+svy_imputed <- complete(imputed)
+```
 
-- **Risultato**:
-   - Il dataset risultante non contiene più valori mancanti nelle colonne numeriche specificate (`math1`, `math2`, `math3`, `math4`), poiché questi sono stati imputati utilizzando le relazioni con le altre variabili del dataset.
+Arrotondiamo i valori imputati (se necessario).
 
-In sintesi, l'imputazione multipla con **`mice`** è una tecnica potente per gestire i valori mancanti senza eliminare intere righe o colonne. Questo approccio preserva le relazioni tra variabili, garantendo che l'inferenza statistica rimanga accurata e valida. Nel nostro caso, abbiamo utilizzato un modello predittivo iterativo per stimare i valori mancanti basandoci sulle informazioni fornite dalle altre variabili. Questo metodo aumenta la qualità dei dati e consente analisi più robuste e affidabili.
+```{r}
+svy_imputed <- svy_imputed %>%
+  mutate(across(everything(), round))
+```
+
+Sostituiamo i valori imputati nel dataset originale.
+
+```{r}
+svy[numeric_columns] <- svy_imputed
+```
+
+Esaminiamo il risultato ottenuto.
+
+```{r}
+svy |> 
+  summary()
+```
+
+#### Come Funziona l’Imputazione Multipla?
+
+1. Ogni variabile con valori mancanti viene modellata come funzione delle altre variabili.
+2. I valori mancanti vengono stimati iterativamente. In ogni iterazione, si utilizza l'output precedente come input per migliorare le stime.
+3. Dopo un numero sufficiente di iterazioni, le stime si stabilizzano (convergenza).
+
+In conclusione, l'imputazione multipla è una tecnica avanzata che permette di gestire i dati mancanti preservando la qualità delle analisi. Rispetto ai metodi semplici, consente di mantenere la variabilità e ridurre il rischio di bias, rendendola una scelta ideale per analisi psicologiche e di ricerca. Nei prossimi capitoli approfondiremo ulteriormente i vantaggi e le applicazioni dell'imputazione multipla.
 
 #### Aggiungere i Metadati
 
@@ -358,8 +382,9 @@ In R, i metadati sono gestiti in modo molto dettagliato e strutturato attraverso
 
 Questi strumenti rendono molto facile documentare un dataset all'interno del processo di analisi, assicurando che tutte le informazioni critiche sui dati siano facilmente accessibili e ben documentate.
 
+Esaminiamo un esempio pratico. Iniziamo creando un piccolo dataset.
+
 ```{r}
-# Creazione del dataset
 svy <- tibble(
   stu_id = c(1347, 1368, 1377, 1387, 1399),
   grade_level = c(9, 10, 9, 11, 12),
@@ -369,8 +394,11 @@ svy <- tibble(
   math4 = c(3.0, 2.0, 4.0, NA, 1.0),
   int = c(1, 0, 1, 0, 1)
 )
+```
 
-# Definizione delle etichette di valore per le variabili math1:math4
+Definiamo le etichette di valore per le variabili `math1:math4`.
+
+```{r}
 value_labels_math <- set_names(
   as.numeric(names(c(
     `1` = "strongly disagree",
@@ -380,14 +408,21 @@ value_labels_math <- set_names(
   ))),
   c("strongly disagree", "disagree", "agree", "strongly agree")
 )
+```
 
-# Aggiunta delle etichette di valore alle colonne math1:math4
+Aggiungiamo le etichette di valore alle colonne `math1:math4`.
+
+```{r}
 svy <- svy %>%
   mutate(across(starts_with("math"), ~ labelled(., labels = value_labels_math)))
+```
 
-# Verifica delle etichette
+Verifica delle etichette.
+
+```{r}
 val_labels(svy$math1)
 ```
+
 
 #### Validazione dei Dati
 

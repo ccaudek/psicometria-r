@@ -1,0 +1,433 @@
+# Confronto tra due gruppi {#sec-mcmc-two-groups}
+
+::: callout-important
+## In questo capitolo imparerai a
+
+- fare inferenza sulle medie di due popolazioni.
+:::
+
+::: callout-tip
+## Prerequisiti
+
+- Leggere "Comparisons within randomised groups can be very misleading" [@bland2011comparisons].
+:::
+
+::: callout-caution
+## Preparazione del Notebook
+
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(cmdstanr, posterior, bayestestR)
+```
+:::
+
+## Introduzione 
+
+L'obiettivo di questo capitolo è di ampliare la discussione del @sec-stan-one-mean, affrontando il confronto tra le medie di due gruppi indipendenti. 
+
+## Stima bayesiana e test dell'ipotesi nulla
+
+Spesso, ci troviamo ad affrontare la necessità di confrontare due gruppi di dati. Potrebbe interessarci sapere se la media di un gruppo è maggiore o diversa rispetto a quella di un altro gruppo. Per effettuare tale confronto, è fondamentale utilizzare un modello statistico, poiché le vere differenze tra i gruppi sono spesso accompagnate da rumore di misurazione o fluttuazioni casuali del fenomeno in esame. Questo rende difficile trarre conclusioni basandosi unicamente sulle differenze calcolate dai dati osservati.
+
+Il metodo tradizionale per confrontare statisticamente due o più gruppi è quello di utilizzare un test statistico. Questo approccio prevede l'individuazione di un'ipotesi nulla, che solitamente afferma che non ci sono differenze tra i gruppi, e l'utilizzo di una statistica test per determinare se i dati osservati sono plausibili sotto questa ipotesi. L'ipotesi nulla viene rifiutata quando la statistica test calcolata supera una soglia predefinita.
+
+Tuttavia, i test di ipotesi possono essere complessi e i risultati spesso soggetti a interpretazioni errate. La scelta delle specifiche del test statistico (ad esempio, quale test utilizzare, quale ipotesi nulla testare, quale livello di significatività adottare) è spesso arbitraria e basata su convenzioni piuttosto che sulla specificità del problema o delle decisioni da prendere (Johnson, 1999). Inoltre, i risultati forniti dai test sono spesso indiretti, incompleti e tendono a sovrastimare le evidenze contro l'ipotesi nulla (Goodman, 1999).
+
+**Un approccio più informativo ed efficace per il confronto tra gruppi è quello basato sulla stima invece che sul test dell'ipotesi nulla**, ed è guidato dalla probabilità bayesiana anziché dalla frequentista. In pratica, invece di testare se ci sono differenze tra i gruppi, si cerca di ottenere una stima di quanto siano effettivamente diversi. Questo approccio è intrinsecamente più informativo. Inoltre, viene inclusa una stima dell'incertezza associata a tale differenza, che tiene conto sia dell'incertezza dovuta alla nostra mancanza di conoscenza dei parametri del modello (incertezza epistemica) sia dell'incertezza causata dalla variabilità intrinseca del sistema (incertezza aleatoria).
+
+## Un esempio illustrativo
+
+In questo esempio, l'obiettivo è stimare la differenza tra le medie del quoziente di intelligenza dei bambini di due gruppi distinti in base al livello di scolarità della madre. Il primo gruppo include i bambini la cui madre non ha completato le scuole superiori, mentre il secondo gruppo comprende quelli la cui madre ha ottenuto il diploma superiore. Per questo, useremo i dati `kidiq` e un modello bayesiano al fine di ottenere una stima affidabile della differenza tra le medie dei due gruppi nella popolazione. I dati utilizzati sono forniti da Gelman e Hill (2007) e costituiscono un sottocampione estratto dal  *National Longitudinal Survey of Youth*.
+
+Importiamo i dati in R.
+
+```{r}
+df <- rio::import(here::here("data", "kidiq.dta"))
+df |> 
+  head()
+```
+
+
+Il dataset contiene le seguenti colonne:
+
+- "kid_score": il quoziente intellettivo (QI) dei bambini. È una misura dell'intelligenza del bambino.
+- "mom_hs": una variabile binaria che indica se la madre del bambino ha completato o meno la scuola superiore. Può assumere i valori 0 o 1, dove 0 rappresenta "no" (la madre non ha completato la scuola superiore) e 1 rappresenta "sì" (la madre ha completato la scuola superiore).
+
+Ci sono 93 bambini la cui madre non ha completato la scuola superiore e 341 bambini la cui madre ha ottenuto il diploma di scuola superiore.
+
+```{r}
+df |> 
+  group_by(mom_hs) |> 
+  summarize(
+    n = n()
+  )
+```
+Le statistiche descrittive si ottengono nel modo seguente.
+
+```{r}
+df |> 
+  group_by(mom_hs) |> 
+  summarize(
+    avg = mean(kid_score),
+    std = sd(kid_score)
+  )
+```
+
+I bambini la cui madre ha completato le superiori tendono ad avere un QI maggiore di 11.8 punti rispetto ai bambini la cui madre non ha concluso le superiori.
+
+```{r}
+mean(df[df$mom_hs == 1, ]$kid_score) - mean(df[df$mom_hs == 0, ]$kid_score)
+```
+
+Creiamo due vettori che contengono il QI dei bambini dei due gruppi.
+
+```{r}
+# Vector of kid_score when mom_hs is 1
+kid_score_mom_hs_1 = df[df$mom_hs == 1, ]$kid_score
+
+# Vector of kid_score when mom_hs is 0
+kid_score_mom_hs_0 = df[df$mom_hs == 0, ]$kid_score
+```
+
+## Dimensione dell'effetto 
+
+Nel caso presente, la differenza tra le medie dei due gruppi è di 11.8 punti sulla scala del QI, e potrebbe sembrare un risultato rilevante, considerando che la metrica del QI è facilmente interpretabile. Tuttavia, è importante notare che il test utilizzato in questo studio non è il WISC, che ha una distribuzione normale con media 100 e deviazione standard 15, ma il test PIAT.
+
+In generale, è difficile comprendere il significato di una differenza tra le medie di due gruppi quando viene presentata solo come valore assoluto, soprattutto quando le varianze dei gruppi sono diverse. Per ottenere una misura più informativa, è necessario considerare sia la differenza tra le medie dei gruppi che l'incertezza associata a queste stime delle medie della popolazione. L'indice statistico che soddisfa questo scopo è noto come "dimensione dell'effetto" (effect size).
+
+La dimensione dell'effetto è una misura della forza dell'associazione osservata, che tiene conto sia della grandezza della differenza tra i gruppi attesi che dell'incertezza sui dati. Tra gli indici più comunemente utilizzati per quantificare la dimensione dell'effetto, vi è l'indice $d$ di Cohen. 
+
+Nel caso di due medie, questo indice è dato da:
+
+$$
+d={\frac {{\bar {x}}_{1}-{\bar {x}}_{2}}{s}},
+$$
+
+laddove
+
+$$
+s={\sqrt {\frac {(n_{1}-1)s_{1}^{2}+(n_{2}-1)s_{2}^{2}}{n_{1}+n_{2}-2}}}
+$$
+
+e la varianza di ciascun gruppo è calcolata come
+
+$$
+s_{1}^{2}={\frac {1}{n_{1}-1}}\sum _{i=1}^{n_{1}}(x_{1,i}-{\bar {x}}_{1})^{2}.
+$$
+
+Solitamente, l'indice $d$ di Cohen si interpreta usando la metrica seguente:
+
+| Dimensione dell'effetto |   $d$   |
+| ----------------------- | ------- |
+| Very small              | 0.01	|
+| Small                   | 0.20	|
+| Medim                   | 0.50	|
+| Large                   | 0.80	|
+| Very large              | 1.20	|
+| Huge                    | 2.0     |
+
+Per una trattazione bayesiana della stima della dimensione dell'effetto, si veda @doing_bayesian_data_an.
+
+## Modello bayesiano
+
+Il modello bayesiano per il confronto tra le medie di due gruppi indipendenti comprende la definizione della verosimiglianza per i dati di ciascun gruppo e la descrizione delle distribuzioni a priori dei parametri rilevanti. Inoltre, in questo caso, abbiamo incluso anche la stima della dimensione dell'effetto, che ci permette di valutare la forza dell'associazione osservata tra i gruppi, tenendo conto dell'incertezza sui dati.
+
+Creiamo un dizonario con i dati rilevanti.
+
+```{r}
+stan_data = list(
+    N1 = length(kid_score_mom_hs_1), 
+    N2 = length(kid_score_mom_hs_0), 
+    y1 = kid_score_mom_hs_1,
+    y2 = kid_score_mom_hs_0
+)
+```
+
+## Modello Stan
+
+Per analizzare questi dati ci serviremo del seguente modello Stan.
+
+```{r}
+# Path to the Stan file
+stan_file <- here::here("stan", "kid-score.stan")
+
+# Create a CmdStanModel object
+mod <- cmdstan_model(stan_file)
+```
+
+```{r}
+mod$print()
+```
+
+Nel nostro modello:
+
+- `N1` è il numero di osservazioni nel primo gruppo (bambini le cui madri hanno completato le superiori)
+- `N2` è il numero di osservazioni nel secondo gruppo (bambini le cui madri non hanno completato le superiori)
+- `y1` è un vettore contenente i valori di QI per il primo gruppo
+- `y2` è un vettore contenente i valori di QI per il secondo gruppo
+
+::: callout-note
+## Spiegazione del modello
+
+**Parametri**
+
+- `mu_1` e `mu_2`: Rappresentano le medie dei valori di QI per i due gruppi.
+- `sigma_1` e `sigma_2`: Rappresentano le deviazioni standard dei valori dei QI per i due gruppi.
+
+**Parametri trasformati**
+
+- `delta`: È la differenza tra le medie dei due gruppi (mu_1 - mu_2).
+- `cohen_d`: È la dimensione dell'effetto di Cohen, che quantifica la differenza tra i gruppi in unità di deviazione standard.
+
+**Prior**
+
+Impostiamo delle prior per i parametri:
+
+```
+mu_1 ~ normal(80, 20);
+mu_2 ~ normal(80, 20);
+sigma_1 ~ normal(0, 10);
+sigma_2 ~ normal(0, 10);
+```
+
+Queste prior riflettono le nostre conoscenze o supposizioni iniziali sui possibili valori di questi parametri. Per esempio, ci aspettiamo che i QI medi siano intorno a 80, ma con una certa variabilità.
+
+**Likelihood**
+
+```
+y1 ~ normal(mu_1, sigma_1);
+y2 ~ normal(mu_2, sigma_2);
+```
+
+Questa parte del modello descrive come i dati osservati (y1 e y2) sono generati, date le medie e le deviazioni standard per ciascun gruppo. Assumiamo che i valori del QI seguano una distribuzione normale in ciascun gruppo.
+
+**Quantità generate**
+
+```
+y1_rep[i] = normal_rng(mu_1, sigma_1);
+y2_rep[i] = normal_rng(mu_2, sigma_2);
+```
+
+Queste righe generano dati "replicati" basati sul modello stimato. Questi possono essere utilizzati per il controllo del modello (posterior predictive checks).
+:::
+
+I risultati si interpretano nel modo seguente:
+
+- `mu_1` e `mu_2`: Ci dicono i valori QI medi stimati per ciascun gruppo.
+- `sigma_1` e `sigma_2`: Ci dicono quanto variano i valori del QI all'interno di ciascun gruppo.
+- `delta`: Ci dice quanto è grande la differenza nei valori dei QI medi tra i due gruppi.
+- `cohen_d`: Ci fornisce una misura standardizzata della dimensione dell'effetto.
+
+In sintesi, questo modello ci permette di:
+
+1. Stimare i valori dei QI medi e la loro variabilità per ciascun gruppo.
+2. Quantificare la differenza tra i gruppi e la sua incertezza.
+3. Calcolare una misura standardizzata della dimensione dell'effetto (Cohen's d).
+4. Generare previsioni basate sul modello per future osservazioni.
+
+Il vantaggio principale di questo approccio bayesiano è che otteniamo distribuzioni di probabilità complete per tutti i parametri di interesse, permettendoci di fare affermazioni probabilistiche sulla differenza tra i gruppi e sulla dimensione dell'effetto.
+
+Eseguiamo il campionamento MCMC:
+
+```{r}
+#| message: false
+#| warning: false
+#| output: false
+#| 
+fit <- mod$sample(
+  data = stan_data,
+  seed = 123,
+  chains = 4,
+  parallel_chains = 4,
+  iter_sampling = 5000, 
+  iter_warmup = 2000,
+  adapt_delta = 0.99,
+  show_messages = FALSE
+)
+```
+
+### Risultati
+
+Esaminiamo la traccia del parametro di interesse:
+
+```{r}
+mcmc_trace(fit$draws("cohen_d"))
+```
+
+Generiamo un istogramma della distribuzione a posteriori del $d$ di Cohen:
+
+```{r}
+mcmc_hist(
+  fit$draws("cohen_d")
+) +
+  ggtitle("Istogramma della distribuzione a posteriori del d di Cohen") +
+  xlab("Valori") +
+  ylab("Frequenza")
+```
+
+Un sommario numerico del $d$ di Cohen si ottiene nel modo seguente:
+
+```{r}
+fit$summary("cohen_d")
+```
+
+L'intervallo di credibilità a densità più alta si ottiene nel modo seguente: 
+
+```{r}
+bayestestR::ci(fit$draws("cohen_d"), method = "HDI")
+```
+
+Le distribuzioni predittive a posteriori sono adeguate, senza essere perfette.
+
+Estraiamo i dati prodotti dal modello `y1_rep` e i dati osservati `y1`:
+
+```{r}
+# Extract posterior predictive samples for y1_rep
+y1_rep <- fit$draws(variables = "y1_rep", format = "draws_matrix")
+
+# Extract observed data
+y1_obs <- stan_data$y1
+```
+
+Convertiamo `y1_rep` in una matrice per compatibilità con *{bayesplot}*.
+
+```{r}
+# Convert y1_rep to a matrix
+y1_rep_matrix <- as.matrix(y1_rep)
+```
+
+Generiamo il posterior predictive chech plot:
+
+```{r}
+# Posterior predictive check plot
+set.seed(123)
+selected_indices <- sample(nrow(y1_rep_matrix), 50)
+ppc_dens_overlay(y = y1_obs, yrep = y1_rep_matrix[selected_indices, ])
+```
+
+## Modello Robusto
+
+Un modello bayesiano robusto per il confronto tra due medie indipendenti può gestire deviazioni standard disuguali e outlier sostituendo la verosimiglianza normale con quella della distribuzione t di Student. Utilizzare una distribuzione t di Student al posto di una normale rende il modello più resistente agli outlier. La distribuzione t di Student ha code più pesanti rispetto alla normale, il che significa che è meno influenzata da valori estremi nei dati. Questo è particolarmente utile quando si sospetta la presenza di outlier nei dati o quando le deviazioni standard tra i gruppi sono disuguali. In questo modo, il modello bayesiano robusto offre stime più affidabili delle medie e delle deviazioni standard dei gruppi, nonché della differenza tra le medie e della dimensione dell'effetto.
+
+```{r}
+# Path to the Stan file
+stan_file <- here::here("stan", "kid-score-t.stan")
+
+# Create a CmdStanModel object
+mod_t <- cmdstan_model(stan_file)
+```
+
+```{r}
+mod_t$print()
+```
+
+Nel caso presente, usare un modello robusto non produce nessuna differenza rispetto al modello precedente in quanto non ci sono deviazoni importanti rispetto alla gaussianità e le due deviazioni standard sono simili.
+
+```{r}
+#| message: false
+#| warning: false
+#| output: false
+#| 
+fit_t <- mod_t$sample(
+  data = stan_data,
+  seed = 123,
+  chains = 4,
+  parallel_chains = 4,
+  iter_sampling = 5000, 
+  iter_warmup = 2000,
+  adapt_delta = 0.99,
+  show_messages = FALSE
+)
+```
+
+```{r}
+fit_t$summary("cohen_d")
+```
+
+## Modello con Iper-priors
+
+Il seguente modello bayesiano per il confronto tra due medie indipendenti utilizza una distribuzione di Student's t per gestire deviazioni standard disuguali e outlier. Inoltre, include iper-priors per una maggiore flessibilità nella definizione dei parametri delle distribuzioni a priori, che vengono stimate dai dati. Questo approccio permette di incorporare in modo più efficace le incertezze sui parametri dei priors stessi, migliorando la robustezza del modello.
+
+
+```{r}
+# Path to the Stan file
+stan_file <- here::here("stan", "kid-score-h.stan")
+
+# Create a CmdStanModel object
+mod_h <- cmdstan_model(stan_file)
+```
+
+
+```{r}
+#| message: false
+#| warning: false
+#| output: false
+#| 
+fit_h <- mod_h$sample(
+  data = stan_data,
+  seed = 123,
+  chains = 4,
+  parallel_chains = 4,
+  iter_sampling = 5000, 
+  iter_warmup = 2000,
+  adapt_delta = 0.99,
+  show_messages = FALSE
+)
+```
+
+Anche in questo caso, la risposta non cambia:
+
+```{r}
+fit_h$summary("cohen_d")
+```
+
+Il nostro obiettivo è comprendere se le medie dei due gruppi sono diverse, e l'incertezza associata alla stima a posteriori del parametro `delta` è fondamentale per rispondere a questa domanda. 
+
+```{r}
+fit_h$summary("delta")
+```
+
+Se l'intervallo di credibilità associato a `delta` non include lo 0, allora possiamo concludere con un certo grado di sicurezza che le medie dei due gruppi sono diverse. In altre parole, se l'intervallo di credibilità non contiene lo 0, allora ci sono prove convincenti che le medie dei due gruppi sono diverse.
+
+Nel caso presente, l'intervallo di credibilità al 95% non include lo 0. Pertanto, possiamo concludere, con un livello di sicurezza soggettivo del 95%, che il QI dei bambini le cui madri hanno completato le scuole superiori tende ad essere più elevato rispetto a quello dei bambini le cui madri non hanno completato le scuole superiori.
+
+Possiamo dunque concludere che, per ciò che concerne l'effetto della scolarità della madre sul quoziente di intelligenza del bambino, la dimensione dell'effetto è "media".
+
+## Verifica di ipotesi bayesiana
+
+Come ulteriore approfondimento di questa analisi statistica, possiamo esaminare l'approccio bayesiano equivalente al test di ipotesi tradizionale.
+
+Dopo aver ottenuto un campione dalla distribuzione a posteriori del parametro di interesse $\mu$ per ciascun gruppo, possiamo porci la domanda: qual è la probabilità che il QI di un bambino in un gruppo sia maggiore di quello di un bambino nell'altro gruppo? Per rispondere a questa domanda, utilizzeremo campioni casuali dalle distribuzioni a posteriori dei parametri. Confronteremo le coppie di valori campionati dalle due distribuzioni a posteriori del parametro di interesse e calcoleremo la media di tali confronti. Questo ci fornirà un'indicazione sulla probabilità che il QI di un bambino in un gruppo sia maggiore di quello di un bambino nell'altro gruppo, basandoci sulla distribuzione a posteriori dei parametri stimati dal modello.
+
+Per eseguire un test d'ipotesi per calcolare la probabilità che $ \mu_1 > \mu_2 $ utilizzando il modello Stan fornito e cmdstanpy, è necessario estrarre i campioni posteriori per i parametri $\mu_1$ e $\mu_2$ dopo aver adattato il modello. Successivamente, è possibile calcolare la probabilità basandosi sui campioni posteriori. Ad esempio, ci possiamo chiedere quale sia la probabilità che un bambino la cui madre ha completato la scuola superiore abbia un QI maggiore di un bambino la cui madre non ha completato la scuola superiore.
+
+```{r}
+posterior <- fit$draws(
+  variables = c("mu_1", "mu_2", "delta"), format = "draws_df"
+)
+posterior$mu_1 <- posterior$mu_2 + posterior$delta
+
+prob_mu1_greater_mu2 <- mean(posterior$mu_1 > posterior$mu_2)
+cat(sprintf("Probability that mu_1 > mu_2: %.4f\n", prob_mu1_greater_mu2))
+```
+
+Una tale probabilità è effettivamente uguale a 1 il che conferma il risultato precedente, ovvero l'iportanza del livello di istruzione della madre per il QI del figlio.
+
+## Riflessioni conclusive
+
+In questo capitolo abbiamo esaminato la procedura bayesiana per calcolare la distribuzione a posteriori della differenza tra le medie di due gruppi indipendenti. Inoltre, abbiamo esplorato il calcolo della dimensione dell'effetto in termini bayesiani. Nell'esempio trattato, abbiamo considerato il caso in cui la verosimiglianza è descritta da una distribuzione Gaussiana. Tuttavia, va sottolineato che la scelta di una distribuzione specifica per la verosimiglianza non è vincolante nella statistica bayesiana. È possibile utilizzare qualsiasi distribuzione di probabilità, purché sia adeguata ai dati del campione.
+
+Nel caso del confronto tra le medie di due gruppi indipendenti, una distribuzione molto utilizzata è la distribuzione $t$ di Student. Questa distribuzione è particolarmente vantaggiosa quando si desidera condurre un'analisi statistica "robusta", ovvero un'analisi che non sia influenzata da osservazioni anomale o outlier presenti nei dati. Per questo motivo, la distribuzione $t$ di Student è spesso preferita quando si lavora con dati che potrebbero contenere valori anomali.
+
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
+
+```{r}
+sessionInfo()
+```
+
+## Bibliografia {.unnumbered}
+
