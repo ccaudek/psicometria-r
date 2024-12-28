@@ -1,0 +1,154 @@
+# La fragilità del *p*-valore
+
+::: callout-important
+## In questo capitolo imparerai a
+
+- verificare quanto il p-valore varia da campione a campione.
+:::
+
+::: callout-tip
+## Prerequisiti
+
+- Leggere il seguente [post](https://statmodeling.stat.columbia.edu) sul blog di Andrew Gelman.
+:::
+
+::: callout-caution
+## Preparazione del Notebook
+
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+```
+:::
+
+## Introduzione
+
+Il codice seguente è ispirato da un [post](https://statmodeling.stat.columbia.edu) sul blog di Andrew Gelman.
+
+
+## Simulazione 
+
+La seguente simulazione ha l’obiettivo di mostrare quanto i p-valori possano essere "fragili" e variare notevolmente da campione a campione, anche quando i dati provengono da una distribuzione con parametri molto simili. Questo serve a dimostrare che il p-valore, spesso usato per determinare la significatività statistica di un effetto, può essere influenzato pesantemente dalla variabilità campionaria, soprattutto in campioni di piccole dimensioni o con effetti deboli. Gelman esprime [questo concetto](http://stat.columbia.edu/~gelman/research/published/signif4.pdf) dicendo che
+
+> the difference between "significant" and "not significant" is not itself statistically significant.
+
+### Logica della Simulazione
+
+1. **Obiettivo:**
+   - Dimostrare la variabilità dei p-valori calcolati per diversi campioni estratti da una popolazione con una media molto vicina a zero.
+   - Mostrare come, nonostante l'effetto vero sia piccolo, i p-valori possano essere significativamente diversi tra loro, a seconda della variabilità e delle dimensioni del campione.
+
+2. **Setup della Simulazione:**
+   - Generiamo $J = 10$ campioni indipendenti, ognuno con un numero ridotto di osservazioni ($n = 10$), per massimizzare la variabilità dei risultati.
+   - Ogni campione è generato da una distribuzione normale con una media vera di $\mu = 0.05$ e una deviazione standard di $\sigma = 0.1$. Questi parametri sono scelti per rendere la media dei campioni vicina a zero e, al tempo stesso, abbastanza variabile.
+
+3. **Calcolo della media campionaria:**
+   - Per ciascun campione, calcoliamo la media ($\hat{\mu}$) e la deviazione standard ($\hat{\sigma}$).
+   - La media del campione ($\hat{\mu}$) è utilizzata come stima del parametro.
+
+4. **Calcolo del p-valore:**
+   - Applichiamo un t-test per ciascun campione per verificare l'ipotesi nulla ($H_0$) che la media del campione sia zero. 
+   - Il p-valore viene calcolato utilizzando la formula classica del t-test:
+   
+     $$
+     t = \frac{\hat{\mu}}{\frac{\hat{\sigma}}{\sqrt{n}}}
+     $$
+     
+     dove:
+     
+     - $\hat{\mu}$ è la media del campione,
+     - $\hat{\sigma}$ è la deviazione standard del campione,
+     - $n$ è il numero di osservazioni per campione.
+   - Successivamente, il p-valore è calcolato come:
+   
+     $$
+     \text{p-value} = 2 \times (1 - \text{CDF}(|t|))
+     $$
+     
+     dove $\text{CDF}$ è la funzione cumulativa della distribuzione t con $n-1$ gradi di libertà.
+
+### Descrizione della Sintassi
+
+Il codice R è strutturato come segue:
+
+1.  **Generazione dei campioni:**
+   - Creiamo una lista di campioni (10 campioni in totale), ognuno con 10 osservazioni, utilizzando la distribuzione normale con media 0.05 e deviazione standard 0.1.
+
+2. **Calcolo delle medie e dei p-valori:**
+   - Iteriamo su ciascun campione per calcolare la media ($\hat{\mu}$) e la deviazione standard ($\hat{\sigma}$).
+   - Calcoliamo il valore statistico $t$ e il corrispondente p-valore utilizzando la distribuzione t.
+
+3. **Stampa dei risultati:**
+   - I p-valori vengono arrotondati e stampati per osservare quanto siano variabili.
+
+```{r}
+# Imposta il seme per riproducibilità
+set.seed(1234)
+
+# Parametri della simulazione
+J <- 10              # Numero di campioni indipendenti
+n <- 10              # Numero di osservazioni per campione
+true_mean <- 0.05    # Media vera della popolazione
+true_sd <- 0.1       # Deviazione standard della popolazione
+
+# Genera i campioni casuali
+samples <- replicate(J, rnorm(n, mean = true_mean, sd = true_sd), simplify = FALSE)
+
+# Calcola statistiche campionarie e p-valori
+results <- lapply(samples, function(sample) {
+  sample_mean <- mean(sample)                         # Media campionaria
+  sample_sd <- sd(sample)                             # Deviazione standard campionaria
+  t_statistic <- sample_mean / (sample_sd / sqrt(n))  # Statistica t
+  p_value <- 2 * (1 - pt(abs(t_statistic), df = n - 1))  # p-valore bilaterale
+  list(mean = sample_mean, sd = sample_sd, t = t_statistic, p_value = p_value)
+})
+
+# Converti i risultati in un data frame per facilitarne la visualizzazione
+results_df <- do.call(rbind, lapply(results, as.data.frame))
+rownames(results_df) <- paste("C", 1:J)
+
+# Visualizza i risultati
+print(results_df)
+```
+
+```{r}
+ggplot(results_df, aes(x = rownames(results_df), y = p_value)) +
+  geom_point(size = 3, color = "blue") +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red") +
+  labs(
+    title = "Variabilità dei p-valori nei campioni",
+    x = "Campioni",
+    y = "p-valore"
+  ) 
+```
+
+
+Immaginiamo che questo sia un esperimento reale. Alcuni campioni potrebbero mostrare risultati compatibili con il puro rumore, altri fornire deboli indicazioni contro l'ipotesi nulla, mentre altri ancora potrebbero sembrare altamente significativi dal punto di vista statistico. Verrebbe naturale cercare di categorizzare questi risultati in qualche modo. Tuttavia, la differenza tra "significativo" e "non significativo" non è di per sé statisticamente significativa. Ad esempio, si potrebbe essere tentati di considerare rilevante una differenza tra un p-valore di 0.336 e uno di 0.003, ma non è così.
+
+Questo scenario estremo riflette una situazione in cui non c'è una reale variazione sottostante. Se si utilizzasse un modello multilivello, probabilmente emergerebbe l'assenza di una variazione effettiva significativa.
+
+### Punti chiave:
+
+1. **Il p-valore descrive solo l'ipotesi nulla:** È una misura relativa all'assenza di effetto, ma non ha necessariamente un significato diretto rispetto a un effetto reale, anche se piccolo.
+
+2. **Il p-valore è altamente variabile:** Essendo una trasformazione non lineare dello z-score (che ha un'interpretazione più chiara), il p-valore può comportarsi in modi non intuitivi, soprattutto con campioni piccoli.
+
+3. **Le simulazioni sono istruttive:** Anche esperimenti semplici come questo possono essere estremamente utili per comprendere le limitazioni e l'interpretazione dei risultati.
+
+### Un avvertimento importante:
+
+Anche le inferenze bayesiane sono soggette a variabilità. Qualsiasi sintesi dei dati porta con sé un certo grado di incertezza. Il problema non risiede nei p-valori in sé, ma nel loro utilizzo scorretto. Interpretare un p-valore come una dichiarazione forte sulla realtà, invece di considerarlo un riassunto rumoroso di un esperimento specifico, è un errore comune.
+
+Allo stesso modo, fraintendimenti e sovrainterpretazioni possono verificarsi anche con approcci bayesiani. Ad esempio, l'adattamento di un modello con prior non informativi e l'interpretazione della probabilità posteriore di un parametro (ad esempio, maggiore di zero) sulla base di una soglia arbitraria può portare a conclusioni altrettanto problematiche. Questi risultati ci ricordano l'importanza di una sana cautela nell'interpretazione statistica, indipendentemente dal metodo utilizzato.
+
+## Riflessioni Conclusive
+
+La simulazione mostra che, nonostante le medie dei campioni siano generate con una distribuzione simile, i p-valori possono variare drasticamente. Questo effetto è amplificato dalla scelta di campioni piccoli e di una media vera molto vicina all'ipotesi nulla (zero). Dimostra quanto il p-valore possa essere influenzato da piccole variazioni nei dati e perché non sia sempre un indicatore affidabile per valutare l'efficacia o la presenza di un effetto.
+
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
+
+```{r}
+sessionInfo()
+```
+
+## Bibliografia {.unnumbered}

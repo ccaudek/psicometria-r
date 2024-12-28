@@ -3,13 +3,22 @@ execute:
   freeze: auto
 ---
 
-# Analisi bayesiana dell'odds-ratio {#sec-bayes-odds-ratio}
+# Analisi bayesiana dell'odds-ratio {#sec-bayes-odds-ratio-brms}
 
-**Prerequisiti**
+::: callout-important
+## In questo capitolo imparerai a
 
-**Concetti e Competenze Chiave**
+- 
+:::
 
-**Preparazione del Notebook**
+::: callout-tip
+## Prerequisiti
+
+- Leggere 
+:::
+
+::: callout-caution
+## Preparazione del Notebook
 
 ```{r}
 here::here("code", "_common.R") |> 
@@ -17,8 +26,9 @@ here::here("code", "_common.R") |>
 
 # Load packages
 if (!requireNamespace("pacman")) install.packages("pacman")
-pacman::p_load(cmdstanr, posterior)
+pacman::p_load(cmdstanr, posterior, brms, bayestestR)
 ```
+:::
 
 ## Introduzione 
 
@@ -230,208 +240,79 @@ Questo rapporto delle odds ci dà una misura della forza dell'associazione tra l
 
 In sintesi, il modello bayesiano utilizza i dati osservati per aggiornare le nostre convinzioni iniziali sui parametri $\theta_1$ e $\theta_2$, fornendo una distribuzione a posteriori che riflette sia le informazioni a priori sia le evidenze empiriche.
 
-Creiamo un dizionario che contiene i dati.
-
 ```{r}
-n1 <- 200
+N1 <- 200
 y1 <- 130
-n2 <- 200
+N2 <- 200
 y2 <- 100
 
-stan_data <- list(
-  N1 = n1,
-  y1 = y1,
-  N2 = n2,
-  y2 = y2
+df <- tibble(
+  group = c(1, 1, 2, 2),  # Gruppi (1 e 2)
+  events = c(y1, y1, y2, y2), # Numero di eventi
+  trials = c(N1, N1, N2, N2)  # Numero totale di esperimenti
 )
 ```
 
-Eseguiamo il campionamento.
-
 ```{r}
-fit <- mod$sample(
-  data = stan_data,
-  seed = 123,
-  chains = 4,
-  parallel_chains = 4,
-  iter_sampling = 5000, 
-  iter_warmup = 2000,
-  adapt_delta = 0.99,
-  show_messages = FALSE
+fit <- brm(
+  formula = events | trials(trials) ~ group,
+  data    = df,
+  family  = binomial(link = "logit"),
+  # Esempio di priori su intercept e coefficiente
+  # (assumiamo priori piuttosto larghi in scala logit)
+  prior   = c(
+    prior(normal(0, 2), class = "Intercept"),
+    prior(normal(0, 2), class = "b")
+  ),
+  seed    = 1234,
+  backend = "cmdstanr"
 )
 ```
 
-Estraiamo la distribuzione a posteriori dell'odds ratio e generiamo un istogramma.
+### Come funziona il calcolo delle probabilità
+
+- **Intercept** = $\beta_0$ corrisponde al logit($\theta$) per il gruppo di riferimento (di solito `group = g1`).  
+- **b_groupg2** = $\beta_1$ è la differenza in logit tra il gruppo “g2” e il gruppo “g1”.  
+  - In altre parole, $\theta_{\text{g2}} = \mathrm{logit}^{-1}(\beta_0 + \beta_1)$.
+
+
+Estraiamo i campioni in un data frame:
 
 ```{r}
-or_draws <- fit$draws(variables = "oddsratio", format = "array")
+posterior_df <- as_draws_df(fit)
 ```
 
+Calcoliamo theta_g1 e theta_g2 per ogni draw:
+
 ```{r}
-mcmc_hist(
-  or_draws,
-  binwidth = NULL, # Automatically choose binwidth
-  freq = FALSE     # Plot density instead of frequencies
-) +
-  ggtitle("Istogramma della distribuzione a posteriori di OR") +
-  xlab("Valori") +
-  ylab("Frequenza")
+theta_g1 <- plogis(posterior_df$b_Intercept)
+theta_g2 <- plogis(posterior_df$b_Intercept + posterior_df$b_group)
+```
+
+Calcoliamo l'odds ratio:
+
+```{r}
+posterior_df$oddsratio <- (theta_g1 / (1 - theta_g1)) /
+                          (theta_g2 / (1 - theta_g2))
+```
+
+Stima puntuale (mediana) e intervallo di credibilità "equal-tailed" all'89%:
+
+```{r}
+or_median <- median(posterior_df$oddsratio)
+or_ci     <- quantile(posterior_df$oddsratio, probs = c(0.055, 0.945))
+cat("Odds Ratio (mediana) =", or_median, "\n")
+cat("89% ETI =", or_ci[1], "-", or_ci[2], "\n")
+```
+
+HDI all'89% con bayestestR:
+
+```{r}
+or_hdi <- hdi(posterior_df$oddsratio, ci = 0.89)
+or_hdi
 ```
 
 La distribuzione posteriore del rapporto degli odds è il modo più semplice e accurato per descrivere la differenza tra i due gruppi. Nel caso presente, notiamo che vi è un'elevata probabilità che la differenza tra i due gruppi sia affidabile e relativamente grande.
-
-Un sommario della distribuzione a posteriori dell'odds ratio si ottine nel modo seguente.
-
-```{r}
-fit$summary()
-```
-
-Possiamo determinare la probabilità che il rapporto di probabilità (odds ratio) superi 1. Per farlo, è sufficiente analizzare gli 8000 campioni della distribuzione posteriore dell'odds ratio
-
-```{r}
-dim(or_draws)
-```
-
-e calcolare la proporzione di questi che presenta un valore maggiore di 1:
-
-```{r}
-fit$summary("oddsratio", pr_gt_one = ~ mean(. > 1.0))
-```
-
-## Diagnostica delle catene markoviane
-
-Prima di esaminare i risultati, eseguiamo la diagnostica delle catene markoviane.
-
-### Mixing
-
-Il trace plot precedente dimostra un buon mixing. Questo è evidenza che il campionamento MCMC ha raggiunto uno stato stazionario.
-
-```{r}
-mcmc_trace(or_draws) +
-  ggtitle("Trace Plot for 'oddsratio'")
-```
-
-### Numerosità campionaria effettiva
-
-Quando si utilizzano metodi di campionamento MCMC, è ragionevole chiedersi se un particolare campione estratto dalla distribuzione a posteriori sia sufficientemente grande per calcolare con sicurezza le quantità di interesse, come una media o un HDI. Questo non è qualcosa che possiamo rispondere direttamente guardando solo il numero di punti della catena MCMC, e il motivo è che i campioni ottenuti dai metodi MCMC hanno un certo grado di autocorrelazione, quindi la quantità effettiva di informazioni contenute in quel campione sarà inferiore a quella che otterremmo da un campione iid della stessa dimensione. Possiamo pensare alla dimensione del campione effettivo (ESS) come a un stimatore che tiene conto dell’autocorrelazione e fornisce il numero di estrazioni che avremmo se il nostro campione fosse effettivamente iid.
-
-Per le catene buone, solitamente, il valore della dimensione del campione effettivo sarà inferiore al numero di campioni. Ma l’ESS può essere in realtà più grande del numero di campioni estratti. Quando si utilizza il campionatore NUTS, valori di ESS maggiori del numero totale di campioni possono verificarsi per parametri le cui distribuzioni posteriori sono vicine alla Gaussiana e che sono quasi indipendenti da altri parametri nel modello.
-
-Nell'output di PyCM si considera ESS_BULK.  Un euristica è che deve essere almeno uguale a 400. Nel caso presente questo si verifica, quindi il valore ESS_BULK non fornisce alcuna evidenza di cattivo mixing. 
-
-
-### R hat
-
-In condizioni molto generali, i metodi di Markov chain Monte Carlo hanno garanzie teoriche che otterranno la risposta corretta indipendentemente dal punto di partenza. Sfortunatamente, tali garanzie sono valide solo per campioni infiniti. Quindi, nella pratica, abbiamo bisogno di modi per stimare la convergenza per campioni finiti. Un’idea diffusa è quella di generare più di una catena, partendo da punti molto diversi e quindi controllare le catene risultanti per vedere se sembrano simili tra loro. Questa nozione intuitiva può essere formalizzata in un indicatore numerico noto come R-hat. Esistono molte versioni di questo stimatore, poiché è stato perfezionato nel corso degli anni. In origine il R-hat veniva interpretato come la sovrastima della varianza dovuta al campionamento MCMC finito. Ciò significa che se si continua a campionare all’infinito si dovrebbe ottenere una riduzione della varianza della stima di un fattore R-hat. E quindi il nome “fattore di riduzione potenziale della scala” (*potential scale reduction factor*), con il valore target di 1 che significa che aumentare il numero di campioni non ridurrà ulteriormente la varianza della stima. Tuttavia, nella pratica è meglio pensarlo solo come uno strumento diagnostico senza cercare di sovra-interpretarlo.
-
-L’R-hat per il parametro theta viene calcolato come la deviazione standard di tutti i campioni di theta, ovvero includendo tutte le catene insieme, diviso per la radice quadratica media delle deviazioni standard separate all’interno della catena. Il calcolo effettivo è un po’ più complesso ma l’idea generale è questa. Idealmente dovremmo ottenere un valore di 1, poiché la varianza tra le catene dovrebbe essere la stessa della varianza all’interno della catena. Da un punto di vista pratico, valori di R-hat inferiori a 1.1 sono considerati sicuri.
-
-Nel caso presente questo si verifica. Possiamo ottenere R hat nel modo seguente:
-
-```{r}
-# Extract the summary including R-hat
-summary <- fit$summary()
-
-# Extract R-hat values
-rhat_values <- summary$rhat
-
-# Print R-hat values
-print(rhat_values)
-```
-
-Il valore di $\hat{R}$, al massimo, raggiunge il valore di 1.001. Essendo il valore molto simile a 1 nel caso presente, possiamo dire che non ci sono evidenza di assenza di convergenza.
-
-### Errore standard di Monte Carlo 
-
-Quando si utilizzano metodi MCMC introduciamo un ulteriore livello di incertezza poiché stiamo approssimando la posteriore con un numero finito di campioni. Possiamo stimare la quantità di errore introdotta utilizzando l’errore standard di Monte Carlo (MCSE). L’MCSE tiene conto del fatto che i campioni non sono veramente indipendenti l’uno dall’altro e sono in realtà calcolati dall’ESS. Mentre i valori di ESS e R-hat sono indipendenti dalla scala dei parametri, la statistica MCSE non lo è. Se vogliamo riportare il valore di un parametro stimato al secondo decimale, dobbiamo essere sicuri che MCSE sia al di sotto del secondo decimale altrimenti, finiremo, erroneamente, per riportare una precisione superiore a quella che abbiamo realmente. Dovremmo controllare MCSE solo una volta che siamo sicuri che ESS sia abbastanza alto e R-hat sia abbastanza basso; altrimenti, MCSE non è utile.
-
-Nel nostro caso il MCSE è sufficientemente piccolo.
-
-```{r}
-# Extract posterior draws
-draws <- fit$draws()
-
-# Summarize the draws, including MCSE
-summary <- summarize_draws(draws, "mean", "mcse_mean")
-
-# Print the summary including MCSE
-print(summary)
-```
-
-L'errore standard di Monte Carlo ci informa della precisione della stima ottenuta usando il metodo MCMC. Non possiamo riportare una precisione dei risultati maggiore di quella indicata dalla MCSE. Pertanto, per il caso presente relativo all'Odds Ratio (OR), possiamo affermare che la precisione massima raggiungibile è limitata a due decimali.
-
-### Autocorrelazione
-
-L’autocorrelazione riduce la quantità effettiva di informazioni contenute in un campione e quindi è qualcosa che vogliamo mantenere al minimo. Possiamo ispezionare direttamente l’autocorrelazione con `az.plot_autocorr`.
-
-```{r}
-# Extract posterior draws for 'oddsratio'
-oddsratio_draws <- fit$draws(variables = "oddsratio", format = "matrix")
-
-# Create an autocorrelation plot
-mcmc_acf(oddsratio_draws) +
-  ggtitle("Autocorrelation Plot for 'oddsratio'")
-```
-
-### Rank Plots
-
-I grafici dei ranghi sono un altro strumento diagnostico visivo che possiamo utilizzare per confrontare il comportamento del campionamento sia all’interno che tra le catene. I grafici dei ranghi, in parole semplici, sono istogrammi dei campioni della distribuzione a posteriori espressi in termini di ranghi. Nei grafici dei ranghi, i ranghi sono calcolati combinando prima tutte le catene ma poi rappresentando i risultati separatamente per ogni catena. Se tutte le catene stimano la stessa distribuzione, ci aspettiamo che i ranghi abbiano una distribuzione uniforme. Inoltre, se i grafici dei ranghi di tutte le catene sembrano simili, ciò indica un buon mix delle catene.
-
-Possiamo ottenere i grafici dei ranghi con `az.plot_rank`. 
-
-```{r}
-mcmc_rank_hist(oddsratio_draws) +
-  ggtitle("Rank Histogram for 'oddsratio'")
-```
-
-Possiamo vedere nella figura che i ranghi sono molto simili ad una distribuzione uniforme e che tutte le catene sono simili tra loro senza alcuno scostamento distintivo.
-
-### Divergenza
-
-Per diagnosticare il funzionamento di un campionatore, abbiamo finora analizzato i campioni generati. Un altro approccio fondamentale consiste nel monitorare i meccanismi interni del metodo di campionamento. Una delle diagnosi più importanti in questo contesto è rappresentata dal concetto di **divergenza**, particolarmente rilevante nei metodi **Hamiltonian Monte Carlo (HMC)**. Le divergenze (o **transizioni divergenti**) sono un segnale sensibile che indica potenziali problemi nella geometria del modello o nel campionamento. Queste diagnosi sono complementari agli altri controlli descritti in precedenza.
-
-#### Che cosa sono le transizioni divergenti?
-
-Le transizioni divergenti si verificano quando il metodo HMC non riesce a esplorare efficacemente la distribuzione a posteriori. Ciò accade, ad esempio, in presenza di geometrie complesse come regioni strette e allungate della distribuzione, dove il campionatore fatica a seguire il gradiente. Le transizioni divergenti sono quindi un’indicazione che il modello potrebbe necessitare di una riformulazione o di parametri di campionamento più adeguati (come un maggiore `adapt_delta`).
-
-CmdStan consente di rilevare queste transizioni e riporta il numero di divergenze per ciascuna catena durante il campionamento. Un risultato ottimale è **zero divergenze**, poiché ciò indica che il campionatore ha esplorato la distribuzione senza difficoltà.
-
-#### Diagnosi delle divergenze
-
-Per eseguire questa diagnosi, possiamo utilizzare il metodo `fit$diagnostic_summary()`, che restituisce un riepilogo dei principali indicatori diagnostici. Vediamo i valori restituiti nel caso specifico:
-
-```{r}
-fit$diagnostic_summary()
-```
-
-I valori diagnostici restituiti sono i seguenti:
-
-1. **`$num_divergent`**:
-   - Questo valore indica il numero di **transizioni divergenti** per ciascuna catena.
-   - **Caso corrente**: Tutte le catene riportano 0 transizioni divergenti. Ciò significa che il campionatore è stato in grado di esplorare la distribuzione a posteriori senza difficoltà, suggerendo che il modello è ben specificato e che non ci sono problemi nella geometria della distribuzione.
-
-2. **`$num_max_treedepth`**:
-   - Questo valore rappresenta il numero di volte in cui una catena ha raggiunto la **massima profondità dell'albero** durante il campionamento NUTS (No-U-Turn Sampler).
-   - Raggiungere frequentemente la profondità massima potrebbe indicare inefficienza nel campionamento.
-   - **Caso corrente**: Nessuna catena ha raggiunto la massima profondità, il che significa che il campionatore è stato efficiente e non sono necessarie modifiche al parametro `max_treedepth`.
-
-3. **`$ebfmi` (Energy Bayesian Fraction of Missing Information)**:
-   - L’E-BFMI misura l’efficienza del campionamento in relazione all’energia Hamiltoniana. Valori inferiori a **0.3** indicano problemi di esplorazione della distribuzione a posteriori.
-   - **Caso corrente**: Tutte le catene presentano valori di E-BFMI superiori a 1, indicando un’ottima esplorazione della distribuzione e l’assenza di problemi nella geometria del modello.
-
-In sintesi, i risultati diagnostici indicano che il campionamento MCMC è stato eseguito correttamente e senza problemi:
-
-- **0 transizioni divergenti**: Il modello è ben specificato e la distribuzione a posteriori è stata esplorata in modo efficace.
-- **0 superamenti della profondità dell’albero**: Il campionatore è stato efficiente.
-- **E-BFMI > 1**: L’energia Hamiltoniana è stata esplorata in modo ottimale, senza segni di inefficienza.
-
-Questi risultati ci consentono di procedere con fiducia nell’analisi dei risultati, poiché non vi sono evidenze di problematiche legate al campionamento o alla geometria del modello.
-
-## Interpretazione dei Risultati
-
-I risultati della diagnosi delle catene Markoviane non evidenziano problematiche relative alla convergenza dell'algoritmo né discrepanze nel modello statistico adottato, permettendoci di procedere con l'analisi dei risultati ottenuti.
-
-L'analisi ha determinato un valore a posteriori per l'OR di 1.88, accompagnato da un intervallo di credibilità del 94% compreso tra 1.20 e 2.60. Poiché questo intervallo non include il valore 1, possiamo affermare, con un grado di certezza del 94%, che il comportamento delle api differisce nelle due condizioni sperimentali. Questo fornisce evidenza a supporto dell'ipotesi che le api dispongano di una visione cromatica.
 
 ## Riflessioni Conclusive
 

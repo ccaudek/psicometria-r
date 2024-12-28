@@ -43,13 +43,13 @@ Nell'analisi dei dati, l'obiettivo spesso è comprendere una quantità specifica
 
 In pratica, quando analizziamo un campione di dati, il nostro obiettivo è inferire determinate proprietà della popolazione intera dalla quale il campione è stato tratto. Il parametro è l'indicatore numerico di queste proprietà, ma poiché spesso non possiamo calcolarlo direttamente sulla popolazione, ricorriamo alle osservazioni del campione per stimarlo. La stima, quindi, rappresenta il valore approssimato del parametro ottenuto dal campione, mentre lo stimatore è la regola o la formula matematica che usiamo per arrivare a questa approssimazione.
 
-È importante riconoscere che le stime possono non corrispondere esattamente ai parametri che vogliamo comprendere. In altre parole, le stime sono solo approssimazioni del parametro a causa della natura aleatoria del campionamento. 
+È importante riconoscere che le stime non corrispondono mai esattamente ai parametri che vogliamo comprendere. In altre parole, le stime sono solo approssimazioni del parametro a causa della natura aleatoria del campionamento. 
 
-## La relazione tra stime e parametri
+### La relazione tra stime e parametri
 
-In questo capitolo, ci concentreremo sulla relazione tra le stime ottenute dai campioni e i parametri reali della popolazione, esplorando in particolare la connessione tra la media di un campione e la media della popolazione, denotata con $\mu$. Il nostro obiettivo è capire e caratterizzare l'incertezza che deriva dalla natura aleatoria delle stime, e per farlo, adotteremo l'approccio frequentista, facendo uso di un importante strumento statistico chiamato *distribuzione campionaria*.
+In questo capitolo, ci concentreremo sulla relazione tra le stime ottenute dai campioni e i parametri della popolazione, esplorando in particolare la connessione tra la media di un campione e la media della popolazione, denotata con $\mu$. Il nostro obiettivo è capire e caratterizzare l'incertezza che deriva dalla natura aleatoria delle stime, e per farlo, adotteremo l'approccio frequentista, facendo uso dello strumento statistico chiamato **distribuzione campionaria**.
 
-### Distribuzione campionaria
+## La Distribuzione Campionaria
 
 Per illustrare il concetto di distribuzione campionaria, possiamo iniziare considerando un caso semplice e specifico: una popolazione finita di dimensioni ridotte. Sebbene stiamo esaminando un caso particolare, è fondamentale notare che le proprietà e i principi che analizzeremo in questo contesto sono perfettamente applicabili a popolazioni di qualsiasi dimensione.
 
@@ -64,13 +64,13 @@ x <- c(2, 4.5, 5, 5.5)
 x
 ```
 
-L'istogramma seguente descrive la distribuzione di frequenza della popolazione.
+L'istogramma seguente descrive la distribuzione della popolazione.
 
 ```{r}
 ggplot(data.frame(x = x), aes(x)) +
   geom_histogram(
     bins = 5,
-    aes(y = ..density..)
+    aes(y = after_stat(density))
   )
 ```
 
@@ -83,7 +83,9 @@ hist_data <- hist(x, breaks = 5, plot = FALSE)
 # Stampa degli intervalli e delle frequenze relative
 cat("Intervalli utilizzati per l'istogramma:", hist_data$breaks, "\n")
 cat("Frequenze relative utilizzate per l'istogramma:", hist_data$density, "\n")
+```
 
+```{r}
 # Calcolo delle frequenze assolute
 hist_data_abs <- hist(x, breaks = 5, plot = FALSE)
 
@@ -91,44 +93,56 @@ hist_data_abs <- hist(x, breaks = 5, plot = FALSE)
 cat("Frequenze assolute utilizzate per l'istogramma:", hist_data_abs$counts, "\n")
 ```
 
-Calcoliamo la media e la varianza della popolazione.
+Calcoliamo la media e la varianza della popolazione. Media:
 
 ```{r}
-# Calcolo della media e della varianza della popolazione
-mean_x <- mean(x)
-var_x <- var(x) * ((length(x) - 1) / length(x)) # Varianza popolazione
-c(mean_x, var_x)
+mean_x <- mean(x) # Media della popolazione
+mean_x
 ```
 
-Supponiamo ora di voler considerare l'estrazione di tutti i possibili campioni di dimensione $n = 2$ da una popolazione rappresentata dal vettore `x`. Per fare ciò, possiamo fare uso della funzione `expand.grid` in R, che permette di generare tutte le combinazioni possibili di valori con ripetizione.
-
-Utilizzando `expand.grid`, otteniamo un `data.frame` in cui ogni riga rappresenta una coppia di valori possibili. La struttura risultante contiene tutte le combinazioni in cui ogni valore nel vettore `x` può essere abbinato a se stesso o a un altro valore nel vettore. Convertendo il risultato in una matrice, otteniamo una rappresentazione simile a un array NumPy, con 16 righe e 2 colonne, che rappresenta tutte le possibili coppie formate dai valori del vettore `x`.
-
-Questo approccio è coerente con un concetto matematico fondamentale: se stiamo scegliendo 2 elementi da un insieme di 4, e ogni elemento può essere scelto più di una volta (ossia con ripetizione), il numero totale di possibili combinazioni sarà $4^2 = 16$. Questo si spiega dal fatto che ci sono 4 scelte per il primo elemento e 4 scelte per il secondo elemento, risultando in un totale di $4 \times 4 = 16$ possibili coppie.
+Varianza:
 
 ```{r}
-# Creare tutte le combinazioni possibili di valori
+var_x <- var(x) * ((length(x) - 1) / length(x)) # Varianza popolazione
+var_x
+```
+
+Consideriamo tutti i possibili campioni di dimensione $n = 2$ che possono essere estratti dalla popolazione rappresentata dal vettore `x`. Per generare questi campioni, utilizziamo la funzione `expand.grid` in R, che consente di creare tutte le combinazioni possibili di valori, includendo le ripetizioni.
+
+Il risultato sarà un data frame con 16 righe e 2 colonne, dove ogni riga rappresenta una coppia possibile di valori estratti dal vettore `x`. Questo risultato è in linea con il principio del calcolo combinatorio: quando selezioniamo $n$ elementi da un insieme di $k$ elementi e permettiamo ripetizioni, il numero totale di combinazioni è dato da $k^n$. Nel nostro caso, con $k = 4$ e $n = 2$, otteniamo:
+
+$$
+4^2 = 16 \text{ combinazioni}.
+$$  
+
+Utilizzando `expand.grid`, possiamo verificare questo risultato in R:
+
+```{r}
+# Generazione delle combinazioni con ripetizione
 samples <- expand.grid(x, x)
-samples <- as.matrix(samples)  # Convertire in matrice
+
+# Visualizzazione del risultato
 print(samples)
 ```
 
-La matrice `samples` è bidimensionale, dove ogni riga rappresenta una coppia di valori. Per calcolare la media di ogni campione di ampiezza $n = 2$, possiamo utilizzare la funzione `rowMeans`, che calcola la media per ogni riga di una matrice. In questo modo, otteniamo un vettore contenente la media di ciascuna coppia di valori. Questo insieme di valori costituisce la *distribuzione campionaria* delle medie dei campioni di ampiezza $n = 2$ che possono essere estratti dalla popolazione `x`.
+Il data frame risultante mostrerà tutte le possibili coppie $(x_1, x_2)$, dove $x_1$ e $x_2$ possono essere scelti indipendentemente dalla popolazione $x = \{2, 4.5, 5, 5.5\}$.
+
+Per calcolare la media di ogni campione di ampiezza $n = 2$, possiamo utilizzare la funzione `rowMeans`, che calcola la media per ogni riga di una matrice. In questo modo, otteniamo un vettore contenente la media di ciascuna coppia di valori. Questo insieme di valori costituisce la **distribuzione campionaria** delle medie dei campioni di ampiezza $n = 2$ che possono essere estratti dalla popolazione `x`.
 
 ```{r}
 # Calcolare la media di ciascun campione
-means <- rowMeans(samples)
-print(means)
+sample_means <- rowMeans(samples)
+print(sample_means)
 ```
 
-La funzione `rowMeans(samples)` calcola la media per ogni riga della matrice `samples`. Una rappresentazione grafica della distribuzione campionaria dei campioni di ampiezza $n = 2$ che possono essere estratti dalla popolazione `x` è fornita qui sotto.
+Una rappresentazione grafica della distribuzione campionaria delle medie dei campioni di ampiezza $n = 2$ che possono essere estratti dalla popolazione `x` è fornita qui sotto.
 
 ```{r}
 # Istogramma delle medie campionarie
-ggplot(data.frame(means), aes(x = means)) +
+ggplot(data.frame(sample_means), aes(x = sample_means)) +
   geom_histogram(
     bins = 5,
-    aes(y = ..density..)
+    aes(y = after_stat(density))
 )
 ```
 
@@ -147,41 +161,47 @@ Procediamo ora al calcolo della media della distribuzione campionaria delle medi
 
 ```{r}
 # Calcolare la media delle medie campionarie
-mean_of_means <- mean(means)
-print(mean_of_means)
+mean(sample_means)
 ```
 
-### Valore atteso della media campionaria
+Si noti che questo valore coincide con la media della popolazione. In generale, infatti, possiamo dire quanto segue.
 
-Supponiamo che $ X_1, X_2, \ldots, X_n $ siano variabili aleatorie iid con valore atteso $ \mu $ e varianza $ \sigma^2 $. Vogliamo trovare il valore atteso della media campionaria:
+## Valore Atteso della Media Campionaria
+
+Il valore atteso della media campionaria è una proprietà fondamentale in statistica. Supponiamo che $X_1, X_2, \ldots, X_n$ siano variabili aleatorie indipendenti e identicamente distribuite (iid), con valore atteso $\mu$ e varianza $\sigma^2$. La media campionaria è definita come:
 
 $$
-\bar{X} = \frac{1}{n} \sum_{i=1}^n X_i 
+\bar{X} = \frac{1}{n} \sum_{i=1}^n X_i.
 $$
 
-Ecco la dimostrazione:
+Vogliamo dimostrare che il valore atteso della media campionaria $\mathbb{E}(\bar{X})$ coincide con il valore atteso delle singole variabili, cioè $\mu$.
+
+---
+
+### Dimostrazione
+
+Applichiamo le proprietà della speranza matematica per calcolare $\mathbb{E}(\bar{X})$:
 
 $$
 \begin{align*}
-\mathbb{E}(\bar{X}) & = \mathbb{E}\left(\frac{1}{n} \sum_{i=1}^n X_i\right) \\
-& = \frac{1}{n} \mathbb{E}\left(\sum_{i=1}^n X_i\right) \\
-& = \frac{1}{n} \sum_{i=1}^n \mathbb{E}(X_i) \\
-& = \frac{1}{n} \sum_{i=1}^n \mu \\
-& = \frac{1}{n} \cdot n \cdot \mu \\
-& = \mu
+\mathbb{E}(\bar{X}) & = \mathbb{E}\left(\frac{1}{n} \sum_{i=1}^n X_i\right) & \text{(definizione di media campionaria)} \\
+& = \frac{1}{n} \mathbb{E}\left(\sum_{i=1}^n X_i\right) & \text{(linearità della speranza)} \\
+& = \frac{1}{n} \sum_{i=1}^n \mathbb{E}(X_i) & \text{(speranza della somma)} \\
+& = \frac{1}{n} \sum_{i=1}^n \mu & \text{(tutte le $X_i$ hanno valore atteso $\mu$)} \\
+& = \frac{1}{n} \cdot n \cdot \mu & \text{(semplificazione della somma)} \\
+& = \mu.
 \end{align*}
 $$
 
-Quindi, il valore atteso della media campionaria di $ n $ variabili iid è uguale al valore atteso di ciascuna variabile singola, che in questo caso è $ \mu $.
+---
 
-Verifichiamo che ciò sia vero nel nostro caso specifico.
+### Interpretazione
 
-```{r}
-mean(x)
-mean(means)
-```
+Abbiamo dimostrato che il valore atteso della media campionaria è uguale al valore atteso delle singole variabili. In termini pratici, ciò implica che la media campionaria è un **stimatore non distorto** del valore atteso della popolazione: anche se la media campionaria può variare a seconda del campione, in media si avvicina sempre al valore atteso della popolazione, $\mu$.
 
-### Varianza della media campionaria
+Questa proprietà è una delle basi della statistica inferenziale. La media campionaria è uno degli stimatori più utilizzati in pratica proprio perché, oltre a essere non distorta, presenta altre proprietà utili, come l'efficienza (soprattutto per $n$ grande).
+
+## Varianza della media campionaria
 
 Dato che le variabili $X_1, X_2, \ldots, X_n$ sono indipendenti ed identicamente distribuite (iid) con valore atteso $\mu$ e varianza $\sigma^2$, possiamo calcolare la varianza della media campionaria $\bar{X}$ come segue:
 
@@ -194,73 +214,110 @@ $$
 & = \frac{1}{n^2} \cdot n \cdot \sigma^2 \\
 & = \frac{\sigma^2}{n}
 \end{align*}
-$$
+$$ 
 
 Quindi, la varianza della media campionaria di $n$ variabili iid è uguale alla varianza di ciascuna variabile singola divisa per $n$, che in questo caso è $\sigma^2/n$.
 
-Per l'esempio in discussione, il valore della varianza delle medie dei campioni è dunque pari a
+Questo risultato riflette un'importante proprietà statistica:
+
+- all'aumentare di $n$, la varianza della media campionaria diminuisce, rendendo la media campionaria una stima più precisa del valore atteso $\mu$. La riduzione della varianza è proporzionale a $1/n$, quindi raddoppiare il campione riduce la varianza della media campionaria di un fattore 2.
+
+In conclusione, la formula $\text{Var}(\bar{X}) = \frac{\sigma^2}{n}$ mostra che la precisione della media campionaria aumenta con la dimensione del campione, poiché la varianza diminuisce. Questo principio è alla base dell'importanza di campioni più grandi nella stima statistica.
+
+### Applicazione
+
+Analizziamo l'esempio in dettaglio per comprendere meglio i concetti relativi alle medie campionarie e al loro rapporto con la popolazione.
+
+---
+
+#### Varianza delle Medie Campionarie
+
+La varianza delle medie campionarie, calcolata empiricamente, può essere ottenuta direttamente dai dati:
 
 ```{r}
-var(x) * ((length(x) - 1)/ length(x)) / 2
+var(x) * ((length(x) - 1) / length(x)) / 2
 ```
 
-Lo stesso risultato si ottiene facendo la media delle 16 medie che abbiamo trovato in precedenza.
+Questo calcolo riflette la formula per la varianza della media campionaria, dove il fattore \((\text{length}(x) - 1) / \text{length}(x)\) corregge per il fatto che stiamo lavorando con una popolazione finita. In alternativa, possiamo calcolare lo stesso valore prendendo la varianza delle medie di tutti i campioni (16 in questo caso):
 
 ```{r}
-var(means) * ((length(means) - 1)/ length(means))
+var(sample_means) * ((length(sample_means) - 1) / length(sample_means))
 ```
 
-Consideriamo ora un particolare campione. Per esempio
+Entrambi i calcoli forniscono risultati coerenti con la teoria, dimostrando che la varianza delle medie campionarie è inferiore a quella della popolazione.
+
+---
+
+#### Analisi di un Campione Specifico
+
+Prendiamo ora un campione particolare dalla popolazione:
 
 ```{r}
-observed_sample = c(5, 5.5)
+observed_sample <- c(5, 5.5)
 print(observed_sample)
 ```
 
-Troviamo la media del campione:
+1. **Media del Campione**  
+La media del campione viene calcolata come segue:
 
 ```{r}
-sample_mean = mean(observed_sample)
+sample_mean <- mean(observed_sample)
 print(sample_mean)
 ```
 
-La media del campione è diversa dalla media della popolazione ($\mu$ = 4.25).
+La media campionaria ($\bar{x} = 5.25$) è diversa dalla media della popolazione ($\mu = 4.25$), come è atteso per un singolo campione.
 
-Troviamo la deviazione standard del campione:
+2. **Deviazione Standard del Campione**  
+La deviazione standard del campione è calcolata utilizzando la formula corretta per la varianza campionaria:
 
 ```{r}
-sample_sd = sqrt(var(observed_sample)/2)
+sample_sd <- sqrt(var(observed_sample) / 2)
 print(sample_sd)
 ```
 
-La deviazione standard del campione è diversa dalla deviazione standard della popolazione:
+Anche la deviazione standard del campione è diversa dalla deviazione standard della popolazione:
 
 ```{r}
-sqrt(var(x) * (length(x) - 1)/length(x))
+sqrt(var(x) * (length(x) - 1) / length(x))
 ```
 
-In conclusione, possiamo sottolineare due risultati centrali che emergono dall'analisi delle medie campionarie:
+Questo risultato riflette il fatto che un singolo campione non riproduce perfettamente le proprietà della popolazione, ma le medie campionarie aggregate tendono a rifletterle meglio.
 
-1. **Media delle medie campionarie e media della popolazione**: La media della distribuzione delle medie campionarie è identica alla media della popolazione. In termini matematici, questo significa che il valore atteso della media dei campioni (con ripetizione) da una popolazione (finita o infinita) con media $ \mu $ è:
+---
 
-$$
+### Risultati Centrali
+
+Dall'analisi delle medie campionarie emergono due risultati fondamentali:
+
+1. **Media delle Medie Campionarie e Media della Popolazione**  
+   La media della distribuzione delle medie campionarie coincide con la media della popolazione:
+   
+   $$
    \mathbb{E}(\bar{X}_n) = \mu.
-$$
+   $$
 
-2. **Varianza delle medie campionarie e varianza della popolazione**: La varianza della distribuzione delle medie campionarie è inferiore alla varianza della popolazione e, precisamente, è pari alla varianza della popolazione divisa per la dimensione del campione:
-
-$$
+2. **Varianza delle Medie Campionarie**  
+   La varianza delle medie campionarie è inferiore alla varianza della popolazione ed è pari a:
+   
+   $$
    \mathbb{V}(\bar{X}_n) = \frac{\sigma^2}{n}.
-$$
+   $$
 
-Questi risultati, che abbiamo verificato empiricamente attraverso la simulazione, ci offrono una comprensione profonda del comportamento delle medie campionarie.
+Questi risultati dimostrano empiricamente come le medie campionarie rappresentino una stima non distorta della media della popolazione e diventino più precise all'aumentare della dimensione del campione $n$.
 
-Inoltre, è importante notare che il comportamento della distribuzione delle medie campionarie dipende dalla forma della distribuzione della popolazione stessa:
+---
 
-- Se la popolazione segue una distribuzione normale, allora la distribuzione delle medie dei campioni sarà anch'essa normale.
-- Se la popolazione non segue una distribuzione normale, il teorema del limite centrale entra in gioco, assicurando che, man mano che le dimensioni del campione aumentano, la distribuzione delle medie dei campioni converga a una distribuzione normale.
+### Forma della Distribuzione delle Medie Campionarie
 
-Questi principi sono fondamentali in statistica e forniscono la base per molte tecniche di inferenza e modellazione.
+Il comportamento della distribuzione delle medie campionarie dipende dalla distribuzione della popolazione:
+
+- **Distribuzione Normale**: Se la popolazione segue una distribuzione normale, le medie campionarie seguiranno anch'esse una distribuzione normale, indipendentemente dalla dimensione del campione.
+- **Distribuzione Non Normale**: Se la popolazione non segue una distribuzione normale, il **Teorema del Limite Centrale** garantisce che, per dimensioni del campione sufficientemente grandi, la distribuzione delle medie campionarie tenderà a una distribuzione normale.
+
+---
+
+In conclusione, l'analisi delle medie campionarie ci fornisce una comprensione fondamentale dei principi statistici alla base dell'inferenza. La convergenza delle medie campionarie alla media della popolazione e la riduzione della loro varianza con l'aumentare di $n$ sono concetti chiave che supportano molte tecniche di stima e test statistici. Inoltre, il ruolo del Teorema del Limite Centrale evidenzia la robustezza di questi principi, indipendentemente dalla forma della distribuzione di partenza.
+
 
 ## Errore standard e rappresentazione dell'incertezza inferenziale
 
@@ -565,5 +622,4 @@ sessionInfo()
 ```
 
 ## Bibliografia {.unnumbered}
-
 

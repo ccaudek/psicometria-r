@@ -1,0 +1,254 @@
+---
+title: "Variazione dell'umore durante il giorno"
+format: html
+---
+
+```{r}
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(here)
+  library(rio)
+  library(brms)
+  library(cmdstanr)
+  library(lme4)
+  library(sjPlot)
+})
+```
+
+## Disegno dello Studio
+
+Lo studio utilizza il metodo dell’**Ecological Momentary Assessment (EMA)**, con 5 rilevazioni giornaliere effettuate una volta alla settimana per un periodo di due mesi.
+
+### Misurazione dell'umore momentaneo
+
+L'umore viene valutato tramite 4 item che chiedono al partecipante di indicare, al momento della rilevazione, quanto si sente:
+
+-   **Nervoso**\
+-   **Turbato**\
+-   **Soddisfatto**\
+-   **Felice**
+
+Le risposte vengono registrate su una scala Likert a 5 passi, con i seguenti livelli:
+
+1.  **Per niente**\
+2.  **Poco**\
+3.  **Moderatamente**\
+4.  **Abbastanza**\
+5.  **Molto**
+
+## Analisi dei dati
+
+Importo i dati:
+
+```{r}
+df <- rio::import(here::here("data", "mood_ema.csv"))
+```
+
+```{r}
+glimpse(df)
+```
+
+Creo la variabile `neg_aff` in cui combino i valori dei 4 item che misurano l'umore momentaneo:
+
+```{r}
+df <- df |>
+  mutate(
+    neg_aff = upset + nervous - satisfied - happy
+  ) 
+```
+
+Dato che mi interessa la variazione dell'umore momentaneo all'interno della giornata, per semplificare l'analisi, calcolo solo 5 valori per ciascun soggetto, uno per ciascun diverso momento del giorno:
+
+```{r}
+bysubj_na <- df |> 
+  group_by(id, time_window) |> 
+  summarize(
+    negaff = mean(neg_aff)
+  ) |> 
+  drop_na()
+
+head(bysubj_na)
+```
+
+In questo modo il dataset ha un numero totale di osservazioni pari a:
+
+```{r}
+nrow(bysubj_na)
+```
+
+Visualizzo la distribuzione dei valori dell'umore momentaneo:
+
+```{r}
+hist(bysubj_na$negaff)
+```
+
+Nei dati, la variabile `time_window` è una variabile qualitativa con 5 livelli, che corrispondono ai diversi momenti temporali delle rilevazioni giornaliere (per es. la prima rilevazione era nella fascia oraria dalle 9:30 alle 10:30); l'ultima era tra le 18:30 e le 19:30. Con l'istruzione successiva specifico che la variabile `time_window` è una variabile qualitativa.
+
+```{r}
+bysubj_na$time_window <- factor(bysubj_na$time_window)
+```
+
+## Effett medio
+
+Esaminiamo il livello medio dell'umore momentaneo in fuzione del momento della giornata:
+
+```{r}
+bysubj_na |> 
+  group_by(time_window) |> 
+  summarize(
+    avg_na = mean(negaff)
+  )
+```
+
+I valori medi suggeriscono che il Negative Affect diminuisce tra la prima notifica (la mattina) e l'ultima notifica (la sera).
+
+## Differenze individuali
+
+Ci sono però tante differenze individuali. Esaminiamo i dati di 10 soggetti presi a caso:
+
+```{r}
+# Filtrare i soggetti con almeno 5 valori di time_window
+bysubj_filtered <- bysubj_na %>%
+  group_by(id) %>%                      # Raggruppa per id
+  filter(n_distinct(time_window) == 5) %>%  # Mantieni solo soggetti con 5 time_window distinti
+  ungroup()                             # Rimuovi il raggruppamento
+
+# Visualizzare le prime righe del dataset filtrato
+glimpse(bysubj_filtered)
+```
+
+```{r}
+set.seed(42)
+
+# Selezionare 10 ID casuali
+sample_ids <- bysubj_filtered %>%
+  distinct(id) %>%            # Ottenere gli ID unici
+  sample_n(10) %>%            # Selezionare 10 ID casuali
+  pull(id)                    # Estrarre il vettore di ID
+
+# Filtrare il dataset per includere solo gli ID selezionati
+bysubj_subset <- bysubj_na %>%
+  filter(id %in% sample_ids)
+```
+
+```{r}
+# Convertire time_window in numerico
+bysubj_subset <- bysubj_subset %>%
+  mutate(time_window = as.numeric(as.character(time_window)))
+
+# Creare il grafico
+ggplot(bysubj_subset, aes(x = time_window, y = negaff)) +
+  geom_point() +
+  scale_x_continuous(breaks = 1:5) +  # Intervalli corretti per time_window
+  facet_wrap(~id) +
+  labs(
+    title = "Negative Affect per Time Window",
+    x = "Time Window",
+    y = "Negative Affect"
+  )
+```
+
+## Modello statistico
+
+Per rendere conto delle variazioni individuali e la struttura dei dati utilizzo un modello multilivello, il quale stima l'effetto complessivo di `time_window`, tenendo però in considerazione le differenze individuali.
+
+```{r}
+fm <- lmer(negaff ~ time_window + (1 | id), bysubj_na)
+```
+
+```{r}
+summary(fm)
+```
+
+```{r}
+plot_model(fm, type = "pred", terms = "time_window")
+```
+
+Il modello statistico precedente ipotizza che l'andamento dell'umore in funzione del momento della giornata sia uguale per tutti i partecipanti. L'unica differenza tra i partecipanti è il livello medio di umore. Ma abbiamo visto prima che questo non è vero per i dati del campione: l'andamento dell'umore in funzione del momento della giornata è diverso per ciascun partecipante.
+
+Per rendere conto di queste differenze, il modello dovrebbe essere scritto nel modo seguente:
+
+``` r
+fm1 <- lmer(negaff ~ time_window + (1 + time_window | id), bysubj_na)
+```
+
+Tuttavia, il modello precedente stimato con l'approccio frequentista produce un errore, in quanto il numero di parametri che devono essere stimati è maggiore del numero dei dati disponibili.
+
+È invece possibile stimare il modello usando un approccio bayesiano:
+
+```{r}
+#| output: false
+#| 
+mod <- brm( 
+  negaff ~ time_window + (1 + time_window | id), 
+  family = gaussian(), 
+  bysubj_na, 
+  backend = "cmdstanr",
+  iter = 4000,          # Aumenta il numero di iterazioni
+  warmup = 2000,        # Aumenta il periodo di warmup
+  chains = 4,           # Usa più catene
+  cores = 8,             # Usa più core per velocizzare il calcolo
+  prior = c(
+    prior(normal(0, 1), class = "b"),         # Priori per i coefficienti fissi
+    prior(student_t(3, 0, 2), class = "sd"), # Priori per deviazioni standard (random effects)
+    prior(student_t(3, 0, 2), class = "sigma") # Priori per l'errore residuo
+  )
+)
+```
+
+Esaminiamo la bontà di adattamento del modello ai dati.
+
+```{r}
+pp_check(mod)
+```
+
+Esaminiamo i risultati ottenuti dal modello bayesiano.
+
+```{r}
+summary(mod)
+```
+
+
+Rappresentiamo l'incertezza della stima:
+
+```{r}
+conditional_effects(mod, "time_window")
+```
+
+## Grandezza dell'effetto
+
+```{r}
+# Estrarre la varianza degli effetti casuali e residui
+var_comp <- as.data.frame(VarCorr(fm))
+var_subject <- var_comp$vcov[var_comp$grp == "id"]  # Varianza degli effetti casuali
+var_residual <- attr(VarCorr(fm), "sc")^2          # Varianza residua
+```
+
+```{r}
+# Calcolo della deviazione standard residua
+sd_residual <- sqrt(var_residual)
+
+# Calcolare Cohen's d per ciascun livello di time_window
+cohen_d <- coef(summary(fm))[, "Estimate"] / sd_residual
+
+# Visualizza i risultati
+cohen_d
+```
+
+## Bontà d'adattamento del modello
+
+```{r}
+# Predire i valori fissi
+fixed_preds <- predict(fm, re.form = NA)  # Solo effetti fissi
+var_fixed <- var(fixed_preds)            # Varianza spiegata dagli effetti fissi
+```
+
+```{r}
+# Calcolo R^2
+var_total <- var_subject + var_residual + var_fixed  # Varianza totale
+r2_marginal <- var_fixed / var_total                 # R^2 marginale (fissi)
+r2_conditional <- (var_fixed + var_subject) / var_total  # R^2 condizionato (fissi + casuali)
+
+cat("R^2 marginale:", r2_marginal, "\n")
+cat("R^2 condizionato:", r2_conditional, "\n")
+```

@@ -1,0 +1,462 @@
+# Zucchero sintattico {#sec-linar-models-brms}
+
+::: callout-note
+## In questo capitolo imparerai a
+
+- utilizzare `brm` per costruire e adattare modelli;
+- analizzare i risultati con `brm`.
+:::
+
+::: callout-tip
+## Prerequisiti
+
+- Consultare [The brms Book: Applied Bayesian Regression Modelling Using R and Stan](https://paulbuerkner.com/software/brms-book/brms-book.pdf).
+:::
+
+::: callout-important
+## Preparazione del Notebook
+
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(brms, posterior, cmdstanr)
+```
+:::
+
+## Introduzione
+
+I modelli lineari sono così ampiamente utilizzati che sono stati sviluppati appositamente una sintassi, dei metodi e delle librerie per la regressione. Una di queste librerie è **brms** (Bayesian Regression Models using Stan), già introdotta nel @sec-linmod-bayesian-reg. **brms** è un pacchetto R progettato per adattare modelli gerarchici generalizzati lineari (di cui il modello lineare bivariato è un caso particolare), utilizzando una sintassi simile a quella presente nei pacchetti R, come **lme4**, **nlme**, **rstanarm**. **brms** si basa su Stan, ma offre un'API di livello superiore.
+
+In questo capitolo esploreremo in maniera dettagliata come condurre un'analisi di regressione utilizzando **brms** invece di Stan.
+
+## Interfaccia **brms**  
+
+Per fare un esempio, applicheremo il modello di regressione bivariato alla relazione tra altezza e peso. I dati contenuti nel file `Howell_18.csv` sono parte di un censimento parziale della popolazione !Kung San dell’area di Dobe, raccolti tramite interviste condotte da Nancy Howell alla fine degli anni ’60 [@McElreath_rethinking]. I !Kung San sono una delle popolazioni di raccoglitori-cacciatori più conosciute del ventesimo secolo e sono stati oggetto di numerosi studi antropologici. In questa analisi, consideriamo un sottocampione di dati relativi alla popolazione adulta (di età superiore ai 18 anni).
+
+Importiamo i dati contenuti nel file `Howell_18.csv`.
+
+```{r}
+df <- rio::import(here::here("data", "Howell_18.csv"))
+```
+
+```{r}
+df |> 
+  head()
+```
+
+Generiamo un diagramma a dispersione tra le variabili `height` (altezza) e `weight` (peso):
+
+```{r}
+ggplot(df, aes(x = weight, y = height)) +
+  geom_point() +  
+  labs(x = "Weight", y = "Height") 
+```
+
+**brms** si concentra sui modelli di regressione, e questa specializzazione permette di adottare una sintassi più semplice, conosciuta come sintassi di Wilkinson [@wilkinson1973symbolic]. 
+
+Ad esempio, il modello $y = \alpha + \beta x + \varepsilon$ si implementa come segue:
+
+```r
+a_model = brm(y ∼ 1 + x, data = df)
+```
+
+Nella sintassi di Wilkinson, il simbolo tilde (∼) separa la variabile dipendente (a sinistra) dalle variabili indipendenti (a destra). In questo caso, stiamo specificando solo la media ($\mu$) della $y$.
+
+**brms** assume di default che la distribuzione di verosimiglianza sia gaussiana, ma è possibile modificarla tramite l'argomento `family`.
+
+La notazione `1` si riferisce all'intercetta. L'intercetta viene inclusa di default. Per cui il modello precedente si può anche scrivere, in maniera equivalente, come
+
+```r
+a_model = brm(y ∼ x, data = df)
+```
+
+Se desideriaamo escludere l'intercetta dal modello, possiamo farlo in questo modo
+
+```r
+no_intercept_model = brm(y ∼ 0 + x, data = df)
+```
+
+oppure in questo modo
+
+```r
+no_intercept_model = brm(y ∼ -1 + x, data = df)
+```
+
+Per includere ulteriori variabili nel modello, possiamo procedere così:
+
+```r
+model_2 = brm("y ∼ x + z", data)
+```
+
+**brms** consente anche di includere effetti a livello di gruppo (gerarchici). Ad esempio, se desideriamo un modello ad effetti misti nel quale abbiamo un effetto diverso di $x$ in ciascun gruppo `g`, possiamo usare la seguente sintassi:
+
+```r
+model_h = brm(y ∼ x + z + (x | g), data = df)
+```
+
+La sintassi di Wilkinson non specifica le distribuzioni a priori, ma solo come le variabili dipendenti e indipendenti sono collegate. **brms** definirà automaticamente delle distribuzioni a priori debolmente informative per noi,  rendendo superflua la loro definizione esplicita. Tuttavia, se preferiamo avere un maggiore controllo, possiamo specificarle manualmente, come vedremo in seguito.
+
+### Centrare le Variabili
+
+Per interpretare più facilmente l'intercetta, centriamo la variabile `weight` rispetto alla media del campione:
+
+```{r}
+df$weight_c = df$weight - mean(df$weight)
+```
+
+Ora, l'intercetta ($\alpha$) rappresenterà l'altezza media quando il peso corrisponde alla media del campione.
+
+Adattiamo un modello lineare con la variabile `weight` centrata e esaminiamo i risultati:
+
+```{r}
+#| message: false
+#| warning: false
+#| output: false
+#| 
+
+fit_1 = brm(
+  bf(height ~ 1 + weight_c, center = FALSE), 
+  data = df, 
+  backend = "cmdstanr", 
+  silent = 0
+)
+```
+
+Le tracce dei parametri si ottengono nel modo seguente:
+
+```{r}
+mcmc_trace(
+  fit_1, 
+  pars = c("b_Intercept", "b_weight_c", "sigma"),
+  facet_args = list(nrow = 3)
+)
+```
+
+```{r}
+summary(fit_1)
+```
+
+La stima dell'intercetta $\alpha$ = 154.60 suggerisce che, per le persone con un peso corrispondente al valore medio del campione analizzato, l'altezza prevista è di 154.60 cm.
+
+Possiamo confrontare i risultati ottenuti da **brm()** con quelli prodotti dall'appriccio frequentista:
+
+```{r}
+fit_2 <- lm(height ~ 1 + weight_c, data = df)
+```
+
+```{r}
+summary(fit_2)
+```
+
+Anche in questo caso, l'uso di prior debolmente informativi fa in modo che i risultati dei due approcci siano praticamente equivalenti.
+
+### Visualizzazione dei Risultati
+
+Per comprendere la relazione stimata, utilizziamo la funzione `conditional_effects`:
+
+```{r}
+conditional_effects(fit_1, effects = "weight_c")
+```
+
+Il grafico generato mostra:
+
+- Media posteriore: La linea rappresenta la stima centrale dell'altezza per un dato peso.
+- Intervallo di densità più alta (HDI): L'area evidenziata intorno alla linea mostra l'incertezza delle stime con un intervallo di probabilità del 95%.
+
+Se si desidera modificare la percentuale dell'intervallo di credibilità, è possibile farlo utilizzando l'argomento `prob`, per esempio:
+
+```{r}
+conditional_effects(fit_1, effects = "weight_c", prob = 0.89)
+```
+
+## Distribuzione a Posteriori dei Parametri
+
+Per esaminare la distribuzione a posteriori dei parametri usiamo la funzione **mcmc_plot()**:
+
+```{r}
+mcmc_plot(fit_1, type = "dens")
+```
+
+Esaminiamo in maggiori dettagli il sommario numerico dei parametri stimati:
+
+```{r}
+draws <- posterior::as_draws(fit_1, variable = "^b_", regex = TRUE)
+posterior::summarise_draws(draws, "mean", "sd", "mcse_mean", "mcse_sd")
+```
+
+Utilizziamo la funzione **as_draws()** che trasforma un oggetto R in un formato compatibile con **posterior**. Gli argomenti `variable = "^b_"` e `regex = TRUE`consentono di selezionare solo i parametri il cui nome inizia con `b_`: nel nostro caso saranno l'intercetta e la pendenza del modello di regressione lineare.
+
+Successivamente usiamo la funzione **summarise_draws()** con gli argomenti specificati per un sommario della distribuzione a posteriori dei parametri prescelti.
+
+### Spiegazione di `mcse_mean` e `mcse_sd`
+
+I valori `mcse_mean` e `mcse_sd` sono le **Monte Carlo Standard Errors** (errori standard Monte Carlo) per la stima della media (`mean`) e della deviazione standard (`sd`), rispettivamente. Questi valori quantificano l'incertezza associata al processo di campionamento effettuato durante l'analisi bayesiana, in particolare quando si utilizzano algoritmi Monte Carlo come MCMC (Markov Chain Monte Carlo).
+
+#### **`mcse_mean`**
+- Rappresenta l'errore standard Monte Carlo per la stima della media.
+- Indica quanto la media stimata ($\text{mean}$) potrebbe variare a causa della finitezza dei campioni generati dall'algoritmo MCMC.
+- Un valore di `mcse_mean` basso rispetto alla deviazione standard ($\text{sd}$) suggerisce che il numero di campioni generati è sufficiente per ottenere una stima accurata della media.
+
+#### **`mcse_sd`**
+- Rappresenta l'errore standard Monte Carlo per la stima della deviazione standard.
+- Indica quanto potrebbe variare la stima della deviazione standard ($\text{sd}$) a causa del numero finito di campioni generati.
+- Anche qui, un valore basso di `mcse_sd` rispetto alla `sd` suggerisce che l'incertezza introdotta dal campionamento è trascurabile.
+
+### Come interpretarli?
+
+- **Proporzione rispetto alla `sd`:**
+  - `mcse_mean` e `mcse_sd` dovrebbero essere molto più piccoli rispetto ai rispettivi parametri (`mean` e `sd`), idealmente almeno un ordine di grandezza inferiore.
+  - Ad esempio, per `b_Intercept`, `mcse_mean` = 0.0044 è molto più piccolo rispetto a `sd` = 0.2695, indicando che la stima della media è robusta.
+  
+- **Indicazione della qualità del campionamento:**
+  - Valori alti di `mcse_mean` o `mcse_sd` rispetto alla `sd` potrebbero indicare che il numero di iterazioni MCMC non è sufficiente, che le catene non sono ben mescolate o che ci sono problemi di convergenza.
+
+In sintesi, `mcse_mean` e `mcse_sd` sono utili per valutare l'affidabilità delle stime derivate dal campionamento Monte Carlo. Se questi valori sono bassi, possiamo essere confidenti che il numero di campioni è sufficiente per rappresentare accuratamente la distribuzione a posteriori.
+
+## Specificare i Priors
+
+Se vogliamo personalizzare i priors, possiamo utilizzare la funzione `get_prior` per esplorare quelli predefiniti:
+
+```{r}
+get_prior(height ~ 1 + weight_c, data = df)
+```
+
+1. **`prior`**: descrive il prior predefinito assegnato a ciascun parametro del modello. Ad esempio:
+   - `student_t(3, 154.3, 8.5)`: prior t di Student per l'intercetta con 3 gradi di libertà, una media di 154.3, e una scala di 8.5.
+   - `(flat)`: prior piatto (non informativo) per i coefficienti delle variabili predittive, come $b$ e $b_{weight_c}$.
+   - `student_t(3, 0, 8.5)`: prior t di Student per il parametro $\sigma$ (deviazione standard residua), centrato su 0 con una scala di 8.5.
+
+2. **`class`**: identifica la classe di parametro a cui il prior si applica:
+   - `Intercept`: prior per l'intercetta ($\alpha$).
+   - `b`: prior per i coefficienti delle variabili predittive ($\beta$).
+   - `sigma`: prior per il parametro della deviazione standard residua ($\sigma$).
+
+3. **`coef`**: specifica a quale predittore si riferisce il prior, se applicabile. Ad esempio:
+   - Vuoto per l'intercetta (poiché non dipende da un predittore specifico).
+   - `weight_c` per il coefficiente relativo al predittore `weight_c`.
+
+4. **`lb` e `ub`**: rappresentano rispettivamente i limiti inferiori (lower bound) e superiori (upper bound) per il prior, se specificati. Ad esempio:
+   - Per `sigma`, il limite inferiore è $0$, dato che la deviazione standard non può essere negativa.
+
+5. **`source`**: indica l'origine del prior. Se il prior è predefinito (default), il valore sarà `default`. Se un prior è specificato manualmente dall’utente, sarà indicato come tale.
+
+Ora impostiamo priors espliciti e adattiamo un nuovo modello:
+
+```{r}
+prior_guassian <-
+  prior(normal(160, 10), class = "b", coef = "Intercept") +
+  prior(normal(0, 5), class = "b", coef = "weight_c") +
+  prior(cauchy(0, 5), class = "sigma")
+```
+
+```{r}
+#| message: false
+#| warning: false
+#| output: false
+#| 
+fit_2 = brm(
+  bf(height ~ 1 + weight_c, center = FALSE), 
+  prior = prior_guassian,
+  data = df, 
+  backend = "cmdstanr", 
+  silent = 0
+)
+```
+
+Otteniamo un sommario numerico dei parametri stimati:
+
+```{r}
+draws <- posterior::as_draws(fit_2, variable = "^b_", regex = TRUE)
+posterior::summarise_draws(draws, "mean", "sd", "mcse_mean", "mcse_sd")
+```
+
+I prior che abbiamo specificato non cambiano in maniera rilevante la soluzione a posteriori.
+
+## Predizioni Predittive a Posteriori
+
+Un aspetto fondamentale nella valutazione di un modello statistico, sia frequentista che bayesiano, è verificare quanto bene i dati osservati siano rappresentati dalle predizioni del modello. Tuttavia, l'approccio e l'interpretazione differiscono tra i due paradigmi.
+
+### Confronto Frequentista
+
+Nel caso frequentista, si confrontano i valori predetti dal modello, $\hat{y} = \hat{\alpha} + \hat{\beta}x$, con i dati osservati. Questo confronto si basa sull'analisi di:
+- La vicinanza della retta di regressione stimata ai dati osservati.
+- L'eventuale presenza di pattern nei dati che si discostano da un andamento lineare.
+- La variazione della dispersione dei valori di $y$ rispetto a $x$ (ad esempio, per verificare l'ipotesi di omoschedasticità).
+
+### Approccio Bayesiano
+
+Nell'approccio bayesiano, si eseguono le stesse verifiche di base, ma l'analisi si arricchisce attraverso l'uso delle **Predizioni Predittive a Posteriori (Posterior Predictive Checks, PPCs)**. Questo metodo consente di confrontare i dati osservati con dati simulati dal modello, utilizzando l'incertezza stimata nelle distribuzioni a posteriori dei parametri.
+
+### Costruzione delle Predizioni Predittive a Posteriori
+
+Nel caso di un modello bivariato, il processo per generare un grafico delle Predizioni Predittive a Posteriori è il seguente:
+
+1. **Dati osservati:** Si parte dall'istogramma lisciato dei dati osservati, che rappresenta la distribuzione empirica di $y$.
+
+2. **Simulazione di dati predetti:**
+   - Si estrae un campione casuale di valori $\alpha'$, $\beta'$, e $\sigma'$ dalle distribuzioni a posteriori dei parametri ($\alpha$, $\beta$, e $\sigma$).
+   - Usando questi valori, si calcolano dati simulati da una distribuzione normale:
+     $$
+     y_{\text{sim}} \sim \mathcal{N}(\alpha' + \beta'x, \sigma')
+     $$
+     dove $x$ sono i valori predittori osservati.
+
+3. **Creazione di istogrammi:** Per ogni campione simulato, si costruisce un istogramma lisciato che rappresenta la distribuzione predetta dal modello.
+
+4. **Ripetizione:** Il processo viene ripetuto più volte, generando molti istogrammi lisciati.
+
+5. **Confronto:** Tutti gli istogrammi predetti vengono sovrapposti all'istogramma dei dati osservati. Questo consente di confrontare visivamente la capacità del modello di rappresentare la distribuzione dei dati.
+
+### Interpretazione
+
+- **Buona corrispondenza:** Se gli istogrammi lisciati dei dati simulati si sovrappongono bene all'istogramma dei dati osservati, significa che il modello è in grado di rappresentare adeguatamente il campione corrente.
+- **Discrepanze:** Se vi sono discrepanze sistematiche (ad esempio, picchi o code mancanti nei dati predetti rispetto agli osservati), ciò indica che il modello potrebbe non essere adeguato o che vi sono aspetti dei dati non catturati dal modello.
+
+L'approccio delle Predizioni Predittive a Posteriori è particolarmente potente perché:
+
+- Integra l'incertezza nei parametri del modello.
+- Permette di verificare non solo la bontà di adattamento complessiva, ma anche specifici aspetti delle distribuzioni predette.
+- È visivo e intuitivo, facilitando l'identificazione di discrepanze tra modello e dati.
+
+In conclusione, le Predizioni Predittive a Posteriori forniscono un modo robusto per valutare l'adeguatezza di un modello bayesiano rispetto ai dati osservati. Se il modello riproduce bene la distribuzione dei dati osservati, si può concludere che è adatto almeno per il campione corrente. In caso contrario, potrebbe essere necessario rivedere le specifiche del modello, come i priors o la struttura delle variabili.
+
+Verifichiamo dunque le predizioni del modello confrontandole con i dati osservati del campione corrente:
+
+```{r}
+pp_check(fit_2)
+```
+
+Nel caso presente, vi è una buona corrispondenza tra i dati simulati dal modello e i dati osservati.
+
+Il grafico seguente analizza gli errori del modello rispetto alla retta di regressione stimata.
+
+```{r}
+pp_check(fit_1, type = "error_scatter_avg")
+```
+
+Questo comando utilizza la funzione `pp_check()` per produrre un grafico che mostra i residui bayesiani, ovvero le differenze tra i dati osservati e quelli predetti dal modello. Nel tipo specifico di grafico scelto (`"error_scatter_avg"`), i residui sono rappresentati rispetto ai valori predetti, consentendo di valutare visivamente se sono distribuiti in modo uniforme.
+
+Dal grafico, si osserva che i residui bayesiani appaiono distribuiti in modo omogeneo rispetto alla retta di regressione (che non è direttamente mostrata nel grafico). Questo suggerisce che:
+
+- Il modello cattura correttamente la relazione tra la variabile predittiva e la variabile di risposta.
+- Non ci sono pattern sistematici nei residui, come deviazioni non lineari o variazioni della dispersione (eteroschedasticità).
+
+Se fossero presenti pattern evidenti nei residui (ad esempio, una struttura curva o una variazione sistematica della dispersione), ciò indicherebbe che il modello potrebbe non essere adeguato, richiedendo una rivalutazione della sua struttura (ad esempio, aggiungendo termini non lineari o trasformando le variabili).
+
+## Regressione Robusta
+
+In questa sezione introduciamo la regressione robusta. Lo scopo è quello di mostrare quanto sia facile modificare il modello definito da **brm** per specificare una diversa distribuzione degli errori. Questo non è possibile nel caso dell'approccio frequentista.
+
+I modelli robusti sono utili in presenza di outlier. Ad esempio, introduciamo un outlier nei dati:
+ 
+```{r}
+df_outlier <- df
+df_outlier$height[1] <- 200
+df_outlier$weight_c[1] <- -15
+```
+
+```{r}
+df_outlier |> 
+  ggplot(aes(x = weight_c, y = height)) +
+    geom_point() +  
+    labs(x = "Weight", y = "Height") 
+```
+
+Notiamo come la presenza di un solo outlier introduce una distorsione nei risultati:
+
+```{r}
+#| message: false
+#| warning: false
+#| output: false
+#| 
+fit_3 = brm(
+  bf(height ~ 1 + weight_c, center = FALSE), 
+  prior = prior_guassian,
+  data = df_outlier, 
+  backend = "cmdstanr", 
+  silent = 0
+)
+```
+
+```{r}
+draws <- posterior::as_draws(fit_3, variable = "^b_", regex = TRUE)
+posterior::summarise_draws(draws, "mean", "sd", "mcse_mean", "mcse_sd")
+```
+
+Adattiamo ora un modello robusto utilizzando una distribuzione $t$ di Student:
+
+```{r}
+#| message: false
+#| warning: false
+#| output: false
+#| 
+fit_4 = brm(
+  bf(height ~ 1 + weight_c, center = FALSE), 
+  prior = prior_guassian,
+  family = student(),
+  data = df_outlier, 
+  backend = "cmdstanr", 
+  silent = 0
+)
+```
+
+I risultati mostrano che il modello $t$ è meno influenzato dagli outlier rispetto al modello gaussiano. 
+
+```{r}
+draws <- posterior::as_draws(fit_4, variable = "^b_", regex = TRUE)
+posterior::summarise_draws(draws, "mean", "sd", "mcse_mean", "mcse_sd")
+```
+
+Il parametro $\nu$ della $t$ di Student viene stimato dal modello. Nel caso presente
+
+```{r}
+draws <- posterior::as_draws(fit_4, variable = "nu")
+posterior::summarise_draws(draws, "mean", "sd", "mcse_mean", "mcse_sd")
+```
+
+Con un parametro $\nu$ = 6, la $t$ di Student ha delle "code" molto maggiori di una gaussiana, e questo le consene di "assorbire" gli outliers in maniera maggiore che la gaussiana.
+
+## Indice di Determinazione Bayesiano
+
+Con il pacchetto **brms**, possiamo calcolare il **Bayes $R^2$**, che rappresenta l'equivalente bayesiano del classico indice di determinazione $R^2$. Questo indice quantifica la proporzione di varianza spiegata dal modello, tenendo conto dell'incertezza intrinseca delle stime bayesiane.
+
+Il comando per calcolarlo è:
+
+```{r}
+bayes_R2(fit_4)
+```
+
+Il comando restituisce un tibble (una tabella ordinata) con le seguenti informazioni:
+
+- **Estimate**: La stima media del Bayes $R^2$, cioè la proporzione di varianza spiegata dal modello, basata sulle distribuzioni a posteriori dei parametri.
+- **Est.Error**: L'errore standard associato alla stima del $R^2$.
+- **Q2.5** e **Q97.5**: I limiti inferiore e superiore dell'intervallo di credibilità al 95% per il Bayes $R^2$. Questi valori indicano l'incertezza sul $R^2$, riflettendo la distribuzione a posteriori.
+
+Nel caso presente
+
+- **Stima del $R^2$**: Il modello spiega in media circa il 50% della varianza osservata nella variabile dipendente.
+- **Errore Standard**: L'incertezza sulla stima è relativamente bassa (±0.02).
+- **Intervallo di Credibilità**: C'è un 95% di probabilità che il vero valore del $R^2$ si trovi tra 0.457 e 0.537.
+
+### Differenze rispetto al Frequentista $R^2$
+
+1. **Incertezza**: Il Bayes $R^2$ include un'intera distribuzione a posteriori, permettendo di rappresentare l'incertezza attraverso l'intervallo di credibilità. Questo non è possibile con il $R^2$ frequentista, che fornisce una stima puntuale.
+2. **Priors**: Il Bayes $R^2$ è influenzato dai priors scelti per i parametri del modello, il che consente una maggiore flessibilità e incorpora conoscenze preesistenti.
+
+In conclusione, il Bayes $R^2$ è uno strumento potente per valutare l'adattamento di un modello bayesiano, permettendo di quantificare non solo la proporzione di varianza spiegata, ma anche l'incertezza associata alla stima. 
+
+## Riflessioni conclusive
+
+Questo capitolo ha mostrato come utilizzare **brms** per costruire e interpretare modelli lineari, evidenziando le sue capacità di gestione dei priors, diagnostica e modellizzazione robusta. Grazie alla sua semplicità e flessibilità, **brms** rappresenta un potente strumento per l'inferenza bayesiana.
+
+
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
+
+```{r}
+sessionInfo()
+```
+
+## Bibliografia {.unnumbered}

@@ -27,9 +27,15 @@ pacman::p_load(cmdstanr, posterior, brms, bayestestR, insight)
 
 ## Introduzione 
 
-Nel capitolo precedente (@sec-two-groups-comparison), abbiamo analizzato la differenza tra le medie di due campioni indipendenti adottando un approccio bayesiano. In quel contesto, i due gruppi erano considerati entità separate, e la differenza tra le medie è stata calcolata direttamente.
+Spesso, ci troviamo ad affrontare la necessità di confrontare due gruppi di dati. Potrebbe interessarci sapere se la media di un gruppo è maggiore o diversa rispetto a quella di un altro gruppo. Per effettuare tale confronto, è fondamentale utilizzare un modello statistico, poiché le vere differenze tra i gruppi sono spesso accompagnate da rumore di misurazione o fluttuazioni casuali del fenomeno in esame. Questo rende difficile trarre conclusioni basandosi unicamente sulle differenze calcolate dai dati osservati.
 
-Un'alternativa a questo approccio consiste nell’utilizzo di un modello di regressione. In questo caso, anziché calcolare direttamente la differenza tra le medie, si introduce una variabile indicatrice (o "dummy") $D$ nel modello di regressione, come segue:
+Il metodo tradizionale per confrontare statisticamente due o più gruppi è quello di utilizzare un test di ipotesi statistico. Questo approccio prevede l'individuazione di un'ipotesi nulla, che solitamente afferma che non ci sono differenze tra i gruppi, e l'utilizzo di una statistica test per determinare se i dati osservati sono plausibili sotto questa ipotesi. L'ipotesi nulla viene rifiutata quando la statistica test calcolata supera una soglia predefinita.
+
+Tuttavia, i test di ipotesi possono essere complessi e i risultati spesso soggetti a interpretazioni errate. La scelta delle specifiche del test statistico (ad esempio, quale test utilizzare, quale ipotesi nulla testare, quale livello di significatività adottare) è spesso arbitraria e basata su convenzioni piuttosto che sulla specificità del problema o delle decisioni da prendere (Johnson, 1999). Inoltre, i risultati forniti dai test sono spesso indiretti, incompleti e tendono a sovrastimare le evidenze contro l'ipotesi nulla (Goodman, 1999).
+
+**Un approccio più informativo ed efficace per il confronto tra gruppi è quello basato sulla stima invece che sul test dell'ipotesi nulla**, ed è guidato dalla probabilità bayesiana anziché dalla frequentista. In pratica, invece di testare se ci sono differenze tra i gruppi, si cerca di ottenere una stima di quanto siano effettivamente diversi. Questo approccio è intrinsecamente più informativo. Inoltre, viene inclusa una stima dell'incertezza associata a tale differenza, che tiene conto sia dell'incertezza dovuta alla nostra mancanza di conoscenza dei parametri del modello (incertezza epistemica) sia dell'incertezza causata dalla variabilità intrinseca del sistema (incertezza aleatoria).
+
+Per affrontare tale problema possiamo usare un modello di regressione. In questo caso, anziché calcolare direttamente la differenza tra le medie, si introduce una variabile indicatrice (o "dummy") $D$ nel modello di regressione, come segue:
 
 $$
 y_i = \alpha + \gamma D_i + \varepsilon_i.
@@ -90,7 +96,7 @@ Di conseguenza, l’analisi della differenza tra le medie dei due gruppi si trad
 
 ## Un esempio illustrativo
 
-Riprendiamo il dataset relativo al quoziente di intelligenza (QI) dei bambini, distinguendo tra quelli le cui madri hanno completato la scuola superiore e quelli le cui madri non l'hanno completata. L'obiettivo è replicare i risultati precedenti utilizzando un'analisi di regressione bayesiana. Vediamo come implementare questa analisi passo per passo.
+Consideriamo il dataset relativo al quoziente di intelligenza (QI) di un campione di bambini, distinguendo tra quelli le cui madri hanno completato la scuola superiore e quelli le cui madri non l'hanno completata. Vediamo come implementare l'analisi descritta sopra passo per passo.
 
 ### Esplorazione iniziale dei dati
 
@@ -388,8 +394,14 @@ Nel caso del modello lineare, la stima puntuale della differenza tra i gruppi e 
 
 Nell'approccio bayesiano, abbiamo calcolato la differenza tra i due gruppi utilizzando priori debolmente informativi e stimando una distribuzione a posteriori per il parametro di interesse:
 
-```r
-fit_1 <- brm(kid_score ~ mom_hs, data = kidiq, prior = prior_gaussian)
+```{r}
+#| output: false
+#| 
+fit_1 <- brm(
+  kid_score ~ mom_hs, 
+  data = kidiq,
+  backend = "cmdstanr"
+)
 ```
 
 I risultati del modello bayesiano sono:
@@ -430,7 +442,7 @@ $$
 Con il pacchetto `brms`, tale calcolo è molto semplice grazie alla funzione `hypothesis()`:
 
 ```{r}
-hypothesis(fit_3, "mom_hs > 10")
+hypothesis(fit_1, "mom_hs > 10")
 ```
 
 L'output della funzione `hypothesis()` fornisce diverse informazioni utili:
@@ -453,63 +465,9 @@ Nel test frequentista, il risultato sarebbe espresso come un $p$-value che indic
 
 In conclusioni, il test di ipotesi bayesiano, come mostrato in questo esempio, rappresenta un approccio intuitivo e informativo per valutare ipotesi sui parametri di un modello, superando alcune delle limitazioni concettuali dei test frequentisti.
 
-## Bonus
-
-Un modello di regressione con **sola intercetta** è uno strumento estremamente utile per fare inferenza sulla media della popolazione, specialmente in un contesto bayesiano. Questo modello è equivalente a stimare la media di un campione e consente di costruire intervalli di credibilità (nel caso bayesiano) o intervalli di confidenza (nel caso frequentista) per la stima della media.
-
-### Modello di Regressione con Sola Intercetta
-
-Quando utilizziamo un modello di regressione con sola intercetta, l'equazione del modello si semplifica a:
-
-$$
-y_i = \mu + \varepsilon_i,
-$$
-
-dove:
-
-- $\mu$ è l'intercetta, che rappresenta la media stimata della popolazione,
-- $\varepsilon_i$ è l'errore casuale, solitamente distribuito come $\mathcal{N}(0, \sigma^2)$.
-
-### Inferenza sulla Media
-
-Nel contesto bayesiano, il modello consente di stimare $\mu$ e $\sigma$ sulla base della distribuzione a posteriori, ottenuta combinando i dati osservati con le distribuzioni a priori. Questo approccio permette di calcolare:
-
-- **L'intervallo di credibilità**: un intervallo entro cui si trova la media della popolazione con una certa probabilità (es., 89% o 95%).
-- **La distribuzione a posteriori di $\mu$**: che fornisce un quadro completo dell'incertezza associata alla stima della media.
-
-Nel contesto frequentista, un modello equivalente calcola la media campionaria e costruisce un **intervallo di confidenza** basato su ipotesi di normalità e su una stima puntuale della varianza campionaria.
-
-### Confronto con il Test $t$ di Student
-
-Il modello di regressione con sola intercetta è concettualmente analogo al **test $t$ di Student** per una singola media. Nel caso del test $t$, l'ipotesi nulla è che la media della popolazione sia uguale a un valore specifico $\mu_0$:
-
-$$
-H_0: \mu = \mu_0.
-$$
-
-Il test calcola la statistica $t$ come:
-
-$$
-t = \frac{\bar{y} - \mu_0}{s / \sqrt{n}},
-$$
-
-dove $\bar{y}$ è la media campionaria, $s$ è la deviazione standard campionaria, e $n$ è la dimensione del campione.
-
-Nel caso bayesiano, invece di testare un'ipotesi nulla, si calcola direttamente la probabilità a posteriori che $\mu$ sia maggiore, minore o uguale a $\mu_0$, offrendo un'inferenza più intuitiva e flessibile.
-
-### Vantaggi del Modello Bayesiano
-
-1. **Intervalli di Credibilità**: Forniscono una probabilità esplicita che la media della popolazione si trovi in un certo intervallo, mentre gli intervalli di confidenza frequentisti si basano su ripetizioni ipotetiche del campionamento.
-   
-2. **Incorporazione di Priori**: Il modello bayesiano consente di integrare conoscenze pregresse (attraverso i priori), il che può essere particolarmente utile in contesti con campioni piccoli o conoscenze preesistenti.
-
-3. **Inferenza Diretta**: Piuttosto che concentrarsi su una statistica test, l'approccio bayesiano fornisce una distribuzione a posteriori che descrive completamente l'incertezza sulla media.
-
-In conclusione, il modello di regressione con sola intercetta rappresenta un'alternativa elegante e versatile al test $t$ per una singola media, sia in un contesto frequentista che bayesiano. La flessibilità del metodo bayesiano lo rende particolarmente adatto per analisi che richiedono una rappresentazione più completa e probabilistica dell'incertezza.
-
 ## Riflessioni Conclusive
 
-In questo capitolo abbiamo esplorato le numerose funzionalità offerte da *{brms}* per la modellazione bayesiana, dimostrando come questo pacchetto consenta di implementare analisi sofisticate in modo intuitivo e flessibile. Abbiamo visto come specificare modelli, eseguire controlli predittivi sui priori e posteriori, testare ipotesi bayesiane e interpretare i risultati in termini probabilistici. La semplicità della sintassi e l'automatizzazione di aspetti complessi, come la scelta dei priori, rendono *{brms}* uno strumento potente e accessibile per affrontare una vasta gamma di problemi statistici, permettendo di ottenere inferenze solide e interpretabili con un approccio moderno e rigoroso.
+In questo capitolo abbiamo esplorato le numerose funzionalità offerte da **brms** per la modellazione bayesiana, dimostrando come questo pacchetto consenta di implementare analisi sofisticate in modo intuitivo e flessibile. Abbiamo visto come specificare modelli, eseguire controlli predittivi sui priori e posteriori, testare ipotesi bayesiane e interpretare i risultati in termini probabilistici. La semplicità della sintassi e l'automatizzazione di aspetti complessi, come la scelta dei priori, rendono **brms** uno strumento potente e accessibile per affrontare una vasta gamma di problemi statistici, permettendo di ottenere inferenze solide e interpretabili con un approccio moderno e rigoroso.
 
 ## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
 

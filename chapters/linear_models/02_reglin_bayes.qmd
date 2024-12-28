@@ -1,0 +1,331 @@
+---
+execute:
+  freeze: auto
+---
+
+# Modello bayesiano di regressione lineare bivariata {#sec-linmod-bayesian-reg}
+
+::: callout-important
+## Cosa Imparerai in Questo Capitolo
+
+- Comprendere il modello di regressione bayesiano e come si differenzia dall'approccio frequentista.
+- Interpretare i parametri stimati in un contesto bayesiano e confrontarli con quelli frequentisti.
+- Familiarizzare con l'uso di **brms** nella regressione.
+- Interpretare le previsioni del modello bayesiano e le verifiche predittive a posteriori.
+:::
+
+::: callout-tip
+## Prerequisiti
+
+- Leggere il capitolo *Simple Normal Regression* di @Johnson2022bayesrules.
+- Consultare *Regression and Other Stories* [@gelman2021regression].
+  - Prestare particolare attenzione ai capitoli 1 "Overeview, 6, "Background on Regression Modeling," 7, "Linear Regression with a Single Predictor" e 8, "Fitting regression models", che offrono una guida dettagliata al modello di regressione bivariato.
+:::
+
+::: callout-caution
+## Preparazione del Notebook
+
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(cmdstanr, posterior, see, brms)
+```
+:::
+
+## Introduzione 
+
+In questa sezione della dispensa, esploreremo il modello di regressione lineare bivariata bayesiano, confrontandolo con l'approccio frequentista. 
+
+### Modello di Regressione Bayesiano
+
+L'approccio bayesiano si distingue dai metodi dei minimi quadrati o della massima verosimiglianza, poiché combina le informazioni derivanti dai dati con conoscenze preesistenti, rappresentate da distribuzioni a priori. Questo processo produce distribuzioni a posteriori che aggiornano le credenze iniziali dopo l’osservazione dei dati, superando i limiti delle stime puntuali dei metodi classici.
+
+Nel contesto di un modello lineare bayesiano, indichiamo con $y$ la variabile di risposta, con $x$ le variabili predittive, e con $i$ l’indice delle osservazioni, da 1 al numero totale di dati. 
+
+### Verosimiglianza  
+
+Nel modello bayesiano bivariato, la relazione tra la variabile $y$ e la variabile $x$ è descritta dalla verosimiglianza:
+
+$$
+y \sim \text{Normale}(\alpha + \beta x, \sigma).
+$$
+
+Ciò implica che i valori osservati di $y$ sono distribuiti attorno alla retta di regressione $\alpha + \beta x$, con una deviazione standard $\sigma$. Ogni osservazione è quindi una combinazione lineare dell’intercetta $\alpha$, del coefficiente $\beta$ che moltiplica la variabile predittiva, e di un termine di errore distribuito normalmente.
+
+### Distribuzioni a Priori 
+
+Per definire il modello bayesiano, si specificano distribuzioni a priori per i parametri $\alpha$, $\beta$ e $\sigma$. Sebbene siano possibili prior uniformi, che esprimono una totale assenza di conoscenza iniziale, è preferibile adottare prior debolmente informativi per garantire maggiore robustezza. Per esempio:
+
+$$
+\alpha \sim \mathcal{N}(0, 2.5), \quad \beta \sim \mathcal{N}(0, 2.5), \quad \sigma \sim \text{Cauchy}(0, 2.5).
+$$
+
+Queste distribuzioni riflettono ipotesi iniziali ragionevoli senza introdurre eccessiva informazione a priori.
+
+### Distribuzioni a Posteriori  
+
+Le distribuzioni a posteriori sono ottenute combinando la verosimiglianza dei dati con le distribuzioni a priori tramite il teorema di Bayes. Esse rappresentano lo stato aggiornato delle conoscenze sui parametri, integrando l'informazione empirica con le ipotesi iniziali. L'approccio bayesiano non si limita a fornire stime puntuali, ma restituisce una descrizione completa dell'incertezza associata ai parametri sotto forma di distribuzioni probabilistiche.
+
+Nel contesto di un modello di regressione bivariata, le distribuzioni a posteriori dei parametri $\alpha$ (intercetta), $\beta$ (coefficiente angolare), e $\sigma$ (deviazione standard residua) vengono stimate utilizzando algoritmi MCMC (Markov Chain Monte Carlo). Questi algoritmi consentono di campionare iterativamente dalle distribuzioni a posteriori, garantendo una stima accurata anche in modelli complessi.
+
+Nella sezione successiva, esploreremo come utilizzare la funzione **brm()** del pacchetto **brms** per implementare un modello di regressione bayesiano e ottenere le stime a posteriori, analizzandone le proprietà e le implicazioni.
+
+## Adattare una Retta di Regressione a Dati Simulati  
+
+Definiamo i parametri e simuliamo i dati.
+
+```{r}
+set.seed(123)
+
+# Definizione delle variabili
+x <- 1:100
+n <- length(x)
+a <- 1.5
+b <- 0.5
+sigma <- 10
+
+# Generazione di y
+y <- a + b * x + rnorm(n, 0, sigma)
+
+# Creazione del dataframe
+fake <- tibble(x = x, y = y)
+head(fake)
+```
+
+Iniziamo adattando ai dati un modello frequentista:
+
+```{r}
+fm1 <- lm(y ~ x, data = fake)
+```
+
+```{r}
+summary(fm1)
+```
+
+Per ottenere l’intervallo di confidenza (nel senso frequentista) della stima dei parametri usiamo:
+
+```{r}
+confint(fm1, level = 0.95)
+```
+
+Adattiamo ora ai dati un modello di regressione bayesiano utilizzando **brms**. Si noti che, anche in questo caso, usiamo la sintassi di Wilkinson `y ~ x`, come per **lm()**.  Eseguiamo il campionamento:
+
+```{r}
+#| output: false
+#| 
+fm2 <- brm(
+  y ~ x, 
+  data = fake,
+  backend = "cmdstanr"
+)
+```
+
+Come discusso nell'analisi dell'algoritmo di Metropolis, il primo passo è esaminare le tracce dei parametri per verificare la convergenza dell'algoritmo. La convergenza può essere considerata raggiunta se le catene (nel caso di **brm**, sono 4 per impostazione predefinita) risultano ben mescolate. Questo si manifesta in un *trace plot* che mostra una distribuzione uniforme e casuale dei campioni attorno a un valore centrale, senza pattern evidenti o tendenze sistematiche.
+
+Le tracce dei parametri si ottengono nel modo seguente:
+
+```{r}
+mcmc_trace(
+  fm2, 
+  pars = c("b_Intercept", "b_x", "sigma"),
+  facet_args = list(nrow = 3)
+)
+```
+
+Gli istogrammi delle distribuzioni a posteriori dei parametri si generano nel modo seguente:
+
+```{r}
+mcmc_hist(
+  fm2, 
+  pars =c("b_Intercept", "b_x", "sigma"),
+  facet_args = list(nrow = 3)
+)
+```
+
+Per valutare l'autocorrelazione tra i campioni a posteriori del parametro `beta`, possiamo utilizzare il seguente comando:
+
+```{r}
+mcmc_acf(fm2, "b_x")
+```
+
+L'autocorrelazione fornisce informazioni sulla dipendenza tra campioni successivi nella catena di Markov. È normale che i campioni successivi non siano completamente indipendenti, poiché le catene di Markov generano campioni correlati per costruzione. Tuttavia, se l'algoritmo ha raggiunto la convergenza, l'autocorrelazione dovrebbe diminuire rapidamente e diventare trascurabile dopo un numero relativamente piccolo di lag. Questo significa che, dopo un certo numero di passi, i campioni diventano progressivamente meno correlati tra loro, comportandosi in modo simile a campioni indipendenti estratti dalla distribuzione target.
+
+Un'elevata autocorrelazione su lag più lunghi potrebbe invece indicare problemi di mescolamento delle catene o una mancata convergenza, richiedendo ulteriori verifiche o aggiustamenti, come l'aumento del numero di iterazioni o una diversa parametrizzazione del modello.
+
+Nel caso presente, notiamo una rapida diminuzione dell'autocorrelazione in funzione del numero di passi. Ciò è indicativo del fatto che la convergenza è stata raggiunta.
+
+Una sintesi numerica dei risultati si trova nel modo seguente:
+
+```{r}
+summary(fm2)
+```
+
+Confrontiamo le stime ottenute con i valori reali dei parametri simulati. L'intercetta è stata stimata attorno a 1.14, con un'incertezza al 95% che varia tra -2.4 e 4.8. Questo risultato rientra negli intervalli di credibilità previsti, confermando l'accuratezza del modello. Analogamente, per la pendenza $b$, l'intervallo di credibilità al 95% include il valore reale simulato, dimostrando come le stime bayesiane riflettano accuratamente l'incertezza sui parametri.
+
+Se si utilizza la funzione `conditional_effects()` viene prodotto un grafico che rappresenta la relazione stimata tra il predittore $x$ e la variabile di risposta $y$.
+
+```{r}
+conditional_effects(fm2) |>
+  plot(points = TRUE)
+```
+
+1. **Linea stimata (effetto medio):**
+   - La linea centrale del grafico rappresenta il valore medio previsto di$y$ per ogni valore di$x$, dato dalla relazione$y = \alpha + \beta x$.
+   - Questa linea è calcolata usando i valori medi a posteriori stimati per$\alpha$ e$\beta$.
+
+2. **Bande di incertezza (intervalli di credibilità):**
+   - Le bande attorno alla linea rappresentano gli intervalli di credibilità (ad esempio, al 95%). Questi mostrano l'incertezza associata alle stime del modello per ogni valore di$x$.
+   - Più strette sono le bande, maggiore è la certezza del modello riguardo alla relazione stimata.
+
+3. **Dati osservati:**
+   - I punti rappresentano i valori effettivi di$y$ osservati nei dati. Questo consente di confrontare visivamente come i dati reali si allineano con le previsioni del modello.
+
+Il grafico consente 
+
+- una verifica visiva della relazione stimata tra$y$ e$x$;
+- di identificazione di eventuali discrepanze tra i dati osservati e le previsioni del modello;
+- una rappresentazione dell'incertezza nelle stime.
+
+Ad esempio, il grafico può mostrare se$x$ ha un effetto credibile su$y$ e con quale livello di incertezza. Se l'effetto di$x$ è debole o nullo, la linea stimata sarà piatta (vicina a zero) e le bande di incertezza saranno ampie.
+
+## Simulazione di Livelli di Copertura
+
+Verifichiamo la copertura degli intervalli di credibilità al 95% attraverso simulazioni ripetute.
+
+```{r}
+set.seed(42)
+# Parametri veri
+a_true <- 0.2
+b_true <- 0.3
+sigma_true <- 0.5
+# Numero di simulazioni
+num_simulations <- 1000
+# Conteggio delle coperture
+coverage_a <- 0
+coverage_b <- 0
+for (i in 1:num_simulations) {
+  # Generazione dei dati
+  x <- 1:20
+  y <- a_true + b_true * x + sigma_true * rnorm(length(x))
+  # Adattamento del modello
+  fit <- lm(y ~ x)
+  ci <- confint(fit) # Intervalli di confidenza
+  # Verifica delle coperture
+  if (ci[1,1] <= a_true & ci[1, 2] >= a_true) {
+    coverage_a <- coverage_a + 1
+  }
+  if (ci[2,1] <= b_true & ci[2, 2] >= b_true) {
+    coverage_b <- coverage_b + 1
+  }
+}
+```
+
+```{r}
+# Risultati
+cat("Coverage for a:", coverage_a / num_simulations, "\n")
+cat("Coverage for b:", coverage_b / num_simulations, "\n")
+```
+
+I risultati indicano che i livelli di copertura empirici ottenuti con l'approccio frequentista corrispondono strettamente ai livelli teorici attesi.
+
+Per proseguire, ripeteremo la simulazione adottando un approccio bayesiano. Useremo la funzione **brm()** del pacchetto **brms** al posto di **lm()**. 
+
+```r
+#| message: false
+#| warning: false
+#| output: false
+#| 
+# Definizione dei parametri
+set.seed(23)
+n_fake <- 1000
+cover_68 <- rep(NA, n_fake)
+cover_95 <- rep(NA, n_fake)
+a <- 0.2 # Intercetta vera
+b <- 0.3 # Pendenza vera
+sigma <- 0.5 # Deviazione standard vera
+x <- 1:20 # Variabile indipendente
+n <- length(x) # Numero di osservazioni
+
+# Ciclo per simulazioni
+for (s in 1:n_fake) {
+  # Generazione dei dati
+  y <- a + b * x + rnorm(n, 0, sigma)
+  fake <- data.frame(x = x, y = y)
+
+  # Adattamento del modello con brms
+  fit <- brm(
+    bf(y ~ 1 + x, center = FALSE),
+    data = fake,
+    family = gaussian(),
+    prior = c(
+      prior(normal(0, 2.5), class = "b", coef = "Intercept"), # Prior per alpha
+      prior(normal(0, 2.5), class = "b", coef = "x"), # Prior per beta
+      prior(cauchy(0, 2.5), class = "sigma") # Prior per sigma
+    ),
+    seed = 42,
+    iter = 2000, 
+    chains = 2, 
+    refresh = 0, # Suppress console output
+    backend = "cmdstanr"
+  )
+
+  # Estrazione dei coefficienti stimati e delle deviazioni standard
+  posterior_summary <- summary(fit)$fixed
+  b_hat <- posterior_summary["x", "Estimate"]
+  b_se <- posterior_summary["x", "Est.Error"]
+
+  # Calcolo della copertura
+  cover_68[s] <- abs(b - b_hat) < b_se
+  cover_95[s] <- abs(b - b_hat) < 2 * b_se
+}
+```
+
+
+```r
+# Summarize the coverage results
+mean_cover_68 <- mean(cover_68, na.rm = TRUE)
+mean_cover_95 <- mean(cover_95, na.rm = TRUE)
+cat("Coverage for 68% interval:", mean_cover_68, "\n")
+cat("Coverage for 95% interval:", mean_cover_95, "\n")
+```
+
+Questa seconda simulazione evidenzia che anche i livelli di copertura empirici ottenuti con l'approccio bayesiano si avvicinano ai valori teorici previsti.
+
+I risultati ottenuti confermano l'efficacia degli intervalli di confidenza e di credibilità stimati attraverso i modelli frequentisti e bayesiani.
+
+## Confronti, non Effetti
+
+@gelman2021regression sottolineano che i coefficienti di regressione sono spesso denominati "effetti", ma questa terminologia può trarre in inganno. Gli "effetti", infatti, implicano una relazione causale. Tuttavia, ciò che un modello di regressione stima non è necessariamente un effetto causale, ma piuttosto un pattern osservazionale. In particolare, ciò che osserviamo è che la media della variabile dipendente nella sottopopolazione con $X = x + 1$ è spesso maggiore o minore (a seconda del segno di $\beta$) rispetto alla media della sottopopolazione con $X = x$.
+
+La regressione è uno strumento matematico utilizzato principalmente per fare previsioni. I coefficienti di regressione devono quindi essere interpretati come confronti medi. Solo in circostanze specifiche, quando la regressione descrive un processo causale ben definito, è possibile interpretarli come effetti. Tuttavia, questa interpretazione causale deve essere giustificata dal disegno dello studio e non può essere dedotta unicamente dall'uso del modello statistico.
+
+## Riflessioni Conclusive
+
+In questo capitolo abbiamo adottato un approccio bayesiano per stimare i parametri di un modello di regressione bivariato. È emerso che, quando i prior sono debolmente informativi, le stime bayesiane tendono a coincidere con quelle ottenute tramite l'approccio frequentista. Tuttavia, il valore dell'approccio bayesiano risiede non solo nella stima dei parametri, ma anche nella possibilità di incorporare conoscenze a priori e di rappresentare esplicitamente l'incertezza nelle stime.
+
+Al di là della scelta tra approccio frequentista e bayesiano, è cruciale riflettere sul ruolo dei modelli statistici nella ricerca scientifica, in particolare nel contesto psicologico. Come evidenziato da @alexander2023telling, i modelli statistici non sono strumenti per rivelare una verità assoluta, ma mezzi per interpretare i dati e costruire significato a partire da essi. Essi non rappresentano la realtà in modo fedele, ma piuttosto funzionano come "lenti" attraverso le quali possiamo mettere a fuoco aspetti specifici del fenomeno studiato.
+
+I modelli statistici possono essere utilizzati principalmente per due scopi distinti ma complementari: **inferenza** e **previsione**.
+
+- **Previsione**: mira a descrivere le associazioni tra variabili, consentendo di formulare stime future basate sui dati disponibili. È un processo empirico, in cui la bontà del modello viene valutata sulla sua capacità di fare previsioni accurate.
+
+- **Inferenza**: si concentra sull'individuazione di relazioni causali tra variabili. Questo tipo di analisi richiede una progettazione rigorosa, come esperimenti controllati o disegni quasi-sperimentali, e una chiara giustificazione delle ipotesi del modello. La regressione, in particolare, può supportare inferenze causali solo se accompagnata da un contesto teorico robusto e da dati appropriati.
+
+È fondamentale ricordare che la regressione rappresenta una forma di media ponderata e, di conseguenza, i suoi risultati possono essere influenzati da bias intrinseci e dalle caratteristiche specifiche del dataset. Pertanto:
+
+- La qualità dei risultati dipende dalla qualità dei dati e dalla correttezza delle ipotesi del modello.
+- È importante considerare potenziali fonti di bias, come la selezione dei dati, variabili confondenti non incluse nel modello, o ipotesi non verificate sulla linearità delle relazioni.
+
+In conclusione, l'adozione di un modello statistico non è un fine in sé, ma uno strumento per esplorare, interpretare e comprendere il fenomeno di interesse. Sia che si utilizzi un approccio bayesiano o frequentista, il successo dell'analisi dipende dalla capacità di integrare i risultati quantitativi con una riflessione teorica critica e da un’attenzione costante alla validità delle ipotesi e delle conclusioni.
+
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered}
+
+```{r}
+sessionInfo()
+```
+
+## Bibliografia {.unnumbered}
+
