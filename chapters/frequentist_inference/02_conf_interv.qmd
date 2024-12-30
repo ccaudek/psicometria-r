@@ -3,13 +3,22 @@ execute:
   freeze: auto
 ---
 
-# Intervallo di confidenza {#sec-frequentist-conf-interval}
+# Intervalli di fiducia {#sec-frequentism-confidence-intervals}
 
-**Prerequisiti**
+::: callout-important
+## In questo capitolo imparerai a
 
-**Concetti e competenze chiave**
+- sapere calcolare e interpretare gli intervalli di fiducia frequentisti.
+:::
 
-**Preparazione del Notebook**
+::: callout-tip
+## Prerequisiti
+
+- Leggere il capitolo *Estimation, Confidence Intervals, and Bootstrapping* di [Statistical Inference via Data Science: A ModernDive into R and the Tidyverse (Second Edition)](https://moderndive.com/v2/).
+:::
+
+::: callout-caution
+## Preparazione del Notebook
 
 ```{r}
 here::here("code", "_common.R") |> 
@@ -17,8 +26,9 @@ here::here("code", "_common.R") |>
 
 # Load packages
 if (!requireNamespace("pacman")) install.packages("pacman")
-pacman::p_load(cmdstanr)
+pacman::p_load(cmdstanr, posterior, bayestestR)
 ```
+:::
 
 ## Introduzione
 
@@ -437,75 +447,14 @@ legend(
 )
 ```
 
-Questa simulazione mostra come calcolare e interpretare un intervallo di confidenza frequentista per la media della popolazione utilizzando un campione di dimensione $n = 20$.
-
 ### Intervallo di Credibilità Bayesiano
 
-Per determinare l'intervallo di credibilità bayesiano, utilizziamo un modello Bayesiano che assume una distribuzione normale per i dati osservati. Le distribuzioni a priori sono scelte in modo da riflettere una conoscenza preliminare vaga e non informativa:
+Per determinare l'intervallo di credibilità bayesiano, utilizziamo un modello Bayesiano che assume una distribuzione normale per i dati osservati. Le distribuzioni a priori sono scelte in modo da riflettere una conoscenza preliminare debolmente informativa:
 
 - **Distribuzione a priori di $\mu$:** Normale centrata su $\mu_0 = 0$ con deviazione standard ampia ($\sigma_0 = 200$).
 - **Distribuzione a priori di $\sigma$:** Normale troncata positiva ($\text{HalfNormal}$) con deviazione standard di 100.
 
 Queste scelte sono progettate per minimizzare l'introduzione di bias, mantenendo l'analisi conservativa. 
-
-Prepariamo i dati:
-
-```{r}
-# Simulazione dei dati
-set.seed(123)
-sample_data <- rnorm(20, mean = 50, sd = 10)
-
-# Preparazione dei dati per Stan
-stan_data <- list(
-  N = length(sample_data),
-  Y = sample_data
-)
-```
-
-Compiliamo il modello:
-
-```{r}
-# Path to the Stan file
-stan_file <- here::here("chapters", "frequentist_inference", "bayesian_model.stan")
-
-# Create a CmdStanModel object
-mod <- cmdstan_model(stan_file)
-```
-
-```{r}
-mod$print()
-```
-
-Eseguiamo il campionamento:
-
-```{r}
-fit <- mod$sample(
-  data = stan_data,
-  seed = 123,
-  chains = 4,
-  parallel_chains = 4,
-  iter_sampling = 2000,
-  iter_warmup = 1000,
-  show_messages = FALSE
-)
-```
-
-Estraiamo i risultati:
-
-```{r}
-posterior <- fit$draws()
-```
-
-Calcoliamo l'intervallo di credibilità al 95%:
-
-```{r}
-posterior_summary <- 
-  fit$summary(
-    c("mu", "sigma"), ~quantile(.x, probs = c(0.025, 0.5, 0.975))
-  )
-
-posterior_summary
-```
 
 L'intervallo di credibilità calcolato fornisce una gamma di valori entro cui si trova il parametro $\mu$ con un grado di credenza del 95%, date le informazioni a priori e i dati osservati.
 
