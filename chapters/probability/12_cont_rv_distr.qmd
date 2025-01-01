@@ -793,6 +793,52 @@ $$
 
 dove $C_{\nu}$ è una costante positiva.
 
+Usiamo la definizione precedente per definire empiricamente la distribuzione della variabile chi-quadrato con 3 gradi di libertà.
+
+```{r}
+# Impostare il seed per la riproducibilità
+set.seed(1234)
+
+# Generare 1000 valori casuali per 3 variabili gaussiane standardizzate
+n <- 1000
+var1 <- rnorm(n, mean = 0, sd = 1)
+var2 <- rnorm(n, mean = 0, sd = 1)
+var3 <- rnorm(n, mean = 0, sd = 1)
+
+# Calcolare la somma dei quadrati delle 3 variabili
+chi_sq_values <- var1^2 + var2^2 + var3^2
+
+# Creare un dataframe per ggplot
+data <- data.frame(chi_sq_values = chi_sq_values)
+
+# Creare l'istogramma con ggplot
+ggplot(data, aes(x = chi_sq_values)) +
+  geom_histogram(
+    aes(y = after_stat(density)), 
+    bins = 30, fill = "lightblue", color = "black", alpha = 0.7
+    ) +
+  stat_function(fun = dchisq, args = list(df = 3), color = "red", size = 1) +
+  labs(
+    title = "Distribuzione Chi-Quadrato (df = 3)",
+    x = "Valore",
+    y = "Densità"
+  )
+```
+
+L'istogramma descrive i valori empirici; la curva continua rossa è la distribuzione teorica.
+
+La media dei valori empirici è:
+
+```{r}
+mean(chi_sq_values)
+```
+
+La varianza empirica è
+
+```{r}
+var(chi_sq_values)
+```
+
 ### Grafico delle Distribuzioni Chi-Quadrato per Vari Valori di $\nu$
 
 In R, utilizziamo `dchisq()` per calcolare la funzione di densità della distribuzione chi-quadrato e `ggplot2` per creare il grafico.
@@ -828,138 +874,92 @@ ggplot(data, aes(x = x, y = f_x, color = nu)) +
 4. **Convergenza**: Per $k \to \infty$, $\chi^2_{\nu} \to \mathcal{N}(\nu, 2\nu)$.
 5. **Somma di variabili**: La somma di variabili $\chi^2_{\nu}$ indipendenti con gradi di libertà diversi segue una distribuzione $\chi^2_{m}$, dove $m$ è la somma dei gradi di libertà.
 
-### Esempio con $\chi^2_5$
+## Distribuzione $t$ di Student
 
-#### Densità della Distribuzione $\chi^2_5$
+La distribuzione $t$ di Student deriva dalle distribuzioni Normale e Chi-quadrato, ed è una delle distribuzioni fondamentali in statistica inferenziale, specialmente per problemi che coinvolgono campioni di dimensioni limitate.
+
+### Definizione Formale
+
+Se $Z \sim \mathcal{N}(0, 1)$ (distribuzione Normale standard) e $W \sim \chi^2_{\nu}$ (distribuzione Chi-quadrato con $\nu$ gradi di libertà) sono due variabili casuali indipendenti, allora la variabile casuale
+
+$$
+T = \frac{Z}{\sqrt{\frac{W}{\nu}}} ,
+$$
+
+segue una distribuzione $t$ di Student con $\nu$ gradi di libertà. Si indica come $T \sim t_{\nu}$.
+
+### Proprietà della Distribuzione $t$ di Student
+
+1. **Forma della distribuzione**:  
+
+   - La distribuzione $t$ è simile alla distribuzione Normale standard ($\mathcal{N}(0, 1)$), ma presenta code più pesanti, che diventano più leggere all'aumentare di $\nu$.
+   - Per $\nu \to \infty$, la distribuzione $t$ converge alla distribuzione Normale standard.
+
+2. **Code più pesanti**:  
+   - A causa della presenza della variabile Chi-quadrato nel denominatore, la distribuzione $t$ di Student ha una maggiore dispersione rispetto alla Normale.
+   - Le code pesanti riflettono una maggiore probabilità di valori estremi rispetto alla Normale.
+
+3. **Media e varianza**:
+   - La media è $0$, come nella Normale.
+   - La varianza è maggiore di $1$ per $\nu > 1$ ed è definita come $\frac{\nu}{\nu - 2}$ per $\nu > 2$. Non è definita per $\nu \leq 2$.
+
+4. **Applicazioni**:
+   - La distribuzione $t$ è utilizzata per costruire intervalli di confidenza e testare ipotesi quando la varianza della popolazione è sconosciuta e deve essere stimata dal campione.
+
+---
+
+### Differenze tra la Distribuzione $t$ e la Normale
+
+| Caratteristica            | Distribuzione Normale     | Distribuzione $t$ di Student |
+|---------------------------|---------------------------|-----------------------------------|
+| Forma                     | Simmetrica, campana      | Simmetrica, campana              |
+| Code                      | Sottili                  | Pesanti                          |
+| Dipendenza dai gradi di libertà | No                    | Sì                                |
+| Convergenza               | Non cambia               | Con $\nu \to \infty$, converge alla Normale |
+
+---
+
+### Visualizzazione della Distribuzione $t$
+
+Ecco un esempio in R per confrontare graficamente la distribuzione $t$ di Student con diversi gradi di libertà con la distribuzione Normale standard:
 
 ```{r}
-# Parametri
-df <- 5
-x <- seq(0, 20, length.out = 200)
+# Creazione dei dati
+x <- seq(-4, 4, length.out = 1000)
+df <- c(1, 2, 5, 10) # Gradi di libertà
 
-# Calcolare la densità
-pdf <- dchisq(x, df = df)
+# Dataframe con curve di densità
+data <- data.frame(
+  x = rep(x, length(df) + 1),
+  density = c(
+    dnorm(x),
+    dt(x, df[1]),
+    dt(x, df[2]),
+    dt(x, df[3]),
+    dt(x, df[4])
+  ),
+  distribution = rep(c("Normale", paste("t (df =", df, ")")), each = length(x))
+)
 
-# Grafico
-ggplot(data.frame(x, pdf), aes(x = x, y = pdf)) +
-  geom_line(color = "blue", size = 1) +
+# Plot
+ggplot(data, aes(x = x, y = density, color = distribution)) +
+  geom_line(size = 1) +
   labs(
-    title = "Distribuzione Chi-Quadrato (\u03bd=5)",
-    x = "x",
-    y = "PDF"
+    title = "Distribuzione Normale e distribuzioni t di Student",
+    x = "Valore",
+    y = "Densità",
+    color = "Distribuzione"
   ) 
 ```
 
-#### Generazione di Valori Casuali
-
-In R, utilizziamo `rchisq()` per generare valori casuali dalla distribuzione chi-quadrato.
-
-```{r}
-# Generare 1.000.000 di valori casuali
-set.seed(123)  # Per riproducibilità
-x_samples <- rchisq(1000000, df = df)
-
-# Mostrare i primi 20 valori
-head(x_samples, 20)
-```
-
-#### Calcolo della Media
-
-La media teorica della distribuzione chi-quadrato è uguale a $\nu$. Verifichiamo empiricamente:
-
-```{r}
-# Calcolare la media
-mean(x_samples)
-```
-
-##### Calcolo della Varianza
-
-La varianza teorica della distribuzione chi-quadrato è $2\nu$. Verifichiamo empiricamente:
-
-```{r}
-# Calcolare la varianza
-var(x_samples)
-```
-
-In conclusione,
-
-- la distribuzione chi-quadrato è asimmetrica e converge alla distribuzione normale per valori elevati di $\nu$,
-- la media e la varianza empiriche dei valori generati sono vicine ai valori teorici, verificando le proprietà della distribuzione.
-
-Ecco la riscrittura del testo e del codice in R:
-
-
-## Distribuzione $t$ di Student
-
-Dalle distribuzioni Normale e Chi-quadrato deriva un'altra distribuzione molto nota, la $t$ di Student. Se $Z \sim \mathcal{N}(0, 1)$ e $W \sim \chi^2_{\nu}$ sono due variabili casuali indipendenti, allora il rapporto
-
-$$
-T = \frac{Z}{\Big( \frac{W}{\nu}\Big)^{\frac{1}{2}}}
-$$
-
-definisce la distribuzione $t$ di Student con $\nu$ gradi di libertà. Si usa scrivere $T \sim t_{\nu}$. L'andamento della distribuzione $t$ di Student è simile a quello della distribuzione Normale, ma ha una dispersione maggiore (ha le code più pesanti di una Normale, ovvero ha una varianza maggiore di 1).
-
-La seguente mostra alcune distribuzioni $t$ di Student variando il parametro $\nu$.
-
-```{r}
-x <- seq(-5, 5, by = 0.1)
-nus <- c(1, 2, 5, 30)
-
-df <- data.frame(
-  x = rep(x, length(nus) + 1),
-  density = c(
-    sapply(nus, function(nu) dt(x, df = nu)), dnorm(x, mean = 0, sd = 1)
-  ),
-  distribution = factor(
-    rep(c(paste0("t (ν = ", nus, ")"), "N(μ = 0, σ = 1)"), each = length(x))
-  )
-)
-
-ggplot(df, aes(x = x, y = density, color = distribution)) +
-  geom_line(size = 1) +
-  labs(
-    x = "x", 
-    y = "f(x)", 
-    title = "Distribuzione t di Student e Normale"
-  ) +
-  theme(legend.position = "top")
-```
-
-### Proprietà
-
-La variabile casuale $t$ di Student soddisfa le seguenti proprietà:
-
-1.  Per $\nu \rightarrow \infty$, $t_{\nu}$ tende alla normale standard $\mathcal{N}(0, 1)$.
-2.  La densità della $t_{\nu}$ è una funzione simmetrica con valore atteso nullo.
-3.  Per $\nu > 2$, la varianza della $t_{\nu}$ vale $\nu / (\nu - 2)$; pertanto è sempre maggiore di 1 e tende a 1 per $\nu \rightarrow \infty$.
-
-Calcoliamo il valore della funzione di ripartizione di ordine 0.025 nel caso di una $t_{30}$:
-
-```{r}
-qt(0.025, df = 30)
-```
-
-Aumentiamo i gradi di libertà ($\nu$ = 1000):
-
-```{r}
-qt(0.025, df = 1000)
-```
-
-Questo valore è quasi identico a quello della Normale standardizzata:
-
-```{r}
-qnorm(0.025, mean = 0, sd = 1)
-```
-
-La ragione per cui il quantile della distribuzione $t$ con $\nu = 30$ è maggiore (in valore assoluto) del quantile omotetico della distribuzione Normale Standard è che la distribuzione $t$ ha una varianza maggiore rispetto alla distribuzione Normale Standard.
-
+In conclusione, la distribuzione $t$ di Student è essenziale per le analisi statistiche su piccoli campioni, grazie alla sua capacità di gestire l'incertezza legata alla stima della varianza. Sebbene assomigli alla distribuzione Normale, le sue code più pesanti rendono i test statistici più robusti in condizioni di varianza incerta.
 
 ## Funzione Beta di Eulero
 
 La funzione Beta di Eulero è una funzione matematica, *non* una densità di probabilità. La menzioniamo qui perché viene utilizzata nella densità di probabilità Beta. La funzione Beta di Eulero, comunemente indicata con il simbolo $B(\alpha, \beta)$, si può scrivere in molti modi diversi; per i nostri scopi la presentiamo così:
 
 $$
-B(\alpha, \beta) = \frac{\Gamma(\alpha)\Gamma(\beta)}{\Gamma(\alpha + \beta)}\,,
+\mathcal{B}(\alpha, \beta) = \frac{\Gamma(\alpha)\Gamma(\beta)}{\Gamma(\alpha + \beta)}\,,
 $$
 
 dove $\Gamma(x)$ è la funzione Gamma, ovvero il fattoriale discendente, cioè
@@ -992,14 +992,14 @@ Oppure calcolandolo manualmente:
 
 ## Distribuzione Beta
 
-La distribuzione di probabilità Beta, denotata comunemente come $Beta(\alpha, \beta)$, è utilizzata per modellare fenomeni che sono espressi in percentuali o proporzioni. Un aspetto cruciale di questa distribuzione è la sua definizione esclusiva nell'intervallo $(0, 1)$. In pratica, ciò significa che essa considera valori compresi strettamente tra 0 e 1, escludendo sia lo 0 che l'1 come estremi.
+La distribuzione di probabilità Beta, denotata comunemente come $\mathcal{Beta}(\alpha, \beta)$, è utilizzata per modellare fenomeni che sono espressi in percentuali o proporzioni. Un aspetto cruciale di questa distribuzione è la sua definizione esclusiva nell'intervallo $(0, 1)$. In pratica, ciò significa che essa considera valori compresi strettamente tra 0 e 1, escludendo sia lo 0 che l'1 come estremi.
 
 ### Definizione Formale
 
-Consideriamo una variabile casuale $\theta$, la quale può assumere qualunque valore nell'intervallo aperto $(0, 1)$. Se diciamo che $\theta$ segue una distribuzione Beta con parametri $\alpha$ e $\beta$ (indicato come $\theta \sim \text{Beta}(\alpha, \beta)$), intendiamo che la sua funzione di densità è descritta dalla seguente formula:
+Consideriamo una variabile casuale $\theta$, la quale può assumere qualunque valore nell'intervallo aperto $(0, 1)$. Se diciamo che $\theta$ segue una distribuzione Beta con parametri $\alpha$ e $\beta$ (indicato come $\theta \sim \mathcal{Beta}(\alpha, \beta)$), intendiamo che la sua funzione di densità è descritta dalla seguente formula:
 
 $$
-\text{Beta}(\theta \mid \alpha, \beta) = \frac{1}{B(\alpha, \beta)}\theta^{\alpha-1} (1-\theta)^{\beta-1} =  \frac{\Gamma(\alpha+ \beta)}{\Gamma(\alpha)\Gamma(\beta)}\theta^{\alpha-1} (1-\theta)^{\beta-1} \quad \text{per } \theta \in (0, 1)\,,
+\mathcal{Beta}(\theta \mid \alpha, \beta) = \frac{1}{B(\alpha, \beta)}\theta^{\alpha-1} (1-\theta)^{\beta-1} =  \frac{\Gamma(\alpha+ \beta)}{\Gamma(\alpha)\Gamma(\beta)}\theta^{\alpha-1} (1-\theta)^{\beta-1} \quad \text{per } \theta \in (0, 1)\,,
 $$
 
 dove $B(\alpha, \beta)$ è la funzione beta di Eulero, definita come $\frac{\Gamma(\alpha) \Gamma(\beta)}{\Gamma(\alpha + \beta)}$.

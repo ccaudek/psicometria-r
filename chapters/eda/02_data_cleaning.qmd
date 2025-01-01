@@ -34,8 +34,6 @@ pacman::p_load(mice, labelled, haven, pointblank, mice)
 ```
 :::
 
-> If you ensure that your data is tidy, you’ll spend less time fighting with the tools and more time working on your analysis (Hadley Wickham).
-
 ## Introduzione
 
 Nonostante la fase più interessante di un progetto di analisi dei dati sia quella in cui si riesce a rispondere alla domanda che ha dato avvio all'indagine, gran parte del tempo di un analista è in realtà dedicata a una fase preliminare: la pulizia e il preprocessing dei dati, operazioni che vengono svolte ancor prima dell'analisi esplorativa.
@@ -64,7 +62,7 @@ Crystal Lewis elenca i seguenti passaggi da seguire nel processo di data cleanin
 16. Trasformazione dei dati, se necessario.
 17. Salvataggio dei dati puliti.
 
-Sebbene l'ordine di questi passaggi sia flessibile e possa essere adattato alle esigenze specifiche, c'è un passaggio che non dovrebbe mai essere saltato: il primo, ovvero la revisione dei dati. Senza una revisione preliminare, l'analista rischia di sprecare ore a pulire i dati per poi scoprire che mancano dei partecipanti, che i dati non sono organizzati come previsto o, peggio ancora, che sta lavorando con i dati sbagliati.
+Sebbene l'ordine di questi passaggi sia flessibile e possa essere adattato alle esigenze specifiche, c'è un passaggio che non dovrebbe mai essere saltato: il primo, ovvero la revisione dei dati. Senza una revisione preliminare, l'analista rischia di sprecare ore a pulire i dati per poi scoprire che mancano dei partecipanti, che i dati non sono organizzati come previsto o, peggio ancora, che si sta lavorando con i dati sbagliati.
 
 ## Tutorial
 
@@ -72,7 +70,7 @@ Questo tutorial segue i passaggi descritti da [Crystal Lewis](https://cghlewis.c
 
 ### Organizzazione dei Dati
 
-Un principio fondamentale nella gestione dei dati è preservare l'integrità dei dati grezzi. I dati originali non devono mai essere modificati direttamente. È quindi consigliabile strutturare i dati in una directory denominata `data`, suddivisa in due sottocartelle:
+Un principio fondamentale nella gestione dei dati è preservare l'integrità dei dati grezzi. I dati originali **non devono mai essere modificati direttamente**. È quindi consigliabile strutturare i dati in una directory denominata `data`, suddivisa in due sottocartelle:
 
 - **`raw`**: contiene i dati originali, mantenuti inalterati.  
 - **`processed`**: destinata ai dati ripuliti e preprocessati.  
@@ -83,7 +81,7 @@ Ad esempio, importiamo i dati da un file denominato `w1_mathproj_stu_svy_raw.csv
 
 #### Importare e Esaminare i Dati
 
-Importiamo i dati utilizzando la libreria `rio` e visualizziamo una panoramica per verificarne la corretta importazione:
+Importiamo i dati utilizzando la funzione `import()` della libreria `rio` e visualizziamo i primi valori di ciascuna colonna per verificarne la corretta importazione:
 
 ```{r}
 # Importa i dati
@@ -118,16 +116,24 @@ In questa fase, eseguiamo alcune modifiche necessarie al `data frame`, come rimu
 # Identifica i duplicati basati su 'stu_id'
 duplicates <- 
   svy[duplicated(svy$stu_id) | duplicated(svy$stu_id, fromLast = TRUE), ]
+```
 
+```{r}
+# Visualizza i duplicati trovati
+duplicates
+```
+
+```{r}
 # Ordina per 'svy_date' in ordine crescente
 svy <- svy[order(svy$svy_date), ]
+```
 
+```{r}
 # Rimuove i duplicati mantenendo la prima occorrenza
 svy <- svy[!duplicated(svy$stu_id), ]
+```
 
-# Visualizza i duplicati trovati
-print(duplicates)
-
+```{r}
 # Esamina il dataset finale
 print(svy)
 ```
@@ -159,7 +165,7 @@ Queste colonne possono includere dati come identificatori interni, timestamp gen
 
 #### Dividere le Colonne Secondo Necessità
 
-Nel caso presente, questa operazione non è necessaria. Tuttavia, se si lavora con un dataset che include una colonna chiamata "NomeCompleto", contenente sia il nome che il cognome di uno studente, è buona pratica separare questa colonna in due colonne distinte, "Nome" e "Cognome". Questa suddivisione facilita l'analisi e la manipolazione dei dati, rendendoli più organizzati e accessibili.
+Nel caso presente, questa operazione non è necessaria. Tuttavia, se si lavora con un dataset che include una colonna chiamata "NomeCompleto", contenente sia il nome che il cognome di uno studente, per esempio, è buona pratica separare questa colonna in due colonne distinte, "Nome" e "Cognome". Questa suddivisione facilita l'analisi e la manipolazione dei dati, rendendoli più organizzati e accessibili.
 
 #### Rinominare le Colonne
 
@@ -190,17 +196,48 @@ Esempi di trasformazione delle variabili:
 
 - *Codifica delle variabili categoriche:* Se è presente una variabile categorica come il "tipo di intervento" con valori come "cognitivo", "comportamentale" e "farmacologico", potrebbe essere necessario trasformare questa variabile in variabili dummy (ad esempio, `intervento_cognitivo`, `intervento_comportamentale`, `intervento_farmacologico`), dove ogni variabile assume il valore 0 o 1 a seconda della presenza o meno di quel tipo di intervento. Questo è utile quando si utilizzano tecniche di regressione.
 
-#### Standardizzare / Normalizzare le Variabili
 
-Nel caso presente non si applica, ma è un passo importante in molte analisi dei dati. 
+#### Standardizzazione delle Variabili
 
-Esempi di standardizzazione delle variabili:
+La standardizzazione è utile quando si desidera rendere comparabili variabili misurate su scale diverse, ad esempio per confronti tra gruppi o per inclusione in modelli di regressione.  
 
-- *Standardizzazione dei punteggi:* Supponiamo di avere una variabile che misura il livello di ansia su una scala da 0 a 100. Se desideriamo confrontare i livelli di ansia tra diversi gruppi o includere questa variabile in un modello di regressione, potrebbe essere utile standardizzare i punteggi (cioè, sottrarre la media e dividere per la deviazione standard) per ottenere una variabile con media 0 e deviazione standard 1. Questo processo rende i punteggi comparabili e facilita l'interpretazione dei coefficienti in un modello di regressione.
+**Esempio.**  Supponiamo di avere una variabile che misura il livello di ansia su una scala da 0 a 100. Per standardizzarla:  
 
-- *Normalizzazione delle variabili:* Se hai dati su diverse variabili come "ore di sonno", "livello di stress" e "auto-efficacia", e queste variabili hanno scale molto diverse, potrebbe essere utile normalizzarle (ad esempio, ridimensionarle tutte su una scala da 0 a 1) per garantire che abbiano lo stesso peso in un'analisi multivariata.
+1. **Sottrai la media** del campione dalla variabile.  
+2. **Dividi per la deviazione standard**.  
 
-Trasformare e standardizzare le variabili sono passaggi cruciali in molte analisi psicologiche, specialmente quando si confrontano dati provenienti da diverse fonti o gruppi. Questi processi aiutano a garantire che le variabili siano trattate in modo appropriato e che i risultati dell'analisi siano validi e interpretabili.
+Il risultato è una variabile con media pari a 0 e deviazione standard pari a 1.  
+
+**Vantaggi della standardizzazione**:  
+
+- facilita l’interpretazione dei coefficienti in un modello di regressione; 
+- permette un confronto diretto tra variabili che hanno unità di misura diverse.
+
+#### **Normalizzazione delle Variabili**
+
+La normalizzazione consiste nel ridimensionare i dati su una scala predefinita, spesso compresa tra **0 e 1**. Questo processo è particolarmente utile in analisi multivariate, dove variabili con scale molto diverse potrebbero influenzare in modo sproporzionato i risultati.  
+
+**Esempio.** Hai dati su:  
+
+- **Ore di sonno** (misurate in ore, da 0 a 24).  
+- **Livello di stress** (misurato su una scala da 1 a 50).  
+- **Auto-efficacia** (misurata su una scala da 0 a 100).  
+
+Per garantire che ogni variabile abbia lo stesso peso nell’analisi, puoi normalizzarle usando una formula come:  
+
+$$
+x_{\text{norm}} = \frac{x - \text{min}(x)}{\text{max}(x) - \text{min}(x)} .
+$$
+
+**Perché Standardizzare o Normalizzare?**
+
+Trasformare le variabili è cruciale per:  
+
+1. **Gestire scale diverse**: Riduce il rischio che variabili con valori numericamente più grandi dominino i risultati.  
+2. **Garantire validità e interpretabilità**: Facilita il confronto tra dati provenienti da fonti o gruppi diversi.  
+3. **Evitare problemi numerici nei modelli statistici**: Alcuni algoritmi di machine learning o tecniche di ottimizzazione richiedono che i dati siano su scale simili per funzionare correttamente.
+
+In conclusione, la scelta tra standardizzazione e normalizzazione dipende dal contesto dell’analisi e dagli obiettivi specifici. Entrambi i processi sono strumenti indispensabili per garantire che i dati siano trattati in modo adeguato, portando a risultati robusti e facilmente interpretabili.
 
 #### Aggiornare i Tipi delle Variabili
 
@@ -217,7 +254,7 @@ df$punteggio <- as.numeric(df$punteggio)
 
 In questo esempio, la funzione `as.numeric()` viene utilizzata per convertire la colonna `punteggio` in un formato numerico, permettendo di eseguire analisi quantitative sui dati. 
 
-Un altro caso molto comune si verifica quando si importano dati da file Excel. Spesso capita che, all'interno di una cella di una colonna che dovrebbe contenere solo valori numerici, venga inserito erroneamente uno o più caratteri alfanumerici. Di conseguenza, l'intera colonna viene interpretata come di tipo alfanumerico, anche se i valori dovrebbero essere numerici. In questi casi, è fondamentale individuare la cella problematica, correggere il valore errato, e poi riconvertire l'intera colonna da alfanumerica a numerica.
+Un altro caso molto comune si verifica quando si importano dati da file Excel. Spesso capita che, all'interno di una cella di una colonna che dovrebbe contenere solo valori numerici, venga inserito erroneamente uno o più caratteri alfanumerici. Di conseguenza, l'intera colonna viene interpretata come di tipo alfanumerico, anche se i valori dovrebbero essere numerici. In questi casi, è fondamentale individuare la cella problematica, correggere manualmente il valore errato, e poi riconvertire l'intera colonna da alfanumerica a numerica.
 
 #### Ricodificare le Variabili
 
@@ -227,10 +264,13 @@ Per esempio, consideriamo una variabile categoriale con modalità descritte da s
 
 Supponiamo di avere un DataFrame chiamato `df` con una colonna `tipo_intervento` che contiene le modalità `"CT"`, `"BT"`, e `"MT"` per rappresentare rispettivamente "Terapia Cognitiva", "Terapia Comportamentale" e "Terapia Mista". Queste abbreviazioni potrebbero non essere immediatamente chiare a chiunque analizzi i dati, quindi decidiamo di ricodificarle con nomi più espliciti. Ecco come farlo in `R`:
 
-```{r eval=FALSE}
-# Supponiamo di avere un tibble chiamato 'df' con una colonna 'tipo_intervento'
+```{r}
+# Tibble chiamato 'df' con una colonna 'tipo_intervento'
 df <- tibble(tipo_intervento = c("CT", "BT", "MT", "CT", "BT"))
+df
+```
 
+```{r}
 # Ricodifica delle modalità della variabile 'tipo_intervento' in nomi più comprensibili
 df <- df %>%
   mutate(tipo_intervento_ricodificato = dplyr::recode(
@@ -241,7 +281,7 @@ df <- df %>%
   ))
 
 # Mostra il tibble con la nuova colonna ricodificata
-print(df)
+df
 ```
 
 #### Aggiungere Nuove Variabili nel Data Frame
@@ -262,23 +302,27 @@ df <- tibble(
   peso_kg = c(70, 85, 60, 95),
   altezza_m = c(1.75, 1.80, 1.65, 1.90)
 )
+df
+```
 
+```{r}
 # Calcola il BMI e aggiungilo come una nuova colonna 'BMI'
 df <- df %>%
   mutate(BMI = peso_kg / (altezza_m^2))
 
 # Mostra il tibble con la nuova variabile aggiunta
-print(df)
+df
 ```
 
 ### Affrontare il Problema dei Dati Mancanti
 
-I dati mancanti sono un problema comune nelle ricerche psicologiche e in molte altre discipline. Quando mancano delle informazioni in un dataset, possono verificarsi gravi problemi per l'analisi statistica, come risultati distorti, riduzione della precisione delle stime o, in casi estremi, l'impossibilità di applicare alcuni algoritmi.
+I dati mancanti sono un problema comune nelle ricerche psicologiche e in molte altre discipline. Quando mancano delle informazioni in un dataset, possono verificarsi gravi problemi per l'analisi statistica, come risultati distorti, riduzione della precisione delle stime o, in alcuni casi, l'impossibilità di applicare alcuni algoritmi.
 
 #### Perché i Dati Mancanti Sono un Problema?
 
 Immagina di voler capire il rendimento medio di una classe in un test, ma alcuni studenti hanno lasciato delle risposte in bianco. Se ignoriamo le risposte mancanti o eliminiamo gli studenti con dati incompleti, rischiamo di ottenere una stima che non rappresenta correttamente la realtà. Questo succede perché:
-- **Bias dei risultati**: Se i dati mancanti non sono casuali (ad esempio, mancano più spesso in studenti con basso rendimento), le conclusioni possono essere errate.
+
+- **Bias dei risultati**: Se i dati mancanti non sono casuali (ad esempio, i dati mancanti sono presenti più spesso in studenti con basso rendimento), le conclusioni possono essere errate.
 - **Riduzione della potenza statistica**: Eliminare dati incompleti riduce il numero totale di osservazioni, rendendo più difficile trovare risultati significativi.
 - **Impossibilità di applicare alcuni metodi**: Molti algoritmi statistici richiedono dati completi e non funzionano con valori mancanti.
 
@@ -286,15 +330,33 @@ Immagina di voler capire il rendimento medio di una classe in un test, ma alcuni
 
 Ci sono diversi modi per affrontare i dati mancanti. Vediamo prima i metodi più semplici e poi quelli più avanzati.
 
-1. **Esclusione dei Casi Incompleti (Complete Case Analysis)**  
+Esaminiamo il data frame iniziale:
+
+```{r}
+svy |> 
+  summary()
+```
+
+Si noti la presenza di dati mancanti sulle variabili `math3` e `math4`.
+
+```{r}
+dim(svy)
+```
+
+1. **Esclusione dei Casi Incompleti (Complete Case Analysis).**  
    Un approccio comune, ma spesso non ideale, è quello di analizzare solo i casi completi, eliminando tutte le righe con valori mancanti. In R, questo si può fare con il seguente comando:
 
    ```{r}
    svy_comp <- svy |>
      drop_na()
+   ```
+   
+   In questo modo abbiamo escluso tutte le righe nelle quali sono presenti dei dati mancanti (in questo caso, una sola riga).
+   
+   ```{r}
    dim(svy_comp)
    ```
-
+   
    **Limite**: Questo metodo può introdurre bias se i dati mancanti non sono casuali e riduce il campione, compromettendo l'affidabilità delle analisi.
 
 2. **Imputazione Semplice**  
@@ -304,8 +366,6 @@ Ci sono diversi modi per affrontare i dati mancanti. Vediamo prima i metodi più
 
 3. **Imputazione Multipla**  
    Un approccio più avanzato è l'imputazione multipla, che utilizza modelli statistici per stimare i valori mancanti in modo iterativo. L'idea di base è semplice: ogni valore mancante viene stimato tenendo conto delle relazioni con tutte le altre variabili.
-
-   **Esempio Intuitivo**: Immagina che in una classe manchino le risposte di alcuni studenti per alcune domande, ma che tu conosca il rendimento degli studenti in altre materie. Con l'imputazione multipla, utilizzi queste informazioni per prevedere i voti mancanti. Ripeti il processo più volte (iterativamente) per migliorare l'accuratezza delle stime.
 
    **Vantaggi**:
    - Mantiene la variabilità dei dati.
@@ -368,7 +428,7 @@ svy |>
 2. I valori mancanti vengono stimati iterativamente. In ogni iterazione, si utilizza l'output precedente come input per migliorare le stime.
 3. Dopo un numero sufficiente di iterazioni, le stime si stabilizzano (convergenza).
 
-In conclusione, l'imputazione multipla è una tecnica avanzata che permette di gestire i dati mancanti preservando la qualità delle analisi. Rispetto ai metodi semplici, consente di mantenere la variabilità e ridurre il rischio di bias, rendendola una scelta ideale per analisi psicologiche e di ricerca. Nei prossimi capitoli approfondiremo ulteriormente i vantaggi e le applicazioni dell'imputazione multipla.
+In conclusione, l'imputazione multipla è una tecnica avanzata che permette di gestire i dati mancanti preservando la qualità delle analisi. Rispetto ai metodi semplici, consente di mantenere la variabilità e ridurre il rischio di bias, rendendola una scelta ideale per analisi psicologiche e di ricerca. 
 
 #### Aggiungere i Metadati
 
@@ -382,18 +442,21 @@ In R, i metadati sono gestiti in modo molto dettagliato e strutturato attraverso
 
 Questi strumenti rendono molto facile documentare un dataset all'interno del processo di analisi, assicurando che tutte le informazioni critiche sui dati siano facilmente accessibili e ben documentate.
 
-Esaminiamo un esempio pratico. Iniziamo creando un piccolo dataset.
+Esaminiamo un esempio pratico. Consideriamo nuovamente il data set `svy`:
 
 ```{r}
-svy <- tibble(
-  stu_id = c(1347, 1368, 1377, 1387, 1399),
-  grade_level = c(9, 10, 9, 11, 12),
-  math1 = c(2, 3, 4, 3, 4),
-  math2 = c(1, 2, 4, 3, 1),
-  math3 = c(3.0, 2.0, 4.0, NA, 3.0),
-  math4 = c(3.0, 2.0, 4.0, NA, 1.0),
-  int = c(1, 0, 1, 0, 1)
-)
+glimpse(svy)
+```
+
+Si noti che la variabile `math2` contiene un valore inamissibile, probabilmente un errore di battitura. Questo fa in modo che `math2` sia di tipo `char` mentre dovrebbe essere una variabile numerica. Correggiamo.
+
+```{r}
+# Correzione di `math2`: Rimuovi valori non validi e converti in numerico
+svy$math2 <- gsub("\\n", "", svy$math2)  # Rimuovi caratteri non validi come '\n'
+svy$math2 <- as.numeric(svy$math2)      # Converte la variabile in numerico
+
+# Visualizzazione del dataset corretto
+print(svy)
 ```
 
 Definiamo le etichette di valore per le variabili `math1:math4`.
@@ -423,6 +486,25 @@ Verifica delle etichette.
 val_labels(svy$math1)
 ```
 
+```{r}
+svy
+```
+
+##### Utilizzo delle Etichette in R con Variabili Numeriche
+
+Le etichette dei valori (*value labels*) vengono utilizzate per rendere più leggibili e interpretabili le variabili numeriche, associando ad ogni valore un'etichetta descrittiva. Questo approccio è particolarmente utile in ambiti come la ricerca  psicologica, dove le risposte ai questionari sono spesso codificate con numeri (ad esempio, 1 = "Strongly Disagree", 2 = "Disagree", ecc.) ma rappresentano concetti qualitativi.
+
+**Vantaggi dell’Uso delle Etichette**
+
+1. **Chiarezza nelle Analisi**: Le etichette descrittive rendono i dati più facilmente comprensibili senza dover ricordare il significato numerico di ciascun valore.  
+2. **Documentazione Integrata**: Permettono di incorporare metadati direttamente nelle variabili, migliorando la trasparenza e riducendo il rischio di interpretazioni errate.
+3. **Compatibilità con Software Statistici**: Molti strumenti (ad esempio, SPSS o Stata) utilizzano etichette di valori. Il pacchetto `haven` in R consente di gestire facilmente i dati etichettati esportati/importati da questi software.
+
+**Manipolazione di Variabili Etichettate**
+
+Anche se una variabile numerica è etichettata con `labelled` (ad esempio, tramite il pacchetto **`haven`**), essa conserva la sua natura numerica e può essere utilizzata in calcoli, modelli statistici, e trasformazioni. Le etichette non alterano il valore sottostante, ma lo arricchiscono con informazioni aggiuntive. 
+
+In conclusione, le etichette dei valori migliorano l'interpretabilità dei dati senza comprometterne la manipolabilità. Questo approccio è ideale per mantenere le variabili numeriche pienamente funzionali per analisi statistiche, mentre le etichette descrittive forniscono un contesto chiaro e leggibile.
 
 #### Validazione dei Dati
 
@@ -477,7 +559,7 @@ Esistono vari motivi per cui potrebbe essere utile memorizzare i dati in formato
 
 #### Salvare il dataset pulito finale
 
-L'ultimo passaggio del processo di pulizia consiste nell'esportare o salvare il dataset pulito. Come accennato in precedenza, può essere utile esportare/salvare il dataset in più di un formato di file (ad esempio, un file .csv e un file .parquet).
+L'ultimo passaggio del processo di pulizia consiste nell'esportare o salvare il dataset pulito. Come accennato in precedenza, può essere utile esportare/salvare il dataset in più di un formato di file (ad esempio, un file `.csv` e un file `.parquet`).
 
 ## Organizzazione dei file e informazioni aggiuntive
 
@@ -505,9 +587,14 @@ Ecco come tradurre i passi per creare un dizionario dei dati in R, utilizzando i
 2. **Descrivere ogni variabile**: Per ciascuna variabile, definire il tipo (ad esempio, `integer`, `numeric`, `character`), il range di valori accettabili o le categorie, e fornire una descrizione chiara.
 3. **Salvare il dizionario dei dati**: Il dizionario può essere salvato in un file `.csv` o `.xlsx` per una facile consultazione.
 
+```{r}
+svy
+```
+
+
 Creeremo un dizionario dei dati per un dataset di esempio e lo salveremo sia in formato CSV che Excel.
 
-```{r eval=FALSE}
+```{r}
 library(tibble)
 library(readr)
 library(writexl)
@@ -556,26 +643,73 @@ data_dict <- tibble(
 print(data_dict)
 
 # Salva il Dizionario dei Dati in un file CSV
-write_csv(data_dict, "data_dictionary.csv")
+write_csv(data_dict, here::here("data", "processed", "data_dictionary.csv"))
 
 # Salva il Dizionario dei Dati in un file Excel
-write_xlsx(data_dict, "data_dictionary.xlsx")
+write_xlsx(data_dict, here::here("data", "processed", "data_dictionary.xlsx"))
 ```
 
 Output Atteso: file CSV (`data_dictionary.csv`).
 
-| Variable Name | Type      | Description                                                 | Range/Values               |
-|---------------|-----------|-------------------------------------------------------------|----------------------------|
-| stu_id        | integer   | Student ID                                                 | 1347-1399                 |
-| svy_date      | datetime  | Survey Date                                                | 2023-02-13 to 2023-02-14  |
-| grade_level   | integer   | Grade Level                                                | 9-12                      |
-| math1         | integer   | Math Response 1 (1: Strongly Disagree, 4: Strongly Agree) | 1-4                       |
-| math2         | integer   | Math Response 2 (1: Strongly Disagree, 4: Strongly Agree) | 1-4                       |
-| math3         | numeric   | Math Response 3 (1: Strongly Disagree, 4: Strongly Agree) | 1.0-4.0 (NA allowed)      |
-| math4         | numeric   | Math Response 4 (1: Strongly Disagree, 4: Strongly Agree) | 1.0-4.0 (NA allowed)      |
 
-- **Documentazione**: Il dizionario dei dati offre una descrizione chiara e standardizzata, utile per analisi successive e per la condivisione del dataset.
-- **Salvataggio multiplo**: I formati `.csv` e `.xlsx` garantiscono la massima compatibilità con altri software e sistemi.
+```{r}
+data_dict <- rio::import(
+  here::here("data", "processed", "data_dictionary.csv")
+)
+```
+
+```{r}
+print(data_dict)
+```
+
+#### Uso del pacchetto `dataMeta`
+
+Il pacchetto `dataMeta` è progettato per generare metadati e dizionari dei dati in modo strutturato.
+
+```{r}
+library(dataMeta)
+library(tibble)
+
+# Descrizioni delle variabili
+variable_descriptions <- c(
+  "Student ID",
+  "Grade Level",
+  "Math Response 1 (1: Strongly Disagree, 4: Strongly Agree)",
+  "Math Response 2 (1: Strongly Disagree, 4: Strongly Agree)",
+  "Math Response 3 (1: Strongly Disagree, 4: Strongly Agree)",
+  "Math Response 4 (1: Strongly Disagree, 4: Strongly Agree)"
+)
+
+var_type <- c(1, 0, 0, 0, 0, 0)
+
+linker <- build_linker(
+  svy, 
+  variable_description = variable_descriptions, 
+  variable_type = var_type
+)
+
+dict <- build_dict(
+  my.data = svy, 
+  linker = linker, 
+  option_description = NULL, 
+  prompt_varopts = FALSE
+)
+
+kable(dict, format = "html", caption = "Data dictionary for original dataset")
+```
+
+#### Uso del pacchetto `skimr`
+
+Il pacchetto `skimr` è utile per generare riassunti dettagliati delle variabili, che possono essere utilizzati come base per un dizionario.
+
+```{r}
+library(skimr)
+
+# Riassunto del dataset
+skim_dict <- skim(svy)
+
+kable(skim_dict, format = "html", caption = "Data dictionary for original dataset")
+```
 
 ## Riflessioni Conclusive
 

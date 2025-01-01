@@ -5,147 +5,265 @@ execute:
 
 # Distribuzione predittiva a posteriori {#sec-bayesian-inference-post-pred-distr}
 
-**Prerequisiti**
+::: callout-note
+## In questo capitolo imparerai a:
+
+- utilizzare la distribuzione predittiva a posteriori per fare previsioni sui dati futuri, incorporando sia l'incertezza sui parametri del modello sia la variabilità intrinseca del processo generativo.
+- comprendere il ruolo della distribuzione predittiva a posteriori nel verificare la coerenza del modello bayesiano rispetto ai dati osservati.
+- applicare il concetto di distribuzione predittiva a posteriori al caso beta-binomiale per un'analisi pratica e intuitiva.
+:::
+
+::: callout-tip
+## Prerequisiti
 
 - Leggere il capitolo [Posterior Inference & Prediction](https://www.bayesrulesbook.com/chapter-8#ch8-post-pred) di [Bayes Rules!](https://www.bayesrulesbook.com).
+- Consultare *Bayesian statistics and modelling* [@van2021bayesian].
+:::
 
-**Concetti e competenze chiave**
+::: callout-important
+## Preparazione del Notebook
 
-- Imparare a combinare le probabilità a posteriori con le probabilità condizionali di un nuovo evento (come ottenere "croce" in un ulteriore lancio) per fare previsioni future. La distribuzione predittiva a posteriori ci permette di calcolare la probabilità di nuovi dati, tenendo conto delle evidenze osservate.
-- Capire come la modellazione probabilistica aiuti a formalizzare l'incertezza e a fare previsioni basate su evidenze aggiornate, un concetto chiave nel ragionamento statistico e inferenziale.
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+```
+:::
 
-## Introduzione 
+## Introduzione
 
-In questo capitolo esploreremo il concetto di *distribuzione predittiva a posteriori*, concentrandoci sul caso discreto. Per rendere il tema accessibile e intuitivo, utilizzeremo come esempio esplicativo il classico problema del *sacchetto di monete* (*bag of coins*), che permette di visualizzare chiaramente il processo di inferenza bayesiana.
+Nel contesto dell'inferenza bayesiana, uno degli obiettivi principali è non solo stimare i parametri di un modello (ad esempio, la probabilità $p$ di successo in un esperimento binomiale) ma anche fare previsioni su dati futuri basandosi su ciò che abbiamo osservato. La **distribuzione predittiva a posteriori** risponde proprio a questa esigenza, combinando:
 
+1.  La nostra incertezza sui parametri descritta dalla **distribuzione a posteriori**.
+2.  La variabilità intrinseca del processo che genera i dati futuri.
 
-## Previsioni su Eventi Futuri
+In termini semplici, la distribuzione predittiva a posteriori ci dice quali risultati futuri sono plausibili, dato ciò che sappiamo dai dati osservati e dal modello.
 
-La *distribuzione predittiva a posteriori* è un elemento centrale nell'inferenza bayesiana. Essa rappresenta la probabilità di eventi futuri calcolata sulla base delle osservazioni raccolte e delle nostre convinzioni aggiornate (*a posteriori*). In altre parole, consente di fare previsioni tenendo conto sia dei dati osservati che dell'incertezza residua nei parametri del modello.
+## Definizione Formale
 
-### Definizione Formale
+Supponiamo di avere un insieme di dati osservati $y = \{y_1, y_2, \ldots, y_n\}$, generati da un modello che dipende da un parametro sconosciuto $\theta$. Il parametro $\theta$ può rappresentare qualsiasi caratteristica del modello, come una probabilità di successo, una media, o un coefficiente in un modello di regressione. Inizialmente, la nostra conoscenza su $\theta$ è rappresentata dalla distribuzione a priori $p(\theta)$, che riflette ciò che sappiamo (o non sappiamo) su $\theta$ prima di osservare i dati.
 
-Supponiamo di avere un insieme di dati osservati $y = \{y_1, y_2, \ldots, y_n\}$, generati da un modello che dipende da un parametro sconosciuto $\theta$. Inizialmente, le nostre conoscenze su $\theta$ sono rappresentate dalla distribuzione a priori $p(\theta)$. Dopo aver osservato i dati, possiamo aggiornare la nostra conoscenza su $\theta$ mediante la distribuzione a posteriori $p(\theta | y)$, calcolata con la formula di Bayes:
+Dopo aver osservato i dati $y$, possiamo aggiornare la nostra conoscenza su $\theta$ utilizzando la formula di Bayes per calcolare la distribuzione a posteriori $p(\theta \mid y)$:
 
 $$
-p(\theta | y) = \frac{p(y | \theta) p(\theta)}{p(y)},
+p(\theta \mid y) = \frac{p(y \mid \theta) p(\theta)}{p(y)},
 $$
 
 dove:
 
-- $p(\theta | y)$ è la distribuzione a posteriori del parametro $\theta$;
-- $p(y | \theta)$ è la *verosimiglianza*, cioè la probabilità di osservare i dati dati i parametri;
-- $p(\theta)$ è la distribuzione a priori di $\theta$;
-- $p(y)$ è l'evidenza, ovvero la probabilità totale dei dati osservati.
+- **$p(\theta \mid y)$**: la distribuzione a posteriori rappresenta la nostra conoscenza aggiornata su $\theta$ dopo aver osservato i dati.
+- **$p(y \mid \theta)$**: la *verosimiglianza* è la probabilità di osservare i dati dati i parametri del modello.
+- **$p(\theta)$**: la distribuzione a priori rappresenta la conoscenza iniziale su $\theta$.
+- **$p(y)$**: l'evidenza è la probabilità totale dei dati osservati, calcolata come:
 
-Per fare previsioni su un nuovo dato $\tilde{y}$, usiamo la *distribuzione predittiva a posteriori*, che combina tutte le possibili ipotesi sui parametri $\theta$, pesate per le loro probabilità a posteriori:
-
-$$
-p(\tilde{y} | y) = \int p(\tilde{y} | \theta) p(\theta | y) \, d\theta.
-$$
-
-Nel caso discreto, l'integrale diventa una somma:
-
-$$
-p(\tilde{y} | y) = \sum_{\theta} p(\tilde{y} | \theta) p(\theta | y).
-$$
-
-Questa espressione incorpora la nostra incertezza sui parametri, permettendoci di fare previsioni più robuste e coerenti.
+  $$
+  p(y) = \int p(y \mid \theta) p(\theta) \, d\theta.
+  $$
 
 ---
 
-## Il Sacchetto di Monete
+### **Previsione di Nuovi Dati**
 
-Il problema del *sacchetto di monete* fornisce un esempio pratico per comprendere la distribuzione predittiva a posteriori. Immaginiamo di avere un sacchetto contenente tre tipi di monete:
+Quando vogliamo prevedere un nuovo dato, indicato con $\tilde{y}$, la nostra attenzione si sposta sulla *distribuzione predittiva a posteriori*, $p(\tilde{y} \mid y)$. 
 
-1. **Moneta di Tipo 0**: Dà sempre "croce" (probabilità di "testa" = 0).
-2. **Moneta di Tipo 1**: È una moneta equa (probabilità di "testa" = 0.5 e di "croce" = 0.5).
-3. **Moneta di Tipo 2**: Dà sempre "testa" (probabilità di "testa" = 1).
+#### Cosa rappresenta $\tilde{y}$?
 
-Supponiamo di scegliere una moneta a caso dal sacchetto e di lanciarla quattro volte, ottenendo sempre "croce". Vogliamo calcolare la probabilità di ottenere "croce" al quinto lancio, utilizzando la distribuzione predittiva a posteriori.
+- $\tilde{y}$ rappresenta un dato futuro o non osservato. Ad esempio, se i dati $y$ rappresentano il numero di successi osservati in una serie di lanci di una moneta, $\tilde{y}$ potrebbe rappresentare il numero di successi in una nuova serie di lanci.
+- L’obiettivo è stimare $p(\tilde{y} \mid y)$, cioè la probabilità del nuovo dato $\tilde{y}$ dato ciò che abbiamo osservato in $y$.
 
----
+#### Cosa rappresenta $p(\tilde{y} \mid \theta)$?
 
-### Passo 1: Probabilità Iniziali (*A Priori*)
+- $p(\tilde{y} \mid \theta)$ è la probabilità del nuovo dato $\tilde{y}$ dato un particolare valore del parametro $\theta$. 
+- Ad esempio, in un modello binomiale, $p(\tilde{y} \mid \theta)$ corrisponde alla probabilità di ottenere $\tilde{y}$ successi su $n_{\text{new}}$ prove, data la probabilità di successo $\theta$.
 
-Prima di osservare i risultati dei lanci, non abbiamo informazioni su quale tipo di moneta sia stato estratto. Attribuiamo quindi una probabilità uniforme (*a priori*) a ciascun tipo di moneta:
+#### Combinazione di $p(\tilde{y} \mid \theta)$ con $p(\theta \mid y)$
 
-- $P(\text{Tipo 0}) = \frac{1}{3}$;
-- $P(\text{Tipo 1}) = \frac{1}{3}$;
-- $P(\text{Tipo 2}) = \frac{1}{3}$.
-
----
-
-### Passo 2: Osservare i Risultati e Aggiornare le Probabilità
-
-Dopo aver osservato quattro lanci consecutivi che hanno dato "croce", possiamo aggiornare le probabilità sui tipi di moneta utilizzando la formula di Bayes.
-
-- **Moneta di Tipo 0**: La probabilità di osservare quattro "croce" è 1, dato che questa moneta dà sempre "croce".
-- **Moneta di Tipo 1**: La probabilità di osservare quattro "croce" consecutivi è $(0.5)^4 = 0.0625$.
-- **Moneta di Tipo 2**: La probabilità di osservare quattro "croce" è 0, dato che questa moneta dà sempre "testa".
-
-Usiamo la formula di Bayes per calcolare le probabilità posteriori. Supponiamo che $D$ rappresenti il dato osservato ("croce, croce, croce, croce"). La probabilità totale $P(D)$ è:
+Poiché non conosciamo esattamente $\theta$, dobbiamo considerare tutte le possibili ipotesi su $\theta$, pesandole in base alla loro probabilità a posteriori $p(\theta \mid y)$. Questo porta alla formula per la distribuzione predittiva a posteriori:
 
 $$
-P(D) = P(D | \text{Tipo 0}) P(\text{Tipo 0}) + P(D | \text{Tipo 1}) P(\text{Tipo 1}) + P(D | \text{Tipo 2}) P(\text{Tipo 2}),
+p(\tilde{y} \mid y) = \int p(\tilde{y} \mid \theta) p(\theta \mid y) \, d\theta.
 $$
 
-cioè:
+#### Interpretazione
+
+- La distribuzione predittiva a posteriori, $p(\tilde{y} \mid y)$, rappresenta la nostra miglior stima della probabilità del nuovo dato $\tilde{y}$, tenendo conto sia dei dati osservati $y$ sia dell'incertezza su $\theta$.
+
+### Caso Discreto
+
+Se il parametro $\theta$ assume un numero finito di valori, l'integrale si semplifica in una somma:
 
 $$
-P(D) = 1 \cdot \frac{1}{3} + 0.0625 \cdot \frac{1}{3} + 0 \cdot \frac{1}{3} = \frac{1.0625}{3}.
+p(\tilde{y} \mid y) = \sum_{\theta} p(\tilde{y} \mid \theta) p(\theta \mid y).
 $$
 
-Le probabilità posteriori diventano quindi:
+Questo approccio è utile nei modelli discreti o quando si approssimano i parametri con un numero finito di valori campionati.
 
-- $P(\text{Tipo 0} | D) = \frac{1 \cdot \frac{1}{3}}{\frac{1.0625}{3}} = \frac{1}{1.0625} \approx 0.941$;
-- $P(\text{Tipo 1} | D) = \frac{0.0625 \cdot \frac{1}{3}}{\frac{1.0625}{3}} = \frac{0.0625}{1.0625} \approx 0.059$;
-- $P(\text{Tipo 2} | D) = 0$.
+## Il Caso Beta-Binomiale
 
----
+Consideriamo un classico esperimento binomiale: lanciare una moneta $n$ volte e osservare il numero di successi $y$ (ad esempio, il numero di "teste"). In un contesto bayesiano, il processo di analisi si articola in tre fasi:
 
-### Passo 3: Predire il Risultato del Quinto Lancio
+1.  **Distribuzione a Priori**: Prima di osservare i dati, formuliamo una distribuzione a priori sulla probabilità $p$ di successo, che riflette le nostre conoscenze iniziali (o la loro assenza). Una scelta comune è la distribuzione Beta($\alpha, \beta$), perché è flessibile e ben definita per probabilità. Per esempio:
 
-La probabilità di ottenere "croce" al quinto lancio è calcolata combinando le probabilità posteriori con la probabilità di "croce" per ciascun tipo di moneta:
+    -   $\alpha$ rappresenta il numero "fittizio" di successi osservati.
+    -   $\beta$ rappresenta il numero "fittizio" di insuccessi osservati.
 
-$$
-P(\text{croce al quinto lancio} | D) = P(\text{Tipo 0} | D) \cdot 1 + P(\text{Tipo 1} | D) \cdot 0.5 + P(\text{Tipo 2} | D) \cdot 0.
-$$
+2.  **Distribuzione a Posteriori**: Dopo aver osservato $y$ successi su $n$ prove, aggiorniamo la distribuzione a priori combinandola con i dati osservati, ottenendo la distribuzione a posteriori di $p$:
 
-Inserendo i valori calcolati:
+    $$
+    \alpha_{\text{post}} = \alpha_{\text{prior}} + y, \quad \beta_{\text{post}} = \beta_{\text{prior}} + (n - y).
+    $$
 
-$$
-P(\text{croce al quinto lancio} | D) = 0.941 \cdot 1 + 0.059 \cdot 0.5 + 0 \cdot 0 = 0.9705.
-$$
+    Questa distribuzione rappresenta ciò che sappiamo di $p$ dopo aver osservato i dati.
 
----
+3.  **Distribuzione Predittiva a Posteriori**: Per prevedere il numero di successi futuri $y_{\text{new}}$ in un nuovo esperimento con $n_{\text{new}}$ prove, combiniamo la distribuzione a posteriori di $p$ con la variabilità intrinseca del processo binomiale. In pratica:
 
-## Interpretazione
+    -   Campioniamo $p$ dalla distribuzione a posteriori ($p \sim \text{Beta}(\alpha_{\text{post}}, \beta_{\text{post}})$).
+    -   Usiamo ciascun campione di $p$ per simulare nuovi dati ($y_{\text{new}} \sim \text{Binomiale}(n_{\text{new}}, p)$).
 
-La distribuzione predittiva a posteriori combina la nostra incertezza sui parametri con le osservazioni passate, fornendo una stima robusta per eventi futuri. In questo esempio, la probabilità di ottenere "croce" al quinto lancio è alta ($0.9705$), poiché le osservazioni precedenti indicano una forte probabilità che la moneta scelta sia di Tipo 0.
+Questo processo tiene conto sia dell'incertezza sui parametri ($p$) sia della variabilità intrinseca nei dati futuri.
+
+## Simulazione della Distribuzione Predittiva a Posteriori
+
+### Impostazione dei Parametri
+
+- Supponiamo di aver osservato $y = 70$ successi su $n = 100$ prove.
+- Utilizziamo una distribuzione a priori Beta($2, 2$), che rappresenta una conoscenza iniziale debolmente informativa, con una leggera preferenza per $p \approx 0.5$.
+
+### Calcolo della Distribuzione a Posteriori
+
+- Aggiorniamo la distribuzione a priori con i dati osservati. I parametri aggiornati sono:
+
+  $$
+  \alpha_{\text{post}} = \alpha_{\text{prior}} + y = 2 + 70 = 72, \quad \beta_{\text{post}} = \beta_{\text{prior}} + (n - y) = 2 + 30 = 32.
+  $$
+  
+- La distribuzione a posteriori è quindi $p \sim \text{Beta}(72, 32)$, che descrive la probabilità aggiornata di successo basata sui dati.
+
+### Simulazione dei Dati Futuri
+
+- Generiamo $n_{\text{sim}} = 1000$ campioni di $p$ dalla distribuzione a posteriori Beta(72, 32).
+- Per ogni campione di $p$, simuliamo $y_{\text{new}}$, il numero di successi futuri su $n_{\text{new}} = 10$ prove, utilizzando la distribuzione binomiale:
+
+  $$
+  y_{\text{new}} \sim \text{Binomiale}(n_{\text{new}} = 10, p).
+  $$
+  
+- Infine, convertiamo $y_{\text{new}}$ in proporzioni predette:
+
+  $$
+  \text{Proporzione predetta} = \frac{y_{\text{new}}}{n_{\text{new}}}.
+  $$
+
+```{r}
+# Impostazione del seed per riproducibilità
+set.seed(123)
+
+# Parametri osservati
+y <- 70
+n <- 100
+
+# Parametri a priori
+alpha_prior <- 2
+beta_prior <- 2
+
+# Calcolo dei parametri a posteriori
+alpha_post <- alpha_prior + y
+beta_post <- beta_prior + (n - y)
+
+# Simulazione della distribuzione a posteriori
+p_samples <- rbeta(1000, alpha_post, beta_post)
+
+# Simulazione di nuovi dati per n_new = 10
+y_preds <- sapply(p_samples, function(p) {
+  rbinom(1, 10, p)
+})
+
+# Calcolo delle proporzioni predette
+prop_preds <- y_preds / 10
+```
+
+### Risultati Attesi
+
+1. **Distribuzione a Posteriori di $p$:**
+   - Centrata attorno a $0.7$, con una varianza ridotta grazie alla dimensione del campione $n = 100$.
+
+2. **Distribuzione Predittiva per $n_{\text{new}} = 10$:**
+   - Variabilità più ampia rispetto a $p$, dovuta al numero ridotto di prove ($n_{\text{new}} = 10$).
+   - Riflette sia l'incertezza su $p$ sia la variabilità intrinseca dei dati futuri.
+
+```{r}
+# Visualizzazione
+par(mfrow = c(1, 2))
+curve(dbeta(x, alpha_prior, beta_prior), from = 0, to = 1, 
+      main = "Distribuzione a Priori", col = "blue", lwd = 2)
+curve(dbeta(x, alpha_post, beta_post), from = 0, to = 1, 
+      main = "Distribuzione a Posteriori", col = "red", lwd = 2)
+```
+
+```{r}
+hist(prop_preds, breaks = 20, col = "lightblue", freq = FALSE,
+     main = "Distribuzione Predittiva (n_new = 10)",
+     xlab = "Proporzione di Successi")
+abline(v = y / n, col = "blue", lwd = 3, lty = 2)
+```
+
+### Spiegazione del Codice
+
+Simulazione di nuovi dati per $n_{\text{new}} = 10$:
+
+```r
+y_preds <- sapply(p_samples, function(p) {
+  rbinom(1, 10, p)
+})
+```
+
+- `p_samples` contiene $1000$ valori di $p$ simulati dalla distribuzione Beta(72, 32).
+- Per ciascun $p$, `rbinom(1, 10, p)` genera un valore di $y_{\text{new}}$, simulando il numero di successi futuri su $n_{\text{new}} = 10$ prove.
+
+**Risultato:** un vettore di 1000 valori di $y_{\text{new}}$, uno per ciascun campione di $p$.
+
+Calcolo delle proporzioni predette:
+
+```r
+prop_preds <- y_preds / 10
+```
+
+- Divide ciascun valore di $y_{\text{new}}$ per $n_{\text{new}} = 10$, ottenendo le proporzioni di successi predette.
+
+**Risultato:** un vettore di 1000 proporzioni predette ($y_{\text{new}} / n_{\text{new}}$).
+
+### Interpretazione 
+
+- La distribuzione a posteriori di $p$, Beta(72, 32), è centrata attorno a $p \approx 0.7$, coerente con i dati osservati ($y / n = 0.7$).
+- Le proporzioni predette mostrano la variabilità combinata dell'incertezza su $p$ (dalla distribuzione a posteriori) e della variabilità binomiale per un campione futuro di 10 prove.
+- L'istogramma delle proporzioni predette è più ampio rispetto alla distribuzione a posteriori di $p$, riflettendo l'incertezza aggiuntiva derivante dal numero ridotto di prove ($n_{\text{new}} = 10$).
+
+## Posterior Predictive Check (PP-Check)
+
+La distribuzione predittiva a posteriori ottenuta dalla simulazione ($n_{\text{new}} = 10$) può essere utilizzata per effettuare un **Posterior Predictive Check (PP-Check)**. Questo controllo confronta i dati osservati con i dati simulati dal modello per verificare se il modello è in grado di riprodurre caratteristiche rilevanti dei dati osservati.
+
+In questa simulazione, il Posterior Predictive-Check suggerisce che il modello è ben specificato per i dati osservati ($y = 70$, $n = 100$): la proporzione osservata ($0.7$) è vicina al centro della distribuzione predittiva. Questo significa che il modello può essere considerato valido per fare previsioni sui dati futuri, almeno nel contesto specificato. 
+
+::: {.callout-note}
+Il fatto che la distribuzione predittiva a posteriori rappresenti accuratamente la proporzione osservata può sembrare ovvio nel caso presente. Questo avviene perché stiamo lavorando con un modello semplice e ben specificato, utilizzato qui con l'intento di chiarire la logica del concetto di distribuzione predittiva a posteriori. Tuttavia, nei modelli più complessi, tipici delle indagini psicologiche, la corrispondenza tra i dati osservati e quelli predetti dal modello non può mai essere data per scontata. È essenziale verificarla attraverso la distribuzione predittiva a posteriori.
+
+Se i dati osservati non sono ben rappresentati dalla distribuzione predittiva a posteriori, ciò indica che il modello non è adeguato a spiegare i dati e necessita di revisione. Questo processo di verifica non solo garantisce la coerenza del modello con i dati disponibili, ma consente anche di identificare eventuali aree problematiche nella specificazione del modello, come prior inappropriati o assunzioni non realistiche. In definitiva, il confronto tra i dati osservati e quelli predetti è un passo fondamentale per la validazione di modelli complessi in contesti psicologici e scientifici.
+:::
+
 
 ## Riflessioni Conclusive
 
-Il problema del *sacchetto di monete* illustra come la distribuzione predittiva a posteriori permetta di fare previsioni integrate e coerenti, aggiornando sistematicamente le credenze iniziali con le evidenze osservate. Questo approccio evidenzia la potenza dell'inferenza bayesiana nel gestire l'incertezza e nel fornire previsioni informate.
+La distribuzione predittiva a posteriori è uno strumento centrale nell'inferenza bayesiana, poiché consente di fare previsioni sui dati futuri integrando l'incertezza sui parametri del modello con la variabilità intrinseca del processo generativo. Questa capacità va oltre la semplice stima dei parametri, permettendo di confrontare le previsioni del modello con i dati reali, un passaggio fondamentale per verificare la coerenza e l'utilità del modello stesso.
 
+Nel flusso di lavoro bayesiano, la distribuzione predittiva a posteriori svolge un ruolo chiave nella valutazione del modello. Ad esempio, consente di effettuare **controlli predittivi a posteriori** per identificare discrepanze tra i dati osservati e quelli previsti. Tali controlli aiutano a diagnosticare problemi di specificazione del modello, a valutare l'adeguatezza delle scelte a priori e a guidare eventuali revisioni del modello.
 
-## Esercizi
+Inoltre, il caso beta-binomiale utilizzato in questo capitolo rappresenta un esempio intuitivo e potente: evidenzia come l'incertezza sui parametri possa essere tradotta in previsioni probabilistiche robuste, senza la necessità di fare assunzioni rigide o non realistiche. Questo approccio non solo formalizza l'incertezza in modo rigoroso, ma permette anche di comunicare le previsioni in modo trasparente e interpretabile, caratteristiche essenziali in ambito decisionale e scientifico.
 
-::: {#exr-bag-of-coins-1}
+In sintesi, la distribuzione predittiva a posteriori è un elemento fondamentale della modellazione bayesiana, che lega l'inferenza paramatrica alla previsione empirica, contribuendo a rendere l'intero processo inferenziale più affidabile, interpretabile e applicabile a scenari complessi.
 
-Utilizzando un set di dati diverso, ovvero tre "testa" seguite da una "croce", calcola la distribuzione predittiva a posteriori per il prossimo lancio.
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered}
 
-:::
-   
-::: {#exr-bag-of-coins-2}
+```{r}
+sessionInfo()
+```
 
-Consideriamo un modello in cui ci sono tre tipi di monete, ognuna con una probabilità diversa di dare "testa" o "croce":
-
-1. Moneta di Tipo 0: Questa moneta dà sempre "croce". La probabilità di ottenere "testa" è 0.
-2. Moneta di Tipo 1: Questa moneta ha una probabilità di 0.7 di ottenere "testa" e 0.3 di ottenere "croce".
-3. Moneta di Tipo 2: Questa moneta dà sempre "testa". La probabilità di ottenere "testa" è 1.
-
-Nel sacchetto ci sono: 2 monete di tipo 0, 1 moneta di tipo 1 e 1 moneta di tipo 2. Supponiamo di osservare la sequenza *croce, testa, croce*. Vogliamo calcolare la probabilità di ottenere "croce" al quarto lancio.
-
-:::
-
+## Bibliografia {.unnumbered}
