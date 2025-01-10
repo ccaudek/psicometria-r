@@ -15,7 +15,8 @@ pacman::p_load(
   patchwork, # Composizione di grafici ggplot
   gridExtra, # Funzioni per visualizzare layout a griglia
   see, # Provides palette_okabeito
-  tidyr # Funzionalità per creare tidy data
+  tidyr, # Funzionalità per creare tidy data
+  ggokabeito # Qualitative Okabe-Ito Scales for ggplot2 
 )
 
 options(tidyverse.quiet = TRUE)
@@ -41,7 +42,6 @@ knitr::opts_chunk$set(
   ggrepel.max.overlaps = 100
 )
 
-
 options(
   show.signif.stars = FALSE,
   dplyr.print_min = 6,
@@ -64,7 +64,16 @@ theme_set(bayesplot::theme_default(base_size = 13, base_family = "sans"))
 
 color_scheme_set("brightblue") # bayesplot
 
+# From https://osf.io/k824z
+# Have to add a colour to the palette to be able to use 10 items
+palette_okabe_enhanced <- 
+  c(ggokabeito::palette_okabe_ito(order = c(5,1,3,4,2,6,7,8,9)), "#882E72")
+
+
 # Seed -------------------------------------------------------------------------
 
 set.seed(42) # Fissa il seme per la riproducibilità
+
+
+
 
