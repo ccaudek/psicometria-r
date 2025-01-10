@@ -5,232 +5,133 @@ execute:
 
 # Inferenza bayesiana {#sec-bayes-inference}
 
-**Prerequisiti**
+
+::: callout-important
+## In questo capitolo approfondirai i seguenti concetti fondamentali:  
+
+- distribuzione marginale;
+- approccio analitico e numerico per determinare la distribuzione a posteriori;
+- linguaggi di programmazione probabilistici;
+- inferenza predittiva.
+::: 
+
+::: callout-tip
+## Prerequisiti
 
 - Leggere il capitolo *Bayes' Rule* del testo di @Johnson2022bayesrules.
+:::
 
-**Concetti e Competenze Chiave**
-
-- Distribuzione marginale.
-- Approccio analitico e numerico per determinare la distribuzione a posteriori.
-- Linguaggi di programmazione probabilistici.
-- Inferenza predittiva.
-
-**Preparazione del Notebook**
+::: callout-caution
+## Preparazione del Notebook
 
 ```{r}
 here::here("code", "_common.R") |> 
   source()
-
-# Load packages
-if (!requireNamespace("pacman")) install.packages("pacman")
-pacman::p_load(mice)
 ```
+:::
 
-## Introduzione 
 
-Questo capitolo approfondisce i concetti introdotti nel capitolo precedente, presentando l'aggiornamento bayesiano in modo più formale e dettagliato.
+## Introduzione
 
-## Paradigma Bayesiano
+Questo capitolo approfondisce i concetti introdotti nel precedente, presentando l'aggiornamento bayesiano in modo formale e dettagliato.
 
-L'approccio bayesiano alla statistica si fonda sull'idea di rappresentare la conoscenza a priori sui parametri che governano un fenomeno attraverso distribuzioni di probabilità. Queste distribuzioni a priori riflettono le credenze iniziali del ricercatore riguardo ai parametri, prima di osservare i dati. Quando nuovi dati vengono raccolti, l'informazione fornita da tali dati viene integrata nel modello tramite la funzione di verosimiglianza, che rappresenta la probabilità di osservare quei dati dati i parametri ipotizzati.
+### Il Paradigma dell'Inferenza Bayesiana
 
-Attraverso l'applicazione del Teorema di Bayes, le credenze a priori vengono aggiornate combinando la distribuzione a priori con la verosimiglianza dei dati. Questo processo produce la distribuzione a posteriori, che rappresenta una nuova e più informata stima dei parametri, tenendo conto sia delle credenze iniziali sia dei dati osservati.
+Al centro dell'inferenza bayesiana vi è l'idea che la probabilità misuri il grado di certezza soggettiva riguardo a un'ipotesi o alla plausibilità di un valore per un parametro sconosciuto. L'inferenza bayesiana si basa sul concetto di aggiornamento continuo: partendo da credenze iniziali (**priori**), queste vengono riviste alla luce di nuove informazioni fornite dai dati, producendo credenze aggiornate (**posteriori**).
 
-L'approccio bayesiano richiede un cambiamento di prospettiva rispetto ai metodi classici di stima dei parametri. Non ci si limita più a trovare un singolo valore "ottimale" per i parametri del modello. Invece, l'obiettivo è determinare l'intera distribuzione a posteriori dei parametri, che descrive in modo completo lo stato di conoscenza attuale. Solo questa distribuzione fornisce una rappresentazione adeguata dell'incertezza associata ai parametri, permettendo di quantificare non solo quali valori sono più probabili, ma anche l'ampiezza dell'incertezza su tali stime.
+Per esempio, consideriamo il caso di una moneta. Dopo averla lanciata 10 volte osserviamo 8 testa ($y = 8$) e ci chiediamo se la moneta sia equilibrata ($p = 0.5$). Per rispondere, definiamo un **modello generativo dei dati**, il più semplice dei quali è il modello binomiale, caratterizzato dal parametro $p$, la probabilità di ottenere testa. Questo parametro è l'oggetto della nostra inferenza.
 
-### Vantaggi dell'Approccio Bayesiano
+### Approccio Classico: Massima Verosimiglianza
 
-Un aspetto distintivo dell'inferenza bayesiana è la sua capacità di gestire l'incertezza in modo esplicito. Invece di limitarsi a una singola stima puntuale, l'approccio bayesiano considera l'intero spettro di valori possibili per i parametri e le loro rispettive probabilità. Questo consente una rappresentazione più ricca delle informazioni disponibili e una valutazione più robusta delle ipotesi.
+Un metodo classico è la **massima verosimiglianza**, che stima $p$ come rapporto tra successi e tentativi: $\hat{p} = y/N = 0.8$. Tuttavia, questa stima puntuale non fornisce informazioni sull'incertezza associata a $p$ o sulla plausibilità di altri valori vicini.
 
-Inoltre, l'approccio bayesiano è altamente flessibile, permettendo di incorporare informazioni precedenti sotto forma di distribuzioni a priori. In contesti in cui si dispone di conoscenze pregresse, come dati di studi precedenti o teorie consolidate, questa caratteristica offre un vantaggio notevole rispetto agli approcci frequentisti, che non integrano facilmente tali informazioni.
+### Approccio Bayesiano: Prior e Posteriori
 
-In conclusione, il paradigma bayesiano offre una visione più ampia e completa dell'incertezza e della variabilità dei parametri rispetto ai metodi tradizionali, rappresentando un quadro teorico e pratico fondamentale per l'inferenza statistica e la modellazione.
+L'approccio bayesiano supera questa limitazione introducendo una **distribuzione a priori** per $p$, che riflette le credenze iniziali. Una distribuzione uniforme su $[0, 1]$ considera tutti i valori di $p$ ugualmente plausibili, mentre una distribuzione centrata su $0.5$ indica una convinzione iniziale che la moneta sia equilibrata.
 
-## Densità di Probabilità
-
-Nei capitoli precedenti abbiamo esaminato alcuni esempi di <font color='orange'>funzioni di densità di probabilità (PDF)</font>. Ma quali sono le caratteristiche generali di una PDF?
-
-Se $X$ è una variabile casuale con una funzione di densità di probabilità $p(x)$, la probabilità che $X$ assuma un valore nell'intervallo $(a, b)$ può essere calcolata come:
+Dopo aver osservato i dati ($y = 8$, $N = 10$), combiniamo il prior con la **funzione di verosimiglianza** (che esprime la probabilità dei dati per ciascun valore ipotizzato di $p$) tramite il **teorema di Bayes**:
 
 $$
-p(X \in (a,b)) = \int_a^b p(x)dx.
+p(\theta \mid y) \propto p(y \mid \theta)p(\theta),
 $$
-
-Per variabili discrete, l'integrazione si trasforma in una somma.
-
-### Le Regole di Somma e Prodotto
-
-Date due variabili casuali continue $x$ e $y$, le regole di somma e prodotto per le densità di probabilità si esprimono come:
-
-$$
-\begin{align*}
-p(y) = \int p(x,y)dx \quad &\text{- regola della somma},\\
-p(x,y) = p(y|x) p(x) = p(x|y) p(y) \quad &\text{- regola del prodotto}.
-\end{align*}
-$$
-
-La probabilità $p(y)$ è chiamata <font color='orange'>probabilità marginale</font>.
-
-La regola del prodotto specifica che la distribuzione congiunta di due variabili può essere espressa come il prodotto di una distribuzione condizionata $p(y \mid x)$ e una distribuzione marginale $p(x)$, o viceversa.
-
-### La Distribuzione Marginale
-
-La distribuzione marginale si riferisce alla distribuzione di probabilità di una variabile quando si tiene conto di tutte le possibili variazioni dell'altra variabile in una distribuzione congiunta. In altre parole, essa descrive la probabilità di una variabile indipendentemente dall'altra.
-
-Consideriamo due variabili correlate, $x$ e $y$. Possiamo esprimere la relazione tra di esse con la <font color='orange'>regola del prodotto</font>:
-
-$$
-p(x, y) = p(y \mid x)p(x),
-$$
-
-dove $p(y \mid x)$ è la probabilità di $y$ dato un certo valore di $x$, e $p(x)$ è la distribuzione di probabilità di $x$.
-
-Per ottenere la distribuzione marginale di $y$, dobbiamo sommare o integrare $p(y \mid x)$ su tutti i possibili valori di $x$:
-
-$$
-p(y) = \int p(y \mid x)p(x)dx.
-$$
-
-In questo modo, la distribuzione marginale di $y$ rappresenta la probabilità di $y$, tenendo conto di tutte le possibili variazioni di $x$.
-
-### Il Teorema di Bayes
-
-Dalla regola di prodotto, e sfruttando la proprietà di simmetria $p(x \mid y)p(y) = p(y \mid x)p(x)$, deriviamo immediatamente la regola di Bayes:
-
-$$
-p(y \mid x) = \frac{p(x \mid y)p(y)}{p(x)} = \frac{p(x \mid y)p(y)}{\int p(x \mid y)p(y)dy}.
-$$
-
-Questa formula è l'elemento chiave nell'inferenza bayesiana, poiché definisce la densità a posteriori di $y$, $p(y \mid x)$, dopo aver incorporato l'informazione $x$ attraverso il modello di probabilità condizionata $p(x \mid y)$. La probabilità marginale di $x$, $p(x)$, funge da costante di normalizzazione, garantendo che $p(y \mid x)$ sia una corretta funzione di densità di probabilità.
-
-### Modellizzazione e Inferenza Bayesiana
-
-La modellizzazione bayesiana consiste nel descrivere matematicamente tutti i dati osservabili $y$ e i parametri non osservabili, detti anche parametri "latenti" $\theta$, definendo la distribuzione congiunta di dati e parametri $p(y, \theta)$.
-
-Si costruiscono modelli probabilistici per le quantità osservate condizionate ai parametri $p(y \mid \theta)$ e per le quantità non osservate, rappresentate dalla distribuzione a priori $p(\theta)$, che rappresenta le nostre conoscenze precedenti sui parametri. Questi due elementi vengono combinati, seguendo la regola del prodotto, per formare una distribuzione congiunta:
-
-$$
-p(y, \theta) = p(y \mid \theta)p(\theta).
-$$
-
-### Il Modello Osservazionale
-
-La funzione
-
-$$
-p(y \mid \theta)
-$$
-
-è un <font color='orange'>modello probabilistico dei dati osservati</font> che mette in relazione $y$ con i parametri sconosciuti $\theta$ che vogliamo stimare. Questo modello rappresenta l'evidenza fornita dai dati e costituisce la principale fonte di informazione. In questo contesto, viene chiamato <font color='orange'>funzione di verosimiglianza</font> (*likelihood*). È importante notare che la funzione di verosimiglianza nel contesto bayesiano non è diversa da quella utilizzata nell'approccio frequentista: in entrambi i casi collega i dati osservati ai parametri sconosciuti.
-
-### La Distribuzione a Priori
-
-La distribuzione
-
-$$
-p(\theta)
-$$
-
-rappresenta la <font color='orange'>distribuzione a priori</font> dei parametri, che codifica le conoscenze preesistenti sui parametri stessi. Questa distribuzione a priori può essere <font color='orange'>informativa</font> o <font color='orange'>non informativa</font>, a seconda della quantità di informazioni affidabili che si possiedono sui parametri. Uno degli aspetti principali che differenziano l'approccio bayesiano da quello frequentista è l'uso delle distribuzioni di probabilità per i parametri sconosciuti. Queste distribuzioni vengono poi combinate con la funzione di verosimiglianza per ottenere una distribuzione a posteriori, che incorpora sia le informazioni precedenti che le evidenze fornite dai nuovi dati.
-
-### Inferenza sui Parametri
-
-Ottenere la distribuzione a posteriori dei parametri sconosciuti è l'elemento centrale dell'approccio bayesiano. Riformulando la regola di Bayes in termini di $y$ e $\theta$, otteniamo una formula che ci mostra come calcolare la distribuzione a posteriori:
-
-$$
-p(\theta \mid y) = \frac{p(y \mid \theta)p(\theta)}{p(y)} = \frac{p(y \mid \theta)p(\theta)}{\int p(y \mid \theta)p(\theta) d\theta}.
-$$
-
-Il denominatore della regola di Bayes,
-
-$$
-p(y) = \int p(y \mid \theta)p(\theta) d \theta,
-$$
-
-è chiamato <font color='orange'>verosimiglianza marginale</font>, poiché integra la verosimiglianza rispetto all'informazione a priori sui parametri. Questa quantità è anche nota come <font color='orange'>evidenza</font> del modello e serve a normalizzare la distribuzione a posteriori, rendendola una vera distribuzione di probabilità. L'inferenza finale sarà un compromesso tra l'evidenza fornita dai dati e l'informazione a priori disponibile.
-
-### Inferenza bayesiana in sintesi: verosimiglianza, prior, posteriore
-
-Per riassumere, ecco tutti i componenti fondamentali dell'inferenza bayesiana.
-
-Il teorema di Bayes, espresso in termini di dati $y$ e parametri del modello $\theta$, è
-
-$$
-p(\theta \mid y) = \frac{p(y \mid \theta)p(\theta)}{p(y)},
-$$
-
+  
 dove:
+  
+- $p(\theta)$ è la distribuzione **a priori**.
+- $p(y \mid \theta)$ è la **verosimiglianza**.
+- $p(\theta \mid y)$ è la distribuzione **a posteriori**.
 
-- Il denominatore $p(y)$ è la costante di normalizzazione o *evidenza*.
-- $p(\theta)$ rappresenta il *prior*, ovvero le credenze iniziali sui parametri.
-- $p(y \mid \theta)$ è la *verosimiglianza*, che collega i dati osservati ai parametri del modello.
-- $p(\theta \mid y)$ è la *distribuzione a posteriori*, che rappresenta le credenze aggiornate sui parametri dopo aver osservato i dati.
+Il teorema di Bayes produce una **distribuzione a posteriori**, che integra le informazioni iniziali con quelle dei dati osservati, fornendo:
 
-La distribuzione a posteriori riassume il nostro stato di credenza sui possibili valori di $\theta$, aggiornato sulla base delle evidenze fornite dai dati.
+1. Una stima plausibile di $p$ (ad esempio, mediana o moda della distribuzione a posteriori).
+2. Una misura dell'incertezza associata a $p$ (ad esempio, varianza o intervalli di credibilità).
 
-Si noti che $p(y)$ non dipende dai parametri $\theta$. Pertanto, in molte situazioni pratiche, è sufficiente calcolare la distribuzione a posteriori fino a una costante. Per questo motivo, spesso la regola di Bayes viene riassunta come:
+### Vantaggi dell'Inferenza Bayesiana
 
-$$p(\theta \mid y) \propto p(y \mid \theta)p(\theta).$$
+L'inferenza bayesiana non si limita a stime puntuali ma descrive lo stato attuale di conoscenza attraverso una distribuzione completa. Questo approccio è particolarmente utile in contesti con dati scarsi o elevata incertezza, frequenti in psicologia.
 
-In questa forma, si ignora il denominatore poiché è una costante (indipendente da $\theta$). 
+## Implementazione e Calcolo 
 
-### Il Ruolo dei Priors
+Per calcolare la distribuzione a posteriori in un contesto di inferenza bayesiana, si possono adottare due approcci principali.
 
-Una delle caratteristiche distintive dell'approccio bayesiano è l'incorporazione delle conoscenze a priori riguardo ai parametri del modello. Dichiarare questi priors ci obbliga a esplicitare tutte le assunzioni che facciamo sulla struttura del modello e sui suoi parametri. Allo stesso tempo, i priors sono spesso oggetto di critica nell'inferenza bayesiana a causa della soggettività che possono introdurre.
+### Approccio Analitico (o Coniugato)
 
-Tuttavia, l'inferenza bayesiana offre alcuni vantaggi meno evidenti a prima vista, tra cui:
+Questo metodo è applicabile quando la distribuzione a priori appartiene alla stessa famiglia di distribuzioni della funzione di verosimiglianza, definendo una *relazione coniugata*. In questi casi:  
 
-- la capacità di lavorare efficacemente con piccoli set di dati,
-- la capacità di eseguire la regolarizzazione del modello. 
+- La distribuzione a posteriori può essere calcolata esattamente attraverso formule matematiche, senza necessità di approssimazioni.  
+- L'approccio è computazionalmente efficiente, poiché evita algoritmi iterativi complessi.  
 
-Questi aspetti rendono l'approccio bayesiano particolarmente utile in situazioni in cui i dati sono scarsi o le assunzioni esplicite sul modello possono contribuire a migliorare le previsioni.
+**Limitazioni:**  
 
-## Inferenza Predittiva
+- La coniugazione è possibile solo per modelli semplici e specifici, limitando l'uso di questo approccio ai casi in cui le assunzioni sono realistiche.  
+- Nei dati reali, la necessità di flessibilità spesso rende queste assunzioni troppo restrittive.
 
-La distribuzione a posteriori dei parametri può essere utilizzata per modellare l'incertezza nelle previsioni $\tilde{y}$ relative a nuove osservazioni. La <font color='orange'>distribuzione predittiva a posteriori</font> di $\tilde{y}$ si ottiene marginalizzando la distribuzione congiunta delle previsioni $\tilde{y}$ e dei parametri $\theta$ rispetto ai parametri del modello:
 
-$$
-p(\tilde{y} \mid y) = \int p(\tilde{y}, \theta \mid y)d \theta = \int p(\tilde{y} \mid \theta, y)p(\theta|y)d\theta.
-$$
+### Approccio Numerico  
 
-In questo modo, la distribuzione predittiva può essere vista come una media delle previsioni del modello $p(\tilde{y} \mid \theta, y)$ ponderata sulla distribuzione a posteriori dei parametri del modello $p(\theta \mid y)$. Questo consente di incorporare l'incertezza sui parametri nel processo di previsione, rendendo le stime più robuste.
+Quando il calcolo analitico non è possibile, ad esempio per modelli complessi o distribuzioni non coniugate, si ricorre a metodi numerici per stimare la distribuzione a posteriori in modo approssimato ma accurato.
 
-## Come possiamo eseguire l'inferenza bayesiana?
+#### Metodi Basati su Catene di Markov Monte Carlo
 
-Esistono due approcci principali per determinare la distribuzione posteriore:
+Gli algoritmi MCMC campionano iterativamente dalla distribuzione a posteriori, garantendo la convergenza a quest'ultima con un numero sufficiente di iterazioni. Tra i metodi più diffusi: 
 
-1. **Approccio Analitico (o Coniugato)**: Questo metodo è applicabile quando la distribuzione a priori scelta e la funzione di verosimiglianza appartengono alla stessa famiglia di distribuzioni, definite *coniugate*. In questi casi, la distribuzione posteriore può essere calcolata analiticamente, ovvero attraverso formule matematiche esatte. L'approccio coniugato è computazionalmente efficiente ma presenta una limitazione significativa: è applicabile solo in situazioni in cui si può assumere una coniugazione tra la distribuzione a priori e la verosimiglianza. Di conseguenza, trova un impiego limitato nelle analisi di dati reali, dove spesso le assunzioni di coniugazione risultano troppo restrittive.
-   
-2. **Approccio Numerico**: Quando non è possibile ottenere una forma analitica chiusa per la distribuzione posteriore, a causa della complessità del modello o della mancanza di coniugazione tra la distribuzione a priori e la verosimiglianza, si ricorre a metodi numerici. Questi algoritmi consentono di ottenere una stima approssimata, ma spesso accurata, della distribuzione posteriore.
+- **Metropolis-Hastings:** Un algoritmo generale adatto a una vasta gamma di distribuzioni.  
+- **Gibbs Sampling:** Una variante particolarmente efficiente quando le distribuzioni condizionali sono note, anche se la distribuzione congiunta è difficile da campionare direttamente.
 
-### Metodi Numerici
+#### Altri Metodi Numerici  
 
-Le catene di Markov Monte Carlo (MCMC) sono una classe di algoritmi ampiamente utilizzati in questo contesto. Essi costruiscono una catena di Markov che converge alla distribuzione posteriore desiderata. Tra i metodi MCMC più comuni troviamo:
+Oltre alle MCMC, si utilizzano anche approcci alternativi:  
 
-- *Metropolis-Hastings*: Un algoritmo generale che consente di campionare da una vasta gamma di distribuzioni posteriori.
-- *Gibbs Sampling*: Un caso particolare di Metropolis-Hastings, particolarmente efficiente quando la distribuzione congiunta è difficile da campionare direttamente, ma le distribuzioni condizionali sono note.
+- **Variational Bayes:**  
+   - Cerca una distribuzione $q(z)$ che approssima $p(z \mid x)$ minimizzando una misura di divergenza, come la divergenza di Kullback-Leibler.  
+   - Questo metodo trasforma il problema di inferenza in un problema di ottimizzazione, risultando spesso più veloce delle MCMC, ma talvolta meno accurato.  
+- **Approssimazione di Laplace:**  
+   - Approssima la distribuzione a posteriori con una normale centrata sul valore MAP (massimo a posteriori) e con una matrice di covarianza basata sull’inverso dell’Hessiano negativo al MAP.  
+   - È efficiente, ma l’accuratezza è limitata nelle regioni lontane dal MAP o per distribuzioni non gaussiane.
 
-Oltre alle MCMC, esistono altre tecniche numeriche:
+### Vantaggi e Svantaggi degli Approcci Numerici
 
-- *Variational Bayes*: Questo approccio consiste nel trovare la distribuzione $q(z)$ che meglio approssima la distribuzione posteriore $p(z \mid x)$, secondo un criterio di divergenza (ad esempio, la divergenza di Kullback-Leibler). L'obiettivo è trasformare il problema di inferenza esatta in un problema di ottimizzazione. Variational Bayes offre spesso una soluzione più veloce rispetto alle MCMC, ma l'approssimazione può essere meno accurata in alcuni casi.
-- *Laplace approximation*: Questa tecnica consiste nell'approssimare la distribuzione posteriore con una distribuzione normale centrata sul massimo a posteriori (MAP) e con matrice di covarianza pari all'inverso della matrice di Hessiano negativa calcolata nel MAP. L'approssimazione di Laplace è computazionalmente efficiente, ma è valida solo localmente attorno al MAP e può portare a stime inaccurate della varianza posteriore.
+**Vantaggi:**  
 
-Vantaggi: 
+- **Versatilità:** Applicabili a una vasta gamma di modelli e distribuzioni, anche molto complessi.  
+- **Flessibilità:** Consentono di incorporare informazioni a priori articolate.  
 
-- Versatilità: L'approccio numerico è applicabile a una vasta gamma di modelli e distribuzioni. 
-- Flessibilità: Consente di incorporare facilmente informazioni a priori complesse. 
+**Svantaggi:**
 
-Svantaggi:
+- **Costo Computazionale:** Modelli complessi o grandi dataset richiedono risorse computazionali elevate.  
+- **Tuning degli Algoritmi:** Parametri come la proposta iniziale nelle MCMC devono essere scelti attentamente per garantire efficienza e convergenza.  
 
-- Costo computazionale: Può richiedere un tempo di calcolo considerevole, soprattutto per modelli complessi o grandi dataset.
-- Tuning: La scelta dei parametri degli algoritmi MCMC (ad esempio, la proposta iniziale) può influenzare la convergenza e l'efficienza del campionamento.
+In sintesi
 
-In sintesi, l'approccio numerico offre una soluzione generale e flessibile per l'inferenza bayesiana, ma richiede una maggiore attenzione alla scelta degli algoritmi e alla valutazione della convergenza delle catene.
+- l’approccio analitico è ideale per semplicità ed efficienza ma limitato a casi specifici; 
+- l’approccio numerico, pur richiedendo maggiore attenzione e risorse, offre una soluzione generale e flessibile per affrontare modelli realistici.  
+
+La scelta dell’approccio dipende dalla complessità del modello e dalla natura dei dati.
+
 
 ## Programmazione Probabilistica
 
-I linguaggi di programmazione probabilistica (PPL) rappresentano un'importante innovazione nella modellazione bayesiana, facilitando l'uso di tecniche di approssimazione numerica per stimare le distribuzioni posteriori. Grazie ai PPL, la modellizzazione probabilistica diventa più accessibile, riducendo le barriere tecniche e computazionali. Questi strumenti consentono di definire modelli in modo dichiarativo, descrivendo le relazioni tra le variabili in termini probabilistici senza doversi occupare dei dettagli algoritmici sottostanti. In altre parole, i PPL permettono ai ricercatori di concentrarsi sull'espressione del modello, lasciando ai linguaggi il compito di gestire l'implementazione computazionale.
+I linguaggi di programmazione probabilistica (PPL) facilitando l'uso di tecniche di approssimazione numerica per stimare le distribuzioni posteriori. Grazie ai PPL, la modellizzazione probabilistica diventa più accessibile, riducendo le barriere tecniche e computazionali. Questi strumenti consentono di definire modelli in modo dichiarativo, descrivendo le relazioni tra le variabili in termini probabilistici senza doversi occupare dei dettagli algoritmici sottostanti. In altre parole, i PPL permettono ai ricercatori di concentrarsi sull'espressione del modello, lasciando ai linguaggi il compito di gestire l'implementazione computazionale.
 
 Tra i PPL più utilizzati troviamo:
 
@@ -238,29 +139,12 @@ Tra i PPL più utilizzati troviamo:
 - **PyMC**: Molto utilizzato nell'ecosistema Python, offre un'interfaccia user-friendly per la modellazione bayesiana.
 - **TensorFlow**: Un framework che combina un approccio probabilistico con le reti neurali.
 
-### Vantaggi della Programmazione Probabilistica in Psicologia
-
-La programmazione probabilistica offre numerosi vantaggi per la ricerca psicologica, in particolare per l'analisi di processi complessi come l'apprendimento, le emozioni e il comportamento. Alcuni dei principali vantaggi includono:
-
-- **Flessibilità**: I PPL, come Stan, Pyro, Numpyro, PyMC e Turing.jl, offrono un quadro flessibile per la definizione e la personalizzazione dei modelli probabilistici. In psicologia, questa flessibilità è cruciale, poiché i modelli devono adattarsi a una vasta gamma di processi mentali e comportamentali che variano tra individui e contesti.
-
-- **Quantificazione dell'Incertezza**: La programmazione probabilistica permette di rappresentare esplicitamente e quantificare l'incertezza, un aspetto fondamentale in psicologia, dove molte variabili di interesse, come stati emotivi o atteggiamenti, sono latenti e soggette a incertezza. Incorporare questa incertezza nei modelli consente di ottenere stime più realistiche e affidabili.
-
-- **Validazione del Modello**: I PPL facilitano la validazione dei modelli psicologici, consentendo ai ricercatori di confrontare le previsioni dei modelli con i dati osservati. Tecniche come i *posterior predictive checks* permettono di valutare la qualità e l'affidabilità del modello, contribuendo a una maggiore solidità delle conclusioni.
-
-- **Modellazione Gerarchica**: Molti studi psicologici raccolgono dati a più livelli (ad esempio, misurazioni ripetute per individuo, sessioni sperimentali, contesti diversi). I PPL semplificano la costruzione e l'analisi di modelli gerarchici, catturando la variabilità sia intra- che inter-individuale.
-
-- **Selezione e Confronto dei Modelli**: In psicologia è spesso necessario confrontare modelli con strutture diverse o ipotesi alternative. I PPL permettono di confrontare le capacità predittive dei modelli in modo sistematico e rigoroso, supportando la scelta del modello più adatto basandosi sull'accuratezza predittiva e non solo sulla complessità.
-
-- **Comunicazione Trasparente**: La programmazione probabilistica favorisce la trasparenza nella modellizzazione. I ricercatori possono specificare chiaramente le assunzioni del modello, i *prior* e le funzioni di verosimiglianza, rendendo più facile la comunicazione e la collaborazione con altri esperti.
-
-- **Librerie Estensibili**: I PPL offrono librerie estese e strumenti avanzati per lo sviluppo di modelli, l'inferenza e la visualizzazione. Questo riduce il carico computazionale e di implementazione, rendendo più agevole l'analisi di dati complessi tipici della psicologia sperimentale e clinica.
-
 ### Come Funzionano i PPL?
 
 I linguaggi di programmazione probabilistica richiedono semplicemente la descrizione del modello probabilistico. Successivamente, utilizzano algoritmi di inferenza, come le catene di Markov Monte Carlo (MCMC) o l'inferenza variazionale, per stimare la distribuzione posteriore delle variabili di interesse. Ciò consente ai ricercatori di ottenere stime delle variabili sconosciute e di valutare l'incertezza associata.
 
 In conclusione, i linguaggi di programmazione probabilistica hanno trasformato il modo in cui affrontiamo l'inferenza bayesiana, rendendola più accessibile e potente. Grazie alla loro semplicità d'uso e alla potenza computazionale, i PPL hanno reso l'inferenza bayesiana uno strumento sempre più diffuso in molte discipline, inclusa la psicologia. Questo approccio facilita la modellazione di fenomeni complessi e l'analisi rigorosa di dati, offrendo un metodo efficace per rispondere a domande di ricerca psicologica in modo trasparente e accurato.
+
 
 ## Notazione
 
@@ -288,135 +172,6 @@ $$
 \end{aligned}
 $$
 
-## Addendum: La Verosimiglianza Marginale
-
-Nella discussione precedente, abbiamo introdotto la verosimiglianza marginale $p(y)$ come una costante di normalizzazione. Ma <font color='orange'>perché è così importante normalizzare la distribuzione posteriore?</font> La verosimiglianza marginale rappresenta la probabilità dei dati osservati, integrata su tutti i possibili valori del parametro $\theta$. In altre parole, esprime la probabilità di osservare i dati senza fare riferimento a un particolare valore del parametro.
-
-Per comprendere intuitivamente, immagina di voler stimare la temperatura media di una stanza. Usando un termometro, ottieni una misurazione, ma sei consapevole che variabili come la posizione del termometro o l'ora del giorno potrebbero influenzare la lettura. La verosimiglianza marginale è equivalente a considerare la probabilità di ottenere una certa misurazione, prendendo in considerazione tutte queste possibili variabili.
-
-Senza la normalizzazione, la somma delle probabilità assegnate ai diversi valori del parametro non sarebbe uguale a 1, il che significherebbe che non avremmo una distribuzione di probabilità valida. Questo renderebbe difficile interpretare correttamente i risultati. La verosimiglianza marginale agisce come una costante di normalizzazione, garantendo che l'area sotto la curva della distribuzione posteriore sia esattamente pari a 1, come richiesto da una distribuzione di probabilità.
-
-La verosimiglianza marginale si calcola integrando (o sommando, nel caso di parametri discreti) la funzione di verosimiglianza rispetto a tutti i possibili valori del parametro, pesando ciascun valore con la sua probabilità a priori.
-
-Consideriamo un esempio con una variabile casuale binomiale $Y$, la cui funzione di massa di probabilità (PMF) $p(Y)$ dipende dal parametro $\theta$. Supponiamo che $\theta$ possa assumere uno tra tre valori specifici: 0.1, 0.5 o 0.9, ciascuno con una probabilità a priori di $\frac{1}{3}$.
-
-Se i dati indicano $n = 10$ prove e $k = 7$ successi, la funzione di verosimiglianza è data da:
-
-$$
-p(k = 7, n = 10 \mid \theta) = \binom{10}{7} \theta^7 (1 - \theta)^3.
-$$
-
-Per calcolare la verosimiglianza marginale $p(k = 7, n = 10)$, marginalizziamo su $\theta$, valutando la verosimiglianza per ciascun valore di $\theta$, moltiplicando per la probabilità a priori di ciascun $\theta$, e sommando i risultati:
-
-$$
-p(k = 7, n = 10) = \sum_{i=1}^{3} p(k = 7, n = 10 \mid \theta_i) \cdot p(\theta_i).
-$$
-
-Sostituendo i valori di $\theta$ e le probabilità corrispondenti:
-
-$$
-p(k = 7, n = 10) = \frac{1}{3} \binom{10}{7} 0.1^7 (1 - 0.1)^3 + \frac{1}{3} \binom{10}{7} 0.5^7 (1 - 0.5)^3 + \frac{1}{3} \binom{10}{7} 0.9^7 (1 - 0.9)^3.
-$$
-
-Questo calcolo dimostra come la marginalizzazione su $\theta$ incorpori tutte le sue possibili variazioni, ottenendo una stima complessiva che tiene conto dell'incertezza su $\theta$.
-
-## Implementazione in R
-
-Per calcolare la verosimiglianza marginale in R, possiamo distinguere tra il caso discreto (in cui $\theta$ assume valori specifici) e il caso continuo (in cui $\theta$ è trattato come una variabile continua su un intervallo). Per il caso discreto, sommiamo direttamente i contributi della funzione di verosimiglianza pesati dalla probabilità a priori. Per il caso continuo, utilizziamo l'integrazione numerica.
-
-### Caso discreto
-
-Nel caso in cui $\theta$ assuma valori discreti, possiamo implementare il calcolo della verosimiglianza marginale sommando i prodotti della verosimiglianza $p(k \mid \theta)$ e della probabilità a priori $p(\theta)$:
-
-```{r}
-# Funzione di verosimiglianza per il caso binomiale
-likelihood_binomial <- function(theta, k, n) {
-  return(choose(n, k) * (theta^k) * ((1 - theta)^(n - k)))
-}
-
-# Valori di theta e probabilità a priori
-theta_values <- c(0.1, 0.5, 0.9)
-prior <- rep(1 / length(theta_values), length(theta_values)) # Prior uniforme
-k <- 7
-n <- 10
-
-# Calcolo della verosimiglianza marginale discreta
-marginal_likelihood_discrete <- sum(prior * sapply(theta_values, likelihood_binomial, k = k, n = n))
-
-cat(sprintf("Likelihood Marginale (discreta): %.4f\n", marginal_likelihood_discrete))
-```
-
-Il risultato rappresenta la verosimiglianza marginale calcolata sommando i contributi discreti.
-
-### Caso continuo
-
-Nel caso in cui $\theta$ sia una variabile continua definita su $[0, 1]$, utilizziamo l'integrazione numerica per calcolare la verosimiglianza marginale. L'approccio assume una distribuzione a priori uniforme su $[0, 1]$ (se non diversamente specificato):
-
-```{r}
-# Funzione per il calcolo della verosimiglianza marginale continua
-likelihood_binomial_continuous <- function(theta, k, n) {
-  # La verosimiglianza è 0 per valori di theta fuori dall'intervallo [0, 1]
-  theta[theta < 0 | theta > 1] <- 0
-  return(choose(n, k) * (theta^k) * ((1 - theta)^(n - k)))
-}
-
-# Parametri
-k <- 7
-n <- 10
-
-# Calcolo dell'integrale numerico
-marginal_likelihood_continuous <- 
-  integrate(
-    function(theta) likelihood_binomial_continuous(theta, k, n), 
-    lower = 0, 
-    upper = 1
-  )$value
-
-cat(
-  sprintf(
-    "Likelihood Marginale (continua): %.4f\n", 
-    marginal_likelihood_continuous)
-)
-```
-
-Qui l'integrazione numerica restituisce la verosimiglianza marginale considerando $\theta$ come una variabile continua.
-
-### Caso continuo con prior Beta
-
-Per utilizzare una distribuzione a priori diversa (ad esempio, una distribuzione Beta), è necessario moltiplicare la funzione di verosimiglianza per la densità della distribuzione a priori:
-
-```{r}
-# Funzione prior Beta
-prior_beta <- function(theta, alpha, beta) {
-  return(dbeta(theta, alpha, beta))
-}
-
-# Funzione combinata di verosimiglianza e prior
-likelihood_with_beta_prior <- function(theta, k, n, alpha_prior, beta_prior) {
-  # La verosimiglianza è 0 per valori di theta fuori dall'intervallo [0, 1]
-  valid_theta <- (theta >= 0 & theta <= 1)
-  likelihood <- ifelse(valid_theta, choose(n, k) * (theta^k) * ((1 - theta)^(n - k)), 0)
-  prior <- ifelse(valid_theta, prior_beta(theta, alpha_prior, beta_prior), 0)
-  return(likelihood * prior)
-}
-
-# Parametri
-alpha_prior <- 2
-beta_prior <- 2
-k <- 7
-n <- 10
-
-# Calcolo dell'integrale numerico con prior Beta
-marginal_likelihood_continuous_beta <- integrate(
-  function(theta) likelihood_with_beta_prior(theta, k, n, alpha_prior, beta_prior),
-  lower = 0, upper = 1
-)$value
-
-cat(sprintf("Likelihood Marginale con prior Beta: %.4f\n", marginal_likelihood_continuous_beta))
-```
-
-In questo caso, la distribuzione a priori Beta(2,2) dà maggiore peso ai valori centrali di $\theta$, riflettendo una conoscenza a priori che privilegia valori intermedi. Il calcolo combina la verosimiglianza e il prior per fornire una verosimiglianza marginale ponderata.
-
 ## Riflessioni Conclusive
 
 Al cuore della ricerca scientifica c'è una domanda del tipo: "dimmi qualcosa sulla variabile $\theta$ dato che ho osservato i dati $D$ e ho una certa conoscenza del meccanismo sottostante che genera i dati". La regola di Bayes fornisce la seguente risposta:
@@ -434,6 +189,7 @@ $$
 $$
 
 Nel caso di un prior non informativo (piatto), la stima MAP coincide con la stima di massima verosimiglianza, ovvero il valore di $\theta$ che massimizza la probabilità che il modello generi i dati osservati.
+
 
 ## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
 
