@@ -145,6 +145,7 @@ Dopo aver osservato i dati — nel nostro caso, 6 successi in 9 prove — applic
 La distribuzione a posteriori combina le informazioni a priori con i dati osservati, aggiornando le nostre credenze riguardo al parametro $\theta$. Vediamo passo passo come implementare il calcolo della distribuzione a posteriori e delle relative quantità in R, partendo dalla rappresentazione discreta di $\theta$.
 
 #### 1. Definizione di $\theta$
+
 Iniziamo definendo un insieme discreto di valori per $\theta$.
 
 ```{r}
@@ -153,12 +154,22 @@ theta
 ```
 
 #### 2. Distribuzione a Priori Uniforme
-Se non abbiamo motivi per preferire alcuni valori di $\theta$, assegniamo probabilità uguali a tutti i valori. Standardizziamo la distribuzione affinché le probabilità si sommino a 1.
+
+Se non abbiamo motivi per preferire alcuni valori di $\theta$, assegniamo probabilità uguali a tutti i valori, $\theta \sim \mathcal{Uniform}(0, 1)$.
 
 ```{r}
-unif_prior <- rep(1 / length(theta), length(theta))
+unif_prior_not_norm <- rep(1, length(theta))
+print(unif_prior_not_norm)
+```
+
+Standardizziamo la distribuzione affinché le probabilità si sommino a 1.
+
+```{r}
+unif_prior <- unif_prior_not_norm / length(theta)
 print(unif_prior)
 ```
+
+Verifichiamo.
 
 ```{r}
 sum(unif_prior) # Verifica che le probabilità sommino a 1
@@ -181,18 +192,19 @@ ggplot(data.frame(theta, unif_prior), aes(x = theta, y = unif_prior)) +
 Se riteniamo più probabili i valori centrali di $\theta$, definiamo una distribuzione a priori discreta non uniforme:
 
 ```{r}
-# Dati per il grafico
-theta <- seq(0, 1, length.out = 11)  # Valori di theta
-not_unif_prior <- 
-  c(0, 0.05, 0.05, 0.05, 0.175, 0.175, 0.175, 0.175, 0.05, 0.05, 0.05)  
-# Probabilità
+theta <- seq(0, 1, length.out = 11)
 
-# Creazione del grafico
-ggplot(
-  data.frame(theta, not_unif_prior), 
-  aes(x = theta, y = not_unif_prior)) +
+not_unif_prior <-
+  c(0, 0.05, 0.05, 0.05, 0.175, 0.175, 0.175, 0.175, 0.05, 0.05, 0.05)
+
+data.frame(theta, not_unif_prior) |>
+  ggplot(
+    aes(x = theta, y = not_unif_prior)
+  ) +
   geom_segment(
-    aes(xend = theta, yend = 0), linetype = "solid", size = 1.2) +
+    aes(xend = theta, yend = 0),
+    linetype = "solid", linewidth = 1.2
+  ) +
   labs(
     title = "Distribuzione a Priori (Non Uniforme)",
     x = expression(theta),
@@ -200,24 +212,33 @@ ggplot(
   )
 ```
 
+```{r}
+sum(not_unif_prior) # Verifica che le probabilità sommino a 1
+```
+
 #### 4. Calcolo della Verosimiglianza
 
-La funzione di verosimiglianza per il modello binomiale è definita come segue:
+La funzione di verosimiglianza per il modello binomiale, $y \sim \mathcal{Binomial}(n, \theta)$, è definita in R nel modo seguente:
 
 ```{r}
 likelihood <- dbinom(6, size = 9, prob = theta)
 ```
 
+Normalizziamo.
+
 ```{r}
-likelihood <- likelihood / sum(likelihood) # Normalizzazione
+likelihood <- likelihood / sum(likelihood) 
 ```
 
 ```{r}
-ggplot(
-  data.frame(theta, likelihood), 
-  aes(x = theta, y = likelihood)) +
+data.frame(theta, likelihood) |>
+  ggplot(
+    aes(x = theta, y = likelihood)
+  ) +
   geom_segment(
-    aes(xend = theta, yend = 0), linetype = "solid", size = 1.2) +
+    aes(xend = theta, yend = 0),
+    linetype = "solid", linewidth = 1.2
+  ) +
   labs(
     title = "Funzione di Verosimiglianza",
     x = expression(theta),
@@ -227,25 +248,37 @@ ggplot(
 
 #### 5. Distribuzione a Posteriori
 
-La distribuzione a posteriori si calcola moltiplicando elemento per elemento la distribuzione a priori e la verosimiglianza, quindi dividendo per la probabilità marginale dei dati (normalizzazione).
+La distribuzione a posteriori, $Pr(\theta \mid y)$, si calcola moltiplicando elemento per elemento la distribuzione a priori e la verosimiglianza, quindi dividendo per la probabilità marginale dei dati (normalizzazione).
 
 ```{r}
-post <- (not_unif_prior * likelihood) / sum(not_unif_prior * likelihood)
+post_not_norm <- (not_unif_prior * likelihood) 
+print(post_not_norm)
+```
+
+Normalizziamo.
+
+```{r}
+post <- post_not_norm / sum(post_not_norm)
 print(post)
 ```
 
+Verifica che la distribuzione a posteriori sommi a 1.
+
 ```{r}
-sum(post) # Verifica che sommi a 1
+sum(post) 
 ```
 
-Visualizziamo la distribuzione a posteriori:
+Visualizziamo la distribuzione a posteriori.
 
 ```{r}
-ggplot(
-  data.frame(theta, post), 
-  aes(x = theta, y = post)) +
+data.frame(theta, post) |>
+  ggplot(
+    aes(x = theta, y = post)
+  ) +
   geom_segment(
-    aes(xend = theta, yend = 0), linetype = "solid", size = 1.2) +
+    aes(xend = theta, yend = 0),
+    linetype = "solid", linewidth = 1.2
+  ) +
   labs(
     title = "Distribuzione a Posteriori",
     x = expression(theta),
@@ -299,10 +332,11 @@ theta <- seq(0, 1, length.out = 1000)
 pdf <- dbeta(theta, alpha, beta)
 
 # Grafico della distribuzione Beta
-ggplot(
-  data.frame(theta, pdf), 
-  aes(x = theta, y = pdf)) +
-  geom_line(size = 1.2) +
+data.frame(theta, pdf) |>
+  ggplot(
+    aes(x = theta, y = pdf)
+  ) +
+  geom_line(linewidth = 1.2) +
   labs(
     title = "Funzione di Densità di Probabilità Beta(2, 2)",
     x = expression(theta),
@@ -320,12 +354,13 @@ alpha <- 2
 beta <- 5
 
 # Valori di theta e densità di probabilità
-theta <- seq(0, 1, length.out = 100)  # Valori di theta
-pdf <- dbeta(theta, alpha, beta)  # Densità di probabilità Beta(2, 5)
+theta <- seq(0, 1, length.out = 100) # Valori di theta
+pdf <- dbeta(theta, alpha, beta) # Densità di probabilità Beta(2, 5)
 
 # Creazione del grafico
-ggplot(data.frame(theta, pdf), aes(x = theta, y = pdf)) +
-  geom_line(size = 1.2) +
+data.frame(theta, pdf) |>
+  ggplot(aes(x = theta, y = pdf)) +
+  geom_line(linewidth = 1.2) +
   labs(
     title = "Funzione di Densità di Probabilità Beta(2, 5)",
     x = expression(theta),
@@ -347,10 +382,11 @@ likelihood <- dbinom(k, size = n, prob = theta)
 likelihood <- likelihood / sum(likelihood) # Normalizzazione
 
 # Grafico della verosimiglianza
-ggplot(
-  data.frame(theta, likelihood), 
-  aes(x = theta, y = likelihood)) +
-  geom_line(size = 1.2) +
+data.frame(theta, likelihood) |>
+  ggplot(
+    aes(x = theta, y = likelihood)
+  ) +
+  geom_line(linewidth = 1.2) +
   labs(
     title = "Funzione di Verosimiglianza",
     x = expression(theta),
@@ -374,14 +410,14 @@ posterior <- (prior * likelihood) / sum(prior * likelihood)
 ```{r}
 # Uniamo tutti i dati in un dataframe per ggplot2
 dat <- tibble(
-  theta, 
-  prior, 
-  likelihood, 
+  theta,
+  prior,
+  likelihood,
   posterior
 )
 
 # Preparazione dei dati per il plot
-long_data <- dat |> 
+long_data <- dat |>
   pivot_longer(
     cols = c(prior, likelihood, posterior),
     names_to = "distribution",
@@ -389,7 +425,8 @@ long_data <- dat |>
   )
 
 # Grafico
-ggplot(long_data, aes(x = theta, y = density, color = distribution)) +
+long_data |>
+  ggplot(aes(x = theta, y = density, color = distribution)) +
   geom_line(size = 1.2) +
   scale_color_manual(
     values = c("prior" = "blue", "likelihood" = "red", "posterior" = "green"),
@@ -401,7 +438,7 @@ ggplot(long_data, aes(x = theta, y = density, color = distribution)) +
     x = expression(theta),
     y = "Densità"
   ) +
-  theme(legend.position = "bottom") 
+  theme(legend.position = "bottom")
 ```
 
 ### Quantità a Posteriori
@@ -442,10 +479,13 @@ samples <- sample(theta, size = 10000, prob = posterior, replace = TRUE)
 data_frame_samples <- data.frame(samples)
 
 # Grafico con ggplot
-ggplot(data_frame_samples, aes(x = samples)) +
+data_frame_samples |>
+  ggplot(aes(x = samples)) +
   geom_histogram(
-    aes(y = ..density..), bins = 20, 
-    fill = "gray", color = "black") +
+    aes(y = after_stat(density)),
+    bins = 20,
+    fill = "gray", color = "black"
+  ) +
   geom_density(color = "black", size = 1.2) +
   labs(
     title = "Distribuzione dei Campioni dalla Posteriori",
@@ -494,7 +534,6 @@ In questo capitolo, abbiamo esplorato l'aggiornamento bayesiano utilizzando una 
 ## Esercizi
 
 ::: {#exr-subj-prop-1}
-
 Viene chieso di calcolare la distribuzione a posteriori della probabilità che uno studio condivida i materiali di ricerca utilizzando il metodo basato su griglia. Si utilizzeranno dati reali per motivare e costruire una distribuzione a priori discretizzata.
 
 In uno studio sull'analisi delle pratiche di trasparenza e riproducibilità nella ricerca in psicologia, @hardwicke2022estimating hanno riportato che la condivisione dei materiali di ricerca è stata rilevata nel 14% dei casi (26 su 183 studi), con un intervallo di confidenza al 95% pari a [10%, 19%]. Questo suggerisce che la condivisione di materiali è rara.
@@ -504,7 +543,6 @@ Ispirandoti ai risultati di questo studio, costruisci una distribuzione a priori
 Attribuisci le seguenti probabilità a priori ai 10 livelli, basandoti sull'informazione che la condivisione dei materiali è un evento raro ma non trascurabile: $0.05, 0.20, 0.30, 0.15, 0.10, 0.08, 0.05, 0.03, 0.02, 0.02$.
 
 Supponiamo che siano stati osservati 20 studi su 100 che hanno condiviso i materiali di ricerca. Calcola la distribuzione a posteriori utilizzando il metodo basato su griglia. Calcola la media della distribuzione a posteriori e l'intervallo di credibilità al 89%.
-
 :::
 
 ## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
