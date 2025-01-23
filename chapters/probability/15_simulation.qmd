@@ -8,6 +8,7 @@ execute:
 **Prerequisiti**
 
 - Leggere [Regression and Other Stories](https://users.aalto.fi/~ave/ROS.pdf). Focalizzati sul capitolo 5. 
+- Leggere il capitolo *Simulation* [@schervish2014probability].
 
 **Concetti e Competenze Chiave**
 
@@ -24,7 +25,9 @@ pacman::p_load(tidyr)
 
 ## Introduzione
 
-In questo capitolo, discuteremo alcuni esercizi di simulazione presentati da @gelman2021regression nel quinto capitolo del loro libro. Gli autori sottolineano che simulare variabili casuali è essenziale nelle statistiche applicate per diversi motivi:
+La simulazione permette di sfruttare la potenza di calcolo dei moderni computer per sostituire i calcoli analitici, talvolta complessi o impossibili da risolvere.
+
+In questo capitolo, discuteremo alcuni esercizi di simulazione presentati da @schervish2014probability e da @gelman2021regression. Simulare variabili casuali è essenziale nelle statistiche applicate per diversi motivi:
 
 - Comprensione della variazione casuale: I modelli di probabilità imitano la variabilità del mondo reale. La simulazione aiuta a sviluppare intuizioni sulle oscillazioni casuali nel breve termine e sui loro effetti nel lungo termine.
 
@@ -32,7 +35,419 @@ In questo capitolo, discuteremo alcuni esercizi di simulazione presentati da @ge
 
 - Previsioni probabilistiche: I modelli di regressione producono previsioni probabilistiche. La simulazione è il metodo più generale per rappresentare l'incertezza nelle previsioni.
 
-## Esempio 1: Quante bambine su 400 nascite?
+## Calcolare il valore medio di una distribuzione
+
+Il teorema dei grandi numeri ci garantisce che, osservando un grande campione di variabili casuali i.i.d. (indipendenti e identicamente distribuite) con media finita, la media campionaria sarà vicina alla media della distribuzione. Utilizzando un computer per generare un ampio campione di questo tipo, possiamo calcolare la media delle variabili casuali al posto di affrontare calcoli analitici. 
+
+Per utilizzare la simulazione, occorre:
+
+1. Identificare il tipo di variabili casuali necessarie.
+2. Capire come farle generare al computer.
+3. Determinare il numero di osservazioni necessarie per avere fiducia nei risultati numerici.
+
+Di seguito, vedremo un esempio pratico che verifica il concetto di simulazione confrontando i risultati numerici con quelli analitici.
+
+## Esempio 1: Calcolo della media di una distribuzione uniforme
+
+La distribuzione uniforme sull'intervallo $[0, 1]$ ha una media teorica pari a $0,5$. Se generiamo $n$ variabili casuali i.i.d. uniformi su $[0, 1]$, il teorema dei grandi numeri afferma che la media campionaria:
+
+$$
+\overline{X} = \frac{1}{n} \sum_{i=1}^n X_i
+$$
+
+sarà vicina alla media teorica $0,5$, soprattutto per campioni di grandi dimensioni. 
+
+Vediamo come questo concetto si applica attraverso una simulazione in R.
+
+```{r}
+# Impostiamo il numero di simulazioni
+set.seed(123) # Per riproducibilità
+sample_sizes <- c(100, 1000, 10000, 100000) # Dimensioni del campione
+results <- data.frame(Sample_Size = sample_sizes, Sample_Mean = NA)
+
+# Calcoliamo la media campionaria per ciascun campione
+for (i in seq_along(sample_sizes)) {
+  n <- sample_sizes[i]
+  sample <- runif(n, min = 0, max = 1) # Generazione delle variabili uniformi
+  results$Sample_Mean[i] <- mean(sample) # Media campionaria
+}
+
+# Stampiamo i risultati
+print(results)
+```
+
+```{r}
+# Visualizzazione grafica delle medie campionarie
+ggplot(results, aes(x = Sample_Size, y = Sample_Mean)) +
+  geom_point() +
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "red") +
+  scale_x_log10() +
+  labs(
+    title = "Convergenza della Media Campionaria alla Media Teorica",
+    x = "Dimensione del Campione (scala logaritmica)",
+    y = "Media Campionaria"
+  ) 
+```
+
+1. **Generazione di variabili casuali:** La funzione `runif(n, min = 0, max = 1)` genera $n$ variabili uniformemente distribuite sull'intervallo $[0, 1]$.
+2. **Media campionaria:** Per ogni dimensione del campione ($n$), calcoliamo la media con `mean(sample)`.
+3. **Risultati:** Presentiamo i risultati in una tabella e li visualizziamo graficamente, mostrando la convergenza della media campionaria ($\overline{X}$) verso il valore teorico $0,5$.
+
+L'output mostrerà una tabella con le medie campionarie per diverse dimensioni del campione. Il grafico evidenzierà come la media campionaria si avvicini al valore teorico di $0,5$ con l'aumentare della dimensione del campione.
+
+## Esempio 2: Probabilità di una Normale Standard
+
+La probabilità che una variabile casuale standard normale sia almeno $1.0$ è nota e pari a $0.1587$. Per verificare questa probabilità usando una simulazione, possiamo generare un grande numero di variabili casuali i.i.d. (indipendenti e identicamente distribuite) standard normali, ad esempio $X_1, \ldots, X_n$, e creare variabili casuali Bernoulli $Y_1, \ldots, Y_n$ definite come segue:
+
+$$
+Y_i = 
+\begin{cases} 
+1 & \text{se } X_i \geq 1.0 \\
+0 & \text{altrimenti.}
+\end{cases}
+$$
+
+Il teorema dei grandi numeri afferma che la proporzione:
+
+$$
+\overline{Y} = \frac{1}{n} \sum_{i=1}^n Y_i
+$$
+
+dovrebbe essere vicina alla media teorica di $Y_i$, ossia $\text{Pr}(X_i \geq 1.0) = 0.1587$. In questo esempio, simuleremo campioni di diverse dimensioni $n$ per calcolare la proporzione di $X_i \geq 1.0$ e confrontare i risultati con il valore teorico.
+
+
+```{r}
+# Impostiamo il seme per la riproducibilità
+set.seed(123)
+
+# Dimensioni dei campioni da analizzare
+sample_sizes <- c(100, 1000, 10000, 100000)
+
+# Inizializziamo un data frame per salvare i risultati
+results <- data.frame(
+  Sample_Size = sample_sizes,
+  Proportion = NA
+)
+
+# Calcolo delle proporzioni per ciascun campione
+for (i in seq_along(sample_sizes)) {
+  n <- sample_sizes[i]
+  sample <- rnorm(n)  # Generazione di variabili standard normali
+  Y <- ifelse(sample >= 1.0, 1, 0)  # Variabili Bernoulli
+  results$Proportion[i] <- mean(Y)  # Proporzione di Y_i = 1
+}
+
+# Stampiamo i risultati
+print(results)
+```
+
+```{r}
+# Grafico della proporzione rispetto alla dimensione del campione
+ggplot(results, aes(x = Sample_Size, y = Proportion)) +
+  geom_point() +
+  geom_hline(yintercept = 0.1587, linetype = "dashed", color = "red") +
+  scale_x_log10() +
+  labs(
+    title = "Convergenza della Proporzione Simulata alla Probabilità Teorica",
+    x = "Dimensione del Campione (scala logaritmica)",
+    y = "Proporzione di X ≥ 1.0"
+  ) 
+```
+
+1. **Generazione di variabili normali standard:** La funzione `rnorm(n)` genera $n$ variabili casuali dalla distribuzione normale standard.
+2. **Creazione delle variabili Bernoulli:** Tramite `ifelse(sample >= 1.0, 1, 0)` trasformiamo le variabili normali standard in variabili Bernoulli.
+3. **Calcolo della proporzione:** La proporzione di $Y_i = 1$ è calcolata come la media delle variabili Bernoulli $Y$.
+4. **Confronto visivo:** Il grafico mostra la convergenza della proporzione simulata al valore teorico ($0.1587$) con l'aumentare della dimensione del campione.
+
+Il codice dimostra che, con l'aumentare della dimensione del campione $n$, la proporzione simulata di $X \geq 1.0$ converge verso la probabilità teorica $0.1587$. Tuttavia, la variabilità delle simulazioni è evidente per campioni più piccoli, evidenziando l'importanza della dimensione campionaria nella stima accurata delle probabilità tramite simulazione.
+
+## Esempio 3:  Attesa per il Cambiamento dell’Umore
+
+Immaginiamo un esperimento psicologico in cui due partecipanti completano un compito che induce stress, al termine del quale misurano il loro livello di umore su una scala da 1 a 10. Entrambi devono raggiungere un punteggio di umore pari a 7 prima di fermarsi. Si vuole stimare, in media, quanto tempo uno dei due dovrà attendere affinché l'altro raggiunga il punteggio stabilito.
+
+Supponiamo che il cambiamento dell’umore per ciascun partecipante sia modellato come una variabile casuale gamma con parametri $k = 10$ (numero di tentativi per raggiungere il livello) e $\lambda = 0.3$ (frequenza del cambiamento per minuto). Denotiamo il tempo necessario al partecipante A come $X$ e al partecipante B come $Y$. Vogliamo calcolare la media di $Z = |X - Y|$, cioè la differenza assoluta nei tempi di completamento.
+
+Anziché affrontare calcoli analitici complessi, utilizzeremo una simulazione per stimare questa media.
+
+```{r}
+# Impostiamo il seme per la riproducibilità
+set.seed(123)
+
+# Parametri della distribuzione gamma
+k <- 10  # Numero di eventi
+lambda <- 0.3  # Frequenza degli eventi
+
+# Numero di simulazioni
+n_sim <- 10000
+
+# Simuliamo i tempi di completamento per A e B
+X <- rgamma(n_sim, shape = k, rate = lambda)
+Y <- rgamma(n_sim, shape = k, rate = lambda)
+
+# Calcoliamo la differenza assoluta
+Z <- abs(X - Y)
+
+# Media della differenza assoluta
+mean_Z <- mean(Z)
+
+# Stampa dei risultati
+cat("Media della differenza assoluta nei tempi di completamento:", mean_Z, "minuti\n")
+```
+
+```{r}
+# Istogramma della distribuzione di Z
+library(ggplot2)
+ggplot(data.frame(Z), aes(x = Z)) +
+  geom_histogram(binwidth = 1, color = "black", fill = "lightblue") +
+  labs(
+    title = "Distribuzione dei Tempi di Attesa (Z)",
+    x = "Tempo di attesa Z (minuti)",
+    y = "Frequenza"
+  ) 
+```
+
+1. **Generazione dei tempi gamma:** Usiamo la funzione `rgamma` per generare $n = 10,000$ tempi di completamento $X$ e $Y$, modellati come distribuzioni gamma con parametri $k = 10$ e $\lambda = 0.3$.
+2. **Calcolo della differenza assoluta:** La differenza assoluta $Z = |X - Y|$ rappresenta il tempo di attesa.
+3. **Stima della media:** Utilizziamo la funzione `mean` per calcolare la media di $Z$.
+4. **Istogramma:** Il grafico visualizza la distribuzione dei tempi di attesa $Z$.
+
+Supponendo i parametri specificati, il codice produrrà una stima della media del tempo di attesa e un istogramma che mostra la distribuzione di $Z$. 
+
+Questo esperimento simulato fornisce una stima del tempo medio di attesa tra due partecipanti in un contesto di regolazione emotiva. La variabilità nei tempi di completamento evidenzia come i processi individuali (ad esempio, il recupero emotivo) possano differire, un aspetto rilevante per la progettazione di interventi psicologici.
+
+## Esempio 4: Lunghe Sequenze di Teste in un Lancio di Monete
+
+Hai sentito qualcuno dire di aver ottenuto 12 teste consecutive lanciando una moneta apparentemente equa. La probabilità di ottenere 12 teste consecutive in 12 lanci indipendenti è $(0.5)^{12}$, un numero molto piccolo. Tuttavia, scopri che questa sequenza di 12 teste è apparsa in una serie di 100 lanci, rendendo l'evento meno sorprendente. La domanda è: **quanto aumenta la probabilità di ottenere una sequenza di 12 teste consecutive se si effettuano 100 lanci?**
+
+Utilizzeremo una simulazione per stimare questa probabilità, modellando $X = 1$ se nei 100 lanci appare una sequenza di almeno 12 teste consecutive, e $X = 0$ altrimenti. Stimiamo la probabilità di una sequenza di 12 teste consecutive come la media delle osservazioni $X$ in molte ripetizioni della simulazione.
+
+```{r}
+# Impostiamo il seme per la riproducibilità
+set.seed(123)
+
+# Parametri della simulazione
+n_sim <- 10000  # Numero di simulazioni
+n_flips <- 100  # Numero di lanci per simulazione
+sequence_length <- 12  # Lunghezza della sequenza cercata
+
+# Funzione per verificare la presenza di una sequenza di almeno 'sequence_length' teste
+check_run <- function(flips, sequence_length) {
+  # Trasformiamo i risultati in una stringa per contare sequenze consecutive
+  flip_string <- paste(rbinom(flips, 1, 0.5), collapse = "")
+  return(any(grepl(paste(rep(1, sequence_length), collapse = ""), flip_string)))
+}
+
+# Eseguiamo la simulazione
+results <- replicate(n_sim, check_run(n_flips, sequence_length))
+
+# Calcoliamo la probabilità stimata
+estimated_probability <- mean(results)
+
+# Stampiamo il risultato
+cat("Probabilità stimata di ottenere una sequenza di almeno", sequence_length,
+    "teste consecutive in", n_flips, "lanci:", estimated_probability, "\n")
+```
+
+
+```{r}
+# Distribuzione delle lunghezze massime delle sequenze
+longest_runs <- replicate(n_sim, {
+  flips <- rbinom(n_flips, 1, 0.5)
+  max(rle(flips)$lengths[which(rle(flips)$values == 1)])
+})
+
+# Grafico della distribuzione delle sequenze più lunghe
+ggplot(data.frame(Longest_Run = longest_runs), aes(x = Longest_Run)) +
+  geom_histogram(binwidth = 1, color = "black", fill = "lightblue") +
+  labs(
+    title = "Distribuzione delle Sequenze Più Lunghe di Teste in 100 Lanci",
+    x = "Lunghezza della sequenza più lunga",
+    y = "Frequenza"
+  ) 
+```
+
+1. **Generazione dei lanci di moneta:** Ogni lancio è modellato come una variabile binaria con $\text{Pr(Testa)} = 0.5$, utilizzando `rbinom`.
+2. **Verifica della sequenza:** La funzione `check_run` cerca se una sequenza di lunghezza specificata appare nei lanci simulati. Questo è realizzato trasformando i risultati dei lanci in una stringa e utilizzando la funzione `grepl` per rilevare la sequenza.
+3. **Stima della probabilità:** La proporzione di simulazioni in cui appare una sequenza di almeno 12 teste fornisce una stima della probabilità.
+4. **Distribuzione delle sequenze più lunghe:** Calcoliamo la lunghezza massima di una sequenza di teste per ogni simulazione e la visualizziamo con un istogramma.
+
+L'output fornisce:
+
+1. La probabilità stimata di ottenere una sequenza di almeno 12 teste consecutive in 100 lanci.
+2. Un grafico che mostra la distribuzione delle sequenze più lunghe osservate nei 10,000 esperimenti.
+
+Questo approccio può essere utilizzato per modellare eventi rari ma possibili in psicologia, come la comparsa di lunghe sequenze di comportamenti simili in compiti ripetuti (ad esempio, risposte corrette consecutive in un test di memoria). La simulazione offre una stima della probabilità di osservare tali eventi, fornendo informazioni utili per interpretare i risultati sperimentali.
+
+## Esempio: Probabilità della Media Campionaria 
+
+Consideriamo un campione casuale di 30 persone estratte dalla popolazione generale, in cui il QI segue una distribuzione normale $\mathcal{N}(100, 15)$. Vogliamo calcolare la probabilità che la **media campionaria** sia maggiore di 105. 
+
+La probabilità teorica è data dalla distribuzione normale della media campionaria:
+
+$$
+\text{Media campionaria: } \mathcal{N}\left(\mu = 100, \, \sigma = \frac{15}{\sqrt{30}}\right)
+$$
+
+La probabilità si calcola analiticamente come:
+
+$$
+P\left(\bar{X} > 105\right) = 1 - \Phi\left(\frac{105 - 100}{15 / \sqrt{30}}\right)
+$$
+
+Calcoliamo questa probabilità teorica e stimiamola tramite simulazione.
+
+```{r}
+# Calcolo analitico della probabilità
+mu <- 100        # Media della popolazione
+sigma <- 15      # Deviazione standard della popolazione
+n <- 30          # Dimensione del campione
+threshold <- 105 # Soglia per la media campionaria
+
+# Probabilità teorica
+prob_teorica <- 1 - pnorm(threshold, mean = mu, sd = sigma / sqrt(n))
+cat("Probabilità teorica che la media campionaria sia maggiore di 105:", prob_teorica, "\n")
+
+# Simulazione
+set.seed(123)  # Per riproducibilità
+n_sim <- 100000 # Numero di simulazioni
+
+# Generazione dei campioni e calcolo delle medie campionarie
+sample_means <- replicate(n_sim, mean(rnorm(n, mean = mu, sd = sigma)))
+
+# Probabilità stimata tramite simulazione
+prob_simulata <- mean(sample_means > threshold)
+cat("Probabilità stimata tramite simulazione:", prob_simulata, "\n")
+```
+
+```{r}
+# Istogramma delle medie campionarie
+ggplot(data.frame(Sample_Means = sample_means), aes(x = Sample_Means)) +
+  geom_histogram(binwidth = 1, color = "black", fill = "lightblue") +
+  geom_vline(xintercept = threshold, linetype = "dashed", color = "red") +
+  labs(
+    title = "Distribuzione delle Medie Campionarie",
+    x = "Media Campionaria",
+    y = "Frequenza"
+  ) 
+```
+
+1. La funzione `pnorm` calcola la probabilità cumulativa della normale. Sottraendo tale valore da 1, otteniamo la probabilità di superare la soglia specificata.
+2. La funzione `rnorm` genera $n$ valori casuali da una distribuzione normale $\mathcal{N}(100, 15)$. Ripetiamo il processo 100,000 volte con `replicate`, calcolando la media campionaria ogni volta.
+3. La proporzione di medie campionarie che superano 105 fornisce la stima simulata della probabilità.
+
+La simulazione offre un metodo pratico per stimare probabilità anche in situazioni più complesse, dove il calcolo analitico potrebbe non essere semplice.
+
+## Esempio 5: Simulazione in un Trial Clinico
+
+In questo esempio, vogliamo analizzare i risultati di un trial clinico con quattro gruppi di trattamento ($i = 1, 2, 3, 4$), stimando la probabilità di successo ($P_i$) di ciascun trattamento. Il **successo** è definito come la probabilità che un paziente **non abbia una ricaduta** dopo il trattamento.
+
+L'analisi si basa su una distribuzione **a posteriori** di $P_i$, calcolata combinando:
+
+- **La verosimiglianza (likelihood):** Derivata dai dati osservati $x_i$ (successi) e $n_i$ (pazienti totali per gruppo).
+- **La distribuzione a priori:** Una distribuzione Beta($\alpha_0, \beta_0$) scelta per rappresentare le nostre convinzioni iniziali su $P_i$.
+
+
+### Derivazione della Distribuzione a Posteriori
+
+1. **Likelihood (Verosimiglianza):**  
+   La probabilità di osservare $x_i$ successi in $n_i$ prove (pazienti) segue una distribuzione binomiale:
+   $$
+   x_i \sim \text{Binomiale}(n_i, P_i)
+   $$
+   La funzione di verosimiglianza per $P_i$ è quindi:
+   $$
+   \mathcal{L}(P_i \mid x_i, n_i) \propto P_i^{x_i} (1 - P_i)^{n_i - x_i}
+   $$
+
+2. **Distribuzione a priori:**  
+   Assumiamo che $P_i$ segua una distribuzione Beta($\alpha_0, \beta_0$), con densità:
+   $$
+   \pi(P_i) \propto P_i^{\alpha_0 - 1} (1 - P_i)^{\beta_0 - 1}
+   $$
+
+3. **Distribuzione a posteriori:**  
+   Combinando la verosimiglianza e la distribuzione a priori, otteniamo la distribuzione a posteriori (tramite il Teorema di Bayes):
+   $$
+   \pi(P_i \mid x_i, n_i) \propto \mathcal{L}(P_i \mid x_i, n_i) \cdot \pi(P_i)
+   $$
+   Sostituendo le espressioni della likelihood e della prior:
+   $$
+   \pi(P_i \mid x_i, n_i) \propto P_i^{x_i + \alpha_0 - 1} (1 - P_i)^{n_i - x_i + \beta_0 - 1}
+   $$
+   Questa è la densità di una distribuzione **Beta** con parametri aggiornati:
+   $$
+   P_i \sim \text{Beta}(\alpha_0 + x_i, \beta_0 + n_i - x_i)
+   $$
+
+
+### Simulazione con R
+
+Il nostro obiettivo è stimare:
+
+1. $\Pr(P_i > P_4)$, dove $P_4$ rappresenta il placebo.
+2. La probabilità che un trattamento sia il più efficace ($P_i = \max(P_1, P_2, P_3, P_4)$).
+3. La probabilità che tutti i $P_i$ siano vicini entro un intervallo $\epsilon$.
+
+```{r}
+# Parametri della distribuzione a priori
+alpha0 <- 2  # Parametro a priori per i successi
+beta0 <- 2   # Parametro a priori per i fallimenti
+
+# Dati osservati
+n <- c(50, 50, 50, 50)  # Numero totale di pazienti per ciascun gruppo
+x <- c(35, 30, 25, 20)  # Numero di pazienti che non hanno avuto una ricaduta
+
+# Parametri posteriori
+posterior_alpha <- alpha0 + x
+posterior_beta <- beta0 + n - x
+
+# Numero di simulazioni
+n_sim <- 10000
+
+# Simulazione delle distribuzioni posteriori
+set.seed(123)  # Per riproducibilità
+P <- sapply(1:4, function(i) rbeta(n_sim, posterior_alpha[i], posterior_beta[i]))
+
+# 1. Probabilità che ciascun trattamento sia migliore del placebo
+probs_better_than_placebo <- colMeans(P[, 1:3] > P[, 4])
+names(probs_better_than_placebo) <- paste0("P", 1:3, " > P4")
+# print(probs_better_than_placebo)
+
+# 2. Probabilità che un trattamento sia il migliore
+probs_best <- colMeans(apply(P, 1, function(row) row == max(row)))
+names(probs_best) <- paste0("P", 1:4, " è il migliore")
+# print(probs_best)
+
+# 3. Probabilità che tutti i Pi siano entro epsilon
+epsilon <- 0.1
+probs_within_epsilon <- mean(apply(P, 1, function(row) max(row) - min(row) <= epsilon))
+cat("Probabilità che tutti i Pi siano entro epsilon =", epsilon, ":", probs_within_epsilon, "\n")
+
+# Visualizzazione: Distribuzioni posteriori
+P_df <- data.frame(
+  Simulazione = rep(1:n_sim, 4),
+  P = as.vector(P),
+  Gruppo = factor(rep(1:4, each = n_sim), labels = paste0("P", 1:4))
+)
+
+ggplot(P_df, aes(x = P, fill = Gruppo)) +
+  geom_density(alpha = 0.6) +
+  labs(
+    title = "Distribuzioni Posteriori dei Pi",
+    x = "Probabilità Pi",
+    y = "Densità"
+  ) 
+```
+
+### Risultati e Interpretazione
+
+1. **Probabilità $\Pr(P_i > P_4)$:** Indicano quanto è probabile che ogni trattamento superi il placebo.
+2. **Probabilità che un trattamento sia il migliore:** Mostrano quale trattamento è più efficace in termini probabilistici.
+3. **Probabilità di vicinanza ($\epsilon$):** Forniscono informazioni sulla similarità tra le probabilità di successo dei trattamenti.
+
+Questo approccio combina inferenza bayesiana e simulazione per rispondere a domande chiave in un trial clinico.
+
+## Esempio 6: Quante bambine su 400 nascite?
 
 Supponiamo che la probabilità di nascita di una bambina sia $p$ = 0.488. Se in un ospedale nascono 400 bambini in un anno, quante saranno bambine? Possiamo simulare questo processo usando una distribuzione binomiale, ripetendo la simulazione 10,000 volte.
 
