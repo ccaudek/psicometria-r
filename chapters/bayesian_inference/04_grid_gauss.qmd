@@ -28,7 +28,7 @@ here::here("code", "_common.R") |>
 
 # Load packages
 if (!requireNamespace("pacman")) install.packages("pacman")
-pacman::p_load(reshape2, )
+pacman::p_load(reshape2)
 ```
 :::
 
@@ -89,10 +89,25 @@ posterior <- posterior_non_norm / sum(posterior_non_norm) # Normalizzazione
 Visualizzazione:
 
 ```{r}
-plot(mu_griglia, posterior,
-    type = "l", main = "Distribuzione a Posteriori della Media",
-    xlab = "Media", ylab = "Probabilità"
+# Creazione del dataframe per il plot
+dat <- tibble(
+  mu_griglia = mu_griglia, # Ascissa
+  posterior = posterior    # Ordinata
 )
+
+# Grafico con ggplot2
+dat |>
+  ggplot(aes(x = mu_griglia, y = posterior)) +
+  geom_line(size = 1.2, color = MetBrewer::met.brewer("Hiroshige", 10)[1]) + 
+  labs(
+    title = "Distribuzione a Posteriori della Media",
+    x = "Media",
+    y = "Probabilità"
+  ) +
+  theme(
+    plot.title = element_text(hjust = 0.5), # Centra il titolo
+    legend.position = "none" # Rimuove la legenda (non necessaria per una linea singola)
+  )
 ```
 
 ### Aggiunta di una Prior Informativa
@@ -100,19 +115,51 @@ plot(mu_griglia, posterior,
 Usiamo una prior gaussiana con media 140 e deviazione standard 3.
 
 ```{r}
+# Calcolo prior, posterior non normalizzato e posterior
 prior <- dnorm(mu_griglia, mean = 140, sd = 3)
-
 posterior_non_norm <- likelihood * prior
 posterior <- posterior_non_norm / sum(posterior_non_norm)
 
-# Grafico
-plot(mu_griglia, posterior,
-    type = "l", col = "blue", lwd = 2,
-    main = "Distribuzione a Posteriori e Prior della Media",
-    xlab = "Media", ylab = "Densità"
+# Creazione del dataframe per il grafico
+dat <- tibble(
+  mu_griglia = mu_griglia,
+  prior = prior / sum(prior),  # Normalizzazione del prior
+  posterior = posterior        # Posterior già normalizzato
 )
-lines(mu_griglia, prior / sum(prior), col = "red", lty = 2)
-legend("topright", legend = c("Posterior", "Prior"), col = c("blue", "red"), lty = c(1, 2))
+
+# Preparazione dei dati in formato lungo per ggplot2
+long_data <- dat |>
+  pivot_longer(
+    cols = c(prior, posterior),
+    names_to = "distribution",
+    values_to = "density"
+  )
+
+# Grafico con ggplot2
+long_data |>
+  ggplot(aes(x = mu_griglia, y = density, color = distribution, linetype = distribution)) +
+  geom_line(size = 1.2) +
+  scale_colour_manual(
+    values = MetBrewer::met.brewer("Hiroshige", 10)[1:2], # Usa i primi due colori della palette
+    labels = c("Prior", "Posterior"),
+    breaks = c("prior", "posterior")
+  ) +
+  scale_linetype_manual(
+    values = c("prior" = 2, "posterior" = 1), # Linea tratteggiata per il prior
+    labels = c("Prior", "Posterior"),
+    breaks = c("prior", "posterior")
+  ) +
+  labs(
+    title = "Distribuzione a Posteriori e Prior della Media",
+    x = "Media",
+    y = "Densità",
+    color = "Distribuzione",
+    linetype = "Distribuzione"
+  ) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    legend.position = "bottom"
+  )
 ```
 
 ## Campionamento dalla Posterior
@@ -120,16 +167,35 @@ legend("topright", legend = c("Posterior", "Prior"), col = c("blue", "red"), lty
 Generiamo un campione dalla distribuzione a posteriori.
 
 ```{r}
+# Set seed for reproducibility
 set.seed(123)
+
+# Sampling from the posterior distribution
 indice_campionato <- sample(1:length(mu_griglia), size = 1000, replace = TRUE, prob = posterior)
 media_campionata <- mu_griglia[indice_campionato]
 
-# Istogramma dei campioni
-hist(media_campionata,
-    main = "Campionamento dalla Posterior", xlab = "Media",
-    breaks = 20, col = "lightblue", border = "white"
-)
+# Create a dataframe for ggplot2
+sample_df <- tibble(media_campionata = media_campionata)
 
+# Histogram using ggplot2
+ggplot(sample_df, aes(x = media_campionata)) +
+  geom_histogram(
+    bins = 20, 
+    fill = MetBrewer::met.brewer("Hiroshige", 10)[3], # Use a color from MetBrewer
+    color = "white", 
+    alpha = 0.8
+  ) +
+  labs(
+    title = "Campionamento dalla Posterior",
+    x = "Media",
+    y = "Frequenza"
+  ) +
+  theme(
+    plot.title = element_text(hjust = 0.5)
+  )
+```
+
+```{r}
 # Media e intervallo di credibilità
 mean(media_campionata)
 quantile(media_campionata, c(0.03, 0.97))
@@ -140,22 +206,34 @@ quantile(media_campionata, c(0.03, 0.97))
 Utilizziamo i logaritmi per migliorare la stabilità numerica.
 
 ```{r}
+# Calcolo log-likelihood, log-prior e posterior
 log_likelihood <- sapply(mu_griglia, function(mu) {
-    sum(dnorm(campione, mean = mu, sd = sigma_conosciuta, log = TRUE))
+  sum(dnorm(campione, mean = mu, sd = sigma_conosciuta, log = TRUE))
 })
-
 log_prior <- dnorm(mu_griglia, mean = 140, sd = 3, log = TRUE)
-
 log_posterior_non_norm <- log_likelihood + log_prior
-log_posterior <- log_posterior_non_norm - max(log_posterior_non_norm) # Stabilizzazione
+log_posterior <- log_posterior_non_norm - max(log_posterior_non_norm) # Stabilizzazione numerica
 posterior <- exp(log_posterior) / sum(exp(log_posterior))
 
-# Grafico
-plot(mu_griglia, posterior,
-    type = "l", col = "darkgreen", lwd = 2,
-    main = "Distribuzione a Posteriori con Log-Verosimiglianza",
-    xlab = "Media", ylab = "Probabilità"
+# Creazione del dataframe per il grafico
+dat <- tibble(
+  mu_griglia = mu_griglia,
+  posterior = posterior
 )
+
+# Grafico con ggplot2
+dat |>
+  ggplot(aes(x = mu_griglia, y = posterior)) +
+  geom_line(size = 1.2, color = MetBrewer::met.brewer("Hiroshige", 10)[3]) + # Usa il terzo colore della palette
+  labs(
+    title = "Distribuzione a Posteriori con Log-Verosimiglianza",
+    x = "Media",
+    y = "Probabilità"
+  ) +
+  theme(
+    plot.title = element_text(hjust = 0.5), # Centra il titolo
+    legend.position = "none"               # Rimuove la legenda per una linea singola
+  )
 ```
 
 ## Estensione alla Deviazione Standard Ignota
@@ -194,22 +272,27 @@ posterior_2d <- exp(log_posterior_2d)
 posterior_2d <- posterior_2d / sum(posterior_2d) # Normalize
 
 # Convert posterior_2d to a data frame for visualization
-library(reshape2)
 posterior_df <- melt(posterior_2d)
 names(posterior_df) <- c("mu_idx", "sigma_idx", "posterior")
 posterior_df$mu <- mu_griglia[posterior_df$mu_idx]
 posterior_df$sigma <- sigma_griglia[posterior_df$sigma_idx]
 
 # Plot the posterior distribution
-library(ggplot2)
 ggplot(posterior_df, aes(x = mu, y = sigma, fill = posterior)) +
-    geom_tile() +
-    scale_fill_viridis_c() +
-    labs(
-        title = "Distribuzione a Posteriori Bidimensionale",
-        x = "Media ($\\mu$)", y = "Deviazione Standard ($\\sigma$)"
-    )
-
+  geom_tile() +
+  scale_fill_gradientn(
+    colours = MetBrewer::met.brewer("Hiroshige", 10), # Use MetBrewer palette
+    name = "Posterior" # Legend title
+  ) +
+  labs(
+    title = "Distribuzione a Posteriori Bidimensionale",
+    x = expression(mu), 
+    y = expression(sigma)
+  ) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    legend.position = "right"
+  )
 ```
 
 ## Riflessioni Conclusive
@@ -225,3 +308,6 @@ In conclusione, l'estensione dell'approccio bayesiano a problemi con più parame
 ```{r}
 sessionInfo()
 ```
+
+## Bibliografia {.unnumbered}
+
