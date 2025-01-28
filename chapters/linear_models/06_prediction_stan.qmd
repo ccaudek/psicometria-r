@@ -1,16 +1,18 @@
-# Predizione e inferenza 🔸 {#sec-linear-models-prediction}
+# Predizione e inferenza {#sec-linear-models-prediction}
 
 ::: callout-note
 ## In questo capitolo imparerai a
 
-- 
+- **Eseguire e interpretare il Prior Predictive Check**: Valutare l'adeguatezza delle distribuzioni a priori scelte per il modello di regressione, verificando che siano coerenti con la conoscenza preesistente e con i dati osservati.
+- **Eseguire e interpretare il Posterior Predictive Check**: Valutare la capacità del modello di riprodurre i dati osservati dopo aver integrato le informazioni dai dati, confrontando le previsioni del modello con i dati reali.
+- **Calcolare e interpretare l'incertezza nella retta di regressione**: Utilizzare le distribuzioni a posteriori dei parametri per quantificare l'incertezza nelle previsioni del modello, visualizzando intervalli di credibilità attorno alla retta di regressione.
+- **Comprendere l'approccio bayesiano alla regressione**: Apprezzare come l'uso di distribuzioni a priori e a posteriori fornisca una visione più completa dell'incertezza rispetto ai metodi classici, migliorando la robustezza delle inferenze statistiche.
 :::
 
 ::: callout-tip
 ## Prerequisiti
 
-- Leggere *Regression and Other Stories* [@gelman2021regression].
-  - Prestare particolare attenzione al capitolo 9, "Prediction and Bayesian inference", che offrono una guida dettagliata ai temi della predizione e dell'inferenza nel modello bayesiano di regressione lineare bivariata.
+- Leggere *Regression and Other Stories* [@gelman2021regression]. Prestare particolare attenzione al capitolo 9, "Prediction and Bayesian inference", che offrono una guida dettagliata ai temi della predizione e dell'inferenza nel modello bayesiano di regressione lineare bivariata.
 :::
 
 ::: callout-important
@@ -22,17 +24,18 @@ here::here("code", "_common.R") |>
 
 # Load packages
 if (!requireNamespace("pacman")) install.packages("pacman")
-pacman::p_load(cmdstanr, posterior)
+pacman::p_load(brms, posterior)
 ```
 :::
 
+
 ## Introduzione
 
-@gelman2021regression osservano che l'inferenza bayesiana si sviluppa in tre passaggi fondamentali, che vanno oltre la stima classica. In primo luogo, i dati e il modello vengono combinati per formare una distribuzione a posteriori, che solitamente viene riassunta tramite le distribuzioni a posteriori dei parametri del modello. In secondo luogo, è possibile propagare l'incertezza presente in questa distribuzione, ottenendo previsioni basate su simulazioni per risultati non osservati o futuri, tenendo conto dell'incertezza nei parametri del modello. Infine, è possibile integrare ulteriori informazioni nel modello utilizzando una distribuzione a priori. Questo capitolo si concentra sui temi della previsione e dell'inferenza.
+@gelman2021regression osservano che l'inferenza bayesiana si sviluppa in tre passaggi fondamentali, che vanno oltre la stima classica. In primo luogo, i dati e il modello vengono combinati per formare una distribuzione a posteriori, che solitamente viene riassunta tramite le distribuzioni a posteriori dei parametri del modello. In secondo luogo, è possibile propagare l'incertezza presente in questa distribuzione, ottenendo previsioni basate su simulazioni per risultati non osservati o futuri, tenendo conto dell'incertezza nei parametri del modello. Infine, è possibile integrare ulteriori informazioni nel modello utilizzando una distribuzione a priori. Questo capitolo si concentra sui temi della previsione e dell'inferenza, con particolare attenzione all'incertezza della retta di regressione e alle distribuzioni predittive.
 
 ## Predizione
 
-Per discutere i temi della predizione e dell'inferenza bayesiana nel contesto del modello bayesiano di regressione lineare bivariata, esamineremo nuovamente il set di esaminati nel @sec-bivariate-bayesian-regression e relativi alla relazione tra Tense Arousal e ansia di stato.
+Per discutere i temi della predizione e dell'inferenza bayesiana nel contesto del modello bayesiano di regressione lineare bivariata, esamineremo nuovamente il set di dati relativo alla relazione tra Tense Arousal (`TA1`) e ansia di stato (`state1`).
 
 ```{r}
 df <- rio::import(here::here("data", "affect.csv")) |> 
@@ -41,306 +44,232 @@ df |>
   head()
 ```
 
-Consideriamo il modello bayesiano di regressione lineare bivariata che include prior uniformi per i parametri $\alpha$, $\beta$ e $\sigma$ che abbiamo discusso nel @sec-bivariate-bayesian-regression. Compiliamo il modello.
+## Distribuzione Predittiva a Priori
 
+Consideriamo il modello bayesiano di regressione lineare bivariata che include prior uniformi per i parametri $\alpha$, $\beta$ e $\sigma$. Utilizzeremo il pacchetto **brms** per specificare e adattare il modello, concentrandoci in particolare sulla **distribuzione predittiva a priori**, ovvero sulle previsioni generate dal modello basandosi esclusivamente sulle distribuzioni a priori, senza considerare i dati osservati.
 
-```{r}
-model <- cmdstan_model(here::here("stan", "arousal_model_prior_raw.stan"))
-```
+### Specificazione del modello con prior predittivi
 
-Il modello ha questa forma:
-
-```{r}
-model$print()
-```
-
-Sistemiamo i dati in un dizionario come richiesto dal modello Stan.
-
-```{r}
-stan_data = list(
-  N = length(df$TA1),
-  x = df$state1,
-  y = df$TA1
-)
-```
-
-Eseguiamo il campionamento MCMC.
+Per esaminare la distribuzione predittiva a priori, specifichiamo il modello impostando l'argomento `sample_prior = "only"`. Questo ci permette di generare previsioni basate solo sui prior, ignorando i dati del campione.
 
 ```{r}
 #| message: false
-#| 
-fit1 <- model$sample(
-  data = stan_data,
-  seed = 123,
-  iter_warmup = 2000,
-  iter_sampling = 2000,
-  show_message = FALSE
+#| warning: false
+#| output: false
+
+# Prior predictive check con sample_prior = "only"
+model_prior <- brm(
+  formula = TA1 ~ state1, 
+  data = df, 
+  prior = c(
+    prior(uniform(-50, 50), class = "Intercept"),  # Prior per alpha
+    prior(uniform(-50, 50), class = "b"),          # Prior per beta
+    prior(uniform(0, 50), class = "sigma")         # Prior per sigma
+  ), 
+  sample_prior = "only",  # Campiona solo dai prior
+  backend = "cmdstanr",
+  silent = 0
 )
 ```
 
-Esaminiamo le distribuzioni a posteriori dei parametri:
+### Visualizzazione della distribuzione predittiva a priori
+
+Utilizziamo la funzione `pp_check` per visualizzare la distribuzione predittiva a priori e confrontarla con i dati osservati. Questo passaggio è fondamentale per valutare se i prior scelti sono realistici e appropriati per il contesto del problema.
 
 ```{r}
-fit1$summary(variables = c("alpha", "beta", "sigma"))
+# Visualizzazione del prior predictive check
+pp_check(model_prior) + xlim(-100, 100)
 ```
 
-Il punto importante qui è che la distribuzione a posteriori non fornisce solo informazioni sui singoli parametri, ma anche sulle loro interdipendenze. Queste relazioni sono riflesse nei campioni a posteriori, che possono essere trasformati in vari modi. Ad esempio, possiamo calcolare la predizione a posteriori del modello lineare per il valore atteso di Tense Arousal quando l'ansia di stato è pari a 30 usando il seguente comando nel blocco `generated quantities`:
+### Interpretazione dei risultati
 
-`pred = alpha + beta * 30;`
+Dalla visualizzazione, notiamo che la distribuzione dei dati previsti dal modello, basata esclusivamente sui prior e sul modello generativo ipotizzato, è molto più ampia rispetto alla distribuzione dei dati effettivi. Questo suggerisce che i prior scelti sono **troppo ampi** e poco informativi. In altre parole, le previsioni generate dai prior coprono un intervallo di valori eccessivamente vasto, che non riflette adeguatamente la variabilità osservata nei dati reali.
 
-Modifichiamo il modello Stan che include la specifica di distribuzioni debolmente informative sui  parametri $\alpha$, $\beta$ e $\sigma$ per aggiungere questo comando nel blocco `generated quantities` e compiliamo il modello.
+#### Implicazioni
 
-```{r}
-model2 <- cmdstan_model(here::here("stan", "arousal_model2.stan"))
-```
+- **Prior troppo ampi**: Quando i prior sono troppo ampi, il modello genera previsioni che possono essere irrealistiche o eccessivamente disperse. Questo può portare a una scarsa capacità del modello di adattarsi ai dati osservati una volta che questi vengono incorporati.
+- **Prior informativi**: Per migliorare il modello, potrebbe essere necessario utilizzare prior più informativi, che riflettano meglio la conoscenza preesistente sul fenomeno in studio. Ad esempio, limitare l'intervallo dei prior per $\alpha$ e $\beta$ o scegliere distribuzioni a priori più realistiche per $\sigma$.
 
-Il modello ha questa forma:
+In sintesi, il **prior predictive check** è uno strumento essenziale per valutare l'adeguatezza delle distribuzioni a priori scelte. Attraverso questo controllo, possiamo identificare prior troppo ampi o inappropriati, che potrebbero compromettere la qualità delle inferenze bayesiane. Nel nostro caso, i risultati suggeriscono la necessità di rivedere i prior, adottando scelte più informative e coerenti con la realtà dei dati.
 
-```{r}
-model2$print()
-```
 
-In questo modello Stan aggiornato, il blocco `generated quantities` calcola la predizione a posteriori `pred` per una variabile predittore con valore 30. Questa modifica permette di ottenere la distribuzione a posteriori della predizione per un valore specifico del predittore.
+## Modello di Regressione Lineare Bayesiana
 
-Eseguiamo il campionamento.
+In questa sezione, specifichiamo e adattiamo un modello di regressione lineare bivariata utilizzando prior uniformi per i parametri $\alpha$ (intercetta), $\beta$ (coefficiente angolare) e $\sigma$ (deviazione standard). L'obiettivo è ottenere la distribuzione a posteriori dei parametri del modello e confrontare i risultati con quelli ottenuti tramite il metodo di massima verosimiglianza.
+
+### Specificazione del Modello con Prior Uniformi
+
+Utilizziamo il pacchetto **brms** per specificare il modello di regressione lineare. I prior scelti sono uniformi e coprono un intervallo ampio per ciascun parametro, riflettendo un approccio inizialmente non informativo.
 
 ```{r}
 #| message: false
-#| 
-fit2 <- model2$sample(
-  data = stan_data,
-  seed = 123,
-  iter_warmup = 2000,
-  iter_sampling = 2000,
-  show_message = FALSE
+#| warning: false
+#| output: false
+
+# Specificazione del modello con prior uniformi
+model <- brm(
+  formula = TA1 ~ state1,  # Formula del modello
+  data = df,               # Dati
+  prior = c(
+    prior(uniform(-50, 50), class = "Intercept"),  # Prior per alpha
+    prior(uniform(-50, 50), class = "b"),          # Prior per beta
+    prior(uniform(0, 50), class = "sigma")         # Prior per sigma
+  ),
+  seed = 123,              # Seme per la riproducibilità
+  chains = 4,              # Numero di catene MCMC
+  iter = 4000,             # Numero totale di iterazioni (2000 warmup, 2000 sampling)
+  warmup = 2000,           # Iterazioni di warmup
+  backend = "cmdstanr",    # Backend per l'ottimizzazione
+  silent = 0               # Mostra messaggi di avviso
 )
 ```
 
-Esaminiamo la stima a posteriori del valore atteso di Tense Arousal quando l'ansia di stato è pari a 30. Questa analisi fornirà sia una stima puntuale di Tense Arousal che una misura dell'incertezza associata, rappresentata dall'intervallo di credibilità al livello di confidenza scelto.
+### Esame delle Distribuzioni a Posteriori
+
+Per esaminare le distribuzioni a posteriori dei parametri, utilizziamo la funzione `summary`. Questo ci permette di ottenere stime puntuali, intervalli di credibilità e altre statistiche rilevanti.
 
 ```{r}
-fit2$summary(variables = "pred")
+summary(model)
 ```
 
-## Quantificazione dell'incertezza
+Un aspetto cruciale è che la distribuzione a posteriori non fornisce solo informazioni sui singoli parametri, ma anche sulle loro **interdipendenze**. Queste relazioni sono riflesse nei campioni a posteriori, che possono essere ulteriormente analizzati e trasformati.
 
-Per quantificare l'incertezza complessiva nelle predizioni del modello, possiamo calcolare la distribuzione a posteriori delle predizioni per tutti i valori di $x$ del campione. Questo ci permette di ottenere sia le stime puntuali delle predizioni sia una misura dell'incertezza associata.
+### Confronto con il Metodo di Massima Verosimiglianza
 
-Per fare ciò, modifichiamo il blocco `generated quantities` nel seguente modo:
-
-```
-generated quantities {
-  vector[N] y_rep; // Predizioni a posteriori per ciascun valore di x
-  
-  for (n in 1:N) {
-    y_rep[n] = normal_rng(alpha + beta * x[n], sigma);
-  }
-}
-```
-
-Esaminiamo le modifiche:
-
-1. **Dichiarazione del vettore `y_rep`**:
-
-   - `vector[N] y_rep;`: Dichiara un vettore `y_rep` di lunghezza `N` per contenere le predizioni a posteriori per ciascun valore di `x`.
-
-2. **Ciclo `for` per generare le predizioni**:
-
-   - `for (n in 1:N)`: Itera su tutte le osservazioni.
-   - `y_rep[n] = normal_rng(alpha + beta * x[n], sigma);`: Per ogni valore di `x[n]`, genera una predizione dalla distribuzione normale con media `alpha + beta * x[n]` e deviazione standard `sigma`. La funzione `normal_rng` genera numeri casuali dalla distribuzione normale specificata, rappresentando l'incertezza nelle predizioni.
-
-Questo approccio consente di ottenere la distribuzione a posteriori delle predizioni, fornendo una visione completa dell'incertezza associata. Dalla distribuzione a posteriori di `y_rep`, possiamo calcolare sia la stima puntuale (come la media o la mediana delle predizioni) sia gli intervalli di credibilità (come l'intervallo al 95%) per ogni valore di `x`. Questo offre una misura dell'incertezza delle predizioni, riflettendo la variabilità e l'affidabilità del modello.
-
-Modifichiamo il modello imponendo distribuzioni a priori debolmente informative sui parametri:
-
-- Per $\alpha$ e $\beta$, utilizziamo una distribuzione Normale centrata su 0 con una deviazione standard di 2.
-- Per $\sigma$, utilizziamo una distribuzione di Cauchy centrata su 0 con una scala di 2.
-
+Per confrontare i risultati bayesiani con quelli classici, stimiamo il modello di regressione lineare utilizzando il metodo di massima verosimiglianza.
 
 ```{r}
-model3 <- cmdstan_model(here::here("stan", "arousal_model3.stan"))
+summary(lm(TA1 ~ state1, data = df))
 ```
 
-Il modello ha questa forma:
+Nel caso di prior uniformi, la soluzione bayesiana coincide con quella di massima verosimiglianza. Questo risultato è atteso, poiché prior non informativi portano a distribuzioni a posteriori dominate dai dati osservati.
+
+## Predizione a Posteriori
+
+Una volta ottenuta la distribuzione a posteriori dei parametri, possiamo utilizzarla per fare previsioni. In particolare, siamo interessati a due scenari:
+1. Predizione per un valore specifico del predittore.
+2. Quantificazione dell'incertezza nelle previsioni per tutti i valori osservati del predittore.
+
+### Predizione a Posteriori per un Valore Specifico
+
+Per ottenere la distribuzione a posteriori della predizione per un valore specifico del predittore (ad esempio, `state1 = 30`), utilizziamo la funzione `posterior_predict`.
 
 ```{r}
-model3$print()
+# Predizione a posteriori per ansia di stato pari a 30
+new_data <- data.frame(state1 = 30)
+post_pred <- posterior_predict(model, newdata = new_data)
+
+# Esame della distribuzione a posteriori della predizione
+summary(post_pred)
 ```
 
-Eseguiamo il campionamento.
+Questo ci fornisce una distribuzione di valori predetti per `TA1` quando `state1 = 30`, riflettendo l'incertezza associata ai parametri del modello.
+
+### Quantificazione dell'Incertezza nelle Predizioni
+
+Per quantificare l'incertezza complessiva nelle previsioni del modello, calcoliamo la distribuzione a posteriori delle predizioni per tutti i valori osservati di $x$. Questo ci permette di ottenere stime puntuali e intervalli di credibilità.
 
 ```{r}
-#| message: false
-#| 
-fit3 <- model3$sample(
-  data = stan_data,
-  seed = 123,
-  iter_warmup = 2000,
-  iter_sampling = 2000,
-  show_message = FALSE
-)
+# Predizione a posteriori per tutti i valori di x
+post_pred_all <- posterior_predict(model)
 ```
 
-Esaminiamo la distribuzione a posteriori dei parametri.
+### Visualizzazione dell'Incertezza delle Predizioni
+
+Visualizziamo l'incertezza delle predizioni utilizzando un grafico che mostra la linea di regressione media e gli intervalli di credibilità al 95%.
 
 ```{r}
-fit3$summary(variables = c("alpha", "beta", "sigma"))
-```
-
-### Manipolare le Stime a Posteriori dei Parametri
-
-Costruiamo un grafico che rappresenta i valori osservati e la linea di regressione stimata tramite un modello bayesiano. Al grafico aggiungeremo diverse linee di regressione, ognuna basata su valori campionati casualmente dalla distribuzione a posteriori dei parametri $\alpha$ e $\beta$.
-
-#### Recuperare le Stime a Posteriori
-
-Con cmdstanr, i risultati del campionamento sono accessibili come oggetti `draws_matrix`, `draws_array`, o `draws_df`. Per estrarre le distribuzioni a posteriori di specifici parametri, possiamo usare il metodo `draws()` o `as_draws_df()`. Ad esempio, per estrarre i campioni di $\alpha$ e $\beta$ dall'oggetto `fit3`, utilizziamo:
-
-```{r}
-# Estrazione dei campioni a posteriori
-alpha_samples <- as_draws_df(fit3)$alpha
-beta_samples <- as_draws_df(fit3)$beta
-```
-
-Stampiamo i primi 20 valori di `alpha_samples` per verificare:
-
-```{r}
-head(alpha_samples, 20)
-```
-
-#### Calcolare le Stime Puntuali
-
-Possiamo calcolare la media a posteriori dei parametri per stimare la retta di regressione media:
-
-```{r}
-mean_alpha <- mean(alpha_samples)
-mean_beta <- mean(beta_samples)
-
-cat("Mean alpha:", mean_alpha, "\nMean beta:", mean_beta)
-```
-
-#### Grafico della Regressione con Incertezza
-
-Sovrapponiamo una retta di regressione media e linee basate sui campioni a posteriori:
-
-```{r}
-# Dati osservati
-x <- df$state1
-y <- df$TA1
-
 # Creazione del data frame per ggplot
-plot_data <- data.frame(x = x, y = y)
+plot_data <- data.frame(
+  state1 = df$state1,
+  TA1 = df$TA1,
+  pred_mean = colMeans(post_pred_all),  # Media delle predizioni
+  pred_lower = apply(post_pred_all, 2, quantile, 0.025),  # Limite inferiore
+  pred_upper = apply(post_pred_all, 2, quantile, 0.975)   # Limite superiore
+)
 
 # Costruzione del grafico
-ggplot(plot_data, aes(x = x, y = y)) +
-  geom_point(color = "blue", size = 1) +
-  # Linee di regressione basate sui campioni
-  geom_abline(aes(intercept = mean_alpha, slope = mean_beta),
-              color = "red", size = 1, alpha = 0.8) +
-  lapply(1:300, function(i) {
-    geom_abline(aes(intercept = alpha_samples[i], slope = beta_samples[i]),
-                color = "gray", alpha = 0.1)
-  }) +
-  labs(
-    title = "Regressione con Incertezza Posteriori",
-    x = "State Anxiety",
-    y = "Tense Arousal"
-  ) 
-```
-
----
-
-#### Incertezza delle Predizioni con $\texttt{y\_rep}$
-
-Un approccio alternativo consiste nel rappresentare l'incertezza delle predizioni usando $\texttt{y\_rep}$, la distribuzione a posteriori delle osservazioni simulate:
-
-```{r}
-# Estrazione dei campioni posteriori di y_rep
-y_rep_samples <- as_draws_df(fit3)
-y_rep_matrix <- y_rep_samples[, grep("y_rep", colnames(y_rep_samples))]
-
-# Compute posterior mean and intervals
-y_rep_mean <- colMeans(y_rep_matrix)
-y_rep_lower <- apply(y_rep_matrix, 2, quantile, 0.025)
-y_rep_upper <- apply(y_rep_matrix, 2, quantile, 0.975)
-
-# Create plot_data with y_rep summaries
-plot_data <- data.frame(
-  x = df$state1,
-  y = df$TA1,
-  y_rep_mean = y_rep_mean,
-  y_rep_lower = y_rep_lower,
-  y_rep_upper = y_rep_upper
-)
-
-ggplot(plot_data, aes(x = x, y = y)) +
-  geom_point(color = "blue", size = 1) +
-  geom_line(aes(y = y_rep_mean), color = "red", size = 1, alpha = 0.8) +
-  geom_ribbon(aes(ymin = y_rep_lower, ymax = y_rep_upper),
-              fill = "gray", alpha = 0.3) +
+ggplot(plot_data, aes(x = state1, y = TA1)) +
+  geom_point(color = "blue", size = 1) +  # Punti osservati
+  geom_line(aes(y = pred_mean), color = "red", size = 1, alpha = 0.8) +  # Linea di regressione
+  geom_ribbon(
+    aes(ymin = pred_lower, ymax = pred_upper), fill = "gray", alpha = 0.3) +  
+  # Intervalli di credibilità
   labs(
     title = "Incertezza delle Predizioni del Modello",
     x = "State Anxiety",
     y = "Tense Arousal"
-  ) 
+  )
 ```
 
----
+## Interpretazione dei Risultati
 
-#### Confronto tra Approcci
+### Significato della Predizione a Posteriori
 
-1. **Distribuzioni a Posteriori di $\alpha$ e $\beta$**: 
-   - Visualizza l'incertezza nei parametri del modello ($\alpha$ e $\beta$).
-   - Le linee di regressione rappresentano variazioni nella pendenza e intercetta dovute all'incertezza dei parametri.
+Il comando `posterior_predict(model)` genera una matrice in cui:
 
-2. **Distribuzione a Posteriori di $\texttt{y\_rep}$**:
-   - Include sia l'incertezza dei parametri sia la variabilità residua ($\sigma$).
-   - Fornisce una descrizione più completa dell'incertezza predittiva.
+- Ogni riga rappresenta un campione della distribuzione a posteriori.
+- Ogni colonna rappresenta una predizione per un valore specifico di $x$.
 
-Entrambi gli approcci sono utili per esplorare diverse sfaccettature dell'incertezza nel modello bayesiano.
+Questa matrice ci permette di:
 
-Nel primo approccio, calcoliamo l'incertezza delle predizioni utilizzando le distribuzioni a posteriori di `alpha` e `beta`. Questo metodo consiste nel generare predizioni lineari per ciascun campione a posteriori di `alpha` e `beta`, tracciando quindi le linee di regressione risultanti. Questo ci permette di vedere come varia la linea di regressione in base alle incertezze nei parametri `alpha` e `beta`. Questo metodo visualizza come l'incertezza nei parametri del modello si traduce in incertezza nelle predizioni.
+1. **Visualizzare l'incertezza**: Gli intervalli di credibilità riflettono l'incertezza associata alle previsioni.
+2. **Valutare la bontà del modello**: Confrontando le predizioni con i dati osservati, possiamo verificare se il modello è adeguato.
+3. **Fare previsioni robuste**: Generiamo previsioni per nuovi dati, tenendo conto dell'incertezza nei parametri.
 
-Nel secondo approccio, descriviamo l'incertezza delle predizioni utilizzando direttamente la distribuzione a posteriori di `y_rep`. In questo caso, generiamo predizioni per ciascun valore osservato di `x` nel modello Stan, tenendo conto delle distribuzioni a posteriori dei parametri del modello. Questo metodo visualizza direttamente l'incertezza nelle predizioni, tenendo conto delle variazioni nei dati osservati e delle distribuzioni a posteriori dei parametri.
+### Esempio di Interpretazione
 
-Le due descrizioni dell'incertezza delle predizioni del modello sono diverse perché riflettono aspetti differenti della distribuzione a posteriori:
+Supponiamo che per `state1 = 30`, la media delle predizioni a posteriori sia 50, con un intervallo di credibilità al 95% compreso tra 45 e 55. Questo significa che, dato il modello e i dati, c'è una probabilità del 95% che il valore vero di `TA1` per `state1 = 30` sia compreso tra 45 e 55. L'ampiezza dell'intervallo riflette l'incertezza associata alla predizione.
 
-1. **Distribuzione a posteriori di `alpha` e `beta`**: Questo approccio considera solo l'incertezza nei parametri del modello (`alpha` e `beta`). Le linee di regressione tracciate variano in base a questi parametri, ma non tengono conto dell'incertezza residua (`sigma`).
+### Confronto con l'Approccio Classico
 
-2. **Distribuzione a posteriori di `y_rep`**: Questo approccio include non solo l'incertezza nei parametri `alpha` e `beta`, ma anche l'incertezza residua (`sigma`). La distribuzione di `y_rep` riflette la variabilità totale nel modello, inclusa la variabilità nei dati osservati. Pertanto, l'incertezza nelle predizioni è maggiore perché tiene conto di tutte le fonti di variabilità.
+Nell'approccio classico (frequentista), le predizioni sono accompagnate da intervalli di confidenza, che riflettono solo l'incertezza nella stima dei parametri. Al contrario, l'approccio bayesiano include sia l'incertezza nei parametri sia la variabilità residua, fornendo una visione più completa dell'incertezza predittiva.
 
 
-## Posterior-predictive check
+## Distribuzione Predittiva a Posteriori
 
-Il Posterior Predictive Check (PPC) è un passaggio cruciale nella modellazione bayesiana, che ci permette di valutare quanto bene il modello si adatta ai dati osservati, tenendo conto delle informazioni aggiornate dai dati stessi. L'idea alla base del PPC è confrontare le predizioni del modello, basate sulla distribuzione a posteriori dei parametri, con i dati reali, per vedere se il modello riesce a catturare correttamente le caratteristiche dei dati osservati.
+Il **Posterior Predictive Check (PPC)** è uno strumento fondamentale nella modellazione bayesiana, utilizzato per valutare la bontà di adattamento del modello ai dati osservati. Questo controllo consiste nel confrontare i dati predetti dal modello (basati sulla distribuzione a posteriori dei parametri) con i dati effettivamente osservati. Se il modello è adeguato, le previsioni generate dovrebbero essere coerenti con i dati reali.
 
-1. Dopo aver adattato il modello ai dati, otteniamo campioni dai parametri a posteriori ($\alpha$, $\beta$, $\sigma$). Questi campioni riflettono le nostre credenze aggiornate sui parametri, basate sia sulle distribuzioni a priori che sui dati osservati.
+### Esecuzione del Posterior Predictive Check
 
-2. Utilizzando i campioni della distribuzione a posteriori, simuliamo nuovi dati predetti ($y_{rep}$). Questi dati simulati rappresentano le previsioni del modello, date le nostre stime a posteriori dei parametri.
-
-3. Confrontiamo le osservazioni simulate ($y_{rep}$) con i dati osservati reali ($y$). Il PPC plot ci permette di vedere se il modello, con i parametri aggiornati, è in grado di riprodurre correttamente i dati osservati.
-
-Per creare il PPC plot, usiamo ArviZ. Creiamo un oggetto `InferenceData` che contiene sia le predizioni a posteriori che i dati osservati, organizzati nel formato richiesto da ArviZ.
+Per eseguire un PPC, utilizziamo la funzione `pp_check` del pacchetto **brms**. Questa funzione genera un insieme di previsioni basate sulla distribuzione a posteriori e le confronta visivamente con i dati osservati.
 
 ```{r}
-# Estrai i campioni y_rep
-y_rep <- fit3$draws("y_rep", format = "matrix")
-
-# Crea il plot di controllo posteriore predittivo
-ppc_plot <- ppc_dens_overlay(stan_data$y, y_rep[1:100, ])
-print(ppc_plot)
+pp_check(model, ndraws = 100)
 ```
 
-Il Posterior Predictive Check è uno strumento potente per verificare la validità del modello dopo l'analisi, assicurando che le predizioni del modello siano realistiche e che riflettano accuratamente le osservazioni effettive.
+### Interpretazione dei Risultati
+
+Dall'output del PPC, notiamo che i dati predetti dal modello sono **simili ai dati osservati** nel campione. Questa corrispondenza suggerisce che il modello ipotizzato è in grado di riprodurre adeguatamente le caratteristiche principali dei dati. In altre parole, il modello sembra essere appropriato per descrivere la relazione tra le variabili analizzate.
+
+#### Cosa Significa "Simili"?
+
+- **Coerenza nella forma**: La distribuzione dei dati predetti ha una forma simile a quella dei dati osservati, indicando che il modello cattura correttamente la struttura sottostante dei dati.
+- **Variabilità**: La variabilità delle previsioni è in linea con quella dei dati osservati, suggerendo che il modello tiene conto adeguatamente dell'incertezza intrinseca nei dati.
+- **Assenza di discrepanze evidenti**: Non ci sono differenze sistematiche tra le previsioni e i dati osservati, il che supporta l'ipotesi che il modello sia ben specificato.
+
+### Importanza del PPC
+
+Il PPC è un passaggio cruciale perché:
+
+1. **Valuta l'adattamento del modello**: Fornisce una verifica visiva e quantitativa della capacità del modello di riprodurre i dati osservati.
+2. **Identifica potenziali problemi**: Se le previsioni non corrispondono ai dati osservati, ciò può indicare che il modello è mal specificato o che mancano componenti importanti.
+3. **Supporta la validità del modello**: Un buon adattamento tra previsioni e dati osservati aumenta la fiducia nelle inferenze e nelle previsioni del modello.
+
+In sintesi, nel nostro caso, la somiglianza tra i dati predetti e quelli osservati è un'indicazione positiva che il modello di regressione lineare bivariata, con i prior uniformi specificati, è adeguato per descrivere la relazione tra `state1` e `TA1`. Tuttavia, è sempre consigliabile eseguire ulteriori controlli e verifiche, come l'analisi dei residui o l'uso di metriche quantitative (ad esempio, il Bayesian R-squared), per confermare ulteriormente la bontà del modello.
+
 
 ## Riflessioni Conclusive
 
 In questo capitolo, abbiamo approfondito i temi della predizione bayesiana nel contesto del modello di regressione bivariato, evidenziando l'importanza delle verifiche predittive a priori e a posteriori per la valutazione e la validazione del modello.
 
-Abbiamo visto come il *Prior Predictive Check* sia essenziale per verificare che le distribuzioni a priori siano appropriate per il modello e i dati del campione. Questo passaggio consente di esaminare se le ipotesi iniziali sono coerenti con la conoscenza preesistente e con i risultati attesi. Un'adeguata verifica predittiva a priori aiuta a prevenire l'adozione di distribuzioni a priori che possano portare a previsioni irrealistiche o fuorvianti. Se le predizioni basate sulle distribuzioni a priori risultano incompatibili con ciò che ci si aspetta dai dati, è un segnale che le distribuzioni a priori devono essere riviste.
+Abbiamo visto come il **Prior Predictive Check** sia essenziale per verificare che le distribuzioni a priori siano appropriate per il modello e i dati del campione. Questo passaggio consente di esaminare se le ipotesi iniziali sono coerenti con la conoscenza preesistente e con i risultati attesi. Un'adeguata verifica predittiva a priori aiuta a prevenire l'adozione di distribuzioni a priori che possano portare a previsioni irrealistiche o fuorvianti.
 
-Successivamente, abbiamo esaminato il *Posterior Predictive Check* come strumento per valutare la capacità del modello di adattarsi ai dati osservati. Dopo aver integrato le informazioni dei dati con le distribuzioni a priori, il posterior predictive check permette di confrontare le predizioni del modello con i dati effettivamente osservati. Se il modello è adeguato, le sue predizioni dovrebbero essere in linea con i dati reali. Tuttavia, se emerge una discrepanza sostanziale tra le predizioni e i dati osservati, questo è un chiaro segnale che il modello potrebbe non essere appropriato per il fenomeno in esame e potrebbe richiedere una revisione. Tale revisione può comportare la modifica delle assunzioni di base, l'inclusione di nuovi predittori, o l'adozione di un modello completamente diverso.
+Successivamente, abbiamo esaminato il **Posterior Predictive Check** come strumento per valutare la capacità del modello di adattarsi ai dati osservati. Dopo aver integrato le informazioni dei dati con le distribuzioni a priori, il posterior predictive check permette di confrontare le predizioni del modello con i dati effettivamente osservati. Se il modello è adeguato, le sue predizioni dovrebbero essere in linea con i dati reali.
 
-In conclusione, l'approccio bayesiano alla predizione e alla verifica dei modelli offre un framework robusto e flessibile per l'analisi statistica. I prior e posterior predictive checks non sono semplici passaggi tecnici, ma costituiscono una parte integrante del processo di modellizzazione, assicurando che il modello non solo sia ben adattato ai dati, ma anche che le sue assunzioni siano giustificate e realistiche. L'utilizzo di questi strumenti permette di costruire modelli che siano  coerenti con la realtà che intendono rappresentare.
+Inoltre, abbiamo discusso l'**incertezza della retta di regressione**, mostrando come le distribuzioni a posteriori dei parametri possano essere utilizzate per quantificare l'incertezza nelle previsioni. Attraverso la visualizzazione degli intervalli di credibilità, abbiamo evidenziato come l'approccio bayesiano fornisca una misura più completa dell'incertezza rispetto ai metodi classici.
+
+In conclusione, l'approccio bayesiano alla predizione e alla verifica dei modelli offre un framework robusto e flessibile per l'analisi statistica. I prior e posterior predictive checks non sono semplici passaggi tecnici, ma costituiscono una parte integrante del processo di modellizzazione, assicurando che il modello non solo sia ben adattato ai dati, ma anche che le sue assunzioni siano giustificate e realistiche. L'utilizzo di questi strumenti permette di costruire modelli che siano coerenti con la realtà che intendono rappresentare.
 
 ## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
 

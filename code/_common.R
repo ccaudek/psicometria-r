@@ -66,7 +66,7 @@ options(
 theme_set(bayesplot::theme_default(base_size = 13, base_family = "sans"))
 
 # Imposta lo schema cromatico per bayesplot
-color_scheme_set("darkgray")
+color_scheme_set("brightblue")
 
 # Palette personalizzata basata su Okabe-Ito con un colore aggiuntivo
 palette_okabe_enhanced <- c(
