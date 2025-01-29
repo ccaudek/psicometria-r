@@ -42,7 +42,7 @@ knitr::opts_chunk$set(
   fig.asp = 0.618,                   # Golden ratio for figure height
   fig.show = "hold",                 # Show figures together
   R.options = list(
-    digits = 3,                      # Number of digits for output
+    digits = 4,                      # Number of digits for output
     width = 76                       # Console width
   ),
   formatR.indent = 2,                # Indentation for tidied code
@@ -61,7 +61,7 @@ knitr::opts_chunk$set(
 
 options(
   scipen = 1,                        # Favor standard notation over scientific
-  digits = 3,                        # Default number of digits
+  digits = 4,                        # Default number of digits
   ggplot2.discrete.colour = ggokabeito::palette_okabe_ito(),
   ggplot2.discrete.fill = ggokabeito::palette_okabe_ito(),
   ggplot2.continuous.colour = "viridis",
