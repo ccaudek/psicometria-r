@@ -1,0 +1,340 @@
+---
+execute:
+  freeze: auto
+---
+
+# Misura di Probabilità {#sec-prob-spaces}
+
+
+::: callout-important
+## In questo capitolo imparerai a
+
+- comprendere le nozioni di misura e distribuzione di probabilità, seguendo l'approccio presentato da [Michael Betancourt](https://github.com/betanalpha/quarto_chapters/tree/main).
+:::
+
+::: callout-tip
+## Prerequisiti
+
+- Leggere il capitolo *Probability and counting* del testo di @blitzstein2019introduction.
+- Leggere il @sec-apx-sets dell'Appendice.
+- Leggere il @sec-apx-combinatorics dell'Appendice.
+:::
+
+
+## Introduzione
+
+Nel capitolo @sec-prob-models abbiamo definito la probabilità come una funzione che assegna a ciascun evento un valore compreso tra 0 e 1, rispettando i seguenti principi:
+
+- Per ogni evento $A$, vale $0 \leq P(A) \leq 1$.
+- La probabilità dell’intero spazio campionario è 1: $P(\Omega) = 1$.
+- Se $A_1, A_2, \dots$ sono eventi disgiunti (cioè, senza elementi in comune), allora 
+  $$
+  P\Bigl(\bigcup_{i} A_i\Bigr) = \sum_{i} P(A_i).
+  $$
+
+Tuttavia, non abbiamo ancora approfondito il significato dei numeri che chiamiamo “probabilità”. In questo capitolo, adotteremo un’interpretazione bayesiana, in cui la probabilità rappresenta il grado di **certezza soggettiva** che attribuiamo al verificarsi di un evento o alla veridicità di una proposizione. In altre parole, immagineremo di avere una certezza totale, pari a 1, da distribuire tra i possibili esiti di una situazione. Questo approccio ci permetterà di dare un'interpretazione formale alle idee introdotte nel @sec-prob-interpretation.
+
+Per questa trattazione, faremo riferimento al lavoro di [Michael Betancourt](https://github.com/betanalpha/quarto_chapters/tree/main). Il testo che segue rappresenta una versione semplificata del suo approccio e si articola in due parti principali: la prima parte è dedicata alla nozione di **spazio campionario** e di **eventi**, mentre la seconda si concentra sull’interpretazione della **probabilità** come distribuzione della nostra *certezza soggettiva*.
+
+## Insiemi Finiti
+
+Per semplificare le idee iniziali, consideriamo uno **spazio campionario** composto da un numero finito di elementi.
+
+Un **insieme finito** è costituito da un numero limitato di elementi distinti:
+
+$$
+X = \{x_1, \dots, x_N\}.
+$$
+
+L’indice numerico serve semplicemente a distinguere i $N$ elementi, senza implicare alcun ordine particolare. Ad esempio, per evitare ogni presunzione di ordinamento, si può utilizzare il seguente insieme arbitrario di cinque elementi:
+
+$$
+X = \{\Box, \clubsuit, \diamondsuit, \heartsuit, \spadesuit\}.
+$$
+
+![Un insieme finito contiene un numero finito di elementi. Questo particolare insieme ne contiene cinque.](figures/ambient_set/ambient_set){width=50% #fig-ambient_set}
+
+Nelle applicazioni, gli elementi astratti $x_n$ rappresentano oggetti concreti. Quando l’insieme $X$ include **tutti** gli oggetti di interesse in una data situazione, lo definiamo **spazio campionario**. Una volta definito, possiamo organizzare e manipolare i suoi elementi in diversi modi.
+
+## Sottoinsiemi
+
+Un **sottoinsieme** di $X$ è una collezione (cioè, un insieme) di alcuni degli elementi di $X$. Per evitare ambiguità, useremo le lettere romane minuscole $x$ per indicare un elemento variabile in $X$, mentre useremo caratteri sans serif, ad esempio $\mathsf{x}$, per indicare un sottoinsieme variabile.
+
+Ad esempio, se
+
+$$
+\mathsf{x} = \{\Box, \diamondsuit, \heartsuit\},
+$$
+
+allora $\mathsf{x}$ è un sottoinsieme di
+
+$$
+X = \{\Box, \clubsuit, \diamondsuit, \heartsuit, \spadesuit\}.
+$$
+
+È importante notare che nel concetto di sottoinsieme non si parla di molteplicità: un elemento può appartenere o non appartenere al sottoinsieme, ma non può essere contato più volte.
+
+![Un sottoinsieme $\mathsf{x} \subset X$ è qualsiasi collezione di elementi dallo spazio campionario $X$. Qui $\mathsf{x} = \{\Box, \diamondsuit, \heartsuit\}$ contiene solo tre dei cinque elementi in $X$.](figures/subset/subset){width=50% #fig-subset}
+
+Se $\mathsf{x}$ è un sottoinsieme di $X$, scriviamo $\mathsf{x} \subset X$. Quando $\mathsf{x}$ coincide con l’intero insieme, ovvero $\mathsf{x} = X$, possiamo anche scrivere $\mathsf{x} \subseteq X$.
+
+Indipendentemente dal numero di elementi di $X$, esistono alcuni sottoinsiemi particolari:
+- **Insieme vuoto:** $\emptyset = \{\}$, che non contiene alcun elemento.
+- **Sottoinsiemi atomici:** insiemi che contengono un solo elemento, scritti ad esempio come $\{x_n\}$.
+- **L’intero insieme:** $X$ stesso.
+
+Inoltre, sappiamo che il numero di modi per scegliere $n$ elementi da un insieme finito di $N$ elementi è dato dal coefficiente binomiale
+
+$$
+{N \choose n} = \frac{N!}{n!(N - n)!}.
+$$
+
+Ad esempio:
+- Esiste un solo sottoinsieme di dimensione zero (l’insieme vuoto):
+  
+  $$
+  {N \choose 0} = 1.
+  $$
+
+- Esiste un solo sottoinsieme di dimensione $N$ (l’insieme $X$):
+  
+  $$
+  {N \choose N} = 1.
+  $$
+
+- Esistono $N$ sottoinsiemi atomici (ognuno contenente un solo elemento):
+  
+  $$
+  {N \choose 1} = N.
+  $$
+
+Contando tutti i sottoinsiemi (per ogni possibile dimensione $n = 0, 1, \dots, N$) si ottiene
+
+$$
+\sum_{n=0}^{N} {N \choose n} = 2^N.
+$$
+
+La **collezione di tutti i sottoinsiemi** di $X$, detta **insieme potenza** e indicata con $2^X$, è a sua volta un insieme finito con $2^N$ elementi.
+
+
+## Operazioni sui Sottoinsiemi
+
+Oltre a costruire sottoinsiemi “elemento per elemento”, possiamo ottenere nuovi sottoinsiemi combinando quelli già esistenti.
+
+### Complemento
+
+Il **complemento** di un sottoinsieme $\mathsf{x} \subset X$ è l’insieme di tutti gli elementi di $X$ che non appartengono a $\mathsf{x}$. Ad esempio, se
+
+$$
+\mathsf{x} = \{ \diamondsuit \},
+$$
+
+allora il complemento è
+
+$$
+\mathsf{x}^c = \{ \Box, \clubsuit, \heartsuit, \spadesuit \}.
+$$
+
+Per definizione, il complemento dell’insieme vuoto è l’intero insieme ($\emptyset^c = X$), mentre il complemento di $X$ è l’insieme vuoto ($X^c = \emptyset$).
+
+![Il complemento di un sottoinsieme $\mathsf{x}$ è il sottoinsieme $\mathsf{x}^{c}$ costituito da tutti gli elementi dello spazio campionario che non sono in $\mathsf{x}$.](figures/complement/complement){width=75% #fig-complement}
+
+### Unione e Intersezione
+
+Data una collezione di sottoinsiemi, possiamo combinarli in altri modi:
+
+- **Unione:**  
+  L’unione di due sottoinsiemi $\mathsf{x}_1$ e $\mathsf{x}_2$ è l’insieme di tutti gli elementi che appartengono ad almeno uno dei due:
+  
+  $$
+  \mathsf{x}_1 \cup \mathsf{x}_2.
+  $$
+
+  Ad esempio, se
+  
+  $$
+  \mathsf{x}_1 = \{\Box, \heartsuit\} \quad \text{e} \quad \mathsf{x}_2 = \{\Box, \spadesuit\},
+  $$
+  
+  allora
+  
+  $$
+  \mathsf{x}_1 \cup \mathsf{x}_2 = \{\Box, \heartsuit, \spadesuit\}.
+  $$
+
+- **Intersezione:**  
+  L’intersezione di due sottoinsiemi è l’insieme degli elementi che appartengono a entrambi:
+  
+  $$
+  \mathsf{x}_1 \cap \mathsf{x}_2.
+  $$
+  
+  Nell’esempio precedente,
+  
+  $$
+  \mathsf{x}_1 \cap \mathsf{x}_2 = \{\Box\}.
+  $$
+
+![Possiamo manipolare due sottoinsiemi in vari modi per ottenere un nuovo sottoinsieme.](figures/overlapping_subsets/overlapping_subsets){width=75% #fig-subsets}  
+![L'unione di due sottoinsiemi, $\mathsf{x}_1 \cup \mathsf{x}_2$, contiene tutti gli elementi di entrambi gli insiemi, mentre l'intersezione $\mathsf{x}_1 \cap \mathsf{x}_2$ contiene solo quelli in comune.](figures/overlapping_subsets_ui/overlapping_subsets_ui){width=75% #fig-ui}
+
+Due sottoinsiemi sono **disgiunti** se non hanno elementi in comune, cioè
+
+$$
+\mathsf{x}_1 \cap \mathsf{x}_2 = \emptyset.
+$$
+
+Inoltre, si osserva che:
+- L’unione (o intersezione) di un sottoinsieme con se stesso è il sottoinsieme stesso:
+  
+  $$
+  \mathsf{x} \cup \mathsf{x} = \mathsf{x} \quad \text{e} \quad \mathsf{x} \cap \mathsf{x} = \mathsf{x}.
+  $$
+  
+- L’unione di un sottoinsieme con l’insieme vuoto lascia inalterato il sottoinsieme:
+  
+  $$
+  \mathsf{x} \cup \emptyset = \emptyset \cup \mathsf{x} = \mathsf{x},
+  $$
+  
+  mentre la sua intersezione con l’insieme vuoto è sempre l’insieme vuoto:
+  
+  $$
+  \mathsf{x} \cap \emptyset = \emptyset \cap \mathsf{x} = \emptyset.
+  $$
+  
+- L’unione di un sottoinsieme con l’intero insieme $X$ dà $X$, mentre l’intersezione di un sottoinsieme con $X$ restituisce il sottoinsieme stesso:
+  
+  $$
+  \mathsf{x} \cup X = X, \qquad \mathsf{x} \cap X = \mathsf{x}.
+  $$
+
+
+## Distribuzione della Certezza Soggettiva sugli Elementi
+
+In un approccio bayesiano la probabilità rappresenta il grado di **certezza soggettiva** che attribuiamo al verificarsi di un certo evento. Immaginiamo di possedere una certezza totale pari a 1, che corrisponde alla nostra convinzione complessiva che, tra tutti gli esiti possibili, **qualcosa** avverrà. Questa certezza totale deve essere ripartita tra i diversi eventi.
+
+Consideriamo nuovamente lo spazio campionario dimostrativo:
+
+$$
+X = \{\Box, \clubsuit, \diamondsuit, \heartsuit, \spadesuit\}.
+$$
+
+Ad ogni elemento $x_n \in X$ associamo un valore $p_n \geq 0$, interpretato come la frazione della nostra certezza totale che assegnamo a quell’evento. Poiché la certezza complessiva è 1, la somma dei valori deve essere:
+
+$$
+p_{\Box} + p_{\clubsuit} + p_{\diamondsuit} + p_{\heartsuit} + p_{\spadesuit} = 1.
+$$
+
+Questa collezione $\{ p_{\Box}, p_{\clubsuit}, p_{\diamondsuit}, p_{\heartsuit}, p_{\spadesuit} \}$, in cui ciascun valore è compreso tra 0 e 1, è quella che chiamiamo **distribuzione di probabilità**. Ogni $p_n$ esprime il grado di certezza (in termini relativi) che attribuiamo all’evento corrispondente a $x_n$.
+
+![Un'allocazione proporzionale è anche conosciuta come distribuzione di probabilità.](figures/probability_distribution/probability_distribution){width=50% #fig-probability}
+
+Questa visione ci permette di passare da una certezza assoluta (1) a una distribuzione in cui la certezza è divisa in porzioni proporzionali tra i vari eventi. Per esempio, se siamo particolarmente convinti che l’evento $\Box$ si verifichi, potremmo assegnargli un valore alto, mentre a un evento meno probabile corrisponderà un valore più basso.
+
+
+## Distribuzione della Certezza Sugli Sottoinsiemi
+
+Una volta che abbiamo assegnato un grado di certezza soggettiva a ciascun elemento di $X$, possiamo estendere questa assegnazione a qualsiasi sottoinsieme di $X$. In altre parole, se ad ogni elemento $x_n \in X$ assegniamo la probabilità (cioè, il grado di certezza) $p_n$, la certezza complessiva che un sottoinsieme $\mathsf{x} \subset X$ si realizzi è data dalla somma dei gradi di certezza dei suoi elementi:
+
+$$
+P(\mathsf{x}) = \sum_{x_n \in \mathsf{x}} p_n.
+$$
+
+Per costruzione, valgono le seguenti proprietà:
+- La certezza associata all’insieme vuoto è zero:
+  
+  $$
+  P(\emptyset) = 0.
+  $$
+  
+- La certezza associata all’intero spazio campionario è 1:
+  
+  $$
+  P(X) = \sum_{n} p_n = 1.
+  $$
+
+Queste proprietà sono in linea con l’idea che la nostra certezza totale (pari a 1) venga completamente distribuita tra tutti gli eventi possibili.
+
+### Additività
+
+Se un sottoinsieme può essere suddiviso in parti che non si sovrappongono, il grado di certezza dell’intero sottoinsieme è la somma dei gradi di certezza delle parti. Ad esempio, se $\mathsf{x}_1$ e $\mathsf{x}_2$ sono sottoinsiemi disgiunti (cioè, non hanno elementi in comune), allora:
+
+$$
+P(\mathsf{x}_1 \cup \mathsf{x}_2) = P(\mathsf{x}_1) + P(\mathsf{x}_2).
+$$
+
+In particolare, se $\mathsf{x}$ è un sottoinsieme di $X$, il complemento $\mathsf{x}^c$ (cioè, tutti gli elementi non in $\mathsf{x}$) è disgiunto da $\mathsf{x}$ e la loro unione dà $X$. Quindi:
+
+$$
+P(\mathsf{x}) + P(\mathsf{x}^c) = 1 \quad \Longrightarrow \quad P(\mathsf{x}^c) = 1 - P(\mathsf{x}).
+$$
+
+### Sovrapposizione di Sottoinsiemi
+
+Quando due sottoinsiemi si sovrappongono, la certezza degli elementi comuni viene conteggiata in entrambe le somme. Per chiarire, consideriamo:
+- $\mathsf{x}_1 = \{\Box, \heartsuit\}$,
+- $\mathsf{x}_2 = \{\Box, \spadesuit\}$.
+
+Allora:
+- La certezza di $\mathsf{x}_1$ è $P(\mathsf{x}_1) = p_{\Box} + p_{\heartsuit}$.
+- La certezza di $\mathsf{x}_2$ è $P(\mathsf{x}_2) = p_{\Box} + p_{\spadesuit}$.
+- L’intersezione è $\mathsf{x}_1 \cap \mathsf{x}_2 = \{\Box\}$, con certezza $p_{\Box}$.
+- L’unione è $\mathsf{x}_1 \cup \mathsf{x}_2 = \{\Box, \heartsuit, \spadesuit\}$, con certezza
+  
+  $$
+  P(\mathsf{x}_1 \cup \mathsf{x}_2) = p_{\Box} + p_{\heartsuit} + p_{\spadesuit}.
+  $$
+
+Notiamo che:
+
+$$
+P(\mathsf{x}_1) + P(\mathsf{x}_2) = P(\mathsf{x}_1 \cup \mathsf{x}_2) + p_{\Box} = P(\mathsf{x}_1 \cup \mathsf{x}_2) + P(\mathsf{x}_1 \cap \mathsf{x}_2).
+$$
+
+Questo è un esempio del **principio di inclusione-esclusione**, che garantisce che non contiamo più volte la certezza degli elementi comuni.
+
+## Costruzione delle Distribuzioni di Certezza
+
+Esistono diversi modi per “costruire” una distribuzione di certezza (cioè, una distribuzione di probabilità) su uno spazio finito $X$:
+
+1. **Distribuzione globale:**  
+   Possiamo assegnare simultaneamente il grado di certezza a tutti gli elementi di $X$. In questo approccio si specifica direttamente la distribuzione $\{p(x_n)\}$ per ciascun $x_n \in X$, in modo tale che
+  
+   $$
+   \sum_{x_n \in X} p(x_n) = 1.
+   $$
+  
+   > ![Le misure possono essere costruite specificando le allocazioni degli elementi individuali tutte insieme.](figures/decompositions/all_at_once/all_at_once){width=33% #fig-all_at_once}
+
+2. **Distribuzione locale:**  
+   Possiamo assegnare il grado di certezza a ciascun elemento uno alla volta, procedendo in maniera sequenziale. Questo metodo ci permette di “costruire” la distribuzione gradualmente, concentrandoci su un elemento alla volta.
+  
+   > ![Le misure possono essere costruite specificando le allocazioni degli elementi individuali uno alla volta.](figures/decompositions/one_at_a_time/one_at_a_time){width=100% #fig-one_at_a_time}
+
+3. **Distribuzione iterativa:**  
+   Un altro metodo consiste nel suddividere lo spazio campionario in sottoinsiemi disgiunti, assegnare ad ognuno un certo grado di certezza, e poi ripartire iterativamente la certezza all’interno di ciascun sottoinsieme fino a raggiungere gli elementi individuali.
+  
+   > ![Le misure possono essere costruite allocando la misura totale a sottoinsiemi disgiunti e poi raffinando iterativamente tale allocazione a sottoinsiemi sempre più piccoli.](figures/decompositions/refinement/refinement){width=100% #fig-refinement}
+
+Questa flessibilità consente di adattare l’approccio alle esigenze specifiche del problema in esame.
+
+## Riflessioni Conclusive
+
+L’interpretazione della probabilità come grado di **certezza soggettiva** ci offre un modo intuitivo per ragionare su eventi incerti. La nostra certezza totale, pari a 1, viene distribuita tra i vari possibili esiti secondo una **distribuzione di probabilità**:
+
+$$
+\{p_1, p_2, \dots, p_N\} \quad \text{con} \quad 0 \leq p_n \leq 1 \quad \text{e} \quad \sum_{n=1}^{N} p_n = 1.
+$$
+
+Ogni valore $p_n$ rappresenta la frazione della nostra certezza che attribuiamo all’evento corrispondente a $x_n$. Questo approccio è particolarmente utile in statistica bayesiana, dove le probabilità vengono interpretate non come frequenze oggettive, ma come gradi di convinzione soggettivi basati sulle informazioni a nostra disposizione.
+
+Comprendere questi concetti è essenziale per applicare in modo coerente la teoria della probabilità e per interpretare correttamente i modelli statistici, soprattutto in contesti in cui le informazioni sono incomplete o incerte.
+
+
+## Esercizi {.unnumbered}
+
+Dal testo di @blitzstein2019introduction, svolgere i seguenti esercizi: 1.4.3, 1.4.4, 1.4.5, 1.4.6, 1.4.9, 1.4.12, 1.4.13.
+
+## Bibliografia {.unnumbered}
+

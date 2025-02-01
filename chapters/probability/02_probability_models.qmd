@@ -1,0 +1,348 @@
+---
+execute:
+  freeze: auto
+---
+
+# Modelli probabilistici {#sec-prob-models}
+
+::: callout-important
+## In questo capitolo imparerai a
+
+- comprendere come gli esperimenti casuali possono essere modellati matematicamente e come tale modellizzazione ci permetta di calcolare diverse proprietà di interesse per questi esperimenti.
+:::
+
+::: callout-tip
+## Prerequisiti
+
+- Leggere il capitolo *Probability Models* del testo di @kroese2025statistical.
+- Leggere il @sec-apx-sets dell'Appendice.
+- Leggere il @sec-apx-combinatorics dell'Appendice.
+:::
+
+::: callout-caution
+## Preparazione del Notebook
+
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(readr)
+```
+:::
+
+## Introduzione
+
+Dopo un'introduzione al significato "filosofico" del concetto di probabilità, presentata nella @sec-prob-interpretation, questo capitolo sviluppa la discussione in modo più formale, introducendo i concetti fondamentali del calcolo delle probabilità a partire dalla nozione di *esperimento casuale*. Mostreremo come la modellazione matematica di un esperimento casuale permetta di calcolare diverse proprietà di interesse relative a tali esperimenti. In particolare, esploreremo le nozioni di **spazio campionario**, **eventi** e le **proprietà della probabilità**, fornendo gli strumenti necessari per comprendere e applicare questi concetti in contesti pratici.
+
+## Esperimenti Casuali
+
+Il concetto cardine della probabilità è quello dell’**esperimento casuale**: un procedimento il cui esito non può essere determinato in anticipo, pur essendo suscettibile di analisi quantitativa. Alcuni esempi di esperimenti casuali sono:
+
+1. Lanciare un dado e osservare il numero riportato sulla faccia superiore.
+2. Estrarre una carta a caso da un mazzo e verificarne il seme e il valore.
+3. Misurare il livello di stress percepito da un gruppo di individui in un determinato periodo (ad esempio, durante un esame o un evento stressante).
+4. Contare il numero di risposte corrette fornite dai partecipanti a un test di memoria entro un intervallo di tempo prestabilito.
+5. Selezionare casualmente 50 persone e registrare quante di esse mostrano una predisposizione alla creatività, misurata tramite un questionario standardizzato.
+6. Scegliere a caso dieci persone e valutare il loro grado di introversione attraverso uno strumento di autovalutazione psicologica.
+7. Selezionare casualmente 50 persone e contare quante sono mancine.
+8. Scegliere a caso dieci individui e misurarne l’altezza.
+
+Lo scopo dell’analisi probabilistica è comprendere il comportamento di tali esperimenti tramite la formulazione di modelli matematici. Una volta rappresentato matematicamente un esperimento casuale, è possibile calcolare grandezze d’interesse, come le probabilità e le aspettative. Questi modelli, implementabili anche al computer, consentono di simulare l’esperimento. Inoltre, i modelli matematici che descrivono gli esperimenti casuali costituiscono la base della statistica, la cui finalità è stabilire quale tra diversi modelli concorrenti risulti più adeguato ai dati osservati.
+
+### Esempio: Lancio di una moneta
+
+Uno degli esperimenti casuali più elementari è il lancio ripetuto di una moneta. Gran parte della teoria della probabilità si può infatti fondare su questo semplice esperimento. Per approfondire il comportamento di questo esperimento, è possibile simularlo al computer utilizzando, ad esempio, il linguaggio R. Il seguente programma R simula 100 lanci di una moneta equa (cioè con probabilità uguali per Testa e Croce) e rappresenta graficamente i risultati mediante un diagramma a barre.
+
+```{r}
+set.seed(123) # Imposta il seed per garantire la riproducibilità
+x <- runif(100) < 0.5 # Genera 100 numeri casuali; verifica se sono minori di 0.5
+t <- 1:100         # Intervallo temporale dei lanci
+
+# Creazione del dataframe per ggplot2
+data <- data.frame(Tiro = t, Risultato = ifelse(x, "Testa", "Croce"))
+
+# Creazione del grafico a barre
+ggplot(data, aes(x = Risultato)) +
+  geom_bar(fill = "darkblue") +
+  labs(title = "Distribuzione dei risultati del lancio della moneta",
+       x = "Risultato",
+       y = "Frequenza")
+```
+
+Nel codice, la funzione `runif` estrae 100 numeri casuali uniformemente distribuiti nell’intervallo [0, 1]. Confrontando ciascun numero con 0.5, si ottiene un vettore logico (vero/falso) che indica, ad esempio, se l’esito è Testa oppure Croce. I risultati tipici di tre simulazioni di questo esperimento sono illustrati nella figura seguente.
+
+Per analizzare l’andamento della media delle Teste al variare del numero di lanci, possiamo aggiungere le seguenti righe di codice:
+
+```{r}
+y <- cumsum(x)/t # Calcola la media cumulativa delle Teste
+
+# Creazione del dataframe per il grafico della media mobile
+data_mean <- data.frame(Tiro = t, Media_Testa = y)
+
+# Creazione del grafico a linea
+ggplot(data_mean, aes(x = Tiro, y = Media_Testa)) +
+  geom_line(color = "darkblue") +
+  labs(title = "Media mobile del numero di Teste",
+       x = "Numero di lanci",
+       y = "Media di Teste")
+```
+
+Il grafico risultante mostra come la media delle Teste sembri convergere verso 0.5, nonostante le fluttuazioni dovute alla natura casuale dell’esperimento. Alcune domande tipiche che si pongono in questo contesto sono:
+
+- Qual è la probabilità di ottenere un certo numero x di Teste in 100 lanci?
+- Qual è il numero atteso di Teste?
+- Quanto tempo occorre in media per ottenere la prima Testa?
+- Con quale rapidità la media cumulativa delle Teste converge al valore p?
+
+Nel contesto statistico, dove si osservano i dati di un esperimento (ad esempio, i risultati di 100 lanci), si possono porre domande quali:
+
+- La moneta è davvero equa?
+- Qual è il metodo migliore per stimare la probabilità p dalla sequenza osservata di Teste e Croci?
+- Qual è l’accuratezza o la precisione della stima ottenuta?
+
+### I tre elementi fondamentali del modello
+
+I modelli matematici per descrivere un esperimento casuale si basano su tre componenti principali:
+
+1. **Spazio Campionario.**  
+2. **Eventi.**  
+3. **Probabilità.**
+
+Esaminiamo ciascuno di questi elementi.
+
+## Spazio Campionario
+
+Pur non potendo prevedere l’esito di un esperimento casuale, possiamo generalmente identificare l’insieme di tutti i possibili risultati. Questo insieme è definito come lo **spazio campionario**.
+
+**Definizione 1.1 (Spazio Campionario).**  
+Lo *spazio campionario* Ω di un esperimento casuale è l’insieme di tutti i possibili esiti dell’esperimento. Ad esempio:
+
+1. **Lancio di due dadi consecutivi:**  
+   $$\Omega = \{(1,1), (1,2), \dots, (6,6)\}.$$
+
+Altri esempi:
+
+2. **Tempo di reazione a uno stimolo visivo:**  
+   $$\Omega = \mathbb{R}^+,$$  
+   ovvero l’insieme dei numeri reali positivi.
+
+3. **Numero di errori in un test di memoria a breve termine:**  
+   $$\Omega = \{0, 1, 2, \dots\}.$$
+
+4. **Misurazione delle altezze di dieci persone:**  
+   $$\Omega = \{(x_1, \dots, x_{10}) : x_i \ge 0, \; i=1,\dots,10\} \subset \mathbb{R}^{10}.$$
+
+
+## Eventi
+
+Solitamente non siamo interessati ad un singolo esito, ma ad un insieme di essi. Un *evento* è un sottoinsieme dello spazio campionario a cui possiamo assegnare una probabilità.
+
+**Definizione 1.2 (Evento).**  
+Un *evento* è un sottoinsieme $A \subseteq \Omega$ al quale viene assegnata una probabilità. Indichiamo gli eventi con le lettere maiuscole $A, B, C, \dots$. Diciamo che l’evento $A$ si verifica se l’esito dell’esperimento appartiene a $A$.
+
+### Alcuni esempi:
+
+1. **Evento che la somma di due dadi sia almeno 10:**  
+   $A = \{(4,6), (5,5), (5,6), (6,4), (6,5), (6,6)\}$.
+
+2. **Evento che una macchina funzioni per meno di 1000 giorni:**  
+   $A = [0, 1000)$.
+
+3. **Evento che, in un gruppo di 50 persone, esattamente 5 siano mancine:**  
+   $A = \{5\}$.
+
+
+### Esempio: Lancio di una moneta (tre lanci)
+
+Supponiamo di lanciare una moneta tre volte e di annotare se esce Testa (H) o Croce (T) in ogni lancio. Lo spazio campionario può essere rappresentato come:
+
+$$
+\Omega = \{HHH, HHT, HTH, HTT, THH, THT, TTH, TTT\},
+$$
+
+dove, ad esempio, $HTH$ indica che il primo lancio dà Testa, il secondo Croce e il terzo Testa. Un’alternativa equivalente è considerare lo spazio campionario come l’insieme dei vettori binari di lunghezza 3, $\{0, 1\}^3$, dove ad esempio $HTH$ corrisponde a $(1, 0, 1)$.
+
+L’evento $A$ che il terzo lancio sia Testa si esprime come:
+
+$$
+A = \{HHH, HTH, THH, TTH\}.
+$$
+
+### Operazioni sugli Eventi
+
+Poiché gli eventi sono insiemi, è naturale applicare le classiche operazioni insiemistiche. Nei diagrammi di Venn (vedi Figura 1.3) sono evidenziate le seguenti operazioni:
+
+1. **Intersezione ($A \cap B$)**: indica l’evento in cui si verificano entrambi $A$ e $B$.
+2. **Unione ($A \cup B$)**: indica l’evento in cui si verifica almeno uno tra $A$ e $B$.
+3. **Complemento ($A^c$)**: indica l’evento in cui $A$ non si verifica.
+4. **Sottoinsieme ($B \subseteq A$)**: se $B$ è un sottoinsieme di $A$, allora il verificarsi di $B$ implica il verificarsi di $A$.
+
+Due eventi $A$ e $B$ sono detti **disgiunti** se non condividono elementi, cioè se $A \cap B = \emptyset$.
+
+### Alcuni esempi in R:
+
+1. **Evento che la somma di due dadi sia almeno 10:**
+
+   ```{r}
+   A <- list(c(4, 6), c(5, 5), c(5, 6), c(6, 4), c(6, 5), c(6, 6))
+   print(A)
+   ```
+
+2. **Evento che il terzo lancio di una moneta dia Testa:**
+
+   ```{r}
+   omega <- c("HHH", "HHT", "HTH", "HTT", "THH", "THT", "TTH", "TTT")
+   A <- omega[substr(omega, 3, 3) == "H"]
+   print(A)
+   ```
+
+3. **Verifica di eventi disgiunti:**
+
+   ```{r}
+   A <- c(1, 2, 3)
+   B <- c(4, 5, 6)
+   intersect(A, B)  # Restituisce un insieme vuoto: A e B sono disgiunti
+   ```
+
+### Esempio: Lancio di due dadi
+
+Consideriamo l’esperimento del lancio consecutivo di due dadi. Lo spazio campionario è:
+
+$$
+\Omega = \{(1, 1), (1, 2), \dots, (6, 6)\}.
+$$
+
+Definiamo:
+
+- $A = \{(6, 1), \dots, (6, 6)\}$, l’evento in cui il primo dado mostra un 6.
+- $B = \{(1, 6), \dots, (6, 6)\}$, l’evento in cui il secondo dado mostra un 6.
+
+L’intersezione $A \cap B$ rappresenta l’evento in cui entrambi i dadi mostrano un 6:
+
+$$
+A \cap B = \{(6, 6)\}.
+$$
+
+
+## Probabilità
+
+Il terzo elemento del modello è la specificazione della **probabilità**, che quantifica quanto è probabile che un determinato evento si verifichi.
+
+**Definizione 1.3 (Probabilità).**  
+Una *probabilità* $P$ è una funzione che assegna a ciascun evento un valore compreso tra 0 e 1, e che soddisfa i seguenti principi:
+
+1. $0 \leq P(A) \leq 1$ per ogni evento $A$.
+2. $P(\Omega) = 1$.
+3. Se $A_1, A_2, \dots$ sono eventi disgiunti, allora vale la **regola della somma**:
+   $$
+   P\left(\bigcup_{i} A_i\right) = \sum_{i} P(A_i). \quad (1.3)
+   $$
+
+La proprietà (1.3) esprime che, se un evento può realizzarsi attraverso diverse modalità mutuamente esclusive, la probabilità complessiva è la somma delle probabilità delle singole modalità.
+
+### Proprietà della Probabilità
+
+Il seguente teorema sintetizza alcune proprietà essenziali delle probabilità, conseguenti direttamente dagli assiomi sopra esposti.
+
+**Teorema 1.2 (Proprietà di una Probabilità).**  
+Siano $A$ e $B$ due eventi e $P$ una probabilità. Allora:
+
+1. $P(\emptyset) = 0$.
+2. Se $A \subseteq B$, allora $P(A) \leq P(B)$.
+3. $P(A^c) = 1 - P(A)$.
+4. $P(A \cup B) = P(A) + P(B) - P(A \cap B)$.
+
+**Dimostrazione:**
+
+1. Poiché $\Omega = \Omega \cup \emptyset$ e $\Omega \cap \emptyset = \emptyset$, dalla regola della somma segue:
+
+   $$
+   P(\Omega) = P(\Omega) + P(\emptyset),
+   $$
+   
+   e, dato che $P(\Omega) = 1$, si deduce che $P(\emptyset) = 0$.
+
+2. Se $A \subseteq B$, possiamo scrivere $B = A \cup (B \cap A^c)$, dove $A$ e $B \cap A^c$ sono eventi disgiunti. Quindi:
+
+   $$
+   P(B) = P(A) + P(B \cap A^c).
+   $$
+   
+   Poiché $P(B \cap A^c) \geq 0$, segue che $P(B) \geq P(A)$.
+
+3. Dal fatto che $\Omega = A \cup A^c$ (con $A$ e $A^c$ disgiunti) si ottiene:
+
+   $$
+   P(\Omega) = P(A) + P(A^c),
+   $$
+   
+   e dunque $P(A^c) = 1 - P(A)$.
+
+4. Scriviamo $A \cup B$ come l’unione disgiunta di $A$ e $B \cap A^c$:
+
+   $$
+   P(A \cup B) = P(A) + P(B \cap A^c).
+   $$
+   
+   Considerando che $B = (A \cap B) \cup (B \cap A^c)$ (con i due insiemi disgiunti), si ha:
+   
+   $$
+   P(B) = P(A \cap B) + P(B \cap A^c).
+   $$
+   
+   Sottraendo $P(A \cap B)$ da entrambi i membri, otteniamo:
+   
+   $$
+   P(B \cap A^c) = P(B) - P(A \cap B),
+   $$
+   
+   e, sostituendo nella precedente espressione per $P(A \cup B)$:
+   
+   $$
+   P(A \cup B) = P(A) + P(B) - P(A \cap B).
+   $$
+
+### Esempio: Lancio di un dado
+
+Consideriamo l’esperimento del lancio di un dado equilibrato. In questo caso:
+
+- Lo spazio campionario è:
+  $$
+  \Omega = \{1, 2, 3, 4, 5, 6\}.
+  $$
+- Una scelta ragionevole per definire la probabilità $P$ è:
+  $$
+  P(A) = \frac{|A|}{6}, \quad \text{per ogni } A \subseteq \Omega,
+  $$
+  dove $|A|$ denota il numero di elementi di $A$. Ad esempio, la probabilità di ottenere un numero pari è:
+  $$
+  P(\{2, 4, 6\}) = \frac{3}{6} = \frac{1}{2}.
+  $$
+
+In molte applicazioni, lo spazio campionario è **discreto**, cioè si può scrivere come
+$$
+\Omega = \{a_1, a_2, \dots, a_n\} \quad \text{oppure} \quad \Omega = \{a_1, a_2, \dots\}.
+$$
+In tal caso, il metodo più semplice per definire $P$ consiste nell’assegnare una probabilità $p_i$ all’evento elementare $\{a_i\}$ e poi definire, per ogni $A \subseteq \Omega$:
+$$
+P(A) = \sum_{i: a_i \in A} p_i.
+$$
+Questa rappresentazione è illustrata graficamente in Figura 1.6: a ciascun elemento $a_i$ viene associato un “peso” $p_i$ (la dimensione del punto può essere usata per rappresentare l’entità di $p_i$). La probabilità di un evento $A$ si ottiene sommando i pesi degli elementi in $A$.
+
+Quando tutti gli eventi elementari sono equiprobabili, si ha che
+$$
+P(A) = \frac{|A|}{|\Omega|},
+$$
+dove $|\Omega|$ è il numero totale di esiti possibili (con $|\Omega|$ finito). In questo modo, il calcolo delle probabilità si riduce a un problema di conteggio (vedi Problema 1.6).
+
+Se, invece, lo spazio campionario non è numerabile, ad esempio
+$$
+\Omega = \mathbb{R}^+,
+$$
+si parla di spazio campionario **continuo**.
+
+
+## Bibliografia {.unnumbered}
+
