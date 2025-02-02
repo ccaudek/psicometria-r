@@ -1,0 +1,324 @@
+---
+execute:
+  freeze: auto
+---
+
+# Modelli statistici {#sec-bayes-stat-models}
+
+::: callout-important
+## In questo capitolo approfondirai i seguenti concetti fondamentali:  
+
+- **Modellizzazione**: tecniche e strumenti per rappresentare sistemi complessi.  
+- **Analisi statistica**: metodi per interpretare dati e trarre conclusioni.  
+:::  
+
+::: callout-tip
+## Prerequisiti
+
+- Leggere il capitolo *Common Statistical Models* del testo di @kroese2025statistical.
+:::
+
+::: callout-caution
+## Preparazione del Notebook
+
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+```
+:::
+
+## Introduzione 
+
+Il quadro concettuale per la modellizzazione e l'analisi statistica è illustrato nella figura seguente. Il punto di partenza è un problema reale (la realtà) e un corrispondente insieme di dati. Sulla base di questi dati, desideriamo trarre delle conclusioni riguardo al problema reale. Il secondo passo consiste nell'individuare un modello probabilistico per i dati. Questo modello incorpora ciò che sappiamo sulla realtà e su come i dati sono stati ottenuti. All'interno del modello, eseguiamo i nostri calcoli e le nostre analisi, che portano a conclusioni riguardanti il modello stesso. Infine, queste conclusioni sul modello vengono tradotte in conclusioni sulla realtà.
+
+::: {#fig-modeling-analysis}
+![](../../figures/modeling_analysis.png){width="90%"}
+
+Modellizzazione e analisi statistica [figura tratta da @kroese2025statistical].
+:::
+
+La statistica matematica utilizza la teoria della probabilità e altri rami della matematica per studiare i dati. In particolare, i dati sono considerati come realizzazioni di variabili casuali la cui distribuzione congiunta è specificata in anticipo, eventualmente con alcuni parametri sconosciuti. L'analisi matematica si concentra quindi esclusivamente sul modello e sui suoi parametri.
+
+## Campionamento indipendente da una distribuzione fissa
+
+Uno dei modelli statistici più semplici è quello in cui i dati$X_1, \ldots, X_n$sono considerati **indipendenti e identicamente distribuiti** (iid). Per indicare che le variabili casuali formano un campione iid da una distribuzione di probabilità, si utilizza la notazione:
+
+$$
+X_1, \ldots, X_n \stackrel{\text{iid}}{\sim} f \quad \text{oppure} \quad X_1, \ldots, X_n \stackrel{\text{iid}}{\sim} \text{Dist},
+$$
+
+dove $f$ rappresenta la funzione di densità di probabilità (pdf) della distribuzione, e "Dist" indica una generica distribuzione. Sia $f(x_1, \ldots, x_n)$ la pdf congiunta delle variabili $X_1, \ldots, X_n$. Allora, per la Regola del Prodotto, la pdf congiunta può essere espressa come il prodotto delle pdf marginali:
+
+$$
+f(x_1, \ldots, x_n) = f(x_1) \cdot f(x_2) \cdot \ldots \cdot f(x_n).
+$$
+
+In altre parole, poiché le variabili sono indipendenti e identicamente distribuite, la distribuzione congiunta è semplicemente il prodotto delle distribuzioni individuali di ciascuna variabile.
+
+
+::: {#exm-}
+Ogni scenario descritto di seguito può essere modellato tramite un campione di variabili casuali indipendenti e identicamente distribuite (I.I.D.).
+
+1. **Lancio di un dado:** Lanciamo un dado 100 volte e registriamo se al lancio i-esimo compare il numero 6 o meno. Definiamo $X_i = 1$ se al lancio i-esimo esce un 6, e $X_i = 0$ altrimenti, per $i = 1, \dots, 100$. Allora:
+
+  $$
+   X_1, \dots, X_{100} \sim \text{Ber}(p) \quad \text{(indipendentemente e identicamente distribuite)},
+  $$
+
+  dove $p$ è la probabilità di ottenere un 6 in un singolo lancio (nota o sconosciuta). Ad esempio, se il dado è equilibrato, $p = 1/6$.
+
+2. **Misurazione delle altezze:** Selezioniamo casualmente 300 uomini tra i 40 e i 50 anni da una popolazione ampia e misuriamo le loro altezze. Sia $X_i$l'altezza dell'uomo i-esimo selezionato, per $i = 1, \dots, 300$. Allora:
+
+  $$
+   X_1, \dots, X_{300} \sim N(\mu, \sigma^2),
+  $$
+   
+   dove $\mu$ e $\sigma^2$ sono rispettivamente la media e la varianza della distribuzione delle altezze, parametri sconosciuti.
+
+3. **Valutazione delle reazioni a stimoli emotivi:** Un gruppo di 20 partecipanti viene sottoposto a uno studio in cui vengono mostrati diversi stimoli emotivi (ad esempio, immagini positive, negative o neutre). Per ciascun partecipante, viene registrato il numero di volte in cui si verifica una risposta fisiologica significativa (come un aumento del battito cardiaco) durante l'esposizione agli stimoli. Sia $X_i$ il numero di risposte fisiologiche significative registrate per il partecipante i-esimo, per $i = 1, \dots, 20$. Allora:
+
+  $$
+   X_1, \dots, X_{20} \sim \text{Poi}(\mu),
+  $$
+   
+   dove $\mu > 0$ è il parametro di intensità della distribuzione di Poisson, che rappresenta la frequenza media di risposte fisiologiche significative per stimolo.
+
+4. **Simulazione di test cognitivi:** Un ricercatore sviluppa un modello computazionale per simulare le prestazioni cognitive di individui in un test di memoria. Il modello viene eseguito 10 volte con diverse configurazioni iniziali casuali (seed diversi), e per ogni esecuzione viene registrato il punteggio totale ottenuto nel test simulato. Sia $X_i$ il punteggio totale ottenuto nella i-esima simulazione, per $i = 1, \dots, 10$. Allora:
+
+  $$
+   X_1, \dots, X_{10} \sim \text{Dist},
+  $$
+   
+   dove $\text{Dist}$ è una distribuzione sconosciuta che descrive la variabilità dei punteggi totali nei test cognitivi simulati.
+:::
+
+## Campioni Multipli Indipendenti
+
+Il caso di un singolo campione I.I.D. (indipendente e identicamente distribuito), descritto nella Sezione 4.1, può essere facilmente generalizzato a più campioni I.I.D. I modelli più comuni coinvolgono variabili casuali di Bernoulli e normali.
+
+::: {#exm-}
+Per valutare se esista una differenza tra i ragazzi e le ragazze riguardo alla propensione a rispondere "sì" a una domanda su un particolare tratto di personalità (ad esempio, "Ti consideri una persona empatica?"), selezioniamo casualmente 100 ragazzi e 100 ragazze e chiediamo loro di rispondere "sì" o "no" alla domanda. Questo scenario può essere modellato tramite due campioni indipendenti di variabili casuali di Bernoulli.
+
+Specificamente, per$i = 1, \dots, 100$: 
+
+- Sia $X_i = 1$ se il ragazzo i-esimo risponde "sì" alla domanda, e $X_i = 0$ altrimenti.  
+- Sia $Y_i = 1$ se la ragazza i-esima risponde "sì" alla domanda, e $Y_i = 0$ altrimenti.
+
+In questo modo, otteniamo il seguente modello:
+
+$$
+X_1, \dots, X_{100} \sim \text{Ber}(p_1) \quad \text{(I.I.D.)},
+$$
+
+$$
+Y_1, \dots, Y_{100} \sim \text{Ber}(p_2) \quad \text{(I.I.D.)},
+$$
+
+dove $X_1, \dots, X_{100}, Y_1, \dots, Y_{100}$ sono variabili indipendenti, e $p_1$ e $p_2$ sono parametri sconosciuti che rappresentano, rispettivamente, la probabilità che un ragazzo o una ragazza risponda "sì" alla domanda.
+
+L'obiettivo è stimare la differenza $p_1 - p_2$ basandosi sui valori osservati di $X_1, \dots, X_{100}$ e $Y_1, \dots, Y_{100}$. Nota che è sufficiente registrare il numero totale di ragazzi e ragazze che rispondono "sì" in ciascun gruppo, ovvero:
+
+$$
+X = \sum_{i=1}^{100} X_i \quad \text{e} \quad Y = \sum_{i=1}^{100} Y_i.
+$$
+
+Questo porta al modello binomiale a due campioni:
+
+$$
+X \sim \text{Bin}(100, p_1), \quad Y \sim \text{Bin}(100, p_2),
+$$
+
+dove $X$ e $Y$ sono indipendenti, e $p_1$ e $p_2$ sono sconosciuti.
+:::
+
+::: {#exm-}
+Da una popolazione ampia, selezioniamo 200 uomini tra i 25 e i 30 anni e misuriamo le loro altezze. Per ogni persona, registreremo anche se la madre ha fumato durante la gravidanza o meno. Supponiamo che 60 madri abbiano fumato durante la gravidanza.
+
+Sia:
+
+- $X_1, \dots, X_{60}$ le altezze degli uomini le cui madri hanno fumato,
+- $Y_1, \dots, Y_{140}$ le altezze degli uomini le cui madri non hanno fumato.
+
+Un possibile modello è quello normale a due campioni: 
+$$
+X_1, \dots, X_{60} \sim N(\mu_1, \sigma_1^2) \quad \text{(I.I.D.)},
+$$ 
+
+$$
+Y_1, \dots, Y_{140} \sim N(\mu_2, \sigma_2^2) \quad \text{(I.I.D.)},
+$$
+
+dove $X_1, \dots, X_{60}, Y_1, \dots, Y_{140}$ sono variabili indipendenti, e i parametri $\mu_1, \mu_2, \sigma_1^2, \sigma_2^2$ sono sconosciuti.
+
+Tipicamente, si vorrebbe valutare la differenza $\mu_1 - \mu_2$, ovvero se il fumo durante la gravidanza influisce sull'altezza media dei figli. Invece di dividere i dati in due gruppi (madri fumatrici e non fumatrici), sarebbe possibile suddividere ulteriormente il gruppo "madri fumatrici" in sottogruppi in base all'intensità del fumo, ad esempio: raramente, moderatamente e intensamente. In tal caso, i dati potrebbero essere modellati tramite quattro campioni indipendenti da una distribuzione normale. Tale modello dipenderebbe, in generale, da otto parametri sconosciuti: quattro medie ($\mu_1, \mu_2, \mu_3, \mu_4$) e quattro varianze ($\sigma_1^2, \sigma_2^2, \sigma_3^2, \sigma_4^2$).
+:::
+
+## Modelli di Regressione Lineare
+
+L'analisi della regressione riguarda la ricerca di relazioni tra diverse variabili. In particolare, c'è una variabile di risposta (o dipendente) che si vuole "spiegare" tramite una o più variabili esplicative (o indipendenti). Le variabili esplicative vengono anche chiamate predittori, covariate o variabili indipendenti. Nell'ultimo caso, la variabile di risposta è detta variabile dipendente. La regressione viene generalmente vista come una relazione funzionale tra variabili continue.
+
+### Regressione Lineare Semplice
+
+Il modello di regressione più basilare prevede una relazione lineare tra la variabile di risposta e una singola variabile esplicativa. Come nei dati sull'altezza forniti da Pearson, abbiamo misurazioni $(x_1, y_1), \dots, (x_n, y_n)$ che giacciono approssimativamente su una retta. Si assume che queste misurazioni siano realizzazioni di coppie $(x_1, Y_1), \dots, (x_n, Y_n)$, dove, per ogni variabile esplicativa deterministica $x_i$, la variabile di risposta $Y_i$ è una variabile casuale con:
+
+$$
+\mathbb{E}[Y_i] = \beta_0 + \beta_1 x_i, \quad i = 1, \dots, n,
+$$
+
+dove $\beta_0$ e $\beta_1$ sono parametri sconosciuti. La retta sconosciuta:
+
+$$
+y = \beta_0 + \beta_1 x
+$$
+
+è detta **retta di regressione**. Per specificare completamente il modello, è necessario definire la distribuzione congiunta di $Y_1, \dots, Y_n$. Il modello di regressione lineare più comune è descritto di seguito. L'aggettivo "semplice" si riferisce al fatto che viene utilizzata una sola variabile esplicativa per spiegare la risposta.
+
+### Regressione Lineare Multipla
+
+Un modello di regressione lineare che include più di una variabile esplicativa è detto **modello di regressione lineare multipla**. In un modello di regressione lineare multipla gaussiana, i dati di risposta $Y_1, \dots, Y_n$ dipendono da variabili esplicative multidimensionali $x_1, \dots, x_n$, con $x_i = [x_{i1}, \dots, x_{id}]^T$, attraverso la relazione lineare:
+
+$$
+Y_i = \beta_0 + \beta_1 x_{i1} + \cdots + \beta_d x_{id} + \varepsilon_i, \quad \varepsilon_1, \dots, \varepsilon_n \sim \text{i.i.d. } N(0, \sigma^2),
+$$
+
+dove $\varepsilon_i$ rappresenta il termine di errore.
+
+## Regressione Generale
+
+### Modelli di Regressione Non Lineari
+
+La regressione generale si occupa di modellare la relazione tra una variabile risposta $Y$ e una o più variabili esplicative $x$. In molti casi, la relazione tra le variabili non è lineare, ma può essere descritta da funzioni più complesse. Un modello di regressione generale può essere espresso nella forma:
+
+$$
+Y_i = g(x_i; \beta) + \varepsilon_i, \quad i = 1, \dots, n,
+$$
+
+dove:
+
+- $g(x; \beta)$ è una funzione nota che descrive la relazione tra la variabile risposta $Y$ e le variabili esplicative $x$, dipendente dai parametri $\beta$.
+- $\varepsilon_i$ rappresenta il termine di errore, solitamente assunto indipendente e identicamente distribuito (i.i.d.) con media nulla.
+
+Se la funzione $g(x; \beta)$ è lineare nei parametri $\beta$, il modello è detto **modello di regressione lineare**. Tuttavia, quando $g(x; \beta)$ è una funzione non lineare in $\beta$, il modello è definito come **modello di regressione non lineare**.
+
+##### Esempi di Modelli Non Lineari
+
+Alcuni esempi comuni di modelli di regressione non lineari includono:
+
+1. **Modello Esponenziale**:
+   $$
+   y = a e^{bx},
+   $$
+   dove $a$ e $b$ sono parametri da stimare.
+
+2. **Modello di Legge di Potenza**:
+   $$
+   y = a x^b,
+   $$
+   utile per descrivere fenomeni in cui la relazione tra $y$ e $x$ è proporzionale a una potenza di $x$.
+
+3. **Modello Logistico**:
+   $$
+   y = \frac{L}{1 + e^{-(a + bx)}},
+   $$
+   spesso utilizzato per modellare crescita limitata o curve a "S".
+
+4. **Modello di Weibull**:
+   $$
+   y = 1 - e^{-\left(\frac{x}{a}\right)^b},
+   $$
+   comunemente usato in analisi della sopravvivenza e affidabilità.
+
+In questi modelli, la funzione $g(x; \beta)$ non è lineare nei parametri $\beta$, richiedendo metodi di stima specifici, come la minimizzazione della somma dei quadrati ponderati o l'uso di algoritmi iterativi.
+
+### Modello Lineare Generalizzato (GLM)
+
+Nel contesto dei modelli lineari standard, si assume che gli errori $\varepsilon_i$ siano distribuiti normalmente con media zero e varianza costante ($\varepsilon_i \sim N(0, \sigma^2)$). Tuttavia, in molte applicazioni reali, questa ipotesi non è soddisfatta. Ad esempio:
+
+- Le variabili risposta possono essere binarie (successo/fallimento), conteggiate (numeri interi non negativi), o positive e skewed.
+- La varianza degli errori può non essere costante (eteroschedasticità).
+
+Per affrontare queste situazioni, si utilizzano i **modelli lineari generalizzati (GLM)**, che estendono i modelli lineari tradizionali rilassando l'ipotesi di normalità sugli errori e consentendo relazioni non lineari tra la media della variabile risposta e le variabili esplicative.
+
+Un GLM è definito da tre componenti principali:
+
+1. **Funzione di Link**: Una funzione $h(\cdot)$ che collega la media della variabile risposta $\mu = \mathbb{E}[Y]$ alle variabili esplicative tramite un modello lineare:
+   $$
+   h(\mu) = \mathbf{x}^T \beta.
+   $$
+   Ad esempio, nel caso del modello logistico, la funzione di link è il logit:
+   $$
+   h(\mu) = \log\left(\frac{\mu}{1 - \mu}\right).
+   $$
+
+2. **Distribuzione della Variabile Risposta**: Si assume che $Y$ segua una distribuzione appartenente alla famiglia esponenziale, come Bernoulli, Poisson, Gamma, o Binomiale Negativa.
+
+3. **Relazione di Varianza**: La varianza di $Y$ è funzione della sua media $\mu$, ad esempio:
+
+   - Per la distribuzione Poisson: $\text{Var}(Y) = \mu$,
+   - Per la distribuzione Gamma: $\text{Var}(Y) = \phi \mu^2$.
+
+##### Esempi di GLM
+
+1. **Regressione Logistica**:
+   Utilizzata quando la variabile risposta è binaria ($Y \in \{0, 1\}$):
+   $$
+   \log\left(\frac{\mu}{1 - \mu}\right) = \mathbf{x}^T \beta,
+   $$
+   dove $\mu = \mathbb{P}(Y = 1)$.
+
+2. **Regressione di Poisson**:
+   Utilizzata per dati di conteggio ($Y \in \{0, 1, 2, \dots\}$):
+   $$
+   \log(\mu) = \mathbf{x}^T \beta,
+   $$
+   dove $\mu = \mathbb{E}[Y]$.
+
+3. **Regressione Gamma**:
+   Utilizzata per dati continui positivi e skewed:
+   $$
+   \log(\mu) = \mathbf{x}^T \beta.
+   $$
+
+### Confronto tra Modelli Non Lineari e GLM
+
+| Caratteristica               | Modelli Non Lineari                       | GLM                                   |
+|-----------------------------|-------------------------------------------|---------------------------------------|
+| Funzione di Relazione         | Non lineare nei parametri                 | Lineare dopo trasformazione (funzione di link) |
+| Distribuzione degli Errori    | Solitamente normale                      | Famiglia esponenziale                |
+| Stima                        | Metodi iterativi (ad es., NLSS)           | Massima verosimiglianza              |
+| Applicazioni                 | Curve di crescita, leggi fisiche         | Dati binari, conteggi, positivi      |
+
+In sintesi, i modelli non lineari permettono di catturare relazioni complesse tra le variabili, mentre i GLM forniscono una struttura flessibile per gestire distribuzioni non gaussiane delle variabili risposta. Entrambi i tipi di modelli sono fondamentali per l'analisi statistica moderna.
+
+### Modelli Psicologici
+
+I modelli di regressione descritti in precedenza rappresentano uno strumento essenziale per l'analisi statistica, in quanto permettono di identificare e quantificare le relazioni tra variabili. Tuttavia, questi modelli hanno un carattere prevalentemente descrittivo: si limitano a evidenziare associazioni tra i dati senza fornire spiegazioni sui meccanismi causali o sui processi psicologici che le generano. Per comprendere appieno i fenomeni psicologici, è necessario andare oltre l'analisi delle associazioni statistiche e adottare modelli che descrivano i processi cognitivi e comportamentali sottostanti.
+
+In questo contesto, i **modelli computazionali** sviluppati nell'ambito della psichiatria computazionale e della psicologia cognitiva assumono un ruolo centrale [@hitchcock2022computational]. A differenza dei modelli statistici tradizionali, i modelli computazionali cercano di simulare i processi mentali e decisionali, offrendo una rappresentazione dinamica e meccanicistica del comportamento umano. Due esempi particolarmente rilevanti sono:
+
+1. **Modello di Apprendimento Associativo**:  
+   Questo modello descrive come gli individui apprendono a associare stimoli e risposte attraverso meccanismi di condizionamento. Basato su principi derivati dalla psicologia comportamentale, il modello spiega come le esperienze passate influenzino le risposte future, modulando la forza delle associazioni tra stimoli e comportamenti. È ampiamente utilizzato per studiare fenomeni come l'apprendimento per tentativi ed errori, il condizionamento classico e operante, e la formazione di abitudini.
+
+2. **Modello Drift-Diffusion**:  
+   Questo modello rappresenta il processo decisionale come un'accumulazione progressiva di evidenza verso una soglia di decisione. Simula come le informazioni vengono integrate nel tempo, tenendo conto della velocità e dell'accuratezza delle scelte. Il modello è particolarmente utile per studiare situazioni in cui gli individui devono prendere decisioni in condizioni di incertezza, come nei compiti di discriminazione percettiva o nei test di attenzione e memoria.
+
+Questi modelli computazionali non solo permettono di descrivere il comportamento osservato, ma offrono anche una finestra sui processi cognitivi e neurali che lo guidano. Attraverso la simulazione e la previsione del comportamento, è possibile formulare ipotesi verificabili sui meccanismi interni che regolano l'apprendimento, la decisione e altre funzioni cognitive.
+
+Per chi desidera approfondire questi temi, è disponibile una risorsa introduttiva sui modelli computazionali in psicologia al seguente [sito](https://ccaudek.github.io/psicometria/). Questi strumenti rappresentano un ponte tra la teoria psicologica e l'analisi empirica, contribuendo a una comprensione più profonda e dinamica dei fenomeni mentali e comportamentali.
+
+## Riflessioni Conclusive
+
+In questo capitolo abbiamo esaminato i principi di base della modellizzazione statistica, partendo da problemi reali e introducendo strumenti probabilistici per l'analisi dei dati. Abbiamo presentato alcuni dei modelli più semplici, come il campionamento da una singola distribuzione, il campionamento da più distribuzioni e l'analisi di regressione, sia semplice che multipla. Questi approcci rappresentano il fondamento per utilizzare i dati al fine di trarre conclusioni su fenomeni psicologici, applicando metodi matematici e probabilistici in modo rigoroso.
+
+Nel prosieguo del corso, ci concentreremo sui modelli introdotti in questo capitolo, approfondendone sia gli aspetti teorici che quelli pratici. Questo percorso ci consentirà di consolidare una comprensione solida dei principi statistici di base, che potrà essere estesa in futuro per affrontare contesti più articolati. Attraverso esempi applicativi e analisi dettagliate, svilupperemo le competenze necessarie per risolvere problemi concreti legati all'analisi dei dati psicologici, adottando un approccio metodico e strutturato.
+
+In particolare, approfondiremo temi come il campionamento da una o più distribuzioni e i modelli di regressione, sia semplice che multipla, che costituiscono la base per tecniche statistiche più avanzate. Lo studio di questi argomenti ci fornirà gli strumenti per interpretare i dati, formulare ipotesi e trarre conclusioni, contribuendo così a una migliore comprensione dei fenomeni psicologici oggetto di indagine.
+
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
+
+```{r}
+sessionInfo()
+```
+
+## Bibliografia {.unnumbered}
+
