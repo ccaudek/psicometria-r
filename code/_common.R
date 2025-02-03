@@ -19,7 +19,8 @@ pacman::p_load(
   see,          # Okabe-Ito palettes and other utilities
   tidyr,        # Tools for creating tidy data
   ggokabeito,   # Okabe-Ito qualitative palettes for ggplot2
-  MetBrewer     # Artistic color palettes
+  MetBrewer,    # Artistic color palettes
+  thematic      # gives R plots the ability to style themselves R Markdown
 )
 
 # Suppress unnecessary messages from tidyverse packages
