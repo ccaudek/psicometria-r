@@ -93,21 +93,25 @@ color_scheme_set("brightblue")
 # Custom Color Palettes
 # -----------------------------------------------------------------------------
 
-# Enhanced Okabe-Ito palette with an additional custom color
-palette_okabe_enhanced <- c(
-  ggokabeito::palette_okabe_ito(order = c(5, 1, 3, 4, 2, 6, 7, 8, 9)), 
-  "#882E72"                          # Additional color
+okabe_ito = c(
+  '#E69F00',
+  '#56B4E9',
+  '#009E73',
+  '#F0E442',
+  '#0072B2',
+  '#D55E00',
+  '#CC79A7',
+  '#999999'
 )
 
-# Discrete color scale using the "Hiroshige" palette from MetBrewer
-scale_colour_discrete <- scale_color_manual(
-  values = MetBrewer::met.brewer("Hiroshige", 10) # 10-color palette
-)
-
-# Discrete fill scale using the "Hiroshige" palette from MetBrewer
-scale_fill_discrete <- scale_fill_manual(
-  values = MetBrewer::met.brewer("Hiroshige", 10) # 10-color palette
-)
+# Use the following to overwrite basic ggplot to use color scheme
+# ggplot = function(...) ggplot2::ggplot(...) +
+#   # okabe ito colorblind safe scheme
+#   scale_color_manual(
+#     values = okabe_ito,
+#     drop = FALSE,
+#     aesthetics = c('color', 'fill')
+#   )
 
 # -----------------------------------------------------------------------------
 # Seed for Reproducibility
