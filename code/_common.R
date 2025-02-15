@@ -104,15 +104,6 @@ okabe_ito = c(
   '#999999'
 )
 
-# Use the following to overwrite basic ggplot to use color scheme
-# ggplot = function(...) ggplot2::ggplot(...) +
-#   # okabe ito colorblind safe scheme
-#   scale_color_manual(
-#     values = okabe_ito,
-#     drop = FALSE,
-#     aesthetics = c('color', 'fill')
-#   )
-
 # -----------------------------------------------------------------------------
 # Seed for Reproducibility
 # -----------------------------------------------------------------------------

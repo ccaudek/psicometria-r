@@ -23,7 +23,22 @@ execute:
 - Leggere il post [Open letter to journal editors: dynamite plots must die](https://simplystatistics.org/posts/2019-02-21-dynamite-plots-must-die/) di Rafael Irizarry.
 - Consultare il post [The top ten worst graphs](https://www.biostat.wisc.edu/~kbroman/topten_worstgraphs/) di Karl Broman.
 - Leggere il capitolo [Data Visualization](http://rafalab.dfci.harvard.edu/dsbook-part-1/dataviz/intro-dataviz.html) di *Introduction to Data Science*.
+- Visionare [Communicating Science Using Visuals: Tips for Scientists](https://www.simonsfoundation.org/event/2024-flatiron-wide-autumn-meeting-fwam/).
 :::
+
+::: callout-caution
+## Preparazione del Notebook
+
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(dslabs, ggrepel, stringr)
+```
+:::
+
 
 ## Introduzione {.unnumbered}
 
@@ -32,6 +47,61 @@ In questo capitolo saranno introdotti i principi fondamentali della visualizzazi
 Un altro aspetto che verrà affrontato riguarda gli errori, i bias, le imprecisioni sistematiche e altri problemi inattesi che spesso influenzano i dati. Questi elementi richiedono una gestione accurata e, poiché possono risultare difficili o impossibili da individuare direttamente in un dataset, la visualizzazione dei dati diventa uno strumento essenziale.  
 
 L’aumento della disponibilità di dataset informativi e di strumenti software ha reso la visualizzazione dei dati sempre più rilevante in numerosi ambiti. La visualizzazione dei dati non solo consente di comunicare in modo efficace risultati basati sui dati, ma aiuta anche a motivare ulteriori analisi e a rilevare eventuali errori o imperfezioni.
+
+## Un'immagine Vale Più di Mille Parole
+
+Osservare numeri e stringhe di caratteri che definiscono un dataset raramente è utile. Per convincerci di questo, stampiamo e osserviamo la tabella dei dati sugli omicidi con armi da fuoco negli Stati Uniti:
+
+```{r, message=FALSE, warning=FALSE}
+head(murders)
+```
+
+Cosa impariamo guardando questa tabella? Quanto velocemente riusciamo a determinare quali stati hanno le popolazioni più numerose? E quali hanno le più piccole? Quanto è grande uno stato "tipico"? Esiste una relazione tra la dimensione della popolazione e il numero totale di omicidi? Come variano i tassi di omicidio tra le diverse regioni del paese? Per la maggior parte di noi, è piuttosto difficile estrarre queste informazioni semplicemente guardando i numeri. Al contrario, le risposte a tutte queste domande sono immediatamente evidenti osservando questo grafico:
+
+```{r ggplot-example-plot-0, echo=FALSE, message=FALSE, warning=FALSE, fig.asp=1}
+r <- murders |> 
+  summarize(pop = sum(population), tot = sum(total)) |> 
+  mutate(rate = tot/pop*10^6) |> pull(rate)
+
+murders |> ggplot(aes(x = population/10^6, y = total, label = abb)) +  
+  geom_abline(intercept = log10(r), lty = 2, col = "darkgrey") +
+  geom_point(aes(color = region), size = 3) +
+  geom_text_repel() + 
+  scale_x_log10() +
+  scale_y_log10() +
+  xlab("Popolazione in milioni\n(scala logaritmica)") +  # Label su due righe
+  ylab("Numero totale di omicidi (scala logaritmica)") +
+  ggtitle("Omicidi con armi da fuoco negli Stati Uniti nel 2010") +
+  scale_color_discrete(name = "Regione") +
+  theme(legend.position = "bottom")  # Legenda in basso
+```
+
+Questo ci ricorda il detto "un'immagine vale più di mille parole". La visualizzazione dei dati offre un modo potente per comunicare una scoperta basata sui dati. In alcuni casi, la visualizzazione è così convincente che non è necessario alcun follow-up analitico.
+
+::: {#exm-}
+Rispondiamo alle domande precedenti sulla base della visualizzazione dei dati.
+
+1. **Quali stati hanno le popolazioni più numerose?**
+Guardando il grafico, possiamo notare immediatamente che gli stati con le popolazioni più alte si trovano verso il lato destro dell'asse x (poiché la scala è logaritmica). Gli stati con le popolazioni più numerose sono **California**, **Texas**, e **New York**.
+
+2. **Quali stati hanno le popolazioni più piccole?**
+Gli stati con le popolazioni più piccole si trovano verso il lato sinistro dell'asse x. Questi includono **Wyoming**, **Vermont**, e **Alaska**.
+
+3. **Quanto è grande uno stato "tipico"?**
+Un modo per stimare una dimensione "tipica" è guardare la densità delle osservazioni sull'asse x. La maggior parte degli stati si trova intorno a un milione di abitanti, ma ci sono anche molti stati con popolazioni comprese tra 5 e 10 milioni di abitanti. Quindi, uno stato "tipico" potrebbe avere una popolazione di circa **5-10 milioni di persone**.
+
+4. **Esiste una relazione tra la dimensione della popolazione e il numero totale di omicidi?**
+Sì, esiste una chiara relazione positiva tra la dimensione della popolazione e il numero totale di omicidi. Lo si può vedere dal fatto che gli stati con popolazioni più grandi tendono ad avere un numero maggiore di omicidi. Tuttavia, questa relazione non è perfetta: alcuni stati con popolazioni simili mostrano differenze significative nel numero di omicidi, suggerendo che altri fattori oltre alla popolazione influenzano i tassi di omicidio.
+
+5. **Come variano i tassi di omicidio tra le diverse regioni del paese?**
+Il grafico utilizza colori diversi per rappresentare le regioni geografiche degli stati. Osservando la distribuzione dei punti per colore, possiamo notare alcune differenze:
+
+   - **Sud**: Gli stati del Sud tendono ad avere tassi di omicidio più alti rispetto alle altre regioni.
+   - **Nord-Est**: Gli stati del Nord-Est mostrano una variazione moderata nei tassi di omicidio, ma in generale sono inferiori a quelli del Sud.
+   - **Ovest**: Gli stati dell'Ovest presentano una vasta gamma di tassi di omicidio, con alcuni stati come California e Texas che registrano numeri elevati a causa della loro grande popolazione.
+   - **Midwest**: I tassi di omicidio nei stati del Midwest sembrano essere generalmente bassi o moderati.
+:::
+
 
 ## Codificare i dati attraverso segnali visivi
 
