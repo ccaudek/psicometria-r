@@ -29,7 +29,7 @@ here::here("code", "_common.R") |>
 
 # Load packages
 if (!requireNamespace("pacman")) install.packages("pacman")
-pacman::p_load(ggbeeswarm)
+pacman::p_load(ggbeeswarm, dslabs, gridExtra)
 ```
 :::
 
@@ -44,10 +44,10 @@ Consideriamo i dati relativi alle aspettative negative, individuate come un mecc
 Importiamo i dati:
 
 ```{r}
-df = rio::import(here::here("data", "data.mood.csv"))
+df <- rio::import(here::here("data", "data.mood.csv"))
 ```
 
-Per questo esercizio, ci concentreremo sulle colonne `esm_id` (il codice del soggetto), `group` (il gruppo) e `bdi` (il valore BDI-II).
+Per questo esercizio, ci concentreremo sulle variabili `esm_id` (il codice del soggetto), `group` (il gruppo) e `bdi` (il valore BDI-II).
 
 ```{r}
 df <- df |> 
@@ -111,7 +111,7 @@ In termini simbolisi, per indicare una singola osservazione della variabile gene
 
 ## Distribuzioni di frequenza
 
-Come osservato nell'output della sezione precedente, i dati grezzi non forniscono un'interpretazione immediata. Per rendere i dati più comprensibili e sintetici, è utile costruire una distribuzione di frequenza.
+Come osservato nell'output della sezione precedente, i dati grezzi non forniscono un'interpretazione immediata. Per rendere i dati più comprensibili e sintetici, è utile costruire una **distribuzione di frequenza**.
 
 Una distribuzione di frequenza mostra quante volte i valori di una variabile si verificano all'interno di intervalli specifici. Nel caso dei punteggi BDI-II, possiamo raggruppare i punteggi in quattro classi:
 
@@ -136,7 +136,7 @@ Queste misure permettono di riassumere in modo efficace la distribuzione dei pun
 
 ### Frequenze Assolute e Relative
 
-Per ottenere la distribuzione di frequenza assoluta e relativa dei valori BDI-II nel dataset di `zetsche_2019future`, è necessario aggiungere al DataFrame `df` una colonna contenente una variabile categoriale che classifichi ciascuna osservazione in una delle quattro classi che descrivono la gravità della depressione. Questo risultato si ottiene utilizzando la funzione `cut()`.
+Per ottenere la distribuzione di frequenza assoluta e relativa dei valori BDI-II nel dataset di @zetsche_2019future, è necessario aggiungere al DataFrame `df` una colonna contenente una variabile categoriale che classifichi ciascuna osservazione in una delle quattro classi che descrivono la gravità della depressione. Questo risultato si ottiene utilizzando la funzione `cut()`.
 
 Nella funzione `cut()`:
 
@@ -189,11 +189,80 @@ Per i dati dell'esempio precedente, la funzione `prop.table()` può essere utili
 prop.table(table(df$bdi_class, df$group))
 ```
 
+### La Distribuzione Cumulativa Empirica
+
+La **distribuzione cumulativa empirica** (eCDF, *empirical Cumulative Distribution Function*) è un modo utile per rappresentare la distribuzione di dati numerici. Questa funzione indica la proporzione di dati che sono inferiori o uguali a un certo valore $a$, per tutti i possibili valori di $a$. Matematicamente, la eCDF è definita come:
+
+$$
+F(a) = \text{Proporzione dei dati con valore} \leq a.
+$$
+
+In altre parole, la eCDF ci dice quale frazione dei dati osservati è minore o uguale a un determinato valore $a$. Questo è particolarmente utile per comprendere come i dati sono distribuiti e per identificare pattern o caratteristiche specifiche della distribuzione, come la presenza di bimodalità (cioè, due picchi distinti nella distribuzione).
+
+#### Esempio con i dati di @zetsche_2019future
+
+Nel contesto dei dati di @zetsche_2019future, possiamo utilizzare la eCDF per visualizzare la distribuzione dei punteggi BDI-II. Ecco come viene rappresentata la eCDF per l'intero dataset:
+
+```{r}
+df |> 
+  ggplot(aes(bdi)) + 
+  stat_ecdf() +
+  labs(x = "BDI", y = "F(BDI)")
+```
+
+In questo grafico:
+
+- L'asse $x$ rappresenta i valori del BDI-II.
+- L'asse $y$ rappresenta la proporzione cumulativa dei dati, cioè $F(a)$.
+
+#### Interpretazione del grafico
+
+1. **Crescita della curva**: La curva della eCDF parte da 0 (nessun dato è inferiore al valore minimo osservato) e cresce gradualmente fino a 1 (tutti i dati sono inferiori o uguali al valore massimo osservato).
+2. **Bimodalità**: Se la curva presenta dei "gradini" o delle aree con una pendenza più ripida, questo può indicare la presenza di bimodalità, ovvero due gruppi distinti di dati con caratteristiche diverse. Nel caso dei dati BDI-II, la bimodalità potrebbe riflettere la presenza di due sottogruppi di partecipanti con livelli di depressione diversi.
+
+#### Filtrare i dati per il campione clinico
+
+Se vogliamo analizzare solo i dati relativi al campione clinico (ad esempio, i pazienti con depressione maggiore), possiamo filtrare i dati e rappresentare la eCDF solo per questo gruppo:
+
+```{r}
+df |> dplyr::filter(group == "mdd") |> 
+  ggplot(aes(bdi)) + 
+  stat_ecdf() +
+  labs(x = "a", y = "F(a)")
+```
+
+In questo caso, la eCDF ci mostrerà come i punteggi BDI-II sono distribuiti tra i pazienti con depressione maggiore, permettendoci di identificare eventuali pattern specifici per questo gruppo.
+
+#### Vantaggi della eCDF
+
+- **Visualizzazione chiara**: La eCDF fornisce una rappresentazione visiva immediata della distribuzione dei dati, evidenziando caratteristiche come la bimodalità o la presenza di outlier.
+- **Non parametrica**: La eCDF non assume alcuna forma specifica per la distribuzione dei dati, rendendola adatta per analizzare dati con distribuzioni complesse o non standard.
+- **Facilità di interpretazione**: La proporzione cumulativa è intuitiva e permette di capire rapidamente quanti dati si trovano al di sotto di un certo valore.
+
+In sintesi, la eCDF è uno strumento potente per analizzare e visualizzare la distribuzione di dati numerici, specialmente quando si vogliono identificare pattern specifici o confrontare distribuzioni tra diversi gruppi.
+
 ## Istogramma
 
-Un istogramma rappresenta graficamente una distribuzione di frequenze. Un istogramma mostra sulle ascisse i limiti delle classi $\Delta_i$ e sulle ordinate la densità della frequenza relativa della variabile $X$ nella classe $\Delta_i$. La densità della frequenza relativa è misurata dalla funzione costante a tratti $\varphi_n(x)= \frac{f_i}{b_i-a_i}$, dove $f_i$ è la frequenza relativa della classe $\Delta_i$ e $b_i - a_i$ rappresenta l'ampiezza della classe. In questo modo, l'area del rettangolo associato alla classe $\Delta_i$ sull'istogramma sarà proporzionale alla frequenza relativa $f_i$. È importante notare che l'area totale dell'istogramma delle frequenze relative è uguale a 1.0, poiché rappresenta la somma delle aree dei singoli rettangoli. 
+Sebbene il concetto di Funzione di Distribuzione Empirica Cumulativa (eCDF) venga ampiamente discusso nei testi di statistica, in pratica tale rappresentazione non è molto diffusa. Il motivo principale è che l'eCDF non rende immediatamente visibili alcune caratteristiche fondamentali della distribuzione, come il valore intorno al quale essa è centrata, se la distribuzione sia simmetrica o quali intervalli contengano il 95% dei dati, ad esempio. Gli istogrammi, invece, sono molto più utilizzati perché facilitano notevolmente la comprensione di queste proprietà, sacrificando solo un po' di informazione per fornire una rappresentazione più intuitiva.
 
-Per fare un esempio, costruiamo un istogramma per i valori BDI-II di @zetsche_2019future. Con i quattro intervalli individuati dai cut-off del BDI-II creo una prima versione dell'istogramma -- si notino le frequenze assolute sull'asse delle ordinate.
+Un **istogramma** è un grafico che rappresenta la distribuzione delle frequenze di una variabile. Sull’asse orizzontale (ascisse) vengono indicati i limiti delle classi $\Delta_i$, mentre sull’asse verticale (ordinate) si riporta la densità della frequenza relativa della variabile $X$ per ciascuna classe $\Delta_i$.
+
+Per descrivere formalmente la densità della frequenza relativa, si utilizza una funzione costante a tratti definita come:
+
+$$
+\varphi_n(x) = \frac{f_i}{b_i - a_i},
+$$
+
+dove:
+
+- $f_i$ è la frequenza relativa della classe $\Delta_i$,
+- $b_i - a_i$ è l’ampiezza della classe $\Delta_i$.
+
+In questo modo, l’area del rettangolo corrispondente a $\Delta_i$ in un istogramma risulta proporzionale alla frequenza relativa $f_i$. Poiché la somma delle frequenze relative deve essere pari a 1, l’area totale di un istogramma delle frequenze relative risulta anch’essa uguale a 1, corrispondendo alla somma delle aree di tutti i rettangoli.
+
+Gli istogrammi costituiscono quindi uno strumento essenziale per visualizzare e comprendere le principali caratteristiche di una distribuzione, agevolando l’analisi della sua forma, della sua tendenza centrale e della sua dispersione.
+
+Per fare un esempio, costruiamo un istogramma per i valori BDI-II di @zetsche_2019future. Con i quattro intervalli individuati dai cut-off del BDI-II creiamo una prima versione dell'istogramma -- si notino le frequenze assolute sull'asse delle ordinate.
 
 ```{r}
 ggplot(df, aes(x = bdi)) +
@@ -222,29 +291,93 @@ ggplot(df, aes(x = bdi)) +
   )
 ```
 
-## Kernel density plot
+## Kernel Density Plot
 
-Confrontando le due figure precedenti, emerge chiaramente una limitazione dell'istogramma: la sua forma dipende dall'arbitrarietà con cui vengono scelti il numero e l'ampiezza delle classi, rendendo difficile interpretare correttamente la distribuzione dei dati.
+Un limite evidente degli istogrammi è che la loro forma dipende da scelte arbitrarie: il numero e l’ampiezza delle classi (o *bin*) può infatti influenzare in modo sostanziale l’aspetto finale del grafico, rendendo più difficile l’interpretazione della distribuzione dei dati. Una soluzione a questo problema è offerta dalla **stima della densità kernel** (*Kernel Density Estimation*, KDE), un metodo che fornisce un profilo continuo e smussato della distribuzione, meno condizionato dall’arbitrarietà delle classi.
 
-Per superare questa difficoltà, possiamo utilizzare una tecnica alternativa chiamata *stima della densità kernel* (KDE) -- si veda l'@sec-kde. Mentre l'istogramma utilizza barre per rappresentare i dati, la KDE crea un profilo smussato che fornisce una visione più continua e meno dipendente dall'arbitrarietà delle classi.
+### Differenza tra Istogramma e KDE
 
-Immaginiamo un istogramma con classi di ampiezza molto piccola, tanto da avere una curva continua invece di barre discrete. Questo è ciò che fa la KDE: smussa il profilo dell'istogramma per ottenere una rappresentazione continua dei dati. Invece di utilizzare barre, la KDE posiziona una piccola curva (detta kernel) su ogni osservazione nel dataset. Queste curve possono essere gaussiane (a forma di campana) o di altro tipo. Ogni kernel ha un'altezza e una larghezza determinate da parametri di smussamento (o bandwidth), che controllano quanto deve essere larga e alta la curva. Tutte le curve kernel vengono sommate per creare una singola curva complessiva. Questa curva rappresenta la densità dei dati, mostrando come i dati sono distribuiti lungo il range dei valori. 
+Nell’istogramma, dividiamo l’asse orizzontale in intervalli di ampiezza prefissata (i *bin*) e costruiamo rettangoli la cui altezza è proporzionale alla frequenza (o densità) dei dati che ricadono in ciascun intervallo. Se cambiamo il numero o la larghezza dei bin, la forma dell’istogramma può variare sensibilmente.
 
-La curva risultante dal KDE mostra la proporzione di casi per ciascun intervallo di valori. L'area sotto la curva in un determinato intervallo rappresenta la proporzione di casi della distribuzione che ricadono in quell'intervallo. Per esempio, se un intervallo ha un'area maggiore sotto la curva rispetto ad altri, significa che in quell'intervallo c'è una maggiore concentrazione di dati. 
+La KDE, invece, non suddivide i dati in intervalli fissi. Al contrario, “appoggia” una piccola curva (il *kernel*) su ogni singola osservazione. Le curve utilizzate (ad esempio di tipo gaussiano) hanno una larghezza, detta *bandwidth*, che controlla il grado di **smussamento**: con un bandwidth molto piccolo, la stima segue da vicino le singole osservazioni, generando un profilo più frastagliato; con un bandwidth più ampio, la curva risultante è più liscia, ma rischia di nascondere dettagli importanti.
 
-La curva di densità ottenuta tramite KDE fornisce dunque un'idea chiara di come i dati sono distribuiti senza dipendere dall'arbitrarietà della scelta delle classi dell'istogramma. 
+Per comprendere in modo intuitivo il concetto di KDE, possiamo partire da un esempio semplice. Immaginiamo di costruire un istogramma con classi di ampiezza sempre più piccola. Se avessimo a disposizione un numero *enorme* di dati (ad esempio, un milione di misurazioni dell'altezza di individui) e li rappresentassimo con bin sempre più stretti (0.1, 0.01, ecc.), l'istogramma diventerebbe sempre più levigato, avvicinandosi a una curva continua. Questo processo illustra l'idea alla base della KDE, che approssima la distribuzione dei dati in modo fluido e continuo.
 
-Crediamo un kernel density plot per ciascuno dei due gruppi di valori BDI-II riportati da @zetsche_2019future.
+La KDE, tuttavia, opera in modo più elegante e senza richiedere un numero enorme di punti: posiziona un piccolo “dosso di campana” (o un altro tipo di kernel) su ciascun punto dati e somma tutte queste curve in un’unica curva finale.
+
+::: {.callout-note}
+## Che cosa vuol dire “dosso di campana”?
+
+Possiamo immaginarlo come una piccola curva gaussiana: una curva simile alla forma di una campana che si innalza e poi discende dolcemente.
+
+- Ogni singolo dato viene “coperto” da questa mini-campana.
+- L’ampiezza (o “larghezza”) della campana è regolata dal bandwidth, che stabilisce se la curva sarà più o meno “distesa” sul grafico.
+- Sommando tutte le piccole campane (una per ogni osservazione), otteniamo una curva di densità liscia e continua che rappresenta la distribuzione dei dati senza i “salti” tipici dell’istogramma.
+:::
+
+Il risultato è una **curva di densità** che:
+
+1. **È continua**: a differenza degli istogrammi, non presenta bruschi salti di altezza tra i bin: la curva scorre in modo uniforme lungo tutto l’asse orizzontale.
+2. **Mostra la proporzione di dati in ogni intervallo**: l'area sotto la curva in un determinato range corrisponde alla percentuale (o probabilità) di dati che cadono in quell'intervallo.
+3. **Dipende dal bandwidth**: 
+    - Un bandwidth **piccolo** produce una curva più ondulata e “frastagliata” (poiché segue da vicino ogni singolo dato).
+    - Un bandwidth **grande** genera una curva più liscia e arrotondata, ma rischia di “coprire” troppi dettagli della distribuzione originaria.
+
+Si noti che la stima della densità kernel introduce, tuttavia, un’ipotesi di fondo: che la distribuzione dei dati “reali” sia “liscia” e non presenti discontinuità improvvise. Questo è spesso ragionevole (ad esempio per dati fisiologici come l’altezza), ma in altri casi potrebbe non esserlo. È quindi importante scegliere un bandwidth che rifletta adeguatamente il livello di dettaglio che vogliamo mostrare.
+
+Inoltre, l’asse delle ordinate (l’asse *y*) rappresenta la densità, non la frequenza assoluta. È possibile costruire un istogramma in cui l’altezza dei rettangoli mostra quante osservazioni ricadono in ciascun bin. Nella KDE, l’altezza della curva è tale che l’area totale sotto di essa sia pari a 1, rispecchiando la natura di una funzione di densità di probabilità.
+
+Di seguito esaminiamo un esempio che mostra la costruzione passo dopo passo di istogrammi con diversi valori di binwidth, fino a passare a una stima di densità. Consideriemo un dataset con un numero di osservazioni molto elevato (i valori di altezza, `heights`, riportati da 1050 partecipanti, estratti dal pacchetto `dslabs`), suddiviso in due gruppi: maschi e femmine. Ecco come potremmo prima costruire un istogramma di altezze per i maschi, per poi tracciare una curva di densità smussata:
+
+```{r}
+# Istogramma con bin di ampiezza 1
+ggplot(heights |> dplyr::filter(sex == "Male"), aes(height)) +
+  geom_histogram(binwidth = 1, color = "black", alpha = 0.5)
+
+# Aggiunta della curva di densità sopra l'istogramma
+ggplot(heights |> dplyr::filter(sex == "Male"), aes(height)) +
+  geom_histogram(
+    aes(y = after_stat(density)), binwidth = 1, color = "black", alpha = 0.5
+  ) +
+  geom_line(stat = 'density')
+```
+
+Variando il parametro di regolazione (*adjust* o *bandwidth*) nella funzione `geom_density()`, possiamo modificare il livello di smussamento:
+
+```{r}
+# Esempio di smoothing differente
+p <- ggplot(heights |> filter(sex == "Male"), aes(height)) +
+  geom_histogram(aes(y = after_stat(density)), binwidth = 1, alpha = 0.5)
+
+# Più ondulato (bandwidth minore)
+p1 <- p + geom_line(stat = 'density', adjust = 0.5)
+
+# Più liscio (bandwidth maggiore)
+p2 <- p + geom_line(stat = 'density', adjust = 2)
+
+grid.arrange(p1, p2, ncol = 2)
+```
+
+Per illustrare ulteriormente l’uso della KDE, ora consideriamo i punteggi BDI-II di  @zetsche_2019future. Con il codice seguente creiamo due curve di densità, una per ogni gruppo:
 
 ```{r}
 ggplot(df, aes(x = bdi, fill = group)) +
-  geom_density() +
+  geom_density(alpha = 0.5) +
   labs(
-    title = "Curva di densità KDE", 
-    x = "BDI-II", 
+    title = "Curva di densità (KDE) per i punteggi BDI-II",
+    x = "BDI-II",
     y = "Densità"
   )
 ```
+
+Qui, la sovrapposizione delle due curve ci consente di confrontare la distribuzione dei punteggi BDI-II tra i due gruppi in maniera molto più *fluida* e intuitiva rispetto a quanto faremmo con due istogrammi separati o con un istogramma combinato. Inoltre, non siamo più vincolati alla scelta dei bin: l’aspetto delle curve dipende soltanto dalla funzione kernel utilizzata e dal parametro di smussamento. 
+
+In conclusione, 
+
+- l’**istogramma** rimane uno strumento rapido e intuitivo, *privo di assunzioni*, ma sensibile alla scelta di numero e ampiezza dei bin;
+- la **stima della densità kernel (KDE)** offre una rappresentazione continua della distribuzione dei dati, fornendo un quadro più “morbido” e spesso più informativo. Tuttavia, introduce alcune assunzioni e richiede la scelta del bandwidth ottimale.
+
+In definitiva, è consigliabile usare entrambe le tecniche per ottenere una panoramica completa dei propri dati: l’istogramma permette di dare un primo sguardo alla loro distribuzione “grezza” (senza presupposti), mentre la KDE aiuta a comprenderne l’eventuale struttura “liscia” di fondo.
 
 ## Consigli per Creare Visualizzazioni di Dati Efficaci 
 
