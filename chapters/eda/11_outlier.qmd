@@ -4,7 +4,7 @@
 ## In questo capitolo imparerai a
 
 - comprendere il ruolo e gli effetti degli outlier;
-- individuare outlier con metodi univariati, multivariati e model-based;
+- individuare outlier con metodi univariati e multivariati;
 - utilizzare il pacchetto {performance} in R per rilevarli;
 - documentare e rendere riproducibili le procedure;
 - considerare alternative (es. winsorizzazione) e preregistrare le scelte.
@@ -25,90 +25,112 @@ here::here("code", "_common.R") |>
 
 # Load packages
 if (!requireNamespace("pacman")) install.packages("pacman")
-pacman::p_load(performance, see, datawizard)
+pacman::p_load(performance, see, datawizard, MASS)
 ```
 :::
 
 ## Introduzione
 
-I dati raccolti nella vita reale spesso contengono osservazioni che, se confrontate con la maggior parte della popolazione, risultano “anomale” o “estreme”. Queste osservazioni, comunemente note come outlier, possono avere cause diverse: ad esempio, potrebbero provenire da un processo generativo differente, oppure essere semplicemente casi estremi ma comunque possibili. Definire i confini tra ciò che è “normale” e ciò che è “anormale” non è semplice.
+Quando analizziamo dati reali, ci imbattiamo spesso in osservazioni che sembrano molto diverse dalla maggior parte delle altre. Questi valori anomali, chiamati outlier, possono avere origini diverse. Ad esempio, potrebbero derivare da errori di misura o inserimento dati, oppure essere casi estremi ma comunque validi.
 
-Una gestione non adeguata degli outlier può influenzare considerevolmente le stime statistiche, introducendo bias negli effetti misurati e riducendo la capacità predittiva dei modelli. È quindi importante affrontare il problema degli outlier con criteri chiari e strategie riproducibili. Tuttavia, nonostante siano disponibili linee guida consolidate, molti ricercatori non trattano gli outlier in modo coerente, o utilizzano approcci non appropriati [@simmons2011false].
+Identificare e trattare gli outlier in modo appropriato è importante per evitare che distorcano i risultati dell'analisi. Tuttavia, non esiste una definizione universale di outlier: dipende dal contesto e dall'obiettivo dell'analisi.
 
-Uno dei motivi potrebbe essere la scarsa consapevolezza delle raccomandazioni esistenti o la difficoltà ad implementarle con il proprio software di analisi. In questo capitolo mostreremo come seguire le buone pratiche correnti per la rilevazione automatica e riproducibile degli outlier (Statistical Outlier Detection, SOD) in R utilizzando il pacchetto *{performance}* (Lüdecke et al. 2021). 
+In questo capitolo, esploreremo diversi metodi per individuare gli outlier, concentrandoci su tecniche robuste che minimizzano l'influenza di questi valori anomali sulle statistiche descrittive [@simmons2011false].
 
-Il materiale di questo capitolo riassume l'articolo di @theriault2024check.
+## Come Identificare gli Outlier
 
-## Identificare gli Outlier
+### Un primo metodo: i boxplot
+  
+  Uno strumento semplice e intuitivo per individuare gli outlier è il *boxplot*. Il boxplot riassume la distribuzione di una variabile mostrando la mediana, il primo e il terzo quartile (Q1 e Q3) e due estremi, detti "whiskers". I punti al di fuori di questi whiskers sono considerati potenziali outlier.
 
-Molti ricercatori cercano di identificare gli outlier utilizzando metodi basati sulla media (ad esempio, z-score tradizionali). Tuttavia, questi metodi non sono robusti, poiché sia la media sia la deviazione standard sono sensibili agli stessi outlier e presuppongono una distribuzione normale. Le linee guida attuali raccomandano invece metodi robusti, come quelli che si basano sulla mediana anziché sulla media [@leys2019classify].
-
-La scelta del metodo di rilevazione outlier dipende però da vari fattori. In alcuni casi potrebbe bastare un’ispezione visiva, ma spesso si preferiscono soluzioni algoritmiche. Inoltre, il metodo da utilizzare può variare in base al tipo di test statistico o al modello di interesse. Ad esempio, nei modelli di regressione ha senso ricercare outlier che non si adattano bene al modello (outlier “model-based”), mentre altre volte si considera la distanza di una singola osservazione dal “centro” della distribuzione (outlier “distribution-based”). Queste strategie possono essere univariate (un’unica variabile) o multivariate (più variabili contemporaneamente).
-
-In assenza di metodi ad hoc per modelli complessi (ad es. SEM), può essere utile cercare outlier multivariati. Per test semplici (inferenze su una media, o sul confronto tra medie, o sulle correlazioni), possono essere sufficienti metodi univariati, pur essendo meno flessibili e talvolta più inclini a falsi positivi.
-
-È importante ricordare che qualsiasi scelta resta soggettiva e dev’essere documentata in modo trasparente e riproducibile [@leys2019classify]. Idealmente, le decisioni andrebbero prese prima della raccolta dei dati (ad esempio in una preregistrazione) e poi riportate chiaramente nell’articolo, menzionando ogni eventuale deviazione dal piano originale.
-
-Nelle sezioni successive illustreremo vari metodi e forniremo esempi di codice R per implementarli.
-
-## Outlier Univariati
-
-Un approccio comune è individuare outlier in base alla distanza dal “centro” della distribuzione di una singola variabile. Il metodo dei z-score tradizionali, basati sulla media, non è robusto. Si raccomanda invece di usare la mediana e la Median Absolute Deviation (MAD) [@leys2019classify].
-
-La funzione `check_outliers()` del pacchetto {performance}, con `method = "zscore_robust"`, consente di individuare outlier secondo questo criterio. Ad esempio, il threshold predefinito è pari a ±3.29 MAD, ma può essere modificato.
-
-Di seguito un esempio con il dataset `mtcars`, disponibile in R. Prima creiamo degli outlier artificiali, poi utilizziamo `check_outliers()`.
+Esempio in R:
 
 ```{r}
-head(mtcars)
+data <- data.frame(
+  value = c(rnorm(100, mean = 10, sd = 2), 30)
+  ) # Aggiungiamo un outlier
+
+ggplot(data, aes(y = value)) +
+  geom_boxplot() +
+  coord_flip()
 ```
 
+Se il boxplot mostra un punto isolato lontano dagli altri dati, potrebbe essere un outlier.
+
+### Metodi basati sulla variabilità
+
+#### Intervallo interquartile (IQR)
+
+John Tukey ha introdotto una definizione operativa di outlier basata sull'*Interquartile Range* (IQR), ovvero la differenza tra il terzo e il primo quartile:
+
+- I valori inferiori a $Q1 - 1.5 \times IQR$ o superiori a $Q3 + 1.5 \times IQR$ sono considerati outlier moderati.
+- I valori oltre $Q1 - 3 \times IQR$ o $Q3 + 3 \times IQR$ sono definiti *far out* outliers.
+
+Esempio in R:
 
 ```{r}
-# Create some artificial outliers and an ID column
-data <- rbind(mtcars[1:4], 42, 55)
-data <- cbind(car = row.names(data), data)
+Q1 <- quantile(data$value, 0.25)
+Q3 <- quantile(data$value, 0.75)
+IQR_value <- Q3 - Q1
+lower_bound <- Q1 - 1.5 * IQR_value
+upper_bound <- Q3 + 1.5 * IQR_value
 
-outliers <- check_outliers(data, method = "zscore_robust", ID = "car")
+outliers <- data$value[data$value < lower_bound | data$value > upper_bound]
 outliers
 ```
 
-Questi due outlier aggiunti artificialmente vengono rilevati correttamente. Per escluderli dal dataset principale:
+Questo metodo è efficace per distribuzioni simmetriche, ma potrebbe non funzionare bene con dati asimmetrici.
 
+
+#### Median Absolute Deviation (MAD)
+
+Un metodo più robusto rispetto all'IQR è il *Median Absolute Deviation* (MAD), che utilizza la mediana anziché la media per stimare la dispersione:
+  
 ```{r}
-which(outliers) 
-# Restituisce i numeri di riga degli outlier
+mad_value <- mad(data$value)
+threshold <- 3 * mad_value # Soglia classica per gli outlier
+
+outliers_mad <- data$value[abs(data$value - median(data$value)) > threshold]
+outliers_mad
 ```
 
-```{r}
-data_clean <- data[-which(outliers), ]
-```
-
-È anche possibile visualizzare gli outlier graficamente:
-
-```{r}
-plot(outliers)
-```
-
-Oltre al metodo MAD, `check_outliers()` supporta anche altri approcci univariati (basati su IQR, intervalli a densità più alta, ecc.).
+Il MAD è meno sensibile agli outlier rispetto alla deviazione standard ed è spesso preferito per dati con distribuzioni non normali.
 
 ## Outlier Multivariati
 
-Quando si analizzano più variabili contemporaneamente (ad esempio altezza e peso di un gruppo di persone), può risultare complesso stabilire quali osservazioni siano davvero “fuori dal comune” rispetto alla maggioranza. In questo contesto, la distanza di Mahalanobis offre un modo per individuare outlier multivariati, cioè osservazioni che si discostano notevolmente dal “centro” dei dati considerati nel loro insieme, anziché analizzare ogni variabile separatamente.
+Quando si considerano più variabili contemporaneamente, un valore potrebbe non apparire anomalo su una singola variabile, ma esserlo nel contesto dell'intero dataset. Un metodo comune per individuare questi outlier è la *Distanza di Mahalanobis*, che tiene conto delle correlazioni tra variabili.
 
 Per comprendere intuitivamente la distanza di Mahalanobis, immaginate di avere una nube di punti che rappresentano individui, ciascuno con i propri valori di altezza e peso. Il “centro” di questa nube è un punto ideale che rappresenta una sorta di media multivariata (tenendo conto sia dell’altezza sia del peso). La distanza di Mahalanobis misura quanto ogni singolo individuo si allontana da questo centro, considerando la variabilità congiunta delle variabili (ad esempio, la correlazione tra altezza e peso). Se un individuo presenta caratteristiche molto diverse rispetto alla maggioranza, la sua distanza di Mahalanobis sarà elevata, segnalando un potenziale outlier.
 
 ::: {#fig-maha-dist}
 ![](../../figures/outliers.png){width="70%"}
+
 Soglie per la detezione degli outliers nel caso di una metrica unidimensionale (pannello di sinistra) e nel caso di una rappresentazione multivariata della varianza (pannello di destra) -- figura creata da Sergen Cansiz.
 :::
+
+Esempio in R:
+
+```{r}
+X <- as.matrix(mtcars[, c("mpg", "hp")])
+center <- colMeans(X)
+cov_matrix <- cov(X)
+mahal_dist <- mahalanobis(X, center, cov_matrix)
+
+threshold <- qchisq(0.975, df = ncol(X)) # Soglia al 97.5%
+outliers_mahal <- X[mahal_dist > threshold, ]
+outliers_mahal
+```
+
+Questo metodo è utile per dataset con più variabili correlate, come misure biometriche (altezza e peso).
+
 
 Tuttavia, la versione classica di questa misura non è particolarmente robusta: la presenza stessa di outlier può distorcere il calcolo del “centro” e della variabilità complessiva, rendendo meno affidabile l’individuazione di altri valori anomali. Per questo motivo, si preferisce utilizzare una variante più resistente, la Minimum Covariance Determinant (MCD), che diminuisce l’influenza degli outlier stessi nel processo di identificazione.
 
 All’interno del pacchetto {performance} in R, è possibile applicare questa variante robusta utilizzando la funzione `check_outliers()` con l’argomento `method = "mcd"`. In questo modo, è possibile individuare gli outlier multivariati in maniera più solida e coerente, anche quando si lavora con dati fortemente influenzati da valori estremi.
 
 ```{r}
-outliers <- performance::check_outliers(data, method = "mcd", verbose = FALSE)
+d <- mtcars[, c("mpg", "hp")]
+outliers <- performance::check_outliers(d, method = "mcd", verbose = FALSE)
 outliers
 ```
 
@@ -120,70 +142,22 @@ plot(outliers)
 
 Sono disponibili anche altre varianti multivariate documentate nella help page della funzione.
 
-### Outlier Basati sul Modello (Model-Based)
 
-Quando si impiega un modello di regressione, lo scopo principale è capire la relazione tra una o più variabili predittive (ad esempio, il numero di ore di studio) e una variabile di esito (ad esempio, il punteggio a un test). In questi contesti, può capitare che alcuni punti dati, pur essendo veri e propri dati raccolti, esercitino un’influenza eccessiva sulle stime dei parametri del modello, alterando in modo significativo i risultati dell’analisi. Queste osservazioni vengono definite outlier “model-based” proprio perché il criterio per individuarle non è un semplice confronto con la media o la mediana, bensì con le previsioni del modello stesso.
+## Cosa Fare con gli Outlier?
 
-In pratica, per ciascuna osservazione si verifica quanto i risultati previsti dal modello (le stime dei valori di esito) cambierebbero se quella specifica osservazione venisse rimossa. Se togliendo uno specifico caso il modello cambia notevolmente, allora quell’osservazione è considerata un outlier model-based. L’idea è che non ci limitiamo a guardare quanto un singolo valore sia “lontano” dagli altri in termini di distribuzione, ma verifichiamo quanto quel valore “tira” i risultati del modello nella sua direzione.
+Una volta identificati gli outlier, dobbiamo decidere se rimuoverli, correggerli o mantenerli [@leys2019classify]. Alcuni approcci comuni includono:
 
-Il pacchetto {performance} in R fornisce due metodi per individuare questo tipo di outlier. Per i modelli di regressione classici (ad esempio quelli stimati con la funzione `lm()` in R), è possibile utilizzare Cook’s distance (`method = "cook"`). Cook’s distance misura quanto i risultati del modello si modificherebbero rimuovendo singolarmente ogni osservazione, identificando così i casi che hanno un effetto sproporzionato sulle stime.
+1. **Verificare la fonte del dato**: un errore di inserimento può essere corretto.
+2. **Rimuovere gli outlier estremi**: utile se il valore è chiaramente un errore di misura.
+3. **Usare metodi robusti**: strumenti come la mediana o il MAD sono meno influenzati dagli outlier.
+4. **Trasformare i dati**: applicare logaritmi o altre trasformazioni può ridurre l'impatto degli outlier.
+5. **Winsorizzazione**: invece di rimuovere gli outlier, possiamo limitarli a un massimo accettabile.
 
-Per i modelli bayesiani, che utilizzano un approccio probabilistico diverso dal classico, è disponibile invece una metrica chiamata Pareto (`method = "pareto"`). Questo indicatore è ottimizzato per valutare la sensibilità dei modelli bayesiani ad alcune osservazioni estreme, segnalando quelle che hanno un impatto potenzialmente troppo forte sulle inferenze.
-
-In sintesi, utilizzare un approccio model-based significa considerare gli outlier non soltanto come valori numerici insoliti, ma come casi che, modificando eccessivamente la forma o le conclusioni del modello, ne compromettono la stabilità e l’affidabilità. L’approccio offerto da {performance} permette così di individuare queste osservazioni “critiche” in modo più mirato e consapevole.
-
-```{r}
-model <- lm(disp ~ mpg * hp, data = data)
-outliers <- check_outliers(model, method = "cook")
-outliers
-```
-
-In questo modo si individuano outlier che hanno un’elevata influenza sul modello.
-
-::: {.callout-caution}
-## Tabella di Riferimento
-
-| Tipo di Analisi                | Metodo Outlier          | Threshold Suggerito | Codice                                     |
-|--------------------------------|-------------------------|---------------------|---------------------------------------------|
-| Regressione supportata (lm)    | Model-based (Cook)      | Cook: `qf(0.5, ...)`| `check_outliers(model, method="cook")`      |
-| SEM o modello non supportato    | Multivariato (MCD)      | MCD: `qchisq(1-0.001, df)`| `check_outliers(data, method="mcd")` |
-| Test semplici (t, correlazioni) | Univariato (robust z)   | ±~3.29 (MAD)        | `check_outliers(data, method="zscore_robust")` |
-:::
-
-### Cook’s Distance vs. MCD
-
-@leys2018detecting suggeriscono di preferire la MCD alla Cook’s distance in presenza di molti outlier, poiché quest’ultima valuta l’impatto della rimozione di un’osservazione alla volta, rischiando così di lasciare il modello ancora “contaminato” da altre osservazioni anomale. D’altro canto, i metodi basati sulla distribuzione possono risultare eccessivamente rigorosi, segnalando come outlier anche casi estremi ma perfettamente in linea con il modello teorico. Quando disponibili, i metodi model-based forniscono dunque una prospettiva più informativa.
-
-### Approccio Composito (Composite Outlier Score)
-
-Il pacchetto *{performance}* permette di combinare diversi metodi per ottenere un punteggio composito, aumentando l’affidabilità della classificazione degli outlier. Ad esempio:
-
-```{r}
-outliers <- check_outliers(
-  model, 
-  method = c("zscore_robust", "mcd", "cook"), 
-  verbose = FALSE
-)
-which(outliers)
-```
-
-Si ottengono così osservazioni ritenute outlier da almeno la metà dei metodi utilizzati.
-
-## Gestione degli Outlier
-
-Dopo l’identificazione, come gestire gli outlier? @leys2019classify distinguono tra outlier dovuti a errori (da correggere o rimuovere), outlier interessanti (potenzialmente rilevanti dal punto di vista teorico) e outlier casuali (da mantenere se compatibili con la distribuzione di interesse).
-
-Se gli outlier appartengono realmente alla distribuzione di interesse, vanno mantenuti. Se però provengono da un’altra distribuzione o compromettono la robustezza dei risultati, potrebbe essere giustificata la loro rimozione. In alcuni casi, si può utilizzare la “winsorizzazione”, cioè ridurre i valori estremi entro soglie stabilite, per conservare potenza statistica.
-
-Nel pacchetto easystats, la funzione `winsorize()` di *{datawizard}* semplifica questo compito:
-
-```{r}
-winsorized_data <- winsorize(
-  data, 
-  method = "zscore", 
-  robust = TRUE, 
-  threshold = 3
-)
+Nel pacchetto easystats, la funzione `winsorize()` di *{datawizard}* semplifica il compito di Winsorizzazione:
+  
+```r
+winsorized_data <- 
+  winsorize(data$value, method = "zscore", robust = TRUE, threshold = 3)
 ```
 
 ## Importanza della Trasparenza
@@ -192,7 +166,7 @@ Qualunque decisione va documentata chiaramente: quanti outlier sono stati indivi
 
 ## Riflessioni Conclusive
 
-Abbiamo mostrato come identificare gli outlier in modo coerente e trasparente utilizzando la funzione `check_outliers()` del pacchetto *{performance}*, allineandoci alle buone pratiche correnti. Tuttavia, la buona pratica non si limita alla scelta degli algoritmi: è fondamentale anche preregistrare le decisioni, essere coerenti, trasparenti e fornire giustificazioni. Speriamo che queste linee guida e gli esempi di codice facilitino l’implementazione di procedure corrette e riproducibili per il trattamento degli outlier.
+Abbiamo mostrato come identificare gli outlier in modo coerente e trasparente, allineandoci alle buone pratiche correnti. Tuttavia, la buona pratica non si limita alla scelta degli algoritmi: è fondamentale anche preregistrare le decisioni, essere coerenti, trasparenti e fornire giustificazioni. 
 
 ## Informazioni sull'Ambiente di Sviluppo {.unnumbered}
 

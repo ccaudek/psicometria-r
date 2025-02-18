@@ -379,7 +379,51 @@ In conclusione,
 
 In definitiva, è consigliabile usare entrambe le tecniche per ottenere una panoramica completa dei propri dati: l’istogramma permette di dare un primo sguardo alla loro distribuzione “grezza” (senza presupposti), mentre la KDE aiuta a comprenderne l’eventuale struttura “liscia” di fondo.
 
-## Consigli per Creare Visualizzazioni di Dati Efficaci 
+### Area Sottesa alla Curva di Densità: Un'Interpretazione Probabilistica
+
+Quando si lavora con una curva di densità, è importante capire che l'area totale sotto la curva rappresenta la probabilità totale, che è sempre pari a 1 (o 100%). Questo significa che l'area sotto la curva in un determinato intervallo corrisponde alla probabilità che un dato valore cada in quell'intervallo.
+
+#### Come Interpretare l'Asse Y
+
+L'asse y di un grafico di densità non rappresenta direttamente la probabilità, ma è scalato in modo che l'area totale sotto la curva sia uguale a 1. Se immaginiamo di creare un "bin" (un intervallo) con una base di 1 unità di lunghezza, il valore sull'asse y ci indica la proporzione di valori che cadono in quel bin. Tuttavia, questa interpretazione è valida solo per bin di dimensione 1. Per intervalli di altre dimensioni, il modo migliore per determinare la proporzione di dati in quell'intervallo è calcolare la proporzione dell'area totale sotto la curva che cade in quell'intervallo.
+
+#### Esempio Pratico
+
+Consideriamo un esempio con i dati delle altezze degli uomini. Supponiamo di voler sapere quale proporzione di uomini ha un'altezza compresa tra 65 e 68 pollici. Per farlo, calcoliamo l'area sotto la curva di densità in quell'intervallo.
+
+Ecco come appare graficamente:
+
+```{r summaries-area-under-curve, echo = FALSE}
+d <- with(heights, density(height[sex == "Male"]))
+tmp <- data.frame(height = d$x, density = d$y)
+tmp |> ggplot(aes(height,density)) + geom_line() + 
+  geom_area(
+    aes(
+      x = height, 
+      y = density), 
+    data = dplyr::filter(tmp, between(height, 65, 68)), 
+    alpha = 0.2, fill = "#00BFC4"
+  )
+```
+
+L'area evidenziata in azzurro rappresenta la proporzione di uomini con altezza tra 65 e 68 pollici. Calcolando questa area, troviamo che circa il `r round(mean(dplyr::between(heights$height[heights$sex=="Male"], 65, 68)), 2)` (ovvero il `r noquote(paste0(round(mean(dplyr::between(heights$height[heights$sex=="Male"], 65, 68)), 2)*100, '%'))` degli uomini ha un'altezza in questo intervallo.
+
+#### Utilizzo della Curva di Densità come Riepilogo
+
+Comprendendo questo concetto, possiamo utilizzare la curva di densità come un efficace strumento di riepilogo. Per questo dataset, l'assunzione di smoothness (lisciatura) della curva è ragionevole, e possiamo condividere questa rappresentazione grafica per comunicare in modo chiaro e intuitivo la distribuzione delle altezze degli uomini.
+
+Ecco un esempio di come appare la curva di densità smooth per le altezze degli uomini:
+
+```{r summaries-example-of-smoothed-density-2, echo = FALSE}
+heights |> 
+  dplyr::filter(sex == "Male") |> 
+  ggplot(aes(height)) + 
+  geom_density(alpha = 0.2, fill = "#00BFC4")
+```
+
+In sintesi, l'area sotto la curva di densità in un determinato intervallo rappresenta la probabilità che un valore casuale cada in quell'intervallo, rendendo la curva di densità uno strumento potente per comprendere e comunicare la distribuzione dei dati.
+
+## Consigli per Creare Visualizzazioni di Dati Efficaci
 
 Ecco alcuni suggerimenti per creare visualizzazioni di dati esplicative, efficaci e di qualità adatta alle presentazioni:
 
@@ -434,7 +478,9 @@ quantile(x, 2 / 3)
 
 ### Diagramma a scatola
 
-Il box plot è uno strumento grafico che visualizza la dispersione di una distribuzione. Per creare un box plot, si disegna un rettangolo (la "scatola") di altezza arbitraria, basato sulla distanza interquartile (IQR), che corrisponde alla differenza tra il terzo quartile ($q_{0.75}$) e il primo quartile ($q_{0.25}$). La mediana ($q_{0.5}$) è rappresentata da una linea all'interno del rettangolo.
+Il box plot è uno strumento grafico che visualizza la dispersione di una distribuzione. I **boxplot** forniscono una rappresentazione visiva sintetica di cinque valori caratteristici: **minimo**, **primo quartile (25%)**, **mediana (50%)**, **terzo quartile (75%)** e **massimo**. Spesso però, i boxplot “ignorano” i valori considerati anomali (*outlier*), segnalandoli con punti isolati. 
+
+Per creare un box plot, si disegna un rettangolo (la "scatola") di altezza arbitraria, basato sulla distanza interquartile (IQR), che corrisponde alla differenza tra il terzo quartile ($q_{0.75}$) e il primo quartile ($q_{0.25}$). La mediana ($q_{0.5}$) è rappresentata da una linea all'interno del rettangolo.
 
 Ai lati della scatola, vengono tracciati due segmenti di retta, detti "baffi", che rappresentano i valori adiacenti inferiore e superiore. Il valore adiacente inferiore è il valore più basso tra le osservazioni che è maggiore o uguale al primo quartile meno 1.5 volte la distanza interquartile. Il valore adiacente superiore è il valore più alto tra le osservazioni che è minore o uguale al terzo quartile più 1.5 volte la distanza interquartile.
 
@@ -442,7 +488,13 @@ Se ci sono dei valori che cadono al di fuori dei valori adiacenti, vengono chiam
 
 ![](../../figures/boxplot.png){width="80%"}
 
-Utilizziamo un box-plot per rappresentare graficamente la distribuzione dei punteggi BDI-II nel gruppo dei pazienti e nel gruppo di controllo.
+### Stratificazione
+
+Nell'analisi dei dati, è comune suddividere le osservazioni in gruppi in base ai valori di una o più variabili associate a tali osservazioni. Questo processo è chiamato **stratificazione**, e i gruppi risultanti sono detti **strati**. Ad esempio, nella sezione successiva, dividiamo i valori dei punteggi BDI-II in due gruppi in base alla condizione sperimentale: campione clinico e campione di controllo. 
+
+La stratificazione è particolarmente utile nella visualizzazione dei dati, poiché spesso siamo interessati a comprendere come la distribuzione di una variabile differisca tra diversi sottogruppi. 
+
+Per esempio, per rappresentare graficamente la distribuzione dei punteggi BDI-II nel gruppo dei pazienti e nel gruppo di controllo, possiamo utilizzare un box-plot. Questo tipo di grafico ci permette di confrontare visivamente la distribuzione dei punteggi tra i due gruppi, evidenziando eventuali differenze.
 
 ```{r}
 ggplot(df, aes(x = group, y = bdi)) +
@@ -453,6 +505,14 @@ ggplot(df, aes(x = group, y = bdi)) +
     y = "BDI-II"
   )
 ```
+
+In questo grafico:
+
+- L'asse **x** rappresenta i due gruppi (pazienti e controllo).
+- L'asse **y** rappresenta i punteggi BDI-II.
+- I box (scatole) mostrano la distribuzione dei punteggi, con la linea centrale che indica la mediana e i "baffi" che rappresentano la variabilità dei dati.
+
+La stratificazione ci aiuta a identificare rapidamente se ci sono differenze nella distribuzione dei punteggi BDI-II tra i due gruppi. Nel caso presente, il grafico mostra come non vi sia alcuna sovrapposizione tra le due distribuzioni.
 
 Un risultato migliore si ottiene utilizzando un grafico a violino (*violin plot*) e includendo anche i dati grezzi.
 
@@ -494,7 +554,7 @@ ggplot(df, aes(x = group, y = bdi, color = group)) +
 
 ## Riflessioni Conclusive
 
-Abbiamo esplorato diverse tecniche per sintetizzare e visualizzare i dati, includendo distribuzioni di frequenze, istogrammi e grafici di densità. Questi strumenti sono essenziali per comprendere meglio i dati e presentare risultati in modo chiaro e informativo.
+Abbiamo esplorato diverse tecniche per sintetizzare e visualizzare i dati, includendo distribuzioni di frequenze, istogrammi e grafici di densità. Questi strumenti sono essenziali per comprendere meglio i dati e presentare risultati in modo chiaro e informativo. La **visualizzazione dei dati** ci aiuta a individuare possibili anomalie o situazioni inaspettate, prima di applicare modelli o interpretazioni statistiche.
 
 ## Informazioni sull'Ambiente di Sviluppo {.unnumbered}
 
