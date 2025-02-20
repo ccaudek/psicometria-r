@@ -556,6 +556,200 @@ ggplot(df, aes(x = group, y = bdi, color = group)) +
 
 Abbiamo esplorato diverse tecniche per sintetizzare e visualizzare i dati, includendo distribuzioni di frequenze, istogrammi e grafici di densità. Questi strumenti sono essenziali per comprendere meglio i dati e presentare risultati in modo chiaro e informativo. La **visualizzazione dei dati** ci aiuta a individuare possibili anomalie o situazioni inaspettate, prima di applicare modelli o interpretazioni statistiche.
 
+## Esercizi
+
+::: {.callout-tip title="Esercizio" collapse="true"}
+In questo esercizio, gli studenti raccoglieranno e analizzeranno dati relativi alla **Satisfaction With Life Scale (SWLS)** [@Diener1985] e alla **Scala della Rete Sociale di Lubben (LSNS-6)** [@Lubben2006]. L'obiettivo è comprendere la relazione tra la soddisfazione di vita e la qualità delle relazioni sociali, esplorando la distribuzione delle variabili e le possibili associazioni tra di esse.
+
+**Dati da Raccogliere** 
+
+Ogni studente dovrà raccogliere i seguenti dati su se stesso e sui membri del proprio gruppo:
+
+- **`student_id`**: Identificativo univoco dello studente.  
+- **`group`**: Gruppo di appartenenza (es. Gruppo 1, Gruppo 2, ecc.).  
+- **`swls`**: Punteggio totale sulla Satisfaction With Life Scale (SWLS).  
+- **`gender`**: Genere (`M`, `F`).  
+- **`lsns_total`**: Punteggio totale della Scala della Rete Sociale di Lubben (LSNS-6).  
+- **`lsns_family`**: Punteggio della sottoscala *engagement with family members* (somma degli item 1-3).  
+- **`lsns_friends`**: Punteggio della sottoscala *engagement with friends* (somma degli item 4-6).  
+
+Queste variabili permetteranno di investigare come la **soddisfazione di vita** sia associata alla **quantità e qualità delle relazioni sociali**, distinguendo tra contatti con la famiglia e con gli amici.
+
+**Obiettivi dell'Analisi**  
+
+L'esercizio è strutturato in tre parti:
+
+1. **Esplorazione dei dati e distribuzione delle variabili**  
+2. **Visualizzazione e confronto tra gruppi**  
+3. **Analisi delle possibili associazioni tra SWLS e le componenti della rete sociale**
+
+**Parte 1: Esplorazione dei Dati**
+
+**1.1 Caricamento e preparazione del dataset**
+
+1. Importa il dataset `swls_lsns_students.csv`.  
+2. Seleziona le variabili indicate sopra.  
+3. Controlla ed elimina eventuali duplicati.  
+4. Controlla ed elimina eventuali valori mancanti.  
+
+```r
+# Caricamento del dataset
+df <- rio::import(here::here("data", "swls_lsns_students.csv"))
+
+# Selezione delle variabili
+df <- df |> dplyr::select(student_id, group, swls, gender, 
+                          lsns_total, lsns_family, lsns_friends)
+
+# Rimozione dei duplicati
+df <- df[!duplicated(df$student_id), ]
+
+# Rimozione dei valori mancanti
+df <- df[complete.cases(df), ]
+```
+
+**1.2 Distribuzione delle variabili** 
+
+5. Calcola la **distribuzione di frequenza** per `swls`, `lsns_total`, `lsns_family` e `lsns_friends`:
+   - Frequenze assolute e relative  
+   - Frequenze cumulative  
+
+```r
+# Frequenze assolute e relative
+table(df$swls)
+prop.table(table(df$swls))
+
+table(df$lsns_total)
+prop.table(table(df$lsns_total))
+```
+
+6. Crea un **istogramma** della distribuzione delle variabili.
+
+```r
+ggplot(df, aes(x = swls)) +
+  geom_histogram(bins = 10, fill = "lightblue", color = "black") +
+  labs(title = "Distribuzione dei punteggi SWLS",
+       x = "Punteggio SWLS",
+       y = "Frequenza")
+```
+
+```r
+ggplot(df, aes(x = lsns_total)) +
+  geom_histogram(bins = 10, fill = "lightblue", color = "black") +
+  labs(title = "Distribuzione dei punteggi LSNS-6 (totale)",
+       x = "Punteggio LSNS-6",
+       y = "Frequenza")
+```
+
+7. Costruisci la **funzione di distribuzione empirica cumulativa (eCDF)**.
+
+```r
+ggplot(df, aes(x = swls)) +
+  stat_ecdf(geom = "step", color = "blue") +
+  labs(title = "Funzione di distribuzione empirica cumulativa SWLS",
+       x = "Punteggio SWLS",
+       y = "F(x)")
+```
+
+8. Genera la **curva di densità kernel (KDE)** per ogni variabile.
+
+```r
+ggplot(df, aes(x = swls)) +
+  geom_density(fill = "lightblue", alpha = 0.5) +
+  labs(title = "Curva di densità dei punteggi SWLS",
+       x = "Punteggio SWLS",
+       y = "Densità")
+```
+
+```r
+ggplot(df, aes(x = lsns_total)) +
+  geom_density(fill = "lightblue", alpha = 0.5) +
+  labs(title = "Curva di densità LSNS-6 (totale)",
+       x = "Punteggio LSNS-6",
+       y = "Densità")
+```
+
+**Parte 2: Confronto tra Gruppi**
+
+9. Costruisci una **tabella di contingenza** per `gender` e livello di rete sociale (alta o bassa, separando sopra e sotto la mediana di `lsns_total`).
+
+```r
+df <- df |> 
+  mutate(lsns_level = ifelse(lsns_total >= median(lsns_total), "Alto", "Basso"))
+
+table(df$gender, df$lsns_level)
+prop.table(table(df$gender, df$lsns_level), margin = 1)
+```
+
+10. Crea un **grafico a barre** per la distribuzione di `lsns_level` per genere.
+
+```r
+ggplot(df, aes(x = lsns_level, fill = gender)) +
+  geom_bar(position = "dodge") +
+  labs(title = "Distribuzione del livello di rete sociale per genere",
+       x = "Livello LSNS",
+       y = "Conteggio",
+       fill = "Genere")
+```
+
+11. Costruisci un **box plot** per confrontare `swls` tra i gruppi di rete sociale.
+
+```r
+ggplot(df, aes(x = lsns_level, y = swls, fill = lsns_level)) +
+  geom_boxplot() +
+  labs(title = "Distribuzione dei punteggi SWLS per livello di rete sociale",
+       x = "Livello di rete sociale",
+       y = "Punteggio SWLS")
+```
+
+12. Usa un **violin plot** per visualizzare la distribuzione dettagliata.
+
+```r
+ggplot(df, aes(x = lsns_level, y = swls, fill = lsns_level)) +
+  geom_violin(alpha = 0.5) +
+  geom_jitter(width = 0.1, alpha = 0.5) +
+  labs(title = "Violin plot con dati grezzi sovrapposti",
+       x = "Livello di rete sociale",
+       y = "Punteggio SWLS")
+```
+
+**Parte 3: Analisi delle Associazioni tra SWLS e la Rete Sociale**
+
+Il concetto di correlazione verrà approfondito nel @sec-correlation. Per i nostri scopi attuali, possiamo considerarlo come un indice numerico che misura l'intensità e la direzione dell'associazione tra due variabili. Un valore di 0 indica l'assenza di una relazione lineare tra le variabili, mentre i valori +1 e -1 indicano una relazione lineare perfetta, positiva o negativa rispettivamente. I valori intermedi tra -1 e +1 rappresentano associazioni più deboli o forti, a seconda della loro vicinanza agli estremi.
+
+13. **Correlazioni** tra SWLS e le sottoscale della LSNS.
+
+```r
+cor(df$swls, df$lsns_total, method = "pearson")
+cor(df$swls, df$lsns_family, method = "pearson")
+cor(df$swls, df$lsns_friends, method = "pearson")
+```
+
+Spiega in maniera inuitiva il significato dei valori ottenuti.
+
+14. **Grafico di dispersione** tra SWLS e LSNS-6 totale.
+
+Un grafico di dispersione è un diagramma cartesiano in cui ogni punto rappresenta un'osservazione (nel caso attuale, uno studente). Le coordinate dei punti sui due assi, X e Y, indicano i valori delle due variabili considerate per ciascuno studente.
+
+```r
+ggplot(df, aes(x = lsns_total, y = swls)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm", color = "red") +
+  labs(title = "Relazione tra rete sociale totale e SWLS",
+       x = "Punteggio LSNS-6 Totale",
+       y = "Punteggio SWLS")
+```
+
+Per ogni grafico generato, includi una descrizione chiara e concisa del suo significato in relazione ai dati analizzati.
+
+**Conclusioni**
+
+L'obiettivo è analizzare se e come la **soddisfazione di vita** degli studenti universitari è influenzata dalle **relazioni sociali**, distinguendo tra **engagement con la famiglia e con gli amici**. 
+
+**Consegna**
+
+Consegna il file `.qmd` contenente il codice, le visualizzazioni e le interpretazioni.
+:::
+
 ## Informazioni sull'Ambiente di Sviluppo {.unnumbered}
 
 ```{r}
