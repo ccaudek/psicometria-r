@@ -315,5 +315,197 @@ In definitiva, l’indagine causale contemporanea richiede un bilanciamento tra 
 
 Un sommario ironico di questi concetti è fornito nella vignetta di [xkcd](https://www.explainxkcd.com/wiki/index.php/2560:_Confounding_Variables).
 
+## Esercizi
+
+::: {.callout-tip title="Esercizio" collapse="true"}
+**Esercizi teorici**
+
+**Esercizio 1: Concetti chiave della causalità**
+
+Per ciascuna delle seguenti affermazioni, indica se è vera o falsa e spiega il motivo della tua risposta.  
+
+1. Se X e Y sono correlate, allora X causa Y.  
+2. Se condizioniamo su una variabile collider, la correlazione tra X e Y aumenta.  
+3. Il paradosso di Simpson dimostra che i risultati osservati in gruppi disaggregati devono sempre essere preferiti a quelli aggregati.  
+4. Gli esperimenti randomizzati controllati eliminano completamente il problema della confusione.  
+5. Un DAG può rappresentare relazioni causali solo se tutte le variabili sono misurate.  
+
+**Esercizio 2: Interpretazione di un DAG**
+
+Considera il seguente DAG che rappresenta l’effetto dell’esercizio fisico (X) sulla salute cardiaca (Y):
+
+```
+    X → Y
+    Z → X
+    Z → Y
+```
+dove:
+
+- **X** = Esercizio fisico  
+- **Y** = Salute cardiaca  
+- **Z** = Predisposizione genetica  
+
+1. Quale ruolo svolge **Z** in questo DAG? È una variabile confondente, collider o mediatore? 
+2. Per stimare correttamente l’effetto causale di **X** su **Y**, è necessario controllare per **Z**? Spiega il perché.  
+3. Se aggiungiamo un'altra variabile **W** che influenza sia **Z** che **X**, ma non direttamente **Y**, come cambierebbe il DAG?  
+
+**Esercizio 3: Causalità nei dati osservazionali**
+
+Leggi le seguenti situazioni e identifica quale problema potrebbe invalidare l’inferenza causale:  
+
+1. Uno studio osservazionale mostra che le persone che bevono caffè vivono più a lungo. Tuttavia, chi beve caffè tende ad avere un reddito più alto e accesso a migliori cure mediche.
+2. Un’azienda scopre che i dipendenti che frequentano corsi di formazione hanno salari più alti. Ma i corsi sono aperti solo a coloro che già hanno più esperienza lavorativa.  
+3. Una ricerca mostra che gli studenti che usano di più il tablet per studiare hanno punteggi più bassi nei test. Tuttavia, gli studenti con difficoltà di apprendimento tendono a usare di più il tablet.  
+
+Per ogni caso, identifica una possibile variabile confondente e suggerisci un metodo per controllare il bias.
+
+**Esercizi pratici in R**
+
+**Esercizio 4: Paradosso di Simpson con dati reali**
+
+Utilizziamo i dati delle ammissioni di UC Berkeley per verificare il paradosso di Simpson.
+
+```r
+# Dati di UC Berkeley
+data(UCBAdmissions)
+df <- as.data.frame(UCBAdmissions)
+
+# Convertiamo i dati in formato long
+df_long <- df |> tidyr::pivot_wider(names_from = "Admit", values_from = "Freq") 
+
+# Calcoliamo il tasso di ammissione per uomini e donne aggregati
+total_admitted_m <- sum(df$Freq[df$Admit == "Admitted" & df$Gender == "Male"])
+total_applicants_m <- sum(df$Freq[df$Gender == "Male"])
+
+total_admitted_f <- sum(df$Freq[df$Admit == "Admitted" & df$Gender == "Female"])
+total_applicants_f <- sum(df$Freq[df$Gender == "Female"])
+
+admit_rate_m <- total_admitted_m / total_applicants_m
+admit_rate_f <- total_admitted_f / total_applicants_f
+
+c(admit_rate_m, admit_rate_f)
+
+# Calcoliamo il tasso di ammissione per ogni dipartimento
+df_long$rate_m <- df_long$Admitted / (df_long$Admitted + df_long$Rejected)
+
+df_long |> dplyr::group_by(Dept) |> dplyr::summarize(mean_rate_m = mean(rate_m))
+
+# Visualizziamo il tasso di ammissione per genere e dipartimento
+ggplot(df_long, aes(x = Dept, y = rate_m, fill = Gender)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Tasso di Ammissione per Genere nei Dipartimenti UC Berkeley",
+       x = "Dipartimento", y = "Tasso di Ammissione")
+```
+
+**Domande:**  
+
+1. Dai dati aggregati, sembra che le donne siano discriminate. Questo è confermato dall'analisi per dipartimento?  
+2. Quale variabile confondente è responsabile del paradosso di Simpson in questo caso?  
+3. Come potrebbe essere interpretato male un modello che considera solo i dati aggregati?  
+
+**Esercizio 5: Analisi causale con DAG**
+
+Usiamo il pacchetto `dagitty` per costruire e analizzare un DAG.
+
+```r
+library(dagitty)
+
+dag <- dagitty("dag {
+    E -> H
+    G -> E
+    G -> H
+}")
+
+plot(graphLayout(dag))
+```
+
+**Domande:**  
+
+1. Quali sono le variabili confondenti nel DAG?  
+2. Quali percorsi sono back-door paths?  
+3. Quale set di variabili dovremmo controllare per ottenere una stima non distorta dell’effetto di **E** su **H**?  
+:::
+
+::: {.callout-tip title="Soluzione" collapse="true"}
+
+**Esercizio 1: Concetti chiave della causalità**
+
+1. **Falso** – La correlazione non implica causalità. Potrebbero esserci variabili confondenti o una relazione di causalità inversa tra X e Y.  
+2. **Vero** – Condizionare su un collider introduce un’associazione spuriosa tra X e Y, aumentando la correlazione.  
+3. **Falso** – Il paradosso di Simpson mostra che i dati aggregati possono essere fuorvianti, ma non significa che i dati disaggregati siano sempre più affidabili. È necessario analizzare il contesto e le possibili variabili confondenti.  
+4. **Falso** – Gli RCT minimizzano i problemi di confondimento grazie alla randomizzazione, ma possono comunque avere limitazioni dovute a bias di selezione, mancate assegnazioni casuali, e problemi etici.  
+5. **Falso** – Un DAG può rappresentare le relazioni causali anche se alcune variabili non sono misurate. Tuttavia, la validità dell'inferenza dipende dalla correttezza del DAG.  
+
+**Esercizio 2: Interpretazione di un DAG**
+
+1. **Z è una variabile confondente**, poiché influenza sia X che Y, creando un percorso di back-door.  
+2. **Sì**, per stimare correttamente l’effetto di X su Y dobbiamo controllare per Z. Se non lo facciamo, la relazione osservata tra X e Y includerà l’influenza di Z.  
+3. Se aggiungiamo una variabile W che influenza Z e X, il DAG diventa:  
+
+   ```
+       W → Z → X → Y
+       W → X
+       Z → Y
+   ```
+   
+   Ora W è una variabile a monte di X e Z, ma non confonde direttamente la relazione tra X e Y.  
+
+**Esercizio 3: Causalità nei dati osservazionali**
+
+1. **Confondente: reddito** – Le persone con un reddito più alto possono avere accesso a cure migliori, che a loro volta migliorano la salute. Soluzione: **Propensity Score Matching (PSM)** o regressione con controllo per il reddito.  
+2. **Confondente: esperienza lavorativa** – Chi ha più esperienza può già avere salari più alti. Soluzione: **Matching o modello di regressione con controllo per esperienza lavorativa**.  
+3. **Confondente: difficoltà di apprendimento** – Studenti con difficoltà possono usare più il tablet e avere punteggi più bassi. Soluzione: **Includere il livello di abilità di partenza nei modelli statistici**.  
+
+**Soluzioni esercizi pratici in R**
+
+**Esercizio 4: Paradosso di Simpson con dati reali**
+
+1. **Differenza nei tassi di ammissione aggregati:**  
+
+   ```r
+   admit_rate_m <- total_admitted_m / total_applicants_m
+   admit_rate_f <- total_admitted_f / total_applicants_f
+   ```
+   **Risultato:**  
+   
+   - Tasso di ammissione uomini: ~44%  
+   - Tasso di ammissione donne: ~35%  
+   → **Sembra che le donne siano discriminate.**  
+
+2. **Analisi per dipartimento:** 
+
+   ```r
+   df_long |> dplyr::group_by(Dept) |> dplyr::summarize(mean_rate_m = mean(rate_m))
+   ```
+   - Nei singoli dipartimenti, le donne hanno tassi di ammissione **uguali o superiori** rispetto agli uomini.  
+   → **Il problema non è discriminazione diretta, ma la distribuzione delle domande nei dipartimenti.**  
+
+3. **Conclusione:** Il paradosso di Simpson mostra che le donne tendono a candidarsi più spesso a dipartimenti molto competitivi con bassi tassi di ammissione, mentre gli uomini si candidano di più in dipartimenti con tassi di ammissione più alti.  
+
+  **Moralità**: Non sempre una differenza aggregata indica un bias. Bisogna analizzare i sottogruppi.  
+
+**Esercizio 5: Analisi causale con DAG**
+
+1. **Variabili confondenti**  
+   - G è una variabile confondente perché influenza sia E (esposizione) che H (esito).  
+
+2. **Back-door paths**  
+   - Il percorso `E ← G → H` è un back-door path che deve essere bloccato.  
+
+3. **Soluzione: controllare per G** 
+
+   ```r
+   adjustmentSets(dag)
+   ```
+   Output: `{G}`  
+   → **Controllare per G permette di ottenere una stima causale non distorta di E su H.**  
+
+**Conclusioni**
+
+1. **La correlazione non implica causalità**. Abbiamo visto come variabili confondenti possano generare relazioni spurie.  
+2. **Il paradosso di Simpson dimostra che i dati aggregati possono essere fuorvianti**. Bisogna sempre analizzare i sottogruppi.  
+3. **I DAG aiutano a identificare le variabili da controllare per ottenere stime causali corrette**.  
+4. **L’analisi causale è fondamentale per evitare inferenze errate e migliorare la qualità della ricerca**.  
+:::
 
 ## Bibliografia {.unnumbered}
