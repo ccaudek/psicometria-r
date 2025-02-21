@@ -458,8 +458,7 @@ Tuttavia, è cruciale riconoscere che i modelli basati sul concetto di famiglie 
 
 ## Esercizi
 
-::: {#exr-conjugate-families-1}
-
+::: {.callout-tip title="Esercizio 1" collapse="true"}
 Si consideri lo studio "*An excess of positive results: Comparing the standard psychology literature with registered reports*" di @scheel2021excess. In questo lavoro, gli autori confrontano il tasso di risultati positivi $\theta$ ottenuti in studi psicologici pubblicati senza preregistrazione con quelli pubblicati con preregistrazione. Si utilizzi il tasso di successo riportato negli studi preregistrati per costruire una distribuzione a priori per il parametro $\theta$.
 
 Secondo i risultati degli studi preregistrati, gli autori riscontrano un tasso di successo del 43.66%, con un intervallo di confidenza al 95% [CI] = [31.91, 55.95]. Sulla base di questi dati, si costruisca una distribuzione beta come distribuzione a priori per $\theta$, seguendo il metodo illustrato da @Johnson2022bayesrules.
@@ -469,28 +468,587 @@ Successivamente, utilizzando questa distribuzione beta come distribuzione a prio
 (b) Un tasso di successo del 96% (come riportato per gli studi non preregistrati da @scheel2021excess).
 
 Infine, si commentino i risultati derivanti dall'analisi delle distribuzioni a posteriori ottenute per entrambi gli scenari.
-
 :::
 
-::: {#exr-conjugate-families-2}
+::: {.callout-tip title="Soluzione 1" collapse="true"}
+```r
+# Caricamento delle librerie necessarie
+library(ggplot2)
+library(tidyr)
+library(dplyr)
 
+# Funzione per trovare i parametri della distribuzione beta
+find_beta_parameters <- function(mean, lower, upper, conf_level = 0.95) {
+  # Funzione obiettivo da minimizzare
+  objective <- function(alpha) {
+    beta <- alpha * (1 - mean) / mean
+    predicted_ci <- qbeta(c((1-conf_level)/2, 1-(1-conf_level)/2), alpha, beta)
+    error <- (predicted_ci[1] - lower)^2 + (predicted_ci[2] - upper)^2
+    return(error)
+  }
+  
+  # Ottimizzazione per trovare alpha
+  result <- optimize(objective, interval = c(0.1, 100))
+  alpha <- result$minimum
+  beta <- alpha * (1 - mean) / mean
+  
+  return(list(alpha = alpha, beta = beta))
+}
+
+# Parametri degli studi preregistrati
+mean_preregistered <- 0.4366
+ci_lower <- 0.3191
+ci_upper <- 0.5595
+
+# Calcolo dei parametri della distribuzione beta a priori
+prior_params <- find_beta_parameters(mean_preregistered, ci_lower, ci_upper)
+alpha_prior <- prior_params$alpha
+beta_prior <- prior_params$beta
+
+# Dati osservati
+n <- 152  # numero di studi
+successes_60 <- round(0.60 * n)  # scenario (a)
+successes_96 <- round(0.96 * n)  # scenario (b)
+
+# Calcolo delle distribuzioni a posteriori
+alpha_post_60 <- alpha_prior + successes_60
+beta_post_60 <- beta_prior + (n - successes_60)
+
+alpha_post_96 <- alpha_prior + successes_96
+beta_post_96 <- beta_prior + (n - successes_96)
+
+# Creazione del dataframe per il plotting
+theta <- seq(0, 1, length.out = 1000)
+
+df <- data.frame(
+  theta = rep(theta, 3),
+  density = c(
+    dbeta(theta, alpha_prior, beta_prior),
+    dbeta(theta, alpha_post_60, beta_post_60),
+    dbeta(theta, alpha_post_96, beta_post_96)
+  ),
+  distribution = rep(c("Priori", "Posteriori (60%)", "Posteriori (96%)"), 
+                    each = length(theta))
+)
+
+# Creazione del grafico
+p <- ggplot(df, aes(x = theta, y = density, color = distribution)) +
+  geom_line(size = 1) +
+  theme_minimal() +
+  labs(
+    title = "Distribuzioni a Priori e a Posteriori",
+    x = expression(theta),
+    y = "Densità",
+    color = "Distribuzione"
+  ) +
+  theme(legend.position = "bottom")
+
+# Calcolo degli intervalli di credibilità al 95%
+credible_intervals <- data.frame(
+  Distribution = c("Priori", "Posteriori (60%)", "Posteriori (96%)"),
+  Mean = c(
+    alpha_prior / (alpha_prior + beta_prior),
+    alpha_post_60 / (alpha_post_60 + beta_post_60),
+    alpha_post_96 / (alpha_post_96 + beta_post_96)
+  ),
+  Lower = c(
+    qbeta(0.025, alpha_prior, beta_prior),
+    qbeta(0.025, alpha_post_60, beta_post_60),
+    qbeta(0.025, alpha_post_96, beta_post_96)
+  ),
+  Upper = c(
+    qbeta(0.975, alpha_prior, beta_prior),
+    qbeta(0.975, alpha_post_60, beta_post_60),
+    qbeta(0.975, alpha_post_96, beta_post_96)
+  )
+)
+
+# Visualizzazione dei risultati
+print("Parametri della distribuzione beta a priori:")
+print(paste("alpha =", round(alpha_prior, 2)))
+print(paste("beta =", round(beta_prior, 2)))
+
+print("\nIntervalli di credibilità al 95%:")
+print(credible_intervals)
+
+# Visualizza il grafico
+print(p)
+```
+:::
+
+
+::: {.callout-tip title="Esercizio 2" collapse="true"}
 Tra i fattori che possono influenzare il rapporto tra i sessi alla nascita c'è la condizione materna di placenta previa, una condizione insolita della gravidanza in cui la placenta è impiantata in basso nell'utero, impedendo un normale parto vaginale del feto. Uno studio condotto in Germania ha esaminato il sesso dei neonati in casi di placenta previa e ha riscontrato che, su un totale di 980 nascite, 437 erano femmine.
 
 Quanta evidenza fornisce questo studio a supporto dell'ipotesi che la proporzione di nascite femminili nella popolazione di placenta previa sia inferiore a 0.485, che rappresenta la proporzione di nascite femminili nella popolazione generale? (Esercizio tratto da @gelman1995bayesian)
-
 :::
 
-::: {#exr-conjugate-families-3}
+::: {.callout-tip title="Soluzione 2" collapse="true"}
+```r
+# Caricamento delle librerie necessarie
+library(ggplot2)
 
+# Dati osservati
+n <- 980        # numero totale di nascite
+y <- 437        # numero di femmine
+p0 <- 0.485     # proporzione nella popolazione generale
+
+# Calcolo della proporzione osservata
+p_hat <- y/n
+print(paste("Proporzione osservata di femmine:", round(p_hat, 3)))
+
+# Test dell'ipotesi utilizzando il Bayes Factor
+# H0: p = 0.485 vs H1: p < 0.485
+
+# Funzione per calcolare la verosimiglianza marginale sotto H1
+marginal_likelihood_h1 <- function(y, n, p_max = 0.485) {
+  # Integrazione numerica sulla distribuzione uniforme tra 0 e p_max
+  p_grid <- seq(0, p_max, length.out = 1000)
+  likelihood <- dbinom(y, n, p_grid)
+  prior <- dunif(p_grid, 0, p_max)
+  mean(likelihood * prior) * p_max
+}
+
+# Verosimiglianza sotto H0
+likelihood_h0 <- dbinom(y, n, p0)
+
+# Verosimiglianza marginale sotto H1
+marg_lik_h1 <- marginal_likelihood_h1(y, n)
+
+# Calcolo del Bayes Factor
+bf10 <- marg_lik_h1 / likelihood_h0
+print(paste("Bayes Factor (H1 vs H0):", round(bf10, 2)))
+
+# Visualizzazione delle distribuzioni a posteriori
+p_grid <- seq(0, 1, length.out = 1000)
+likelihood <- dbinom(y, n, p_grid)
+prior <- dunif(p_grid, 0, 1)
+posterior <- likelihood * prior
+posterior <- posterior / sum(posterior)
+
+# Creazione del dataframe per il plotting
+df <- data.frame(
+  p = p_grid,
+  Posterior = posterior / max(posterior)  # normalizzato per la visualizzazione
+)
+
+# Creazione del grafico
+p <- ggplot(df, aes(x = p, y = Posterior)) +
+  geom_line(size = 1) +
+  geom_vline(xintercept = p0, linetype = "dashed", color = "red") +
+  geom_vline(xintercept = p_hat, linetype = "dashed", color = "blue") +
+  labs(
+    title = "Distribuzione a Posteriori della Proporzione di Nascite Femminili",
+    x = "Proporzione di Nascite Femminili (p)",
+    y = "Densità a Posteriori (normalizzata)"
+  ) +
+  annotate("text", x = p0, y = 0.1, 
+           label = "Popolazione Generale", 
+           angle = 90, vjust = -0.5, color = "red") +
+  annotate("text", x = p_hat, y = 0.1, 
+           label = "Proporzione Osservata", 
+           angle = 90, vjust = -0.5, color = "blue")
+
+# Calcolo dell'intervallo di credibilità al 95%
+sorted_p <- sort(p_grid)
+cum_post <- cumsum(posterior)
+lower <- sorted_p[which(cum_post > 0.025)[1]]
+upper <- sorted_p[which(cum_post > 0.975)[1]]
+
+print(paste("Intervallo di credibilità al 95%: [", 
+            round(lower, 3), ",", round(upper, 3), "]"))
+
+# Calcolo della probabilità a posteriori che p < 0.485
+prob_less_than_p0 <- sum(posterior[p_grid < p0])
+print(paste("Probabilità a posteriori che p < 0.485:", 
+            round(prob_less_than_p0, 3)))
+
+# Visualizza il grafico
+print(p)
+```
+:::
+
+::: {.callout-tip title="Esercizio 3" collapse="true"}
 Per valutare la sensibilità della soluzione precedente alla scelta della distribuzione a priori, ripetere l'esercizio utilizzando come distribuzione a priori per la proporzione di nascite femminili una distribuzione Beta(48.5, 51.5). Questa distribuzione è centrata su 0.485 e concentra la maggior parte della sua massa nell'intervallo [0.385, 0.585]. Interpretare i risultati ottenuti.
-
 :::
 
-::: {#exr-conjugate-families-4}
+::: {.callout-tip title="Soluzione 3" collapse="true"}
+```r
+# Caricamento delle librerie necessarie
+library(ggplot2)
 
+# Dati osservati
+n <- 980        # numero totale di nascite
+y <- 437        # numero di femmine
+p0 <- 0.485     # proporzione nella popolazione generale
+
+# Parametri della distribuzione beta a priori
+alpha_prior <- 48.5
+beta_prior <- 51.5
+
+# Calcolo dei parametri della distribuzione beta a posteriori
+alpha_post <- alpha_prior + y
+beta_post <- beta_prior + (n - y)
+
+# Creazione della griglia per il plotting
+p_grid <- seq(0, 1, length.out = 1000)
+
+# Calcolo delle densità
+prior_density <- dbeta(p_grid, alpha_prior, beta_prior)
+posterior_density <- dbeta(p_grid, alpha_post, beta_post)
+
+# Creazione del dataframe per il plotting
+df <- data.frame(
+  p = rep(p_grid, 2),
+  density = c(prior_density, posterior_density),
+  distribution = rep(c("Priori Beta(48.5, 51.5)", "Posteriori"), each = length(p_grid))
+)
+
+# Creazione del grafico
+p <- ggplot(df, aes(x = p, y = density, color = distribution)) +
+  geom_line(size = 1) +
+  geom_vline(xintercept = p0, linetype = "dashed", color = "red") +
+  labs(
+    title = "Distribuzioni a Priori e a Posteriori",
+    subtitle = "Proporzione di Nascite Femminili con Placenta Previa",
+    x = "Proporzione di Nascite Femminili (p)",
+    y = "Densità",
+    color = "Distribuzione"
+  ) +
+  theme(legend.position = "bottom") +
+  annotate("text", x = p0, y = max(posterior_density)/2, 
+           label = "Popolazione Generale (0.485)", 
+           angle = 90, vjust = -0.5, color = "red")
+
+# Calcolo statistiche rilevanti
+# Media a priori e posteriori
+prior_mean <- alpha_prior / (alpha_prior + beta_prior)
+post_mean <- alpha_post / (alpha_post + beta_post)
+
+# Intervalli di credibilità al 95%
+prior_ci <- qbeta(c(0.025, 0.975), alpha_prior, beta_prior)
+post_ci <- qbeta(c(0.025, 0.975), alpha_post, beta_post)
+
+# Probabilità a posteriori che p < 0.485
+prob_less_than_p0 <- pbeta(p0, alpha_post, beta_post)
+
+# Output dei risultati
+cat("\nRisultati dell'analisi:\n")
+cat("------------------------\n")
+cat("Dati osservati:\n")
+cat(sprintf("Numero totale di nascite: %d\n", n))
+cat(sprintf("Numero di femmine: %d\n", y))
+cat(sprintf("Proporzione osservata: %.3f\n\n", y/n))
+
+cat("Analisi a priori:\n")
+cat(sprintf("Media a priori: %.3f\n", prior_mean))
+cat(sprintf("Intervallo di credibilità al 95%%: [%.3f, %.3f]\n\n", 
+            prior_ci[1], prior_ci[2]))
+
+cat("Analisi a posteriori:\n")
+cat(sprintf("Media a posteriori: %.3f\n", post_mean))
+cat(sprintf("Intervallo di credibilità al 95%%: [%.3f, %.3f]\n", 
+            post_ci[1], post_ci[2]))
+cat(sprintf("Probabilità che p < %.3f: %.3f\n", p0, prob_less_than_p0))
+
+# Visualizza il grafico
+print(p)
+```
+```r
+# Caricamento delle librerie necessarie
+library(ggplot2)
+
+# Dati osservati
+n <- 980        # numero totale di nascite
+y <- 437        # numero di femmine
+p0 <- 0.485     # proporzione nella popolazione generale
+
+# Parametri della distribuzione beta a priori
+alpha_prior <- 48.5
+beta_prior <- 51.5
+
+# Calcolo dei parametri della distribuzione beta a posteriori
+alpha_post <- alpha_prior + y
+beta_post <- beta_prior + (n - y)
+
+# Creazione della griglia per il plotting
+p_grid <- seq(0, 1, length.out = 1000)
+
+# Calcolo delle densità
+prior_density <- dbeta(p_grid, alpha_prior, beta_prior)
+posterior_density <- dbeta(p_grid, alpha_post, beta_post)
+
+# Creazione del dataframe per il plotting
+df <- data.frame(
+  p = rep(p_grid, 2),
+  density = c(prior_density, posterior_density),
+  distribution = rep(c("Priori Beta(48.5, 51.5)", "Posteriori"), each = length(p_grid))
+)
+
+# Creazione del grafico
+p <- ggplot(df, aes(x = p, y = density, color = distribution)) +
+  geom_line(size = 1) +
+  geom_vline(xintercept = p0, linetype = "dashed", color = "red") +
+  theme_minimal() +
+  labs(
+    title = "Distribuzioni a Priori e a Posteriori",
+    subtitle = "Proporzione di Nascite Femminili con Placenta Previa",
+    x = "Proporzione di Nascite Femminili (p)",
+    y = "Densità",
+    color = "Distribuzione"
+  ) +
+  theme(legend.position = "bottom") +
+  annotate("text", x = p0, y = max(posterior_density)/2, 
+           label = "Popolazione Generale (0.485)", 
+           angle = 90, vjust = -0.5, color = "red")
+
+# Calcolo statistiche rilevanti
+# Media a priori e posteriori
+prior_mean <- alpha_prior / (alpha_prior + beta_prior)
+post_mean <- alpha_post / (alpha_post + beta_post)
+
+# Intervalli di credibilità al 95%
+prior_ci <- qbeta(c(0.025, 0.975), alpha_prior, beta_prior)
+post_ci <- qbeta(c(0.025, 0.975), alpha_post, beta_post)
+
+# Probabilità a posteriori che p < 0.485
+prob_less_than_p0 <- pbeta(p0, alpha_post, beta_post)
+
+# Output dei risultati
+cat("\nRisultati dell'analisi:\n")
+cat("------------------------\n")
+cat("Dati osservati:\n")
+cat(sprintf("Numero totale di nascite: %d\n", n))
+cat(sprintf("Numero di femmine: %d\n", y))
+cat(sprintf("Proporzione osservata: %.3f\n\n", y/n))
+
+cat("Analisi a priori:\n")
+cat(sprintf("Media a priori: %.3f\n", prior_mean))
+cat(sprintf("Intervallo di credibilità al 95%%: [%.3f, %.3f]\n\n", 
+            prior_ci[1], prior_ci[2]))
+
+cat("Analisi a posteriori:\n")
+cat(sprintf("Media a posteriori: %.3f\n", post_mean))
+cat(sprintf("Intervallo di credibilità al 95%%: [%.3f, %.3f]\n", 
+            post_ci[1], post_ci[2]))
+cat(sprintf("Probabilità che p < %.3f: %.3f\n", p0, prob_less_than_p0))
+
+# Visualizza il grafico
+print(p)
+
+```
+
+I risultati mostrano che:
+
+1. La proporzione osservata nel campione (0.446) è inferiore al valore di riferimento della popolazione generale (0.485)
+
+2. La distribuzione a priori Beta(48.5, 51.5):
+
+- Ha media 0.485
+- Riflette la nostra conoscenza iniziale sulla proporzione di nascite femminili
+- Fornisce un'incertezza ragionevole attorno al valore di riferimento
+
+3. La distribuzione a posteriori:
+
+- Ha una media di circa 0.447
+- L'intervallo di credibilità al 95% esclude il valore di riferimento 0.485
+- Indica una probabilità elevata che la vera proporzione sia inferiore a 0.485
+
+4. Questa analisi suggerisce che:
+
+- Esiste un'associazione tra placenta previa e una minor proporzione di nascite femminili
+- L'effetto è moderato ma statisticamente rilevante
+- La stima è abbastanza precisa grazie alla dimensione campionaria considerevole
+:::
+
+::: {.callout-tip title="Esercizio 4" collapse="true"}
 In uno studio recente, @gori2024italian hanno esaminato un campione di 202 adulti italiani e hanno riscontrato una prevalenza di mancini del 6.4%. Una meta-analisi di @papadatou2020human, condotta su un totale di 2,396,170 soggetti, riporta che la proporzione di mancini varia tra il 9.3% e il 18.1%, a seconda di come viene misurata la lateralità manuale. Inoltre, @papadatou2020human mostrano che la prevalenza della lateralità manuale varia tra i paesi e nel tempo. Considerata questa incertezza, si determini la distribuzione a posteriori che combina i dati dello studio di @gori2024italian con le informazioni pregresse fornite da Papadatou-Pastou et al. (2020). Le informazioni di @papadatou2020human possono essere espresse in termini di una distribuzione Beta(8, 60).
-
 :::
+
+::: {.callout-tip title="Soluzione 4" collapse="true"}
+```r
+# Caricamento delle librerie necessarie
+library(ggplot2)
+
+# Dati dello studio di Gori et al. (2024)
+n <- 202       # dimensione del campione
+y <- round(0.064 * n)  # numero di mancini (6.4% del campione)
+
+# Parametri della distribuzione beta a priori (da Papadatou-Pastou et al., 2020)
+alpha_prior <- 8
+beta_prior <- 60
+
+# Calcolo dei parametri della distribuzione beta a posteriori
+alpha_post <- alpha_prior + y
+beta_post <- beta_prior + (n - y)
+
+# Creazione della griglia per il plotting
+p_grid <- seq(0, 0.3, length.out = 1000)  # limitato a 0.3 per migliore visualizzazione
+
+# Calcolo delle densità
+prior_density <- dbeta(p_grid, alpha_prior, beta_prior)
+posterior_density <- dbeta(p_grid, alpha_post, beta_post)
+
+# Creazione del dataframe per il plotting
+df <- data.frame(
+  p = rep(p_grid, 2),
+  density = c(prior_density, posterior_density),
+  distribution = rep(c("Priori (Papadatou-Pastou et al., 2020)", 
+                      "Posteriori (con dati Gori et al., 2024)"), 
+                    each = length(p_grid))
+)
+
+# Calcolo statistiche rilevanti
+prior_mean <- alpha_prior / (alpha_prior + beta_prior)
+post_mean <- alpha_post / (alpha_post + beta_post)
+
+prior_ci <- qbeta(c(0.025, 0.975), alpha_prior, beta_prior)
+post_ci <- qbeta(c(0.025, 0.975), alpha_post, beta_post)
+
+# Creazione del grafico
+p <- ggplot(df, aes(x = p, y = density, color = distribution)) +
+  geom_line(size = 1) +
+  geom_vline(xintercept = 0.064, linetype = "dashed", color = "red") +
+  labs(
+    title = "Distribuzione della Prevalenza dei Mancini",
+    subtitle = "Confronto tra Distribuzione a Priori e a Posteriori",
+    x = "Proporzione di Mancini",
+    y = "Densità",
+    color = "Distribuzione"
+  ) +
+  theme(legend.position = "bottom") +
+  annotate("text", x = 0.064, y = max(posterior_density)/2, 
+           label = "Valore osservato (6.4%)", 
+           angle = 90, vjust = -0.5, color = "red")
+
+# Output dei risultati
+cat("\nRisultati dell'analisi:\n")
+cat("------------------------\n")
+cat("Distribuzione a priori (Papadatou-Pastou et al., 2020):\n")
+cat(sprintf("Media: %.1f%%\n", prior_mean * 100))
+cat(sprintf("Intervallo di credibilità al 95%%: [%.1f%%, %.1f%%]\n\n", 
+            prior_ci[1] * 100, prior_ci[2] * 100))
+
+cat("Dati osservati (Gori et al., 2024):\n")
+cat(sprintf("Campione: %d individui\n", n))
+cat(sprintf("Mancini osservati: %d (%.1f%%)\n\n", y, y/n * 100))
+
+cat("Distribuzione a posteriori:\n")
+cat(sprintf("Media: %.1f%%\n", post_mean * 100))
+cat(sprintf("Intervallo di credibilità al 95%%: [%.1f%%, %.1f%%]\n", 
+            post_ci[1] * 100, post_ci[2] * 100))
+
+# Visualizza il grafico
+print(p)
+```
+
+```r
+# Caricamento delle librerie necessarie
+library(ggplot2)
+
+# Dati dello studio di Gori et al. (2024)
+n <- 202       # dimensione del campione
+y <- round(0.064 * n)  # numero di mancini (6.4% del campione)
+
+# Parametri della distribuzione beta a priori (da Papadatou-Pastou et al., 2020)
+alpha_prior <- 8
+beta_prior <- 60
+
+# Calcolo dei parametri della distribuzione beta a posteriori
+alpha_post <- alpha_prior + y
+beta_post <- beta_prior + (n - y)
+
+# Creazione della griglia per il plotting
+p_grid <- seq(0, 0.3, length.out = 1000)  # limitato a 0.3 per migliore visualizzazione
+
+# Calcolo delle densità
+prior_density <- dbeta(p_grid, alpha_prior, beta_prior)
+posterior_density <- dbeta(p_grid, alpha_post, beta_post)
+
+# Creazione del dataframe per il plotting
+df <- data.frame(
+  p = rep(p_grid, 2),
+  density = c(prior_density, posterior_density),
+  distribution = rep(c("Priori (Papadatou-Pastou et al., 2020)", 
+                      "Posteriori (con dati Gori et al., 2024)"), 
+                    each = length(p_grid))
+)
+
+# Calcolo statistiche rilevanti
+prior_mean <- alpha_prior / (alpha_prior + beta_prior)
+post_mean <- alpha_post / (alpha_post + beta_post)
+
+prior_ci <- qbeta(c(0.025, 0.975), alpha_prior, beta_prior)
+post_ci <- qbeta(c(0.025, 0.975), alpha_post, beta_post)
+
+# Creazione del grafico
+p <- ggplot(df, aes(x = p, y = density, color = distribution)) +
+  geom_line(size = 1) +
+  geom_vline(xintercept = 0.064, linetype = "dashed", color = "red") +
+  theme_minimal() +
+  labs(
+    title = "Distribuzione della Prevalenza dei Mancini",
+    subtitle = "Confronto tra Distribuzione a Priori e a Posteriori",
+    x = "Proporzione di Mancini",
+    y = "Densità",
+    color = "Distribuzione"
+  ) +
+  theme(legend.position = "bottom") +
+  annotate("text", x = 0.064, y = max(posterior_density)/2, 
+           label = "Valore osservato (6.4%)", 
+           angle = 90, vjust = -0.5, color = "red")
+
+# Output dei risultati
+cat("\nRisultati dell'analisi:\n")
+cat("------------------------\n")
+cat("Distribuzione a priori (Papadatou-Pastou et al., 2020):\n")
+cat(sprintf("Media: %.1f%%\n", prior_mean * 100))
+cat(sprintf("Intervallo di credibilità al 95%%: [%.1f%%, %.1f%%]\n\n", 
+            prior_ci[1] * 100, prior_ci[2] * 100))
+
+cat("Dati osservati (Gori et al., 2024):\n")
+cat(sprintf("Campione: %d individui\n", n))
+cat(sprintf("Mancini osservati: %d (%.1f%%)\n\n", y, y/n * 100))
+
+cat("Distribuzione a posteriori:\n")
+cat(sprintf("Media: %.1f%%\n", post_mean * 100))
+cat(sprintf("Intervallo di credibilità al 95%%: [%.1f%%, %.1f%%]\n", 
+            post_ci[1] * 100, post_ci[2] * 100))
+
+# Visualizza il grafico
+print(p)
+
+```
+
+L'analisi bayesiana della prevalenza dei mancini combina le informazioni provenienti dalla meta-analisi di Papadatou-Pastou et al. (2020) con i dati più recenti di Gori et al. (2024). Di seguito sono riportati i principali risultati:
+
+1. **Distribuzione a priori** (basata su Papadatou-Pastou et al., 2020):  
+   - Modellata come una distribuzione Beta(8, 60).  
+   - Presenta una media intorno all'11,8%.  
+   - Riflette la variabilità osservata nella meta-analisi.  
+   - L'intervallo di credibilità al 95% copre approssimativamente il range 9,3%-18,1%, come riportato nello studio.  
+
+2. **Dati osservati** (Gori et al., 2024):  
+   - 202 partecipanti italiani.  
+   - 13 mancini, corrispondenti al 6,4% del campione.  
+   - Questo valore è inferiore alla media stimata dalla meta-analisi globale.  
+
+3. **Distribuzione a posteriori**:  
+   - Combina le informazioni a priori con i nuovi dati osservati.  
+   - La media a posteriori si è spostata verso il basso rispetto alla distribuzione a priori.  
+   - L'intervallo di credibilità si è ristretto, indicando una riduzione dell'incertezza.  
+   - Maggiore peso è stato attribuito ai dati italiani rispetto alla meta-analisi globale.  
+
+4. **Interpretazione**:  
+   - La stima finale suggerisce una prevalenza di mancini nella popolazione italiana inferiore alla media globale.  
+   - Questo risultato potrebbe riflettere specificità culturali o metodologiche dello studio italiano.  
+   - L'incertezza nella stima finale è diminuita rispetto alla meta-analisi, ma rimane significativa.  
+   - I risultati supportano l'ipotesi di una variabilità geografica nella prevalenza della mancinismo.  
+
+La distribuzione a posteriori fornisce una sintesi equilibrata tra le conoscenze globali precedenti e i dati specifici della popolazione italiana, suggerendo che potrebbero esistere peculiarità culturali o demografiche che influenzano la prevalenza del mancinismo in Italia.
+:::
+
+
 
 ## Informazioni sull'Ambiente di Sviluppo {.unnumbered}
 

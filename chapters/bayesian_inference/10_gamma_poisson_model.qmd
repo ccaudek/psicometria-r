@@ -7,7 +7,7 @@ execute:
 
 **Prerequisiti**
 
-- Leggere il @sec-discr-rv-distributions e il @sec-cont-rv-distr della dispensa.
+- Leggere il @sec-prob-discrete-prob-distr e il @sec-prob-cont-prob-distr della dispensa.
 
 **Concetti e competenze chiave**
 
@@ -380,8 +380,7 @@ Il modello Gamma-Poisson offre un framework robusto per l'inferenza bayesiana su
 
 ## Esercizi
 
-::: {#exr-gamma-poisson-1}
-
+::: {.callout-tip title="Esercizio" collapse="true"}
 Consideriamo uno studio longitudinale su coppie, dove i partecipanti registrano quotidianamente la frequenza con cui nascondono il loro comportamento di fumo al partner. Basandoci sui dati di @scholz2021people, assumiamo che il tasso medio di nascondere il fumo sia di 1.52 volte al giorno. Supponiamo di avere i seguenti dati giornalieri per un partecipante:
 
 - Giorno 1: 2 volte.
@@ -390,7 +389,77 @@ Consideriamo uno studio longitudinale su coppie, dove i partecipanti registrano 
 - Giorno 4: 3 volte.
 
 Utilizzare un modello Gamma-Poisson per stimare la distribuzione a posteriori del tasso individuale di nascondere il fumo per un partecipante specifico, dato il suo insieme di osservazioni giornaliere.
+:::
 
+::: {.callout-tip title="Soluzione" collapse="true"}
+Vogliamo stimare quante volte al giorno una persona tende a nascondere il proprio fumo al partner. Abbiamo quattro giorni di dati su questa persona e, grazie a un precedente studio, sappiamo che in media le persone lo fanno circa **1.52 volte al giorno**.
+
+Ma i dati di una sola persona sono pochi, quindi useremo un **approccio bayesiano** per combinare:
+
+1. **Le informazioni preesistenti** (dal precedente studio),
+2. **Le nuove osservazioni** (quanti eventi sono stati registrati nei quattro giorni).
+
+Con un modello **Gamma-Poisson**, possiamo aggiornare la nostra stima e ottenere una **distribuzione a posteriori**, che ci dirà quali sono i valori più probabili per il tasso di nascondimento di questa persona.
+
+```r
+# Dati osservati: numero di volte che la persona ha nascosto il fumo ogni giorno
+osservazioni <- c(2, 0, 1, 3)
+
+# Numero totale di giorni osservati
+n_giorni <- length(osservazioni)
+
+# Numero totale di eventi (quante volte ha nascosto il fumo in totale)
+eventi_totali <- sum(osservazioni)
+
+# Informazione a priori dallo studio precedente
+media_priori <- 1.52
+forma_priori <- 3   # Parametro di forma scelto per un'incertezza moderata
+tasso_priori <- forma_priori / media_priori  # Parametro di scala
+
+# Aggiornamento bayesiano: parametri della distribuzione a posteriori
+forma_post <- forma_priori + eventi_totali
+tasso_post <- tasso_priori + n_giorni
+
+# Creazione della griglia di valori possibili per il tasso giornaliero (lambda)
+lambda_valori <- seq(0, 5, length.out = 100)
+
+# Calcolo delle densità per le distribuzioni a priori e a posteriori
+densita_priori <- dgamma(lambda_valori, shape = forma_priori, rate = tasso_priori)
+densita_post <- dgamma(lambda_valori, shape = forma_post, rate = tasso_post)
+
+# Creazione di un dataframe per il grafico
+dati_plot <- data.frame(
+  lambda = rep(lambda_valori, 2),
+  densita = c(densita_priori, densita_post),
+  distribuzione = rep(c("Priori", "Posteriori"), each = length(lambda_valori))
+)
+
+# Creazione del grafico per confrontare la distribuzione a priori e quella aggiornata (posteriori)
+ggplot(dati_plot, aes(x = lambda, y = densita, color = distribuzione)) +
+  geom_line(size = 1.2) +
+  labs(
+    title = "Stima del tasso di nascondimento del fumo",
+    x = "Tasso giornaliero (λ)",
+    y = "Densità"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+**Cosa fa questo codice**
+
+1. **Carica i dati**: abbiamo registrato per 4 giorni quante volte questa persona ha nascosto il fumo.
+2. **Imposta una conoscenza iniziale (priori)**: basata sullo studio precedente.
+3. **Applica il teorema di Bayes** per aggiornare la stima con i nuovi dati.
+4. **Genera il grafico**: confronta la distribuzione prima e dopo l’aggiornamento con i dati osservati.
+
+**Interpretazione del risultato**
+
+- La curva **rossa (priori)** rappresenta la nostra stima iniziale, basata sullo studio precedente.
+- La curva **blu (posteriori)** è la nostra nuova stima dopo aver considerato i dati della persona.
+- Se i dati raccolti sono molto diversi dal valore medio dello studio, la curva blu si sposterà rispetto alla rossa.
+
+Questa analisi ci permette di stimare il comportamento specifico di una persona integrando dati generali e osservazioni individuali, in modo più informativo rispetto a una semplice media.
 :::
 
 ## Informazioni sull'Ambiente di Sviluppo 
