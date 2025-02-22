@@ -79,8 +79,16 @@ options(
 # -----------------------------------------------------------------------------
 
 # Set default ggplot2 theme to bayesplot's theme with custom font and size
+# theme_set(
+#   bayesplot::theme_default(
+#     base_size = 13,  # Font size for plots
+#     base_family = "sans"  # Font family
+#   )
+# )
+
+# Set default ggplot2 theme to theme_minimal with custom font and size
 theme_set(
-  bayesplot::theme_default(
+  theme_minimal(
     base_size = 13,  # Font size for plots
     base_family = "sans"  # Font family
   )
