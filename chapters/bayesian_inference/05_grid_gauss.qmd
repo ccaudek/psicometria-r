@@ -1,4 +1,4 @@
-# Calcolo della Distribuzione a Posteriori Gaussiana tramite Metodo a Griglia {#sec-gauss-grid}
+# Calcolo della distribuzione a posteriori gaussiana tramite metodo a griglia {#sec-gauss-grid}
 
 ::: callout-important
 ## In questo capitolo imparerai a
@@ -93,7 +93,7 @@ dat <- tibble(
 # Grafico con ggplot2
 dat |>
   ggplot(aes(x = mu_griglia, y = posterior)) +
-  geom_line(size = 1.2, color = MetBrewer::met.brewer("Hiroshige", 10)[1]) + 
+  geom_line(size = 1.2) + 
   labs(
     title = "Distribuzione a Posteriori della Media",
     x = "Media",
@@ -101,7 +101,7 @@ dat |>
   ) +
   theme(
     plot.title = element_text(hjust = 0.5), # Centra il titolo
-    legend.position = "none" # Rimuove la legenda (non necessaria per una linea singola)
+    legend.position = "none" 
   )
 ```
 
@@ -134,16 +134,6 @@ long_data <- dat |>
 long_data |>
   ggplot(aes(x = mu_griglia, y = density, color = distribution, linetype = distribution)) +
   geom_line(size = 1.2) +
-  scale_colour_manual(
-    values = MetBrewer::met.brewer("Hiroshige", 10)[1:2], # Usa i primi due colori della palette
-    labels = c("Prior", "Posterior"),
-    breaks = c("prior", "posterior")
-  ) +
-  scale_linetype_manual(
-    values = c("prior" = 2, "posterior" = 1), # Linea tratteggiata per il prior
-    labels = c("Prior", "Posterior"),
-    breaks = c("prior", "posterior")
-  ) +
   labs(
     title = "Distribuzione a Posteriori e Prior della Media",
     x = "Media",
@@ -176,7 +166,6 @@ sample_df <- tibble(media_campionata = media_campionata)
 ggplot(sample_df, aes(x = media_campionata)) +
   geom_histogram(
     bins = 20, 
-    fill = MetBrewer::met.brewer("Hiroshige", 10)[3], # Use a color from MetBrewer
     color = "white", 
     alpha = 0.8
   ) +
@@ -219,7 +208,7 @@ dat <- tibble(
 # Grafico con ggplot2
 dat |>
   ggplot(aes(x = mu_griglia, y = posterior)) +
-  geom_line(size = 1.2, color = MetBrewer::met.brewer("Hiroshige", 10)[3]) + # Usa il terzo colore della palette
+  geom_line(size = 1.2) + 
   labs(
     title = "Distribuzione a Posteriori con Log-Verosimiglianza",
     x = "Media",
@@ -236,7 +225,6 @@ dat |>
 Per una griglia bidimensionale di valori di $\mu$ e $\sigma$:
 
 ```{r}
-# Define the grid for mu and sigma
 mu_griglia <- seq(110, 150, length.out = 100)
 sigma_griglia <- seq(1, 10, length.out = 50)
 
@@ -245,8 +233,8 @@ grid <- expand.grid(mu = mu_griglia, sigma = sigma_griglia)
 
 # Compute the log-likelihood for each combination of mu and sigma
 log_likelihood <- apply(grid, 1, function(params) {
-    mu <- params[1]
-    sigma <- params[2]
+    mu <- params["mu"]
+    sigma <- params["sigma"]
     sum(dnorm(campione, mean = mu, sd = sigma, log = TRUE))
 })
 
@@ -267,7 +255,7 @@ posterior_2d <- exp(log_posterior_2d)
 posterior_2d <- posterior_2d / sum(posterior_2d) # Normalize
 
 # Convert posterior_2d to a data frame for visualization
-posterior_df <- melt(posterior_2d)
+posterior_df <- reshape2::melt(posterior_2d)
 names(posterior_df) <- c("mu_idx", "sigma_idx", "posterior")
 posterior_df$mu <- mu_griglia[posterior_df$mu_idx]
 posterior_df$sigma <- sigma_griglia[posterior_df$sigma_idx]
@@ -275,10 +263,7 @@ posterior_df$sigma <- sigma_griglia[posterior_df$sigma_idx]
 # Plot the posterior distribution
 ggplot(posterior_df, aes(x = mu, y = sigma, fill = posterior)) +
   geom_tile() +
-  scale_fill_gradientn(
-    colours = MetBrewer::met.brewer("Hiroshige", 10), # Use MetBrewer palette
-    name = "Posterior" # Legend title
-  ) +
+  scale_fill_viridis_c(name = "Posterior") +
   labs(
     title = "Distribuzione a Posteriori Bidimensionale",
     x = expression(mu), 
@@ -297,6 +282,165 @@ Quando si passa alla stima simultanea di più parametri, come la media ($\mu$) e
 In scenari dove lo spazio dei parametri è multidimensionale o quando l'esplorazione della griglia diventa impraticabile, l'uso di metodi avanzati come il campionamento di Markov Chain Monte Carlo (MCMC) diventa indispensabile. Questi metodi permettono di campionare in modo efficiente dalla distribuzione a posteriori, senza la necessità di esplorare esplicitamente ogni combinazione possibile di parametri, rendendo l'analisi più gestibile anche in contesti complessi.
 
 In conclusione, l'estensione dell'approccio bayesiano a problemi con più parametri sconosciuti richiede un'attenzione ancora maggiore nella definizione dello spazio dei parametri, nella selezione delle priors appropriate e nel calcolo delle distribuzioni a posteriori. L'adozione di tecniche come l'MCMC può facilitare questo processo, permettendo di affrontare in modo efficiente problemi che altrimenti sarebbero proibitivi dal punto di vista computazionale.
+
+## Esercizi {.unnumbered}
+
+::: {.callout-important title="Problemi" collapse="true"}
+1. Quali sono i vantaggi dell'uso del metodo della griglia per il calcolo della distribuzione a posteriori? Quali sono le principali limitazioni di questo approccio?
+
+2. Qual è il ruolo della funzione di verosimiglianza nell'inferenza bayesiana e come si combina con la distribuzione *a priori* per ottenere la distribuzione *a posteriori*?
+
+3. In che modo l’uso di una distribuzione *a priori* informativa può influenzare l’inferenza bayesiana rispetto a una *a priori* uniforme? Fai riferimento a un esempio pratico.
+
+4. Perché in alcuni casi è preferibile lavorare con la log-verosimiglianza anziché con la verosimiglianza stessa? Spiega i vantaggi di questa trasformazione.
+
+5. Qual è il significato del campionamento dalla distribuzione *a posteriori* e perché è utile in un'analisi bayesiana? Quali sono alcuni metodi alternativi per ottenere campioni dalla *posterior* quando il metodo della griglia non è praticabile?
+
+6. Utilizzando i dati della **Satisfaction With Life Scale (SWLS)** raccolti dagli studenti, costruisci un modello bayesiano per stimare la media della soddisfazione di vita. Segui questi passaggi:  
+
+  - **Carica i dati della SWLS** e visualizza la distribuzione delle risposte.  
+  - **Definisci una griglia di valori possibili per la media** della soddisfazione di vita (ad esempio, da 1 a 7 se il punteggio della SWLS è su una scala Likert 1-7).  
+  - **Assumi che la deviazione standard sia nota** (puoi stimarla dai dati o usare un valore ragionevole, come 1).  
+  - **Calcola la funzione di verosimiglianza** per ogni valore della griglia assumendo una distribuzione normale.  
+  - **Imposta una distribuzione *a priori*** (uniforme o gaussiana centrata su un valore atteso, ad esempio 4).  
+  - **Calcola la distribuzione *a posteriori*** e normalizzala.  
+  - **Visualizza la distribuzione *a posteriori*** della media della soddisfazione di vita.  
+  - **Estrai campioni dalla distribuzione *a posteriori*** e calcola un intervallo di credibilità al 94%.  
+
+Esegui il codice in R e commenta i risultati ottenuti.
+
+**Consegna:** carica il file .qmd con le risposte, convertito in PDF, su Moodle.
+:::
+
+::: {.callout-tip title="Soluzioni" collapse="true"}
+
+1. Il metodo della griglia ha il vantaggio di essere intuitivo e facilmente implementabile, poiché calcola direttamente la distribuzione *a posteriori* valutando la funzione di verosimiglianza e il *prior* su una griglia di valori possibili per il parametro di interesse. Questo approccio permette una visualizzazione chiara della distribuzione *a posteriori* e facilita il confronto tra diversi *prior*.  
+
+   Tuttavia, presenta alcune limitazioni:  
+   
+   - **Scalabilità**: Diventa impraticabile quando il numero di parametri cresce, poiché il numero di combinazioni nella griglia aumenta esponenzialmente.  
+   - **Risoluzione**: La precisione dell’inferenza dipende dalla densità della griglia, e una griglia troppo fine può essere computazionalmente costosa.  
+   - **Difficoltà per modelli complessi**: Non è adatto per modelli con parametri ad alta dimensionalità o con distribuzioni a posteriori complesse.  
+
+2. La funzione di verosimiglianza rappresenta la probabilità di osservare i dati dati i valori del parametro di interesse. Nell'inferenza bayesiana, questa informazione viene combinata con la distribuzione *a priori* attraverso il **teorema di Bayes**, che permette di aggiornare la conoscenza pregressa con le nuove osservazioni.  
+
+   Matematicamente, la distribuzione *a posteriori* è data da:  
+   
+   $$
+   p(\theta \mid D) = \frac{p(D \mid \theta) p(\theta)}{p(D)}
+   $$
+   
+   dove: 
+   
+   - $p(D \mid \theta)$ è la verosimiglianza, che misura quanto bene il parametro $\theta$ spiega i dati $D$.  
+   - $p(\theta)$ è il *prior*, che rappresenta la conoscenza iniziale sul parametro.  
+   - $p(D)$ è la costante di normalizzazione.  
+
+   L’aggiornamento bayesiano consente di affinare le stime dei parametri alla luce di nuove evidenze in modo sistematico e coerente.  
+
+
+3. L’uso di un *prior* informativo consente di incorporare conoscenze pregresse nella stima dei parametri, riducendo l’incertezza quando i dati sono scarsi. Tuttavia, se il *prior* è troppo forte rispetto ai dati, potrebbe dominare la distribuzione *a posteriori* e introdurre un bias nelle stime.  
+
+   **Esempio pratico:** Supponiamo di voler stimare il QI medio di una popolazione sulla base di un piccolo campione. Se usiamo un *prior* informativo centrato su 140 con una deviazione standard di 3, la distribuzione *a posteriori* sarà fortemente influenzata da questa assunzione. Se invece utilizziamo un *prior* uniforme, i dati avranno un impatto maggiore sulla stima *a posteriori*.  
+
+   In generale, i *prior* informativi sono utili quando abbiamo conoscenze affidabili da incorporare, mentre i *prior* non informativi sono preferibili quando vogliamo lasciare che i dati guidino l'inferenza.  
+
+4. Lavorare con la log-verosimiglianza presenta diversi vantaggi:  
+
+   - **Stabilità numerica**: La moltiplicazione di molte probabilità può portare a valori molto piccoli che causano underflow numerico. Usare il logaritmo trasforma i prodotti in somme, evitando questi problemi.  
+   - **Efficienza computazionale**: Le somme sono più efficienti da calcolare rispetto ai prodotti, specialmente per modelli con molti dati.  
+   - **Interpretabilità**: La log-verosimiglianza fornisce una misura più chiara della bontà di adattamento del modello, poiché la somma dei log-likelihood è direttamente proporzionale alla probabilità complessiva dei dati dato il parametro.  
+
+   Per questi motivi, la log-verosimiglianza è ampiamente usata in applicazioni statistiche e machine learning.  
+
+5. Il campionamento dalla distribuzione *a posteriori* permette di ottenere stime dei parametri e di quantificare l’incertezza in modo efficace. Poiché la *posterior* rappresenta la nostra credenza aggiornata sul parametro dopo aver osservato i dati, il campionamento consente di generare simulazioni di possibili valori di $\theta$.  
+
+   **Utilità del campionamento:**  
+   - Permette di calcolare intervalli di credibilità.  
+   - Consente di effettuare inferenze basate sulla distribuzione completa, anziché su un singolo valore puntuale.  
+   - È utile per simulare previsioni e testare ipotesi.  
+
+   **Metodi alternativi per il campionamento dalla *posterior***:  
+   - **Metropolis-Hastings (MCMC)**: Un algoritmo di Markov Chain Monte Carlo che permette di esplorare distribuzioni complesse.  
+   - **Gibbs Sampling**: Un metodo MCMC particolarmente utile per modelli con più parametri condizionali noti.  
+   - **Hamiltonian Monte Carlo (HMC)**: Utilizza gradienti per esplorare lo spazio dei parametri in modo efficiente, come implementato in Stan.  
+
+   Quando il metodo della griglia non è praticabile, questi metodi consentono di stimare la *posterior* in modo efficiente anche per modelli complessi e ad alta dimensionalità.  
+
+
+6. Ecco un codice in R che segue i passaggi richiesti.
+
+```r
+# Caricamento librerie necessarie
+library(ggplot2)
+library(dplyr)
+library(tibble)
+
+# Dati SWLS
+swls_data <- data.frame(
+  soddisfazione = c(4.2, 5.1, 4.7, 4.3, 5.5, 4.9, 4.8, 5.0, 4.6, 4.4)
+)
+
+# Usando la deviazione standard campionaria
+sigma_conosciuta <- sd(swls_data$soddisfazione)  
+n <- nrow(swls_data)
+mean_x <- mean(swls_data$soddisfazione)
+
+cat("Deviazione standard campionaria:", sigma_conosciuta, "\n")
+cat("Media campionaria:", mean_x, "\n")
+
+# Definizione della griglia più fine e centrata intorno alla media campionaria
+mu_griglia <- seq(mean_x - 3*sigma_conosciuta/sqrt(n), 
+                 mean_x + 3*sigma_conosciuta/sqrt(n), 
+                 length.out = 1000)
+
+# Calcolo della verosimiglianza
+log_likelihood <- numeric(length(mu_griglia))
+for (i in seq_along(mu_griglia)) {
+  # Utilizzo della log-likelihood per evitare problemi numerici
+  log_likelihood[i] <- sum(dnorm(swls_data$soddisfazione, 
+                                mean = mu_griglia[i], 
+                                sd = sigma_conosciuta, 
+                                log = TRUE))
+}
+
+# Prior uniforme (in scala logaritmica)
+log_prior <- rep(0, length(mu_griglia))
+
+# Calcolo della posteriori
+log_posterior <- log_likelihood + log_prior
+posterior <- exp(log_posterior - max(log_posterior))
+posterior <- posterior / sum(posterior)
+
+# Campionamento e calcolo statistiche
+samples_grid <- sample(mu_griglia, size = 10000, replace = TRUE, prob = posterior)
+mean_post_grid <- mean(samples_grid)
+sd_post_grid <- sd(samples_grid)
+ci_grid <- quantile(samples_grid, c(0.03, 0.97))
+
+results <- tibble(
+  `Media Posteriori` = c(mean_post_grid),
+  `Dev. Std. Posteriori` = c(sd_post_grid)
+)
+
+# Visualizzazione risultati
+print(results)
+
+# Plot della distribuzione a posteriori per entrambi i metodi
+ggplot() +
+  geom_line(data = data.frame(mu = mu_griglia, density = posterior),
+            aes(x = mu, y = density, color = "Griglia")) +
+  labs(title = "Distribuzione a Posteriori",
+       x = "Media", y = "Densità")
+  
+# Stampa intervallo di credibilità al 94%
+cat("\nIntervallo di credibilità al 94% (metodo griglia):\n")
+print(ci_grid)
+```
+
+**Conclusione**:  
+Il modello bayesiano ci fornisce una stima della media della soddisfazione di vita con un intervallo di credibilità, quantificando l'incertezza in modo rigoroso.
+:::
 
 ## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
 

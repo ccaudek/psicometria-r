@@ -161,7 +161,7 @@ Sfruttando le proprietà delle distribuzioni coniugate, possiamo calcolare esatt
 
 Nella figura seguente, è rappresentata la distribuzione a posteriori del parametro $\theta$, insieme alla distribuzione a priori specificata.
 
-```{r fig.asp=1}
+```{r}
 # Generiamo la sequenza dei valori per θ
 x <- seq(0, 1, length.out = 1000)
 
@@ -169,32 +169,42 @@ x <- seq(0, 1, length.out = 1000)
 prior_density <- dbeta(x, 4, 6)
 posterior_density <- dbeta(x, 18, 92)
 
-# Creiamo il grafico
-plot(
-  x, prior_density,
-  type = "l", col = "blue", lwd = 2,
-  ylim = c(0, max(c(prior_density, posterior_density))),
-  xlab = "Valore del Parametro",
-  ylab = "Densità",
-  main = "Densità a Priori e a Posteriori"
+# Creare un dataframe contenente i dati per il grafico
+df <- data.frame(
+  x = x,
+  prior = prior_density,
+  posterior = posterior_density
 )
-lines(x, posterior_density, col = "red", lwd = 2)
-polygon(
-  c(x, rev(x)), c(prior_density, rep(0, length(x))),
-  col = adjustcolor("blue", alpha.f = 0.5), border = NA
-)
-polygon(
-  c(x, rev(x)), c(posterior_density, rep(0, length(x))),
-  col = adjustcolor("red", alpha.f = 0.5), border = NA
-)
-legend("topright",
-  legend = c("Prior: Beta(4, 6)", "Posterior: Beta(18, 92)"),
-  fill = c(
-    adjustcolor("blue", alpha.f = 0.5),
-    adjustcolor("red", alpha.f = 0.5)
-  ), border = NA
-)
-``` 
+
+# Convertiamo i dati in formato "lungo" per facilitare la visualizzazione con ggplot2
+df_long <- reshape2::melt(df, id.vars = "x", 
+                          measure.vars = c("prior", "posterior"),
+                          variable.name = "distribuzione", value.name = "densita")
+
+# Creare il grafico con ggplot2
+ggplot(df_long, aes(x = x, y = densita, fill = distribuzione)) +
+  geom_line(aes(color = distribuzione), size = 1) +  # Aggiungere le linee per le distribuzioni
+  geom_area(aes(fill = distribuzione), alpha = 0.5, position = "identity") +  # Aggiungere le aree sotto le curve
+  scale_fill_manual(
+    values = c("prior" = adjustcolor("blue", alpha.f = 0.5), 
+               "posterior" = adjustcolor("red", alpha.f = 0.5)),
+    labels = c("Prior: Beta(4, 6)", "Posterior: Beta(18, 92)")
+  ) +
+  scale_color_manual(
+    values = c("prior" = "blue", "posterior" = "red"),
+    labels = c("Prior: Beta(4, 6)", "Posterior: Beta(18, 92)")
+  ) +
+  labs(
+    title = "Densità a Priori e a Posteriori",
+    x = "Valore del Parametro",
+    y = "Densità",
+    fill = NULL, color = NULL
+  ) +
+  theme(
+    plot.title = element_text(hjust = 0.5),  # Centrare il titolo
+    legend.position = "top"  # Posizionare la legenda in alto
+  )
+```
 
 In questo grafico, la curva blu rappresenta la distribuzione a priori $\text{Beta}(4, 6)$, mentre la curva rossa mostra la distribuzione a posteriori $\text{Beta}(18, 92)$. La sovrapposizione delle aree evidenzia come l'evidenza fornita dai dati modifichi la conoscenza iniziale sul parametro $\theta$.
 
@@ -799,7 +809,7 @@ analytical_posterior <- dnorm(x, mean = mu_post, sd = std_post)
 
 # Creazione del grafico
 ggplot() +
-  geom_histogram(aes(x = post_samples, y = ..density..), bins = 30, fill = "blue", alpha = 0.4) +
+  geom_histogram(aes(x = post_samples, y = after_stat(density)), bins = 30, fill = "blue", alpha = 0.4) +
   geom_line(aes(x = x, y = analytical_posterior), color = "red", size = 1) +
   labs(title = "Distribuzione Posterior: MCMC vs Analitico",
        x = expression(mu), y = "Densità") 

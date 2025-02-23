@@ -449,7 +449,102 @@ Nel caso presente
 
 In conclusione, il Bayes $R^2$ è uno strumento potente per valutare l'adattamento di un modello bayesiano, permettendo di quantificare non solo la proporzione di varianza spiegata, ma anche l'incertezza associata alla stima. 
 
-## Riflessioni conclusive
+
+## Approfondimento sulla manipolazione della distribuzione a posteriori con *brms*
+
+Di seguito illustriamo come accedere e manipolare i campioni generati dal modello bayesiano in *brms*. Supponiamo di aver costruito un modello lineare semplice, dove vogliamo predire la variabile `height` in funzione di `weight_c`:
+
+```r
+fit_1 <- brm(
+  bf(height ~ 1 + weight_c, center = FALSE), 
+  data = df, 
+  backend = "cmdstanr", 
+  silent = 0
+)
+```
+
+Una volta che il modello è stato `fit`, possiamo estrarre le *draws* (ossia i campioni) della distribuzione a posteriori tramite la funzione `as_draws()`:
+
+```{r}
+posterior_1 <- as_draws(fit_1)
+```
+
+### Struttura dei campioni a posteriori
+
+L'oggetto `posterior_1` ottenuto è di tipo *draws* (una struttura definita dal pacchetto **posterior**), che internamente può essere rappresentato come una lista o un array in cui sono memorizzati i campioni MCMC:
+
+```{r}
+str(posterior_1)
+```
+
+Questa ispezione ti permette di vedere che l’oggetto contiene le catene e i parametri campionati.
+
+### Estrazione di un parametro specifico
+
+Possiamo estrarre i nomi dei parametri del modello dall'oggetto creato da `brm()` nel modo seguente:
+
+```{r}
+variables(fit_1)
+```
+
+Nel nostro esempio, siamo interessati al coefficiente di regressione associato a `weight_c`, che in *brms* è etichettato come `b_weight_c`. Per semplificare la manipolazione e l’analisi, possiamo servirci di **tidybayes**, un pacchetto che fornisce funzioni utili per trasformare i campioni in formati “tidy”.
+
+```{r}
+library(tidybayes)
+
+b_slope_draws <- posterior_1 |> 
+  spread_draws(b_weight_c)
+```
+
+La funzione `spread_draws()` estrae e “srotola” le draw dei parametri in un tibble, che risulta più comodo da esplorare:
+
+```{r}
+head(b_slope_draws)
+```
+
+In questo modo, ogni riga corrisponde a un singolo campione della catena MCMC, per quel parametro.
+
+### Calcolo di statistiche riassuntive
+
+Una volta estratti i campioni del parametro di interesse (qui `b_weight_c`), possiamo calcolare facilmente statistiche come quantili e medie:
+
+```{r}
+quantile(b_slope_draws$b_weight_c, probs = c(0.03, 0.50, 0.97))
+```
+
+```{r}
+mean(b_slope_draws$b_weight_c)
+```
+
+- I quantili a 0.03, 0.50 e 0.97 forniscono, rispettivamente, un limite inferiore al 94% (0.03–0.97), la mediana a posteriori (0.50) e un limite superiore.  
+- La funzione `mean()` restituisce la media a posteriori del coefficiente, un’altra statistica utile per la stima puntuale.
+
+### Visualizzazione della distribuzione a posteriori
+
+Per comprendere meglio la forma della distribuzione a posteriori, è buona prassi tracciarne la densità. Con **tidyverse** e **tidybayes**, possiamo creare un grafico elegante in poche righe:
+
+```{r}
+tibble(beta = b_slope_draws$b_weight_c) %>%
+  ggplot(aes(x = beta)) +
+  stat_halfeye(fill = "skyblue", alpha = 0.6) +
+  labs(
+    title = "Distribuzione a posteriori di β (b_weight_c)",
+    x = "Valore di β",
+    y = "Densità a posteriori"
+  )
+```
+
+- `stat_halfeye()` mostra la densità stimata dei campioni, evidenziando in modo intuitivo i valori più probabili.  
+- Il colore e l’alpha permettono di personalizzare l’aspetto del grafico.
+
+In sintesi, utilizzando l’oggetto restituito da `brm()` e la funzione `as_draws()`, possiamo estrarre i campioni della distribuzione a posteriori e analizzare:
+
+- **statistiche di sintesi**, come media, mediana e quantili;
+- **distribuzioni di densità**, per una visualizzazione più immediata della variabilità e della forma della distribuzione a posteriori di un parametro.
+
+La combinazione di **posterior**, **tidybayes** e **tidyverse** rende l’intero flusso di lavoro — dall’estrazione dei campioni fino alla creazione di grafici e statistiche — semplice e molto flessibile.
+
+## Riflessioni Conclusive
 
 Questo capitolo ha mostrato come utilizzare **brms** per costruire e interpretare modelli lineari, evidenziando le sue capacità di gestione dei priors, diagnostica e modellizzazione robusta. Grazie alla sua semplicità e flessibilità, **brms** rappresenta un potente strumento per l'inferenza bayesiana.
 

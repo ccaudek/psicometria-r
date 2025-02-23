@@ -226,6 +226,122 @@ La media della distribuzione a posteriori, denotata come $\mu_{\text{post}}$, si
 
 In sintesi, l'adozione del modello normale-normale in un contesto bayesiano facilita il calcolo delle distribuzioni a posteriori, grazie alla scelta di una distribuzione a priori Normale che mantiene la proprietà di coniugatezza, semplificando così l'intero processo analitico.
 
+## Esercizi {.unnumbered}
+
+::: {.callout-important title="Problemi" collapse="true"}
+Riprendi i dati della SWLS che sono stati utilizzati nell'esercizio del @sec-gauss-grid. Trova la media e la deviazione standard della distribuzione a posteriori usando il metodo delle distribuzioni coniugate. Confronta i risultati con quelli ottenuti con il metodo basato su griglia. 
+
+**Consegna:** Carica il file .qmd, convertito in PDF, su Moodle.
+:::
+
+::: {.callout-tip title="Soluzioni" collapse="true"}
+
+Per risolvere questo esercizio con il **metodo delle distribuzioni coniugate**, assumiamo che i dati provengano da una distribuzione normale con deviazione standard nota e media da stimare. Nel caso di una **verosimiglianza gaussiana** con prior gaussiano, la distribuzione a posteriori sarà ancora una distribuzione normale. Questo approccio è analitico e ci permette di ottenere la media e la deviazione standard della distribuzione a posteriori senza dover ricorrere a metodi numerici come la discretizzazione della griglia.
+
+**Passaggi per il calcolo della distribuzione a posteriori**
+
+1. **Definiamo i dati osservati**:
+   - La media campionaria: $\bar{x}$
+   - La deviazione standard nota dei dati: $\sigma$
+   - Il numero di osservazioni: $n$
+
+2. **Scegliamo un prior gaussiano molto diffuso**:
+   - Media a priori: $\mu_0$
+   - Deviazione standard a priori molto grande: $\sigma_0$
+
+3. **Calcoliamo la media e la varianza della distribuzione a posteriori**:
+   - La media a posteriori è:
+   
+     $$
+     \mu_{\text{post}} = \frac{\sigma^2_0 \bar{x} + \sigma^2 n \mu_0}{\sigma^2_0 + \sigma^2 n}
+     $$
+     
+   - La varianza a posteriori è:
+   
+     $$
+     \sigma^2_{\text{post}} = \frac{\sigma^2_0 \sigma^2}{\sigma^2_0 + \sigma^2 n}
+     $$
+
+**Implementazione in R**
+
+```r
+# Caricamento librerie necessarie
+library(dplyr)
+library(tibble)
+
+# Dati SWLS
+swls_data <- data.frame(
+  soddisfazione = c(4.2, 5.1, 4.7, 4.3, 5.5, 4.9, 4.8, 5.0, 4.6, 4.4)
+)
+
+# Parametri comuni per entrambi i metodi
+sigma_conosciuta <- sd(swls_data$soddisfazione)  # Usando la deviazione standard campionaria
+n <- nrow(swls_data)
+mean_x <- mean(swls_data$soddisfazione)
+
+cat("Deviazione standard campionaria:", sigma_conosciuta, "\n")
+cat("Media campionaria:", mean_x, "\n")
+
+# ---- Metodo 1: Griglia ----
+# Definizione della griglia più fine e centrata intorno alla media campionaria
+mu_griglia <- seq(mean_x - 3*sigma_conosciuta/sqrt(n), 
+                 mean_x + 3*sigma_conosciuta/sqrt(n), 
+                 length.out = 1000)
+
+# Calcolo della verosimiglianza
+log_likelihood <- numeric(length(mu_griglia))
+for (i in seq_along(mu_griglia)) {
+  # Utilizzo della log-likelihood per evitare problemi numerici
+  log_likelihood[i] <- sum(dnorm(swls_data$soddisfazione, 
+                                mean = mu_griglia[i], 
+                                sd = sigma_conosciuta, 
+                                log = TRUE))
+}
+
+# Prior uniforme (in scala logaritmica)
+log_prior <- rep(0, length(mu_griglia))
+
+# Calcolo della posteriori
+log_posterior <- log_likelihood + log_prior
+posterior <- exp(log_posterior - max(log_posterior))
+posterior <- posterior / sum(posterior)
+
+# Campionamento e calcolo statistiche
+samples_grid <- sample(mu_griglia, size = 10000, replace = TRUE, prob = posterior)
+mean_post_grid <- mean(samples_grid)
+sd_post_grid <- sd(samples_grid)
+ci_grid <- quantile(samples_grid, c(0.03, 0.97))
+
+# ---- Metodo 2: Soluzione analitica ----
+# Prior poco informativo ma non improprio
+mu_prior <- mean_x
+sigma_prior <- 10
+
+# Calcolo posteriori
+mu_post_analytic <- (sigma_prior^2 * mean_x + sigma_conosciuta^2 * mu_prior/n) / 
+                    (sigma_prior^2 + sigma_conosciuta^2/n)
+sigma_post_analytic <- sqrt((sigma_prior^2 * sigma_conosciuta^2/n) / 
+                           (sigma_prior^2 + sigma_conosciuta^2/n))
+
+# Confronto risultati
+results <- tibble(
+  Metodo = c("Griglia", "Analitico"),
+  `Media Posteriori` = c(mean_post_grid, mu_post_analytic),
+  `Dev. Std. Posteriori` = c(sd_post_grid, sigma_post_analytic)
+)
+results
+```
+**Interpretazione dei risultati**
+
+- La **media a posteriori** rappresenta la miglior stima aggiornata della media della popolazione dopo aver osservato i dati.
+- La **deviazione standard a posteriori** ci dice quanto è incerta la nostra stima della media dopo aver integrato i dati e il prior.
+
+Siccome abbiamo scelto un prior molto diffuso ($\sigma_0 = 10$), il risultato ottenuto è molto vicino a quello ottenuto con il metodo della griglia, dove il prior uniforme aveva un impatto minimo sulla distribuzione a posteriori.
+
+Questa implementazione analitica permette di ottenere il risultato in modo efficiente senza necessità di metodi numerici approssimati.
+:::
+
+
 ## Informazioni sull'Ambiente di Sviluppo {.unnumbered}
 
 ```{r}
