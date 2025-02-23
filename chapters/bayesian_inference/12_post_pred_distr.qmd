@@ -253,6 +253,137 @@ Inoltre, il caso beta-binomiale utilizzato in questo capitolo rappresenta un ese
 
 In sintesi, la distribuzione predittiva a posteriori è un elemento fondamentale della modellazione bayesiana, che lega l'inferenza paramatrica alla previsione empirica, contribuendo a rendere l'intero processo inferenziale più affidabile, interpretabile e applicabile a scenari complessi.
 
+## Esercizi {.unnumbered}
+
+::: {.callout-important title="Problemi" collapse="true"}
+
+Consideriamo i dati della SWLS somministrata a un campione di studenti, ottenendo per ciascuno uno *score* complessivo. Per semplicità, vogliamo “dichiarare positivo” lo studente se il punteggio SWLS supera una determinata **soglia** (ad esempio, 20 su 35). In questo modo otteniamo una variabile dicotomica (0/1), che useremo come “successo” in un modello binomiale.
+
+1. **Dati e conteggio dei successi**  
+
+   - Carica il dataset con le risposte SWLS.  
+   - Costruisci la variabile binaria (ad esempio `SWLS_dich`) che vale 1 se lo score ≥ 20, e 0 altrimenti.  
+   - Calcola il **numero di successi** (numero di persone che superano la soglia) e il **numero totale di osservazioni** (N).
+
+2. **Modello beta-binomiale (approccio manuale via simulazione)**  
+
+   - **Specifica una distribuzione Beta(a, b)** come prior per la probabilità di successo $p$. Scegli una coppia $(a, b)$ relativamente poco informativa, ad esempio (2,2) o (1,1).  
+   - Osservando $y$ successi su $n$ soggetti, aggiorna i parametri a posteriori:
+     $$
+       a_{\text{post}} = a + y, 
+       \quad
+       b_{\text{post}} = b + (n - y).
+     $$  
+   - Simula un gran numero di campioni di $p$ dalla distribuzione Beta$\bigl(a_{\text{post}},\, b_{\text{post}}\bigr)$.  
+   - Per ciascun campione di $p$, genera un valore $\tilde{y}$ da una Binomiale$\bigl(n_{\text{new}}, p\bigr)$, dove $n_{\text{new}}$ è la dimensione di un ipotetico nuovo campione (che puoi scegliere, ad esempio, uguale a $n$ oppure un valore diverso). Otterrai così una **posterior predictive distribution** per $\tilde{y}$.  
+   - Infine, calcola statistiche descrittive (media, varianza, intervalli) e/o disegna un istogramma di $\tilde{y}$ o della proporzione $\tilde{y}/n_{\text{new}}$.  
+
+3. **Replicare con *brms***  
+
+   - Usa il pacchetto **brms** per costruire un modello binomiale. Per esempio:
+   
+     ```r
+     library(brms)
+     
+     # Crea un data frame con la variabile dicotomica
+     df_binom <- data.frame(
+       successes = y,    # conteggio dei successi
+       failures  = n - y
+     )
+     
+     # Modello binomiale con prior Beta(a,b) approssimato tramite logit
+     fit_brms <- brm(
+       bf(successes | trials(n) ~ 1), 
+       data = df_binom,
+       family = binomial(link = "logit"),
+       prior = c(
+         prior(beta(2, 2), class = "Intercept", dpar = "mu") 
+         # NOTA: la specifica di una "beta(2,2)" diretta sull'intercetta
+         # è un'approssimazione, tipicamente serve passare a una scala logit.
+         # In brms, di solito si usa prior su scale normali dell'intercetta.
+       ),
+       seed = 123
+     )
+     ```
+     *(Le specifiche del `prior` potrebbero richiedere una formulazione differente se vuoi rispettare esattamente la corrispondenza con Beta(a,b). In ogni caso, l’idea è mostrare come definire un prior e costruire un modello binomiale con `brms`.)*
+     
+   - Verifica la convergenza e poi estrai la **posterior predictive distribution** con le funzioni di *brms*:
+   
+     ```r
+     pp_check(fit_brms, nsamples = 100)
+     ```
+     Questo ti mostrerà come i dati predetti dal modello (in termini di binomiale) si confrontano con i dati osservati.  
+
+4. **Confronto e interpretazione**  
+
+   - Metti a confronto i risultati della simulazione “manuale” (Beta-Binomial) e quelli ottenuti con *brms*. Noterai che le distribuzioni predittive dovrebbero essere coerenti, se hai impostato un prior per *brms* simile a quello del modello Beta-Binomiale.  
+   - Discuti brevemente se la distribuzione predittiva a posteriori acquisita è plausibile rispetto ai dati osservati. Ad esempio, la probabilità di osservare $\tilde{y}$ simile a $y$ dovrebbe essere relativamente alta se il modello è appropriato.  
+   - Se vuoi, puoi cambiare $n_{\text{new}}$ (es. previsione su 200 soggetti futuri) per vedere come la variabilità della previsione si “ridimensiona” o cresce a seconda della taglia del campione.  
+:::
+
+::: {.callout-tip title="Soluzioni" collapse="true"}
+
+1. **Costruzione del dataset**  
+
+   - Se la SWLS varia tra 5 e 35, e la soglia è 20, puoi fare:
+   
+     ```r
+     df$SWLS_dich <- ifelse(df$SWLS_score >= 20, 1, 0)
+     y <- sum(df$SWLS_dich)
+     n <- nrow(df)
+     ```
+2. **Approccio Beta-Binomial manuale** 
+
+   - Prior: $(a, b) = (2, 2)$  
+   - Posterior: $(a_{\text{post}}, b_{\text{post}}) = (2 + y,\, 2 + n - y)$.  
+   - Generazione dei campioni:
+   
+     ```r
+     N_sim <- 2000
+     p_post <- rbeta(N_sim, a_post, b_post)
+     y_pred <- rbinom(N_sim, size = n_new, prob = p_post)
+     
+     # Se preferisci la proporzione futura:
+     prop_pred <- y_pred / n_new
+     ```
+     
+   - Statistiche: 
+   
+     ```r
+     mean_p <- mean(p_post) # media a posteriori di p
+     quantile_p <- quantile(p_post, c(0.025, 0.975))  
+     
+     mean_prop_pred <- mean(prop_pred)
+     quantile_prop_pred <- quantile(prop_pred, c(0.025, 0.975))
+     ```
+   - Grafici (istogramma e densità):
+   
+     ```r
+     hist(prop_pred, freq=FALSE, col='lightblue',
+          main='Posterior Predictive Distribution: prop. di successi')
+     ```
+3. **Modello con *brms***  
+
+   - Usa la sintassi di una binomiale con offset o con `trials(n)`.  
+   - Specifica un prior che approssimi Beta(2,2) sullo scale logit, ad esempio:
+   
+     ```r
+     # Beta(2,2) ha media ~ 0.5, varianza relativamente ampia.
+     # Approssimandola su scala logit ~ normal(0, 2.2) 
+     # (valore indicativo: la normal(0, 2) su logit copre un intervallo ampio).
+     
+     prior_approx <- prior(normal(0, 2), class = "Intercept")
+     ```
+   - Esegui `pp_check(fit_brms)` e interpreta.
+
+4. **Interpretazione**  
+
+   - Se la soglia scelta per la SWLS cattura un “buon livello di soddisfazione”, potresti aspettarti una certa % di successi.  
+   - Se i dati futuri simulati sono coerenti con i dati reali — ad esempio, la media di $\tilde{y}$ è vicina a $y$ — allora il modello sembra descrivere bene la realtà. Altrimenti, potresti rivedere la soglia o la specifica del prior.
+
+L’elemento chiave è che la **distribuzione predittiva a posteriori** (posterior predictive distribution) non si limita a considerare *un solo* valore di $p$, bensì campiona molteplici valori plausibili (dalla *posterior*), e per *ciascuno* simula un potenziale outcome. Così facendo, si riflette pienamente l’incertezza residua sul parametro e l’aleatorietà del processo binomiale.
+:::
+
 ## Informazioni sull'Ambiente di Sviluppo {.unnumbered}
 
 ```{r}
