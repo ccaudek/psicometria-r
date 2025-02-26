@@ -1,0 +1,312 @@
+# Modelli cognitivi {#sec-key-notions-cogn-models}
+
+::: callout-important
+## In questo capitolo imparerai a
+
+- descrivere il ruolo dei modelli computazionali nella formalizzazione dei processi psicologici;
+- comprendere le caratteristiche di base del modello di Rescorla-Wagner e del Drift Diffusion Model come strumenti per lo studio dell'apprendimento e della decisione.
+:::
+
+::: callout-tip
+## Prerequisiti
+
+- Consulta *Why is the Rescorla-Wagner model so influential?* [@soto2023rescorla].
+:::
+
+::: callout-caution
+## Preparazione del Notebook
+
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(rtdists)
+```
+:::
+
+## Introduzione 
+
+In questo corso esploreremo perché un'analisi puramente associativa tra variabili non sia sufficiente per comprendere i meccanismi causali nei fenomeni psicologici. Una strategia più efficace consiste nel formalizzare quantitativamente i modelli dei processi psicologici di interesse e testarli empiricamente.
+
+Per rendere concreto il concetto di **processo generatore dei dati** in psicologia, introdurremo due modelli psicologici fondamentali: il modello di apprendimento associativo di Rescorla-Wagner e il Drift-Diffusion Model.
+
+## Modello di Apprendimento Associativo di Rescorla-Wagner
+
+Uno dei modelli più influenti nello studio dell'apprendimento è il modello di Rescorla-Wagner. Questo modello descrive come gli individui apprendano le associazioni tra stimoli e risposte sulla base dell'errore di previsione. L'apprendimento avviene aggiornando le aspettative di ricompensa in base alle esperienze passate, utilizzando due parametri fondamentali:
+
+- **α (tasso di apprendimento)**: determina quanto l'errore di previsione influisce sull'aggiornamento dell'aspettativa.
+- **β (temperatura della scelta)**: regola la probabilità di selezionare l'opzione con il valore atteso più alto rispetto a esplorare alternative.
+
+### L'Apprendimento Associativo
+
+L'apprendimento per rinforzo studia come le persone imparano a massimizzare le ricompense in ambienti in cui la scelta ottimale è inizialmente sconosciuta. Immaginiamo un partecipante che deve scegliere ripetutamente tra due slot machine, ricevendo ricompense con probabilità diverse per ogni macchina. L'obiettivo è massimizzare le vincite nel tempo.
+
+Per illustrare il modello, si usa spesso la metafora delle slot machine. Nel caso più semplice, si immagina un agente che svolge il compito con $n$ tentativi, due slot machine e probabilità di ricompensa fisse $\mu = [0.2, 0.8]$.
+
+### Regola di Apprendimento per Rinforzo ($\delta$-rule)
+
+Il modello di Rescorla-Wagner descrive l'apprendimento come un processo basato sull'errore di previsione. L'aggiornamento del valore di uno stimolo avviene secondo la seguente equazione:
+
+$$
+V_{s,t} = V_{s,t-1} + \alpha (r_{t-1} - V_{s,t-1})
+$$
+
+Dove:
+
+- $V_{s,t}$ è il valore atteso dello stimolo $s$ al tempo $t$.
+- $r_{t-1}$ è la ricompensa ottenuta alla prova precedente.
+- $\alpha$ (tra 0 e 1) è il tasso di apprendimento, che determina la velocità con cui l'agente aggiorna le proprie aspettative.
+
+Se il valore di $\alpha$ è alto, l'apprendimento sarà rapido, mentre se è basso, l'agente si baserà maggiormente sulle esperienze passate.
+
+### Modello di Scelta: Softmax
+
+Dopo aver aggiornato i valori attesi delle opzioni, il partecipante deve scegliere tra esse.
+
+Due strategie possibili sono:
+
+- **Sfruttamento**: selezionare sempre l'opzione con il valore più alto.
+- **Esplorazione**: scegliere occasionalmente un'opzione con un valore più basso per verificare se potrebbe essere migliore.
+
+Per modellare questo comportamento si usa la funzione Softmax:
+
+$$
+p(s) = \frac{\exp(\beta \cdot V_{s})}{\sum_i \exp(\beta \cdot V_{i})}
+$$
+
+Dove $\beta$ è un parametro che determina il grado di esplorazione:
+
+- $\beta = 0$: scelta completamente casuale.
+- $\beta \to \infty$: scelta deterministica dell'opzione con il valore più alto.
+
+Un individuo con $\beta$ alto sceglierà quasi sempre l'opzione con il valore atteso più elevato, mentre con un $\beta$ basso esplorerà più frequentemente.
+
+### Simulazione dell'Apprendimento con il Modello di Rescorla-Wagner
+
+Possiamo implementare la regola di aggiornamento in **R** con la seguente funzione:
+
+```{r}
+update_rw <- function(value, alpha=0.15, lambda=1) {
+  value + alpha * (lambda - value)
+}
+```
+
+Simuliamo ora l'apprendimento per 40 prove, assumendo che il partecipante riceva sempre una ricompensa:
+
+```{r}
+n_trials <- 40
+strength <- numeric(n_trials)
+for(trial in 2:n_trials) {
+  strength[trial] <- update_rw(strength[trial-1])
+}
+plot(1:n_trials, strength, type = 'l', ylim = c(0,1), xlab = "Prove", ylab = "Aspettativa di ricompensa")
+```
+
+L'aspettativa di ricompensa aumenta progressivamente fino a stabilizzarsi.
+
+### Estinzione dell'Associazione
+
+Se dopo 25 prove la ricompensa non viene più fornita, il valore associato allo stimolo diminuisce gradualmente:
+
+```{r}
+n_trials <- 50                
+strength <- numeric(n_trials)
+lambda <- 1
+
+for(trial in 2:n_trials) {
+  if(trial > 25) {
+    lambda <- 0
+  }
+  strength[trial] <- update_rw(value = strength[trial-1], lambda = lambda)
+}
+
+plot(1:n_trials, strength, type = 'l', ylim = c(0,1), xlab = "Prove", ylab = "Aspettativa di ricompensa")
+```
+
+L'associazione si estingue gradualmente quando il rinforzo viene rimosso.
+
+### Implementazione della Regola Softmax
+
+Per simulare le scelte di un partecipante utilizziamo la funzione Softmax:
+
+```{r}
+softmax <- function(beta, x) {
+  1 / (1 + exp(-beta * x))
+}
+
+beta <- 5
+x <- seq(-1, 1, length.out = 100)
+y <- softmax(beta, x)
+plot(x, y, type = 'l', xlab = "Valore (A) - valore (B)", ylab = "p(scelta = A)")
+```
+
+La funzione mostra che:
+
+1. La probabilità di scegliere un'opzione aumenta con il suo valore atteso.
+2. Con $\beta$ elevato, il partecipante sceglie quasi sempre l'opzione migliore.
+3. Con $\beta$ basso, le scelte sono più casuali.
+
+### Verifica e Applicazioni del Modello
+
+Quello descritto è il meccanismo generatore dei dati ipotizzato dal modello di Rescorla-Wagner. Per testare il modello, è necessario stimare i parametri $\alpha$ e $\beta$, e confrontare le previsioni del modello con i dati osservati. Tuttavia, in questo corso non affronteremo il problema della stima dei parametri del modello di Rescorla-Wagner. L'obiettivo principale è comprendere cosa significhi formalizzare quantitativamente un modello psicologico e in che modo questo approccio si differenzi da una semplice analisi delle associazioni tra variabili.
+
+In sintesi, il modello di Rescorla-Wagner rappresenta uno strumento essenziale per lo studio dell'apprendimento associativo. Attraverso la simulazione dell'aggiornamento delle aspettative e delle strategie decisionali, possiamo descrivere il comportamento di individui che apprendono in contesti di rinforzo. Questo modello ha trovato applicazione in numerosi ambiti della psicologia cognitiva e delle neuroscienze, contribuendo alla comprensione dei processi di apprendimento e decisione.
+
+
+## Drift Diffusion Model
+
+Il processo decisionale è uno dei temi centrali della psicologia cognitiva e delle neuroscienze. Ogni giorno prendiamo decisioni, dalle più semplici alle più complesse, influenzate da fattori come la percezione, la memoria, l’attenzione e il contesto in cui ci troviamo. Una domanda fondamentale è: **Come prendiamo decisioni in condizioni di incertezza?**  
+
+Uno dei modelli più utilizzati per rispondere a questa domanda è il **Drift Diffusion Model (DDM)**, un modello matematico che descrive il processo di accumulo delle informazioni fino alla presa di una decisione. Questo modello consente di quantificare e comprendere i meccanismi alla base delle scelte umane.
+
+### Cos’è il Drift Diffusion Model?
+
+Il DDM descrive come le persone raccolgono informazioni nel tempo per prendere una decisione tra due alternative. Immagina di dover stabilire se un punto si sta muovendo verso destra o verso sinistra. Non hai una risposta immediata, ma accumuli informazioni (o "evidenza") nel tempo fino a quando non sei abbastanza sicuro per scegliere.  
+
+Questo processo è influenzato da vari fattori, come la chiarezza delle prove disponibili e l’incertezza associata alla decisione.
+
+### Come Funziona il Processo di Accumulo dell’Evidenza?
+
+Il processo decisionale può essere paragonato a un **accumulo graduale di informazioni** a favore di una delle due opzioni disponibili. Ecco come funziona:
+
+1. **Raccolta delle informazioni**  
+   Ogni nuova informazione che ricevi si accumula a favore di una delle due alternative. Ad esempio, se stai cercando di determinare la direzione del movimento di un punto, ogni piccolo dettaglio visivo ti aiuta ad avvicinarti a una decisione.
+
+2. **Velocità di accumulo (Drift rate)**  
+   La velocità con cui raccogli le informazioni dipende dalla qualità del segnale. Se le prove sono chiare e forti, l’accumulo sarà veloce. Se invece sono ambigue, il processo sarà più lento.
+
+3. **Rumore e incertezza**  
+   Durante l’accumulo, c’è sempre una componente casuale o "rumore", che può causare fluttuazioni nel processo. Questo significa che l’informazione non si accumula in modo perfettamente lineare, ma può oscillare a causa di fattori casuali.
+
+4. **Soglie decisionali**  
+   Prima di iniziare il compito, ci sono due "soglie" che rappresentano i punti di decisione. Quando l’evidenza accumulata raggiunge una di queste soglie, si prende la decisione corrispondente.
+
+5. **Tempo di reazione**  
+   Il tempo impiegato per raggiungere una delle soglie è il **tempo di reazione**. Se le informazioni sono chiare, la decisione sarà rapida; se sono ambigue, il tempo sarà più lungo.
+
+Un’utile metafora per comprendere questo processo è quella di **riempire un secchio con informazioni**: ogni evidenza raccolta equivale a una goccia d’acqua che viene aggiunta al secchio. Quando il livello d’acqua raggiunge una delle due soglie, viene presa la decisione.
+
+### I Parametri del DDM
+
+Il DDM è caratterizzato da quattro parametri principali che descrivono diversi aspetti del processo decisionale:
+
+1. **Tasso di drift ($v$)**  
+   Rappresenta la velocità con cui l’evidenza si accumula a favore di una decisione. Valori più alti indicano un processo decisionale più efficiente, mentre valori più bassi suggeriscono un’accumulazione lenta e incerta.
+
+2. **Separazione delle soglie ($a$)**  
+   Indica la distanza tra le due soglie decisionali. Valori più alti corrispondono a decisioni più caute (tempi di reazione più lunghi ma minore probabilità di errore), mentre valori più bassi indicano decisioni più rapide ma potenzialmente meno accurate.
+
+3. **Tempo di non-decisione ($t_0$)**  
+   Corrisponde al tempo necessario per processi che precedono e seguono l’accumulo di evidenza, come la percezione dello stimolo e l’esecuzione della risposta. Questo tempo è indipendente dall’accumulo delle informazioni.
+
+4. **Bias iniziale ($z$)**  
+   Definisce il punto di partenza del processo di accumulo. Se è equidistante tra le due soglie, la decisione è imparziale. Se invece è spostato verso una delle due soglie, significa che la persona ha una predisposizione a scegliere una delle due alternative.
+
+### Il Compromesso tra Velocità e Accuratezza
+
+Uno degli aspetti più interessanti del DDM è il **compromesso tra velocità e accuratezza**.  
+
+- Se una persona desidera rispondere rapidamente, può **abbassare le soglie decisionali**, ma questo aumenta la probabilità di errore.  
+- Se invece punta a una maggiore accuratezza, può **aumentare la distanza tra le soglie**, rendendo il processo più lento ma più affidabile.
+
+Questo compromesso è evidente in compiti sperimentali come:  
+
+- Il **compito di Stroop**, dove bisogna ignorare un’informazione interferente (es. leggere il colore di una parola e non il significato della parola stessa).  
+- Il **compito di decisione lessicale**, in cui si deve determinare se una stringa di lettere è una parola esistente o meno.  
+
+Il DDM permette di capire se le differenze nei tempi di reazione tra gruppi dipendono da una strategia più cauta (maggiore $a$) o da una difficoltà nell’accumulare evidenza (minore $v$).
+
+### Perché è Importante il DDM?
+
+Il DDM è uno strumento potente perché permette di **quantificare** aspetti del processo decisionale che altrimenti sarebbero difficili da misurare, come la velocità di accumulo dell’evidenza o l’effetto del rumore sulla decisione.  
+
+È stato applicato in numerosi ambiti, tra cui:
+
+- **Compiti percettivi e decisionali**: studi sulla discriminazione di stimoli visivi e uditivi.
+- **Processi di controllo cognitivo**: analisi delle differenze individuali nella regolazione dell’impulsività.
+- **Psicopatologia**: esplorazione delle alterazioni nel processo decisionale in condizioni come depressione, ansia e schizofrenia.
+
+Il **Drift Diffusion Model** offre dunque una rappresentazione chiara e quantitativa del processo decisionale in condizioni di incertezza. Descrivendo l’accumulo graduale delle informazioni e il raggiungimento delle soglie decisionali, il modello ci aiuta a comprendere il compromesso tra velocità e accuratezza e i fattori che influenzano le scelte.  
+
+L’applicazione del DDM in psicologia cognitiva e neuroscienze permette di studiare non solo il comportamento umano, ma anche i meccanismi neurali che regolano il processo decisionale.
+
+### Simulazione del DDM
+
+Una delle potenzialità del DDM è la possibilità di simulare dati sintetici per confrontare le predizioni del modello con dati empirici. In **R**, possiamo generare una simulazione semplificata del modello utilizzando pacchetti dedicati come `rtdists` o `brms`. 
+
+Un esempio di codice per simulare dati con parametri definiti:
+
+```{r}
+# Nuova configurazione dei parametri
+a <- 1.2   # Separazione delle soglie (aumentato)
+v <- 0.3   # Tasso di drift
+t0 <- 0.2  # Tempo di non-decisione
+z <- 0.5   # Bias iniziale (deve essere tra 0 e 1)
+
+# Generazione dei dati
+sim_data <- rdiffusion(n = 1000, a = a, v = v, t0 = t0, z = z)
+
+# Visualizzazione dei tempi di reazione
+hist(
+  sim_data$rt, 
+  breaks = 30, 
+  main = "Distribuzione dei tempi di reazione", 
+  xlab = "RT (s)"
+)
+```
+
+Questo codice genera una distribuzione di tempi di reazione e scelte coerenti con le ipotesi del DDM, permettendo di esplorare l'effetto delle variazioni dei parametri sul comportamento del modello.
+
+In sintesi, il Drift Diffusion Model fornisce un quadro teorico potente per l'analisi del processo decisionale in psicologia cognitiva. Modellando il tempo di reazione e la probabilità di risposta in termini di parametri interpretabili, il DDM permette di distinguere tra strategie decisionali e difficoltà cognitive, superando i limiti di un'analisi puramente descrittiva. Grazie alla sua capacità di catturare la dinamica dei processi decisionali, il DDM è oggi uno degli strumenti più utilizzati per studiare il comportamento umano in contesti sperimentali e applicativi.
+
+## Riflessioni Conclusive
+
+Un modo per approfondire la comprensione dei processi di apprendimento e decisione è attraverso l’utilizzo di modelli computazionali. Questi modelli consentono di inferire i meccanismi cognitivi sottostanti partendo dai comportamenti osservabili, offrendo una formalizzazione quantitativa dei processi psicologici. In questo capitolo, abbiamo esaminato due modelli fondamentali: il **modello di Rescorla-Wagner** e il **Drift Diffusion Model (DDM)**.
+
+Il **modello di Rescorla-Wagner** descrive l’apprendimento associativo come un aggiornamento incrementale delle aspettative basato sull’errore di previsione. Questo modello ha dimostrato una notevole capacità di spiegare come gli individui apprendano a stimare la probabilità di una ricompensa sulla base delle esperienze passate. Il parametro chiave in questo processo è il tasso di apprendimento $\alpha$, che determina la velocità con cui le aspettative vengono aggiornate in base alle nuove informazioni. L’utilizzo della funzione softmax, inoltre, permette di modellare il bilanciamento tra esplorazione ed sfruttamento nelle scelte.
+
+D’altra parte, il **Drift Diffusion Model (DDM)** fornisce una descrizione dettagliata del processo decisionale in compiti a due alternative, modellando l’accumulo graduale di evidenza fino al raggiungimento di una soglia decisionale. I parametri del DDM, tra cui il **drift rate ($v$)**, la **threshold separation ($a$)**, il **non-decision time ($t_0$)** e il **starting point ($z$)**, permettono di distinguere tra velocità di elaborazione dell’informazione, strategie di risposta più o meno caute e tempi di esecuzione della risposta indipendenti dal processo decisionale.
+
+Entrambi i modelli evidenziano il valore della formalizzazione matematica nello studio dei processi cognitivi. Il modello di Rescorla-Wagner è particolarmente utile per comprendere come gli individui apprendano e aggiornino le proprie credenze sulla base dell’esperienza, mentre il DDM fornisce una rappresentazione più dettagliata delle dinamiche della presa di decisione e del compromesso tra velocità e accuratezza.
+
+In conclusione, l’approccio computazionale alla psicologia cognitiva permette di superare i limiti di un’analisi puramente descrittiva, fornendo strumenti matematici per testare ipotesi sui processi cognitivi. L’uso combinato di modelli di apprendimento e di modelli decisionali consente di ottenere una visione più completa dei meccanismi che guidano il comportamento umano, con implicazioni per la ricerca di base e le applicazioni cliniche.
+
+## Esercizi {.unnumbered}
+
+::: {.callout-important title="Problemi" collapse="true"}
+
+1. Che cosa descrive il modello di Rescorla-Wagner?
+2. Qual è il ruolo del parametro α nel modello di Rescorla-Wagner? 
+3. Quale funzione matematica viene utilizzata per modellare il bilanciamento tra esplorazione ed esploitazione nel modello di Rescorla-Wagner?
+4. Quali sono i principali parametri del Drift Diffusion Model (DDM)? 
+5. In che modo il DDM spiega il compromesso tra velocità e accuratezza nelle decisioni? 
+
+:::
+
+::: {.callout-tip title="Soluzioni" collapse="true"}
+
+1. Il modello di Rescorla-Wagner descrive come gli individui apprendano le associazioni tra stimoli e risposte in base all’errore di previsione. L’aspettativa di ricompensa viene aggiornata attraverso l’esperienza, con un processo regolato dal tasso di apprendimento (α). 
+
+2. Il parametro α (tasso di apprendimento) determina quanto velocemente un individuo aggiorna le proprie aspettative in base all’errore di previsione. Se α è alto, l’apprendimento è rapido; se è basso, l’individuo si basa maggiormente sulle esperienze passate.
+
+3. La funzione Softmax viene utilizzata per modellare il bilanciamento tra esplorazione ed esploitazione. Essa regola la probabilità di scegliere un’opzione in base al valore atteso e alla temperatura della scelta (β).  
+
+4. I principali parametri del DDM sono:
+
+   - **Tasso di drift (v)**: velocità con cui viene accumulata l’evidenza.  
+   - **Separazione delle soglie (a)**: distanza tra le soglie decisionali.  
+   - **Tempo di non-decisione (t₀)**: tempo impiegato per processi indipendenti dall’accumulo dell’evidenza.  
+   - **Bias iniziale (z)**: punto di partenza dell’accumulo dell’evidenza.  
+
+5. Il DDM spiega il compromesso tra velocità e accuratezza attraverso la separazione delle soglie decisionali (a). Se le soglie sono più vicine, le decisioni sono più rapide ma meno accurate; se sono più distanti, le decisioni sono più lente ma più precise.  
+:::
+
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered}
+
+```{r}
+sessionInfo()
+```
+
+## Bibliografia {.unnumbered}
