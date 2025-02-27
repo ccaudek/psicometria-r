@@ -3,6 +3,10 @@ execute:
   freeze: auto
 ---
 
+
+
+
+
 # Modello bayesiano di regressione lineare bivariata {#sec-linmod-bayesian-reg}
 
 ::: callout-important
@@ -28,6 +32,10 @@ execute:
 ::: callout-caution
 ## Preparazione del Notebook
 
+
+
+
+
 ```{r}
 here::here("code", "_common.R") |> 
   source()
@@ -36,6 +44,10 @@ here::here("code", "_common.R") |>
 if (!requireNamespace("pacman")) install.packages("pacman")
 pacman::p_load(cmdstanr, posterior, see, brms)
 ```
+
+
+
+
 :::
 
 ## Introduzione  
@@ -92,6 +104,10 @@ Nella prossima sezione, vedremo come implementare un modello di regressione baye
 
 Definiamo i parametri e simuliamo i dati.
 
+
+
+
+
 ```{r}
 set.seed(123)
 
@@ -110,7 +126,15 @@ fake <- tibble(x = x, y = y)
 head(fake)
 ```
 
+
+
+
+
 Iniziamo adattando ai dati un modello frequentista:
+
+
+
+
 
 ```{r}
 fm1 <- lm(y ~ x, data = fake)
@@ -120,13 +144,29 @@ fm1 <- lm(y ~ x, data = fake)
 summary(fm1)
 ```
 
+
+
+
+
 Per ottenere l’intervallo di confidenza (nel senso frequentista) della stima dei parametri usiamo:
+
+
+
+
 
 ```{r}
 confint(fm1, level = 0.95)
 ```
 
+
+
+
+
 Adattiamo ora ai dati un modello di regressione bayesiano utilizzando **brms**. Si noti che, anche in questo caso, usiamo la sintassi di Wilkinson `y ~ x`, come per **lm()**.  Eseguiamo il campionamento:
+
+
+
+
 
 ```{r}
 #| output: false
@@ -138,9 +178,17 @@ fm2 <- brm(
 )
 ```
 
+
+
+
+
 Come discusso nell'analisi dell'algoritmo di Metropolis, il primo passo è esaminare le tracce dei parametri per verificare la convergenza dell'algoritmo. La convergenza può essere considerata raggiunta se le catene (nel caso di **brm**, sono 4 per impostazione predefinita) risultano ben mescolate. Questo si manifesta in un *trace plot* che mostra una distribuzione uniforme e casuale dei campioni attorno a un valore centrale, senza pattern evidenti o tendenze sistematiche.
 
 Le tracce dei parametri si ottengono nel modo seguente:
+
+
+
+
 
 ```{r fig.asp=1}
 mcmc_trace(
@@ -150,7 +198,15 @@ mcmc_trace(
 )
 ```
 
+
+
+
+
 Gli istogrammi delle distribuzioni a posteriori dei parametri si generano nel modo seguente:
+
+
+
+
 
 ```{r fig.asp=1}
 mcmc_hist(
@@ -160,11 +216,23 @@ mcmc_hist(
 )
 ```
 
+
+
+
+
 Per valutare l'autocorrelazione tra i campioni a posteriori del parametro `beta`, possiamo utilizzare il seguente comando:
+
+
+
+
 
 ```{r fig.asp=1}
 mcmc_acf(fm2, "b_x")
 ```
+
+
+
+
 
 L'autocorrelazione fornisce informazioni sulla dipendenza tra campioni successivi nella catena di Markov. È normale che i campioni successivi non siano completamente indipendenti, poiché le catene di Markov generano campioni correlati per costruzione. Tuttavia, se l'algoritmo ha raggiunto la convergenza, l'autocorrelazione dovrebbe diminuire rapidamente e diventare trascurabile dopo un numero relativamente piccolo di lag. Questo significa che, dopo un certo numero di passi, i campioni diventano progressivamente meno correlati tra loro, comportandosi in modo simile a campioni indipendenti estratti dalla distribuzione target.
 
@@ -174,18 +242,34 @@ Nel caso presente, notiamo una rapida diminuzione dell'autocorrelazione in funzi
 
 Una sintesi numerica dei risultati si trova nel modo seguente:
 
+
+
+
+
 ```{r}
 summary(fm2)
 ```
+
+
+
+
 
 Confrontiamo le stime ottenute con i valori reali dei parametri simulati. L'intercetta è stata stimata attorno a 1.14, con un'incertezza al 95% che varia tra -2.4 e 4.8. Questo risultato rientra negli intervalli di credibilità previsti, confermando l'accuratezza del modello. Analogamente, per la pendenza $b$, l'intervallo di credibilità al 95% include il valore reale simulato, dimostrando come le stime bayesiane riflettano accuratamente l'incertezza sui parametri.
 
 Se si utilizza la funzione `conditional_effects()` viene prodotto un grafico che rappresenta la relazione stimata tra il predittore $x$ e la variabile di risposta $y$.
 
+
+
+
+
 ```{r}
 conditional_effects(fm2) |>
   plot(points = TRUE)
 ```
+
+
+
+
 
 1. **Linea stimata (effetto medio):**
    - La linea centrale del grafico rappresenta il valore medio previsto di $y$ per ogni valore di $x$, dato dalla relazione $y = \alpha + \beta x$.
@@ -209,6 +293,10 @@ Ad esempio, il grafico può mostrare se $x$ ha un effetto credibile su $y$ e con
 ## Simulazione di Livelli di Copertura
 
 Verifichiamo la copertura degli intervalli di credibilità al 95% attraverso simulazioni ripetute.
+
+
+
+
 
 ```{r}
 set.seed(42)
@@ -244,11 +332,19 @@ cat("Coverage for a:", coverage_a / num_simulations, "\n")
 cat("Coverage for b:", coverage_b / num_simulations, "\n")
 ```
 
+
+
+
+
 I risultati indicano che i livelli di copertura empirici ottenuti con l'approccio frequentista corrispondono strettamente ai livelli teorici attesi.
 
 Per proseguire, ripeteremo la simulazione adottando un approccio bayesiano. Useremo la funzione **brm()** del pacchetto **brms** al posto di **lm()**. 
 
-```r
+
+
+
+
+```{r}
 #| message: false
 #| warning: false
 #| output: false
@@ -299,6 +395,10 @@ for (s in 1:n_fake) {
 ```
 
 
+
+
+
+
 ```r
 # Summarize the coverage results
 mean_cover_68 <- mean(cover_68, na.rm = TRUE)
@@ -341,9 +441,18 @@ Per un approfondimento sul modello bayesiano di regressione lineare, oltre al te
 
 ## Informazioni sull'Ambiente di Sviluppo {.unnumbered}
 
+
+
+
+
 ```{r}
 sessionInfo()
 ```
 
+
+
+
+
 ## Bibliografia {.unnumbered}
+
 

@@ -10,6 +10,7 @@
 ::: callout-tip
 ## Prerequisiti
 
+- Seguire le istruzioni fornite nell'@sec-apx-install-cmdstan per installare CmdStan.
 - Leggere *Navigating the Bayes maze: The psychologist's guide to Bayesian statistics, a hands-on tutorial with R code* [@alter2025navigating].
 - Consultare [The brms Book: Applied Bayesian Regression Modelling Using R and Stan](https://paulbuerkner.com/software/brms-book/brms-book.pdf).
 :::
@@ -105,7 +106,7 @@ La sintassi di Wilkinson non specifica le distribuzioni a priori, ma solo come l
 Per interpretare più facilmente l'intercetta, centriamo la variabile `weight` rispetto alla media del campione:
 
 ```{r}
-df$weight_c = df$weight - mean(df$weight)
+df$weight_c <- df$weight - mean(df$weight)
 ```
 
 Ora, l'intercetta ($\alpha$) rappresenterà l'altezza media quando il peso corrisponde alla media del campione.
@@ -125,6 +126,8 @@ fit_1 = brm(
   silent = 0
 )
 ```
+
+Utilizzando `center = FALSE` nel modello Bayesiano garantiamo che il centraggio venga mantenuto e non applicato nuovamente da `brms`.
 
 Le tracce dei parametri si ottengono nel modo seguente:
 
@@ -154,24 +157,96 @@ summary(fit_2)
 
 Anche in questo caso, l'uso di prior debolmente informativi fa in modo che i risultati dei due approcci siano praticamente equivalenti.
 
-### Visualizzazione dei Risultati
+## Visualizzazione dei Risultati
 
-Per comprendere la relazione stimata, utilizziamo la funzione `conditional_effects`:
+Per comprendere visivamente la relazione stimata tra peso e altezza nel nostro modello bayesiano, utilizziamo la funzione `conditional_effects`:
 
 ```{r}
 conditional_effects(fit_1, effects = "weight_c")
 ```
 
-Il grafico generato mostra:
+Il grafico generato fornisce una rappresentazione completa della relazione stimata:
 
-- Media posteriore: La linea rappresenta la stima centrale dell'altezza per un dato peso.
-- Intervallo di densità più alta (HDI): L'area evidenziata intorno alla linea mostra l'incertezza delle stime con un intervallo di probabilità del 95%.
+- **Linea centrale (media posteriore)**: Rappresenta la stima più probabile dell'altezza per ciascun valore del peso centrato.
+- **Area colorata (intervallo di credibilità)**: Mostra l'intervallo di densità più alta (HDI) al 95%, indicando l'incertezza attorno alla stima centrale.
+- **Punti sul grafico**: Rappresentano i dati reali osservati, permettendo di confrontare il modello con i dati originali.
 
-Se si desidera modificare la percentuale dell'intervallo di credibilità, è possibile farlo utilizzando l'argomento `prob`, per esempio:
+È possibile adattare il livello di incertezza mostrato modificando l'argomento `prob`:
 
 ```{r}
+# Visualizzazione con intervallo di credibilità all'89%
 conditional_effects(fit_1, effects = "weight_c", prob = 0.89)
 ```
+
+Ridurre il valore di `prob` (es. a 0.80 o 0.50) produce un intervallo più stretto, mentre aumentarlo (es. a 0.99) amplia l'area di incertezza visualizzata.
+
+### Interpretazione Pratica del Grafico
+
+Nel grafico:
+
+- Il punto dove la linea attraversa `weight_c = 0` corrisponde all'altezza prevista per un individuo con peso medio (poiché abbiamo centrato la variabile).
+- La pendenza della linea indica quanto ci aspettiamo che l'altezza aumenti per ogni kg di peso aggiuntivo.
+- La larghezza dell'intervallo di credibilità indica la nostra certezza sulle stime: più stretto l'intervallo, maggiore la certezza.
+
+## Due Tipi di Incertezza nei Modelli Bayesiani
+
+Quando visualizziamo i risultati di un modello bayesiano, esistono due tipi fondamentali di incertezza che possiamo rappresentare:
+
+1. **Incertezza del parametro** (metodo predefinito): Mostra quanto siamo incerti riguardo alla "vera" relazione tra variabili.
+2. **Incertezza predittiva** (`method = "predict"`): Mostra quanto siamo incerti riguardo a singole osservazioni future.
+
+La visualizzazione che incorpora l'incertezza sui parametri si ottiene con:
+
+```r
+conditional_effects(fit_1, effects = "weight_c")
+```
+
+Questa visualizzazione standard mostra:
+
+- **La linea di regressione** stimata (media posteriore)
+- **L'intervallo di credibilità** attorno alla linea (solitamente al 95%)
+
+Ciò che vediamo è **l'incertezza della media condizionale** - ovvero, quanto siamo incerti sul valore medio dell'altezza per ogni valore del peso.
+
+La visualizzazione predittiva si ottiene con:
+
+```{r}
+conditional_effects(fit_1, effects = "weight_c", method = "predict")
+```
+
+Questa visualizzazione alternativa mostra:
+
+- **La stessa linea di regressione** stimata.
+- **Un intervallo di predizione** molto più ampio.
+
+L'intervallo mostrato rappresenta:
+
+- L'incertezza dei parametri (come nella visualizzazione standard).
+- **PIÙ** la variabilità residua del modello (la dispersione naturale dei dati).
+
+### Perché sono Diverse e Quale Scegliere?
+
+- **Visualizzazione standard**: Risponde alla domanda "Quanto siamo sicuri della relazione media tra peso e altezza?"
+- **Visualizzazione predittiva**: Risponde alla domanda "Dove ci aspettiamo che cadrà la prossima osservazione individuale?"
+
+#### Differenze Visive Notevoli:
+
+1. **Ampiezza dell'intervallo**: L'intervallo predittivo è sempre considerevolmente più ampio dell'intervallo di credibilità per la media.
+2. **Interpretazione pratica**: L'intervallo predittivo include la variabilità naturale delle osservazioni individuali.
+
+### Quando Usare Ciascun Metodo:
+
+- **Usa il metodo predefinito** quando sei interessato alla relazione tra variabili.
+- **Usa `method = "predict"`** quando vuoi fare previsioni su nuove osservazioni individuali.
+
+#### Esempio Concreto
+
+Immagina di voler predire l'altezza di una persona specifica con un dato peso:
+
+- La visualizzazione standard ti dirà quanto sei sicuro del valore medio per persone con quel peso.
+- La visualizzazione predittiva ti dirà in quale intervallo probabilmente cadrà un'osservazione individuale, incorporando sia l'incertezza del modello che la variabilità naturale.
+
+In sintesi, la differenza principale sta nell'inclusione o meno della variabilità residua. La visualizzazione predittiva è più onesta riguardo alla nostra capacità di fare previsioni per singole osservazioni, mentre quella standard è più adatta per comprendere la relazione generale tra le variabili.
 
 ## Distribuzione a Posteriori dei Parametri
 
