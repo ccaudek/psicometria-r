@@ -1,24 +1,13 @@
 # Psicometria (coorte L-Z)
 
-Questo repository contiene il materiale didattico per l’insegnamento di **Psicometria**, coorte L-Z, presso l’Università degli Studi di Firenze, Anno Accademico 2024-2025.
+Questo repository raccoglie le risorse didattiche per l'insegnamento di *Psicometria* (con focus sull'applicazione della data science alle scienze psicologiche), destinato agli studenti del gruppo L-Z del Corso di Laurea in Psicologia presso l'Università degli Studi di Firenze. Il materiale è riferito all'Anno Accademico 2024-2025 e include contenuti teorici, esercitazioni pratiche e strumenti per l'analisi quantitativa in ambito psicologico.  
 
-## Sito web
+## Accesso al Materiale Didattico Online  
 
-Il sito del materiale (in formato “libro Quarto”) è disponibile qui:  
-[https://ccaudek.github.io/psicometria-r/](https://ccaudek.github.io/psicometria-r/)
+Il materiale didattico digitale (*Quarto book*) è consultabile attraverso il seguente portale:  
+**[Materiale Didattico Interattivo di Psicometria](https://ccaudek.github.io/psicometria-r/)**  
 
-## Compilazione del libro
+- 🔄 **Aggiornato in tempo reale**: sincronizzato con l'evoluzione del corso.  
+- 📚 **Struttura interattiva**: integra teoria, esempi pratici e frammenti di codice *R*.  
+- 📱 **Accesso ottimizzato**: compatibile con dispositivi desktop e mobile.  
 
-Per generare il libro in locale, esegui:
-
-```bash
-quarto render
-```
-
-## Pubblicazione con GitHub Pages
-
-Per effettuare il **deploy** del libro su GitHub Pages (nella cartella `docs`), utilizza:
-
-```bash
-ghp-import -n -p -f docs
-```
