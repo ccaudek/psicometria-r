@@ -100,12 +100,61 @@ Il MAD è meno sensibile agli outlier rispetto alla deviazione standard ed è sp
 
 Quando si considerano più variabili contemporaneamente, un valore potrebbe non apparire anomalo su una singola variabile, ma esserlo nel contesto dell'intero dataset. Un metodo comune per individuare questi outlier è la *Distanza di Mahalanobis*, che tiene conto delle correlazioni tra variabili.
 
-Per comprendere intuitivamente la distanza di Mahalanobis, immaginate di avere una nube di punti che rappresentano individui, ciascuno con i propri valori di altezza e peso. Il “centro” di questa nube è un punto ideale che rappresenta una sorta di media multivariata (tenendo conto sia dell’altezza sia del peso). La distanza di Mahalanobis misura quanto ogni singolo individuo si allontana da questo centro, considerando la variabilità congiunta delle variabili (ad esempio, la correlazione tra altezza e peso). Se un individuo presenta caratteristiche molto diverse rispetto alla maggioranza, la sua distanza di Mahalanobis sarà elevata, segnalando un potenziale outlier.
+- Con la distanza "normale" (come quella che misuri con un righello), se una persona è più alta o più pesante della media, la distanza è calcolata in modo "isolato", senza considerare che altezza e peso sono spesso correlate (persone più alte tendono a pesare di più).
+- Con la distanza di Mahalanobis, invece, si osserva il "contesto" dei dati. Se tutti nel gruppo hanno un’altezza e un peso che crescono in modo coordinato (ad esempio, ogni 10 cm in più corrispondono a 8 kg in più), questa distanza valuta se la nuova persona si allontana da questo schema generale. Ad esempio, una persona molto alta ma con peso medio potrebbe essere considerata più "anomala" di una persona altrettanto alta ma più pesante, perché viola la relazione tipica del gruppo.
+
+Per comprendere intuitivamente la distanza di Mahalanobis, immaginiamo di avere una nube di punti che rappresentano individui, ciascuno con i propri valori di altezza e peso. Il “centro” di questa nube è un punto ideale che rappresenta una sorta di media multivariata (tenendo conto sia dell’altezza sia del peso). La distanza di Mahalanobis misura quanto ogni singolo individuo si allontana da questo centro, considerando la variabilità congiunta delle variabili (ad esempio, la correlazione tra altezza e peso). Se un individuo presenta caratteristiche molto diverse rispetto alla maggioranza, la sua distanza di Mahalanobis sarà elevata, segnalando un potenziale outlier.
 
 ::: {#fig-maha-dist}
 ![](../../figures/outliers.png){width="70%"}
 
-Soglie per la detezione degli outliers nel caso di una metrica unidimensionale (pannello di sinistra) e nel caso di una rappresentazione multivariata della varianza (pannello di destra) -- figura creata da Sergen Cansiz.
+Soglie per la detezione degli outliers (bande grigie) nel caso di una metrica unidimensionale (pannello di sinistra) e nel caso di una rappresentazione multivariata della varianza (pannello di destra) -- figura creata da Sergen Cansiz.
+:::
+
+::: {.callout-tip title="Distanza di Mahalanobis" collapse="true"}
+Consideriamo ora una definizione della distanza di Mahalanobis nel caso bivariato (due variabili). Immaginiamo di avere due variabili come altezza ($X$) e peso ($Y$), con:  
+
+- **Medie**: $\mu_X$ (altezza media del gruppo), $\mu_Y$ (peso medio del gruppo).  
+- **Varianze**: $\sigma_X^2$ (quanto varia l'altezza), $\sigma_Y^2$ (quanto varia il peso).  
+- **Correlazione**: $\rho$ (quanto $X$ e $Y$ sono legate, ad esempio: se l'altezza aumenta, di quanto aumenta solitamente il peso?).
+
+**Per un nuovo individuo** con altezza $x$ e peso $y$, la distanza di Mahalanobis ($D$) si calcola così:  
+
+1. **Calcolare le differenze rispetto alla media**:  
+   - Quanto si discosta l'altezza: $(x - \mu_X)$.
+   - Quanto si discosta il peso: $(y - \mu_Y)$. 
+
+2. **Scalare le differenze con le varianze**:  
+   - Dividere ogni differenza per la sua "variabilità tipica" (deviazione standard $\sigma_X$ e $\sigma_Y$):  
+   
+     $$
+     \frac{(x - \mu_X)}{\sigma_X} \quad \text{e} \quad \frac{(y - \mu_Y)}{\sigma_Y} .
+     $$
+
+3. **Correggere per la correlazione**:  
+
+   - Se $X$ e $Y$ sono correlate ($\rho \neq 0$), modifica le differenze per tenere conto di come di solito si "muovono insieme".  
+   - La formula finale combina tutto in un unico valore:  
+     $$
+     D = \sqrt{ \frac{ \left( \frac{(x - \mu_X)}{\sigma_X} \right)^2 + \left( \frac{(y - \mu_Y)}{\sigma_Y} \right)^2 - 2 \rho \left( \frac{(x - \mu_X)}{\sigma_X} \right)\left( \frac{(y - \mu_Y)}{\sigma_Y} \right) }{1 - \rho^2} }
+     $$
+     
+**Spiegazione**:  
+
+- Senza correlazione ($\rho = 0$), sarebbe come una distanza Euclidea "scalata" dalle varianze.  
+- Con correlazione ($\rho \neq 0$), sottrai un termine che "aggiusta" la distanza in base a quanto $X$ e $Y$ tendono a variare insieme.  
+- Il denominatore $1 - \rho^2$ normalizza il risultato, per evitare che la correlazione distorca troppo la misura.  
+
+**Esempio**:  
+Se tutti gli alti sono anche pesanti ($\rho$ positivo), un individuo alto ma magro avrà una distanza di Mahalanobis maggiore rispetto a uno altrettanto alto ma pesante, perché viola la relazione tipica del gruppo.  
+:::
+
+::: {.callout-tip title="Distanza Eucliea" collapse="true"}
+Ricordiamo che la distanza euclidea tra due punti $(x_1, y_1)$ e $(x_2, y_2)$ in un piano cartesiano è definita come:
+
+$$ 
+d = \sqrt{(x_2 - x_1)^2 + (y_2 - y_1)^2} 
+$$
 :::
 
 Esempio in R:
@@ -122,7 +171,6 @@ outliers_mahal
 ```
 
 Questo metodo è utile per dataset con più variabili correlate, come misure biometriche (altezza e peso).
-
 
 Tuttavia, la versione classica di questa misura non è particolarmente robusta: la presenza stessa di outlier può distorcere il calcolo del “centro” e della variabilità complessiva, rendendo meno affidabile l’individuazione di altri valori anomali. Per questo motivo, si preferisce utilizzare una variante più resistente, la Minimum Covariance Determinant (MCD), che diminuisce l’influenza degli outlier stessi nel processo di identificazione.
 
@@ -153,7 +201,40 @@ Una volta identificati gli outlier, dobbiamo decidere se rimuoverli, correggerli
 4. **Trasformare i dati**: applicare logaritmi o altre trasformazioni può ridurre l'impatto degli outlier.
 5. **Winsorizzazione**: invece di rimuovere gli outlier, possiamo limitarli a un massimo accettabile.
 
-Nel pacchetto easystats, la funzione `winsorize()` di *{datawizard}* semplifica il compito di Winsorizzazione:
+::: {.callout-tip title="Winsorizzazione" collapse="true"}
+Nella Winsorizzazione, invece di eliminare gli outlier, si sostituiscono i valori troppo alti o troppo bassi con i valori più vicini considerati "accettabili", mantenendo però la struttura generale dei dati.
+
+**Come funziona?**  
+1. **Definisci i limiti**:  
+
+   - Decidi una "soglia" per identificare gli outlier, ad esempio il **5° percentile** (valore sotto cui cade il 5% dei dati più bassi) e il **95° percentile** (valore sopra cui cade il 5% dei dati più alti).  
+   - Queste soglie dipendono dal contesto: puoi usare percentili diversi (es. 1° e 99°) in base a quanto vuoi essere severo nel definire gli outlier.
+
+2. **Sostituisci gli outlier**:  
+
+   - **Valori troppo bassi**: Tutti i dati sotto il 5° percentile vengono sostituiti con il valore del 5° percentile.  
+   - **Valori troppo alti**: Tutti i dati sopra il 95° percentile vengono sostituiti con il valore del 95° percentile.  
+
+**Esempio concreto**:  
+Supponiamo di avere i seguenti dati su 10 esami (ordinati):  
+`40, 55, 60, 65, 70, 75, 80, 85, 90, 200`  
+
+- **5° percentile**: 55 (il valore sotto cui cade il 5% dei dati).  
+- **95° percentile**: 90 (il valore sopra cui cade il 5% dei dati).  
+
+**Dopo la Winsorizzazione**:  
+- Il valore più basso (40) diventa 55.  
+- Il valore più alto (200) diventa 90.  
+Nuovi dati: `55, 55, 60, 65, 70, 75, 80, 85, 90, 90`.
+
+**Perché usarla?**  
+
+- **Mantiene la dimensione del dataset**: Non si eliminano dati, ma si modificano solo gli outlier. 
+- **Riduce la distorsione**: Gli outlier estremi non "trascinano" la media o altre statistiche.  
+- **Utile in contesti sensibili**: Ad esempio, in finanza (per gestire rendimenti anomali) o nelle analisi mediche (per evitare che valori estremi falsino i risultati).
+:::
+
+Nel pacchetto **easystats**, la funzione `winsorize()` di **datawizard** semplifica il compito di Winsorizzazione:
   
 ```r
 winsorized_data <- 
