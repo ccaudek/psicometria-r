@@ -42,6 +42,8 @@ Importiamo i dati:
 df <- rio::import(here::here("data", "data.mood.csv"))
 ```
 
+### Data Wrangling
+
 Per questo esercizio, ci concentreremo sulle variabili `esm_id` (il codice del soggetto), `group` (il gruppo) e `bdi` (il valore BDI-II).
 
 ```{r}
@@ -88,61 +90,93 @@ Otteniamo così il DataFrame finale per gli scopi presenti (66 righe e 3 colonne
 dim(df)
 ```
 
-Stampiamo i valori BDI-II presentandoli ordinati dal più piccolo al più grande:
+### Anteprima dei Dati  
+
+Prima di approfondire l'analisi, è fondamentale esaminare una anteprima dei dati per comprenderne struttura, formati e potenziali anomalie.  
+
+**La funzione `glimpse()`**  
+
+```{r}  
+glimpse(df)  
+```  
+
+Fornisce una panoramica compatta del dataset: numero di righe/colonne, tipo di variabili (es. `chr`, `num`, `dbl`) ed esempi di valori. Utile per identificare rapidamente formati errati o colonne non attese.  
+
+**La funzione `summary()`**  
+
+```{r}  
+summary(df)  
+``` 
+
+Genera statistiche descrittive per ogni colonna:  
+
+- Per variabili numeriche: media, mediana, quartili, min/max.  
+- Per variabili categoriche: frequenza dei livelli.  
+- Segnala valori mancanti (`NA`), aiutando a valutare la qualità dei dati.  
+
+I comandi `head()` e `tail()` ci permettono di visualizzare le prime o le ultime righe di un dataset.
 
 ```{r}
-df$bdi |> 
-  sort()
+head(df)
 ```
 
-Nel linguaggio statistico, un'osservazione rappresenta l'informazione raccolta da un singolo individuo o entità che partecipa allo studio. Nel caso del dataset utilizzato da @zetsche_2019future, l'unità di osservazione è costituita dai partecipanti allo studio. Ogni riga del DataFrame, denominato `df`, corrisponde quindi a un individuo distinto incluso nell'analisi.
+```{r}
+tail(df)
+```
 
-Le variabili, invece, riflettono le diverse caratteristiche degli individui o delle entità considerate. Per i dati in esame, questo concetto si esprime così:
+### Conversione da `char` a `factor`
 
-- Ogni colonna di `df` rappresenta una variabile che descrive una specifica proprietà comune ai partecipanti.
-- Le variabili sono identificate da etichette nelle colonne, come `esa_id` (l'identificativo del soggetto), `mdd` (il gruppo di appartenenza), e `bdi` (il punteggio del test BDI-II).
+In R, i tipi di dato **character** e **factor** rappresentano informazioni testuali, ma hanno utilizzi distinti:
 
-In termini simbolisi, per indicare una singola osservazione della variabile generica $X$, si utilizza la notazione $X_i$, dove $i$ rappresenta l'indice dell'osservazione. Questo implica che abbiamo un valore diverso di $X$ per ogni differente $i$. Nel caso presente, con 67 osservazioni, $i$ varia da 1 a 67. Così, per rappresentare la seconda osservazione (quella con $i=2$), useremo la notazione $X_2$. 
+- **character**: è una semplice stringa di testo;
+- **factor**: è una variabile categoriale, ideale per rappresentare dati con un numero finito di categorie (livelli). I dati in formato `factor` sono utili per analisi statistiche, poiché trattano i valori come categorie discrete.
 
-## Distribuzioni di frequenza
+Nel seguente esempio, convertiamo una variabile `group` da `character` a `factor`, in modo da poterla utilizzare come variabile categoriale:
 
-Come osservato nell'output della sezione precedente, i dati grezzi non forniscono un'interpretazione immediata. Per rendere i dati più comprensibili e sintetici, è utile costruire una **distribuzione di frequenza**.
+```r
+df$group <- as.factor(df$group)  # Converte 'group' in un factor
+```
 
-Una distribuzione di frequenza mostra quante volte i valori di una variabile si verificano all'interno di intervalli specifici. Nel caso dei punteggi BDI-II, possiamo raggruppare i punteggi in quattro classi:
+Successivamente, il comando `summary()` fornisce un riepilogo della variabile categoriale, mostrando il conteggio dei valori per ciascun livello:
 
-- 0–13: depressione minima
-- 14–19: depressione lieve-moderata
-- 20–28: depressione moderata-severa
-- 29–63: depressione severa
+```r
+summary(df$group)
+```
 
-Ogni classe, denotata come $\Delta_i$, rappresenta un intervallo di valori, definito come $[a_i, b_i)$ (aperto a destra) o $(a_i, b_i]$ (aperto a sinistra), dove $a_i$ e $b_i$ sono rispettivamente il limite inferiore e superiore della classe. A ciascuna classe si associa un'ampiezza, data da $b_i - a_i$, e un valore centrale, indicato con $\bar{x}_i$. Poiché ogni osservazione $x_i$ appartiene a una sola classe $\Delta_i$, possiamo calcolare le seguenti quantità:
+## Distribuzioni di Frequenza
 
-- **Frequenza assoluta** $n_i$: il numero di osservazioni che rientrano nella classe $\Delta_i$.
-  - Proprietà: $n_1 + n_2 + \dots + n_m = n$, dove $n$ è il numero totale di osservazioni.
-  
-- **Frequenza relativa** $f_i$: la proporzione di osservazioni in ciascuna classe, calcolata come $f_i = n_i/n$.
-  - Proprietà: $f_1 + f_2 + \dots + f_m = 1$.
+Le distribuzioni di frequenza sono strumenti essenziali per visualizzare e comprendere la variabilità di una variabile. In questo capitolo verrà illustrato come costruire una distribuzione di frequenza e, successivamente, come generare in R una distribuzione cumulativa empirica, un istogramma, un Kernel Density Plot e un boxplot.
 
-- **Frequenza cumulata** $N_i$: il numero totale di osservazioni che rientrano nelle classi fino alla $i$-esima inclusa, calcolata come $N_i = \sum_{j=1}^i n_j$.
+A titolo esemplificativo, consideriamo i punteggi del BDI-II. Iniziamo ordinando i dati in ordine crescente:
 
-- **Frequenza cumulata relativa** $F_i$: la somma delle frequenze relative fino alla $i$-esima classe, data da $F_i = \frac{N_i}{n} = \sum_{j=1}^i f_j$.
+```{r}
+df$bdi |> sort()
+```
 
-Queste misure permettono di riassumere in modo efficace la distribuzione dei punteggi e facilitano l'interpretazione delle caratteristiche del campione.
+Una distribuzione di frequenza evidenzia quante volte i valori di una variabile ricorrono in determinati intervalli. Ad esempio, per i punteggi del BDI-II è consuetudine raggruppare i dati nelle seguenti classi:
+
+- **0–13:** depressione minima
+- **14–19:** depressione lieve-moderata
+- **20–28:** depressione moderata-severa
+- **29–63:** depressione severa
+
+Definendo ciascuna classe, indicata con $\Delta_i$, come un intervallo $[a_i, b_i)$ o $(a_i, b_i]$, possiamo calcolare le seguenti misure:
+
+- **Frequenza assoluta ($n_i$)**: numero di osservazioni in $\Delta_i$. La somma delle frequenze assolute corrisponde al totale delle osservazioni, $n$.
+- **Frequenza relativa ($f_i$)**: proporzione di osservazioni in $\Delta_i$, calcolata come $f_i = n_i/n$; la somma delle frequenze relative è pari a 1.
+- **Frequenza cumulata ($N_i$)**: somma delle frequenze assolute fino alla classe $i$, ovvero $N_i = \sum_{j=1}^i n_j$.
+- **Frequenza cumulata relativa ($F_i$)**: somma delle frequenze relative fino alla classe $i$, data da $F_i = \sum_{j=1}^i f_j$.
+
+Queste misure consentono di sintetizzare la distribuzione dei punteggi, facilitando l’interpretazione delle caratteristiche del campione.
 
 ### Frequenze Assolute e Relative
 
-Per ottenere la distribuzione di frequenza assoluta e relativa dei valori BDI-II nel dataset di @zetsche_2019future, è necessario aggiungere al DataFrame `df` una colonna contenente una variabile categoriale che classifichi ciascuna osservazione in una delle quattro classi che descrivono la gravità della depressione. Questo risultato si ottiene utilizzando la funzione `cut()`.
+Per analizzare la distribuzione dei punteggi BDI-II nel dataset di @zetsche_2019future, è utile creare una variabile categoriale che classifichi ogni osservazione in una delle quattro classi di gravità della depressione. A tal fine, utilizziamo la funzione `cut()`, che permette di suddividere il vettore dei punteggi (`bdi`) in intervalli definiti.
 
-Nella funzione `cut()`:
-
-- Il primo argomento, `x`, è un vettore unidimensionale (ad esempio, un vettore di tipo `numeric` o una colonna di un DataFrame) che contiene i dati da classificare.
-- Il secondo argomento, `breaks`, definisce gli intervalli delle classi, specificandone i limiti inferiori e superiori.
-- L'argomento `include.lowest = TRUE` garantisce che il limite inferiore dell'intervallo più basso sia incluso nella classificazione. Nel nostro caso, questo è particolarmente utile per assicurare che i valori uguali al limite inferiore siano assegnati correttamente.
-
-Di seguito, il codice per aggiungere la variabile categoriale al DataFrame:
+Nel comando seguente, il parametro `breaks` specifica i limiti degli intervalli, mentre `include.lowest = TRUE` garantisce che il valore minimo sia incluso nel primo intervallo:
 
 ```{r}
-# Creare una variabile categoriale per classi di depressione
+# Creazione della variabile categoriale per i livelli di depressione
 df <- df %>% 
   mutate(
     bdi_class = cut(
@@ -153,36 +187,42 @@ df <- df %>%
   )
 ```
 
-Questo codice suddivide i valori della variabile `bdi` in quattro intervalli corrispondenti ai livelli di gravità della depressione: 
+I punteggi vengono suddivisi nelle seguenti classi:
 
-- 0–13: depressione minima
-- 14–19: depressione lieve-moderata
-- 20–28: depressione moderata-severa
-- 29–63: depressione severa
+- **0–13:** depressione minima
+- **14–19:** depressione lieve-moderata
+- **20–28:** depressione moderata-severa
+- **29–63:** depressione severa
 
-Ogni osservazione verrà assegnata al corrispondente intervallo, creando così una nuova colonna `bdi_class` nel DataFrame `df`.
+Una volta creata la variabile `bdi_class`, possiamo calcolare le frequenze assolute e relative.
 
-#### Frequenze assolute
+#### Frequenze Assolute
+
+Utilizzando la funzione `table()`, si ottiene il numero di osservazioni in ciascuna classe:
 
 ```{r}
 table(df$bdi_class)
 ```
 
-#### Frequenze relative
+#### Frequenze Relative
+
+Con `prop.table()` è possibile determinare la proporzione di osservazioni per ogni classe:
 
 ```{r}
 prop.table(table(df$bdi_class))
 ```
 
-### Distribuzioni congiunte
+### Distribuzioni Congiunte
 
-Le variabili possono anche essere analizzate insieme tramite le *distribuzioni congiunte di frequenze*. Queste distribuzioni rappresentano l'insieme delle frequenze assolute o relative ad ogni possibile combinazione di valori delle variabili. Ad esempio, se l'insieme di variabili $V$ è composto da due variabili, $X$ e $Y$, ciascuna delle quali può assumere due valori, 1 e 2, allora una possibile distribuzione congiunta di frequenze relative per $V$ potrebbe essere espressa come $f(X = 1, Y = 1) = 0.2$, $f(X = 1, Y = 2) = 0.1$, $f(X = 2, Y = 1) = 0.5$, e $f(X = 2, Y = 2) = 0.2$. Come nel caso delle distribuzioni di frequenze relative di una singola variabile, le frequenze relative di una distribuzione congiunta devono sommare a 1.
+Le distribuzioni congiunte di frequenze permettono di analizzare la relazione tra due variabili, considerando tutte le possibili combinazioni dei loro valori. Ad esempio, se analizziamo le variabili `bdi_class` e `group`, la tabella congiunta mostrerà la frequenza (assoluta o relativa) per ogni coppia di valori.
 
-Per i dati dell'esempio precedente, la funzione `prop.table()` può essere utilizzata anche per produrre questo tipo di tabella: basta indicare le serie corrispondenti alle variabili considerate come valori degli argomenti `bdi_class` e `group`.
+Per ottenere la distribuzione congiunta relativa, utilizziamo:
 
 ```{r}
 prop.table(table(df$bdi_class, df$group))
 ```
+
+In questo modo, possiamo esaminare come le classi di punteggi BDI-II si distribuiscono all’interno dei diversi gruppi, con la somma complessiva delle frequenze relative pari a 1.
 
 ### La Distribuzione Cumulativa Empirica
 
@@ -227,12 +267,6 @@ df |> dplyr::filter(group == "mdd") |>
 ```
 
 In questo caso, la eCDF ci mostrerà come i punteggi BDI-II sono distribuiti tra i pazienti con depressione maggiore, permettendoci di identificare eventuali pattern specifici per questo gruppo.
-
-#### Vantaggi della eCDF
-
-- **Visualizzazione chiara**: La eCDF fornisce una rappresentazione visiva immediata della distribuzione dei dati, evidenziando caratteristiche come la bimodalità o la presenza di outlier.
-- **Non parametrica**: La eCDF non assume alcuna forma specifica per la distribuzione dei dati, rendendola adatta per analizzare dati con distribuzioni complesse o non standard.
-- **Facilità di interpretazione**: La proporzione cumulativa è intuitiva e permette di capire rapidamente quanti dati si trovano al di sotto di un certo valore.
 
 In sintesi, la eCDF è uno strumento potente per analizzare e visualizzare la distribuzione di dati numerici, specialmente quando si vogliono identificare pattern specifici o confrontare distribuzioni tra diversi gruppi.
 
@@ -426,28 +460,6 @@ heights |>
 
 In sintesi, l'area sotto la curva di densità in un determinato intervallo rappresenta la probabilità che un valore casuale cada in quell'intervallo, rendendo la curva di densità uno strumento potente per comprendere e comunicare la distribuzione dei dati.
 
-## Consigli per Creare Visualizzazioni di Dati Efficaci
-
-Ecco alcuni suggerimenti per creare visualizzazioni di dati esplicative, efficaci e di qualità adatta alle presentazioni:
-
-1. **Messaggio chiaro**: Assicurati che il grafico trasmetta un messaggio chiaro e immediato (ad esempio, "Il livello di benessere psicologico dei partecipanti aumenta nel tempo").
-2. **Uso del colore**:
-   - Utilizza i colori in modo ponderato e con moderazione.
-   - Non eccedere nell'uso dei colori solo perché è possibile farlo.
-   - Limita l'uso a non più di cinque o sei colori in una singola figura.
-   - Verifica che le scelte cromatiche non distorcano le conclusioni della figura.
-   - Evita l'uso contemporaneo di rosso e verde nello stesso grafico, poiché queste tonalità sono difficili da distinguere per le persone daltoniche.
-3. **Guidare l'attenzione**:
-   - Utilizza dimensioni, colori e testo per guidare l'attenzione del pubblico.
-   - Evidenzia elementi particolari del grafico per enfatizzare punti chiave.
-4. **Gestione del sovraccarico visivo**:
-   - Utilizza la trasparenza per ridurre il "sovrapplotting" (che si verifica quando ci sono molti elementi sovrapposti nel grafico, come punti o linee, rendendo difficile individuare i pattern).
-   - Questa tecnica è particolarmente utile quando si visualizza una grande quantità di dati.
-   - Se il dataset è molto ampio e l'aggiunta di trasparenza non è sufficiente, considera la visualizzazione di un sottocampione dei dati (un campione casuale di punti dati, scelto *senza sostituzione*). Questa tecnica è nota come **sottocampionamento**.
-5. **Elementi testuali**:
-   - I titoli, le etichette degli assi e il testo delle legende devono essere chiari e facilmente comprensibili.
-   - Gli elementi della legenda dovrebbero essere ordinati in modo logico e coerente.
-
 ## Forma di una Distribuzione
 
 In statistica, la forma di una distribuzione descrive come i dati sono distribuiti intorno ai valori centrali. Si distingue tra distribuzioni simmetriche e asimmetriche, e tra distribuzioni unimodali e multimodali. Un'illustrazione grafica è fornita nella figura seguente. Nel pannello 1, la distribuzione è unimodale con asimmetria negativa; nel pannello 2, la distribuzione è unimodale con asimmetria positiva; nel pannello 3, la distribuzione è simmetrica e unimodale; nel pannello 4, la distribuzione è bimodale.
@@ -555,9 +567,15 @@ ggplot(df, aes(x = group, y = bdi, color = group)) +
   ) 
 ```
 
+
 ## Riflessioni Conclusive
 
-Abbiamo esplorato diverse tecniche per sintetizzare e visualizzare i dati, includendo distribuzioni di frequenze, istogrammi e grafici di densità. Questi strumenti sono essenziali per comprendere meglio i dati e presentare risultati in modo chiaro e informativo. La **visualizzazione dei dati** ci aiuta a individuare possibili anomalie o situazioni inaspettate, prima di applicare modelli o interpretazioni statistiche.
+In questo capitolo abbiamo illustrato una varietà di tecniche per sintetizzare e visualizzare i dati numerici, concentrandoci sia sugli aspetti descrittivi (come distribuzioni di frequenze, istogrammi e distribuzioni cumulative) sia su metodi più raffinati come la stima della densità kernel. Questi strumenti non solo facilitano la comprensione immediata dei pattern e delle caratteristiche fondamentali dei dati, ma rappresentano anche un passaggio essenziale per identificare anomalie e guidare ulteriori analisi statistiche.
+
+La capacità di trasformare dati grezzi in rappresentazioni grafiche chiare e intuitive è fondamentale per comunicare in modo efficace i risultati dell’analisi, soprattutto quando si tratta di supportare decisioni pratiche o di sviluppare ipotesi di ricerca. In questo senso, una visualizzazione accurata e ben strutturata consente di evidenziare aspetti come la forma della distribuzione, la presenza di outlier e le differenze tra sottogruppi, contribuendo a una più profonda interpretazione dei fenomeni studiati.
+
+Infine, l’integrazione di tecniche di visualizzazione con analisi statistiche sintetiche migliora la trasparenza e l’interpretabilità dei dati, offrendo un quadro completo che supporta sia la valutazione critica che la comunicazione dei risultati.
+
 
 ## Esercizi
 
