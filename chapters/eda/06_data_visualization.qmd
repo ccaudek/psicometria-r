@@ -25,7 +25,7 @@
 ## Preparazione del Notebook
 
 ```{r}
-here::here("code", "_common.R") |> 
+here::here("code", "_common.R") |>
   source()
 
 # Load packages
@@ -60,14 +60,15 @@ diventa difficile rispondere a domande quali:
 Al contrario, il grafico seguente rende evidenti tutte queste informazioni:
 
 ```{r ggplot-example-plot-0, echo=FALSE, message=FALSE, warning=FALSE, fig.asp=1}
-r <- murders |> 
-  summarize(pop = sum(population), tot = sum(total)) |> 
-  mutate(rate = tot/pop*10^6) |> pull(rate)
+r <- murders |>
+  summarize(pop = sum(population), tot = sum(total)) |>
+  mutate(rate = tot / pop * 10^6) |>
+  pull(rate)
 
-murders |> ggplot(aes(x = population/10^6, y = total, label = abb)) +  
+murders |> ggplot(aes(x = population / 10^6, y = total, label = abb)) +
   geom_abline(intercept = log10(r), lty = 2, col = "darkgrey") +
   geom_point(aes(color = region), size = 3) +
-  geom_text_repel() + 
+  geom_text_repel() +
   scale_x_log10() +
   scale_y_log10() +
   xlab("Popolazione in milioni\n(scala logaritmica)") +
@@ -130,6 +131,44 @@ Quando la lunghezza è usata come segnale visivo (come nei barplot), è fondamen
 
 L’utilizzo di aree, ad esempio nei bubble plot, può esagerare le differenze tra valori a causa della relazione quadratica tra raggio e area. Per confronti accurati, è preferibile utilizzare la posizione o la lunghezza.
 
+
+::: {.callout-tip title="State of the Union" collapse="true"}
+
+::: {#fig-obama1}
+![](../../figures/state-of-the-union.png){width="80%"}
+
+**Fonte:** @irizarry2024introduction.
+:::
+
+Durante il *Discorso sullo Stato dell'Unione* del 2011 del Presidente Barack Obama, fu utilizzato il grafico sopra per confrontare il PIL statunitense con quello di quattro nazioni concorrenti.  
+
+**Giudicando dall'area dei cerchi**, gli Stati Uniti sembrerebbero avere un'economia oltre 5 volte più grande di quella cinese e oltre 30 volte superiore a quella francese. Tuttavia, analizzando i dati reali, emergono discrepanze significative: i rapporti effettivi sono rispettivamente **2.6 volte** quello della Cina e **5.8 volte** quello della Francia.  
+
+Questa distorsione visiva nasce dall'avere reso **il raggio** (non l'area) proporzionale al valore economico. Poiché l'area di un cerchio dipende dal quadrato del raggio ($Area = \pi r^2$), le proporzioni vengono amplificate:  
+
+- $2.6^2 = 6.76$ (approssimato a 6.5 nel grafico)  
+- $5.8^2 = 33.64$ (approssimato a 34.1)  
+
+Il confronto sottostante illustra l'impatto della scelta tra raggio e area nella rappresentazione grafica:  
+
+::: {#fig-obama2}
+![](../../figures/area-not-radius-1.png){width="80%"}
+
+**Fonte:** @irizarry2024introduction.
+:::
+
+Non a caso, **ggplot2 utilizza per impostazione predefinita l'area** anziché il raggio. Tuttavia, in casi come questo, la soluzione ottimale sarebbe evitare del tutto i cerchi a favore di strumenti più intuitivi come posizione e lunghezza:  
+
+::: {#fig-obama3}
+![](../../figures/barplot-better-than-area-1.png){width="70%"}
+
+**Fonte:** @irizarry2024introduction.
+:::
+
+Questo caso dimostra chiaramente come, per evitare distorsioni percettive, sia una prassi consolidata ottimizzare la visualizzazione dei dati attraverso confronti basati su lunghezze (o posizioni) anziché su aree o volumi, come evidenziato dall'errata rappresentazione del PIL nel grafico originale.
+
+:::
+
 ### Ordinamento delle Categorie
 
 Disporre le categorie in base al valore della variabile di interesse, anziché in ordine alfabetico, facilita l’interpretazione visiva e mette in luce pattern significativi.
@@ -138,17 +177,131 @@ Disporre le categorie in base al valore della variabile di interesse, anziché i
 
 I dynamite plots, che rappresentano la media e l’errore standard, sono spesso fuorvianti in quanto enfatizzano differenze che potrebbero non essere statisticamente rilevanti. Una rappresentazione tramite dot plot, mostrando tutti i dati, offre una visione più completa della distribuzione [@weissgerber2015beyond].
 
+::: {.callout-tip title="Mostrare i dati" collapse="true"}
+
+Consideriamo il seguente grafico a barre (dynamite plot) che mostra la media (estremità superiore delle barre) e gli errori standard. 
+
+::: {#fig-dynamiteplot1}  
+![](../../figures/show-data-1-1.png){width="60%"}  
+
+**Fonte:** @irizarry2024introduction.  
+:::  
+
+Questa visualizzazione offre informazioni limitate:  
+
+- Le barre partono da 0, suggerendo erroneamente l'esistenza di esseri umani alti pochi centimetri.  
+- Non chiarisce se tutti i maschi siano più alti delle femmine o come siano distribuite le altezze.  
+
+**Un approccio migliore** è quello di **mostrare i dati**:
+
+::: {#fig-dynamiteplot2}  
+![](../../figures/show-data-2-1.png){width="70%"}  
+
+**Fonte:** @irizarry2024introduction.  
+:::  
+
+La visualizzazione di tutti i punti (238 femmine e 812 maschi) rivela l'intervallo dei dati, ma persiste un problema: i punti sovrapposti ostacolano l'interpretazione.  
+
+**Ottimizzazioni: jitter e trasparenza**  
+
+::: {#fig-dynamiteplot3}  
+![](../../figures/show-points-with-jitter-1.png){width="70%"}  
+
+**Fonte:** @irizarry2024introduction.  
+:::  
+
+Due miglioramenti chiave:  
+
+1. **Jitter orizzontale:** spostamento casuale dei punti per ridurre la sovrapposizione.  
+2. **Alpha blending:** trasparenza graduale: le aree con più dati appaiono più scure.  
+
+**Risultati:**  
+
+- si osserva che i maschi sono **in media** più alti;
+- è chiaro che vi è una grande variabilità e una notevole sovrapposizione tra le due distribuzioni.  
+
+In sintesi, strumenti semplici, come jitter e trasparenza, migliorano drasticamente l'interpretazione della distribuzione dei dati.
+:::
+
 ### Confronti Coerenti
 
 Quando si comparano distribuzioni (ad es. tramite istogrammi), è essenziale utilizzare gli stessi assi per evitare interpretazioni errate. L’allineamento dei grafici, sia in verticale che in orizzontale, facilita il confronto diretto.
+
+::: {.callout-tip title="Facilitare i confronti" collapse="true"}
+
+Poiché ci sono molti punti, è più efficace mostrare la distribuzione dei dati anziché i singoli valori. Per questo motivo, utilizziamo istogrammi separati per ciascun gruppo:
+
+::: {#fig-histograms-wrong-1}  
+![](../../figures/common-axes-histograms-wrong-1.png){width="70%"}  
+
+**Fonte:** @irizarry2024introduction.  
+:::  
+
+Tuttavia, in questo grafico non è immediatamente evidente che, in media, gli uomini siano più alti delle donne. Per accorgersene, bisogna osservare con attenzione e notare che l’asse x del grafico maschile copre un intervallo di valori più ampio. Un principio fondamentale nella comparazione di dati tra due grafici è mantenere **le stesse scale sugli assi**.
+
+Negli istogrammi, l’altezza media si riflette in spostamenti orizzontali: valori più bassi a sinistra, valori più alti a destra. Allineare i grafici in verticale aiuta a visualizzare meglio questa differenza quando gli assi sono coerenti:
+
+::: {#fig-histograms-right-2}  
+![](../../figures/common-axes-histograms-right-2-1.png){width="70%"}  
+
+**Fonte:** @irizarry2024introduction.  
+:::  
+
+Questo secondo grafico rende molto più evidente che, in media, gli uomini sono più alti delle donne.
+:::
 
 ### Trasformazioni Logaritmiche
 
 Le trasformazioni logaritmiche sono particolarmente utili per dati distribuiti su ampi ordini di grandezza o quando le variazioni sono di natura moltiplicativa. Esse riducono le distorsioni visive, rendendo più chiara l’interpretazione dei dati estremi.
 
+::: {.callout-tip title="Trasformazioni logaritmiche" collapse="true"}
+Consideriamo questo **grafico a barre**, che mostra la popolazione media dei paesi di ciascun continente nel 2015:  
+
+::: {#fig-no-transformations-wrong}  
+![](../../figures/no-transformations-wrong-use-of-barplot-1.png){width="70%"}  
+
+**Fonte:** @irizarry2024introduction.  
+:::  
+
+A prima vista, sembrerebbe che i paesi dell’**Asia** siano molto più popolosi rispetto a quelli degli altri continenti. Tuttavia, applicando il principio che ci chiede di *mostrare i dati*, notiamo rapidamente che questa differenza è dovuta alla presenza di due paesi con una popolazione estremamente elevata, presumibilmente **India e Cina**:  
+
+::: {#fig-no-transformations-1}  
+![](../../figures/no-transformation-1.png){width="70%"}  
+
+**Fonte:** @irizarry2024introduction.  
+:::  
+
+Consideriamo ora come la **trasformazione logaritmica** possa migliorare la visualizzazione di dati distribuiti in modo asimmetrico (*right-skewed*). Esistono anche altre trasformazioni utili, come la **logistica (logit)**, impiegata per interpretare variazioni nei rapporti di probabilità (*odds*), e la **radice quadrata (sqrt)**, spesso usata per stabilizzare la varianza nei dati basati su conteggi.  
+
+Nel caso della popolazione dei paesi, la distribuzione è fortemente asimmetrica: la maggior parte delle nazioni ha una popolazione relativamente piccola, mentre poche hanno numeri estremamente elevati. Come mostrato nel **boxplot** precedente, questa disparità comprime la maggior parte dei dati in una piccola area del grafico, lasciando molto spazio inutilizzato. Questo rende difficile cogliere le differenze tra la maggior parte dei paesi.  
+
+Una trasformazione logaritmica migliora la leggibilità di uno **scatter plot** quando i dati mostrano una forte asimmetria. Qui, applicando questa tecnica alle popolazioni nazionali, otteniamo una rappresentazione molto più chiara e informativa. Di seguito, confrontiamo il **barplot originale** con un **boxplot** in cui l’asse *y* è stato trasformato con il logaritmo:  
+
+::: {#fig-correct-transformation-1.png}  
+![](../../figures/correct-transformation-1.png){width="90%"}  
+
+**Fonte:** @irizarry2024introduction.  
+:::  
+
+Grazie a questa trasformazione, scopriamo che la mediana della popolazione nei **paesi africani** è in realtà più alta rispetto a quella dei paesi asiatici, un'informazione che il grafico iniziale non rendeva evidente.
+:::
+
 ### Codifica di Variabili Aggiuntive
 
 Per rappresentare una terza variabile in un grafico di dispersione, si possono utilizzare dimensioni, colori o forme differenti. È importante scegliere palette cromatiche accessibili e adatte anche a chi ha difficoltà visive.
+
+::: {.callout-tip title="Codificare una terza variabile" collapse="true"}
+
+Esaminiamo la relazione tra **sopravvivenza infantile** e **reddito medio**. Il grafico seguente rappresenta questa relazione includendo tre variabili aggiuntive: **appartenenza all’OPEC**, **regione geografica** e **popolazione**.  
+
+::: {#fig-encoding-third-variable-1.png}  
+![](../../figures/encoding-third-variable-1.png){width="60%"}  
+
+**Fonte:** @irizarry2024introduction.  
+:::  
+
+Le **variabili categoriali** sono rappresentate attraverso il **colore** e la **forma** dei punti. La forma può essere modificata utilizzando l'argomento **shape**.
+:::
 
 ### Evitare Rappresentazioni Tridimensionali Inutili
 
@@ -162,11 +315,130 @@ Mostrare un numero eccessivo di decimali può confondere il lettore. Generalment
 
 Infine, è essenziale adattare la visualizzazione al pubblico di riferimento. Grafici destinati a un'analisi interna possono includere dettagli tecnici, mentre per un pubblico non specializzato è preferibile semplificare e spiegare chiaramente i dati.
 
+
+## Introduzione a ggplot2
+
+R offre strumenti potenti per creare grafici, e tra questi il pacchetto **ggplot2** è uno dei più flessibili e facili da usare.  
+
+### Perché usare ggplot2?  
+
+Immagina di voler analizzare il livello di ansia di un gruppo di studenti prima di un esame. Hai raccolto i dati, ma leggerli in una tabella può essere poco intuitivo. Con un grafico ben fatto, invece, puoi subito vedere chi ha livelli di ansia molto alti o come varia l’ansia in base all’"intolleranza all'incertezza" (IU), per esempio.  
+
+Simuliamo i dati:
+
+```{r}
+# Imposta il seed per la riproducibilità
+set.seed(123)
+
+# Crea un campione di 200 partecipanti
+n <- 200
+
+# Genera il genere (0 = maschio, 1 = femmina)
+gender <- sample(c(0, 1), n, replace = TRUE)
+
+# Simula l'ansietà con livello più alto per le femmine
+anxiety <- rnorm(n, mean = 50 + 10 * gender, sd = 10)
+
+# Simula ore di studio con correlazione negativa con l'ansietà
+study_hours <- rnorm(n, mean = 30 - 0.3 * anxiety, sd = 5)
+
+# Simula IU (Intolerance of Uncertainty) con correlazione positiva
+IU <- rnorm(n, mean = 50 + 0.5 * anxiety, sd = 10)
+
+# Crea dataframe
+df <- data.frame(
+  id = 1:n,
+  gender = factor(gender, levels = c(0, 1), labels = c("Male", "Female")),
+  anxiety = round(anxiety, 1),
+  study_hours = round(study_hours, 1),
+  IU = round(IU, 1)
+)
+
+df |>
+  head()
+```
+
+**ggplot2** permette di creare grafici chiari e visivamente accattivanti, suddividendo ogni grafico in **componenti**:  
+
+1. **Dati** → Il dataset che vogliamo analizzare.  
+2. **Geometrie** → Il tipo di grafico (es. punti, barre, linee).  
+3. **Mappatura estetica** → Il modo in cui i dati vengono rappresentati graficamente (es. colori, posizioni).  
+
+### Creare un grafico con ggplot2  
+
+Per usare ggplot2, bisogna prima installarlo e attivarlo con:  
+
+```r
+library(ggplot2)
+```
+
+Supponiamo di avere un dataset con il livello di ansia di studenti prima di un esame e vogliamo vedere se c’è una relazione con il numero di ore di studio. Creiamo un **grafico a dispersione (scatterplot)**:  
+
+```{r}
+df |>
+  ggplot(
+    aes(x = study_hours, y = anxiety)
+  ) +
+  geom_point()
+```
+
+Qui diciamo a ggplot2:  
+
+- Usa il dataset **studenti**  
+- Metti **ore_studio** sull'asse X e **livello_ansia** sull'asse Y  
+- Rappresenta i dati con **punti**  
+
+### Personalizzare il grafico  
+
+Possiamo migliorare il grafico aggiungendo colore e titoli:  
+
+```{r}
+df |>
+  ggplot(
+    aes(x = study_hours, y = anxiety, color = gender)
+  ) +
+  geom_point(size = 3) +
+  labs(
+    title = "Relazione tra ore di studio e ansia",
+    x = "Ore di studio",
+    y = "Livello di ansia",
+    color = "Genere"
+  )
+```
+
+**Cosa cambia?** 
+
+- i punti hanno colori diversi in base al **genere**;
+- il grafico ha **titoli chiari** .
+
+#### Altri tipi di grafici  
+
+- **Istogrammi** → Per vedere la distribuzione dei punteggi di ansia 
+
+  ```{r}
+df |>
+  ggplot(
+    aes(x = anxiety)
+  ) +
+  geom_histogram(binwidth = 5)
+  ```
+- **Boxplot** → Per confrontare l’ansia tra gruppi diversi  
+
+  ```{r}
+df |>
+  ggplot(
+    aes(x = gender, y = anxiety)
+  ) +
+  geom_boxplot()
+  ```
+
+In sintesi, **ggplot2** è un ottimo strumento per visualizzare dati in psicologia. Anche con pochi comandi, possiamo creare grafici utili per interpretare i dati in modo intuitivo. 
+
 ## Riflessioni Conclusive
 
 Una visualizzazione ben progettata trasforma informazioni complesse in messaggi immediati e facilmente interpretabili, riducendo il carico cognitivo e favorendo decisioni informate. Seguendo i principi illustrati, è possibile prevenire errori interpretativi e comunicare in modo responsabile i risultati di un’analisi.
 
-### Suggerimenti Chiave per Visualizzazioni Efficaci
+**Suggerimenti Chiave per Visualizzazioni Efficaci:**
 
 - **Chiarezza del Messaggio:**  
   Definire l’obiettivo della visualizzazione e assicurarsi che il grafico trasmetta il messaggio principale in modo inequivocabile.
@@ -183,7 +455,7 @@ Una visualizzazione ben progettata trasforma informazioni complesse in messaggi 
 - **Coerenza degli Elementi Testuali:**  
   Titoli, etichette e legende devono essere chiari e intuitivi, evitando abbreviazioni eccessive o termini troppo tecnici.
 
-### Ulteriori Accortezze
+**Ulteriori Accortezze:**
 
 - **Evitare distorsioni:**  
   Prediligere grafici semplici (ad es. barplot con asse che parte da zero) per non alterare la percezione delle proporzioni.
