@@ -1,0 +1,213 @@
+# La verosimiglianza gaussiana {#sec-prob-likelihood-gauss}
+
+::: callout-important
+## In questo capitolo, imparerai a:
+
+- comprendere il concetto di verosimiglianza nel contesto del modello gaussiano.
+:::
+
+::: callout-tip
+## Prerequisiti
+
+- Leggere il capitolo *Estimation* [@schervish2014probability].
+- Leggere il capitolo *Bayes' rule* [@Johnson2022bayesrules].
+:::
+
+::: callout-caution
+## Preparazione del Notebook
+
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+```
+:::
+
+## Introduzione {.unnumbered}
+
+La distribuzione gaussiana (o distribuzione normale) è una delle distribuzioni più utilizzate in statistica perché descrive molti fenomeni naturali e psicologici. In questo capitolo esploreremo come si calcola la verosimiglianza, ovvero la plausibilità dei parametri, nel caso della distribuzione normale.
+
+## Modello Gaussiano e Verosimiglianza
+
+### Caso di una Singola Osservazione
+
+Immaginiamo di misurare il Quoziente Intellettivo (QI) di una persona e ottenere un valore specifico, ad esempio 114. Assumiamo che il QI segua una distribuzione normale con media $\mu$ sconosciuta e deviazione standard $\sigma$ nota (ad esempio $\sigma = 15$).
+
+La **funzione di densità di probabilità** per una distribuzione normale è:
+
+$$
+f(y \mid \mu, \sigma) = \frac{1}{\sigma\sqrt{2\pi}} \exp\left(-\frac{(y-\mu)^2}{2\sigma^2}\right) ,
+$$
+
+dove:
+
+- $y$ è il valore osservato,
+- $\mu$ è la media (il parametro che vogliamo stimare),
+- $\sigma$ è la deviazione standard (conosciuta).
+
+La **verosimiglianza** misura quanto diversi valori di $\mu$ sono plausibili, dato il valore osservato (114).
+
+**Esempio pratico in R:**
+
+```{r}
+# Dati iniziali
+y_obs <- 114
+sigma <- 15
+mu_values <- seq(70, 160, length.out = 1000)
+
+# Calcolo della verosimiglianza
+likelihood <- dnorm(y_obs, mean = mu_values, sd = sigma)
+
+# Grafico della verosimiglianza
+ggplot(data.frame(mu = mu_values, likelihood = likelihood), aes(x = mu, y = likelihood)) +
+  geom_line(color = "blue") +
+  labs(
+    title = "Verosimiglianza per un singolo valore di QI (114)",
+    x = "Media (μ)",
+    y = "Verosimiglianza"
+  )
+```
+
+**Qual è il valore migliore per $\mu$?**
+
+Il valore migliore di $\mu$ sarà quello che rende massima la verosimiglianza. In questo semplice caso, è esattamente il valore osservato (114):
+
+```{r}
+mu_ottimale <- mu_values[which.max(likelihood)]
+cat("Il valore ottimale di μ è:", mu_ottimale)
+```
+
+### Log-Verosimiglianza
+
+Spesso, per semplicità di calcolo, si usa la **log-verosimiglianza**, che trasforma i prodotti in somme, rendendo i calcoli più semplici e stabili:
+
+$$
+\log L(\mu \mid y, \sigma) = -\frac{1}{2}\log(2\pi) - \log(\sigma) - \frac{(y-\mu)^2}{2\sigma^2}.
+$$
+
+**Calcolo pratico con R:**
+
+```{r}
+negative_log_likelihood <- function(mu, y, sigma) {
+  0.5 * log(2 * pi) + log(sigma) + ((y - mu)^2) / (2 * sigma^2)
+}
+
+result <- optim(
+  par = 100, # Valore iniziale
+  fn = negative_log_likelihood,
+  y = y_obs,
+  sigma = sigma,
+  method = "L-BFGS-B",
+  lower = 70,
+  upper = 160
+)
+
+mu_max_loglik <- result$par
+cat("Il valore ottimale di μ dalla log-verosimiglianza è:", mu_max_loglik)
+```
+
+In questo caso, otteniamo nuovamente $\mu = 114$.
+
+### Campione di Osservazioni Indipendenti
+
+Consideriamo ora un insieme più grande di osservazioni indipendenti, ciascuna co  una distribuzione normale con la stessa media $\mu$ e la stessa deviazione standard $\sigma$. Supponiamo di aver misurato i punteggi di depressione (ad esempio, scala BDI-II) per 30 persone:
+
+```{r}
+y <- c(
+  26, 35, 30, 25, 44, 30, 33, 43, 22, 43, 24, 19, 39, 31, 25, 28, 35, 30, 26, 
+  31, 41, 36, 26, 35, 33, 28, 27, 34, 27, 22
+)
+```
+
+Assumiamo inoltre che $\sigma$ sia nota (ad esempio $\sigma = 6.50$). In questo caso, la **log-verosimiglianza** si calcola così:
+
+```{r}
+log_likelihood <- function(mu, y, sigma) {
+  n <- length(y)
+  term1 <- -n * log(sigma) - n * log(sqrt(2 * pi))
+  term2 <- -sum((y - mu)^2) / (2 * sigma^2)
+  return(term1 + term2)
+}
+
+sigma <- 6.50
+mu_range <- seq(mean(y) - 2 * sigma, mean(y) + 2 * sigma, length.out = 1000)
+
+# Calcolo della log-verosimiglianza con un ciclo for
+log_lik_values <- numeric(length(mu_range))
+
+for (i in seq_along(mu_range)) {
+  log_lik_values[i] <- log_likelihood(mu_range[i], y, sigma)
+}
+```
+
+Il ciclo `for()` scorre ogni valore di `mu_range`, calcolando la log-verosimiglianza per ciascun valore e salvando i risultati nel vettore `log_lik_values`. 
+
+**Visualizziamo la log-verosimiglianza:**
+
+```{r}
+ggplot(
+  data.frame(mu = mu_range, log_likelihood = log_lik_values),
+  aes(x = mu, y = log_likelihood)
+) +
+  geom_line(color = "blue") +
+  labs(
+    title = "Log-verosimiglianza per dati BDI-II",
+    x = "Media (μ)",
+    y = "Log-verosimiglianza"
+  ) +
+  geom_vline(xintercept = mean(y), linetype = "dashed", color = "red")
+```
+
+**Ottimizzazione numerica per $\mu$:**
+
+```{r}
+negative_log_likelihood <- function(mu, y, sigma) {
+  -log_likelihood(mu, y, sigma)
+}
+
+result <- optim(
+  par = mean(y),
+  fn = negative_log_likelihood,
+  y = y,
+  sigma = sigma,
+  method = "L-BFGS-B",
+  lower = min(mu_range),
+  upper = max(mu_range)
+)
+
+mu_optimal <- result$par
+cat("Il valore ottimale di μ è:", mu_optimal)
+```
+
+## Riflessioni Conclusive
+
+- Nel caso di una distribuzione normale con $\sigma$ nota, la miglior stima di $\mu$ (stima di massima verosimiglianza) è sempre la media delle osservazioni.
+- Visualizzare la funzione di verosimiglianza aiuta a capire la plausibilità relativa dei diversi valori di $\mu$.
+- La log-verosimiglianza semplifica e rende più stabili i calcoli numerici.
+
+
+## Esercizi {.unnumbered}
+
+::: {.callout-important title="Problemi" collapse="true"}
+
+Supponi di aver misurato il livello di ansia (ad esempio usando una scala standardizzata) in un campione di 15 persone con i seguenti punteggi:
+
+```r
+ansia <- c(23, 27, 30, 29, 25, 28, 26, 24, 31, 29, 27, 26, 28, 30, 25)
+```
+
+Assumendo che la deviazione standard sia nota e pari a 3.5, svolgi le seguenti attività in R:
+
+1. Calcola la funzione di verosimiglianza gaussiana per diversi valori di $\mu$ nell'intervallo da 20 a 35.
+2. Trova numericamente il valore di $\mu$ che rende massima la verosimiglianza (stima di massima verosimiglianza, MLE).
+3. Disegna un grafico della funzione di verosimiglianza per visualizzare il risultato.
+
+:::
+
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered}
+
+```{r}
+sessionInfo()
+```
+
+## Bibliografia {.unnumbered}
+
