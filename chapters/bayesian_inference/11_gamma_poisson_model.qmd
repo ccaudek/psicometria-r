@@ -51,7 +51,7 @@ Per capire meglio come funziona la distribuzione di Poisson, immaginiamo un pazi
 La probabilità di osservare esattamente $k$ eventi in un'ora è calcolata dalla formula:
 
 $$
-f(k | \lambda) = \frac{e^{-\lambda} \lambda^k}{k!}.
+f(k \mid \lambda) = \frac{e^{-\lambda} \lambda^k}{k!}.
 $$
 
 Nel caso specifico con $\lambda = 2$, le probabilità per i primi valori di $k$ sono:
@@ -86,9 +86,9 @@ Il seguente codice R genera il grafico della funzione di massa di probabilità (
 lambd <- 2
 
 # Generiamo i valori sull'asse x (numero di eventi)
-x <- 0:9  # Possiamo aumentare o diminuire il range a seconda delle esigenze
+x <- 0:9  
 
-# Calcoliamo le probabilità corrispondenti utilizzando la funzione dpois
+# Calcoliamo le probabilità corrispondenti 
 y <- dpois(x, lambda = lambd)
 
 # Creare un dataframe contenente i dati per il grafico
@@ -97,41 +97,20 @@ df <- data.frame(
   probabilita = y
 )
 
-# Creare il grafico a barre con ggplot2
+# Creare il grafico 
 ggplot(df, aes(x = numero_eventi, y = probabilita)) +
-  geom_col(fill = "lightblue", width = 0.7) +  # Creazione delle barre
-  labs(title = "Distribuzione di Poisson (λ = 2)",  # Aggiungere il titolo
-       x = "Numero di eventi",  # Label dell'asse x
-       y = "Probabilità") +  # Label dell'asse y
+  geom_segment(aes(x = numero_eventi, xend = numero_eventi, y = 0, yend = probabilita), 
+               color = "blue", size = 1) +  # Segmenti verticali
+  geom_point(color = "red", size = 3) +  # Cerchi sulla cima dei segmenti
+  labs(title = "Distribuzione di Poisson (λ = 2)",  
+       x = "Numero di eventi", 
+       y = "Probabilità") +  
   theme(plot.title = element_text(hjust = 0.5))  # Centrare il titolo
 ```
 
-## Verosimiglianza per un Campione di Osservazioni
-
-Consideriamo un campione di $n$ osservazioni indipendenti e identicamente distribuite, $y_1, y_2, \dots, y_n$, tratto da una distribuzione di Poisson con parametro $\lambda$. La funzione di verosimiglianza $f(y \mid \lambda)$ rappresenta la probabilità congiunta di osservare esattamente questi valori dato un particolare valore di $\lambda$.
-
-Matematicamente, la verosimiglianza si esprime come:
-
-$$
-f(y \mid \lambda) = \prod_{i=1}^{n} \frac{e^{-\lambda} \lambda^{y_i}}{y_i!}
-= \frac{e^{-n\lambda} \lambda^{\sum_{i=1}^n y_i}}{\prod_{i=1}^{n} y_i!}.
-$$
-
-Questa funzione misura la compatibilità tra i dati osservati e un dato valore di $\lambda$. Valori di $\lambda$ che rendono più alta la verosimiglianza sono quelli che meglio spiegano i dati osservati.
-
-La funzione di verosimiglianza descrive quanto sia plausibile un valore specifico di $\lambda$ dato il campione di dati osservati $y_1, y_2, \dots, y_n$. Per ogni possibile valore di $\lambda$, la funzione fornisce una misura della compatibilità tra il valore ipotizzato e i dati. In altre parole, essa risponde alla domanda: *quanto bene questo valore di $\lambda$ spiega i dati osservati?*
-
-Per semplificare i calcoli ed evitare problemi di overflow numerico, è comune utilizzare il logaritmo naturale della funzione di verosimiglianza, chiamato **log-verosimiglianza**. La log-verosimiglianza per il modello di Poisson si ottiene come:
-
-$$
-\log f(y \mid \lambda) = -n\lambda + \left(\sum_{i=1}^n y_i \right) \log \lambda - \sum_{i=1}^n \log(y_i!).
-$$
-
-L'uso del logaritmo trasforma il prodotto nella somma, facilitando le analisi e la stima dei parametri.
-
 ## Distribuzione Gamma
 
-La distribuzione Gamma riveste un ruolo centrale nel modello coniugato Gamma-Poisson, poiché funge da distribuzione a priori per il parametro di tasso $\lambda$ della distribuzione di Poisson. La sua scelta è motivata dalla proprietà di coniugatezza, che consente di ottenere una distribuzione a posteriori appartenente alla stessa famiglia della prior, semplificando significativamente i calcoli inferenziali e aggiornando in modo diretto le credenze alla luce dei dati osservati.
+La distribuzione Gamma riveste un ruolo centrale nel modello coniugato Gamma-Poisson, poiché funge da distribuzione a priori per il parametro di tasso $\lambda$ della distribuzione di Poisson. La sua scelta è motivata dalla proprietà di coniugatezza, che consente di ottenere una distribuzione a posteriori appartenente alla stessa famiglia della prior, semplificando i calcoli inferenziali e aggiornando in modo diretto le credenze alla luce dei dati osservati.
 
 La funzione di densità della distribuzione Gamma è definita come:
 
@@ -189,123 +168,158 @@ ggplot(df, aes(x = x, y = densita)) +
 
 Questo grafico mostra la densità di una distribuzione Gamma con $\alpha = 2$ e $\beta = 3$, calcolata su un intervallo $[0, 3]$.
 
+## Metodo Basato su Griglia
 
-### Metodo Basato su Griglia
+Vogliamo calcolare la distribuzione *a posteriori* del parametro $\lambda$ di un modello di Poisson, usando una distribuzione *a priori* Gamma. Di seguito mostriamo come si può procedere numericamente, discretizzando lo spazio dei possibili valori di $\lambda$.
 
-Supponiamo di voler calcolare la distribuzione a posteriori del parametro $\lambda$ di un modello di Poisson, con una distribuzione a priori Gamma. Utilizziamo un approccio numerico basato sulla discretizzazione dello spazio dei parametri.
+**Dati e Assunzioni.**
 
-Consideriamo i seguenti dati osservati:
+I dati osservati sono:
 
 ```{r}
-# Dati osservati
 y <- c(2, 1, 3, 2, 2, 1, 1, 1)
 ```
 
-Adotteremo questa distribuzione a priori:
+e la nostra distribuzione *a priori* è $\text{Gamma}(\alpha=9, \beta=2)$.
+
+**1. Definizione della Griglia e della Distribuzione A Priori.**
+
+1. Creiamo una griglia di valori di $\lambda$, per esempio tra 0.01 e 10, con 1000 punti equidistanti.  
+2. Per ciascun valore di $\lambda$, calcoliamo la densità della *a priori* Gamma corrispondente.
 
 ```{r}
 # Parametri della distribuzione a priori Gamma
 alpha_prior <- 9
-beta_prior <- 2
+beta_prior  <- 2
 
-# Griglia dei valori di lambda
+# Griglia di valori di lambda
 lambda_grid <- seq(0.01, 10, length.out = 1000)
 
-# Calcolo della densità della distribuzione a priori
+# Densità della distribuzione a priori
 prior <- dgamma(lambda_grid, shape = alpha_prior, rate = beta_prior)
+```
 
-# Creare un dataframe contenente i dati per il grafico
-df <- data.frame(
-  lambda = lambda_grid,
+È spesso utile visualizzare questa *a priori* e confrontarla con altre informazioni, ad esempio la media di $\lambda$ secondo la *a priori* ($\alpha/\beta$) e la media campionaria ($\bar{y}$):
+
+```{r}
+# Calcolo di media a priori (media di una Gamma) e media campionaria
+media_gamma       <- alpha_prior / beta_prior
+media_campionaria <- mean(y)
+
+# Creazione di un dataframe per ggplot
+df_prior <- data.frame(
+  lambda  = lambda_grid,
   densita = prior
 )
 
-# Calcolo delle linee verticali (media Gamma e media campionaria)
-media_gamma <- alpha_prior / beta_prior
-media_campionaria <- mean(y)
-
-# Creare il grafico 
-ggplot(df, aes(x = lambda, y = densita)) +
-  geom_line(color = "blue", size = 1) +  # Aggiungere la linea per la densità
-  geom_vline(xintercept = media_gamma, color = "red", linetype = "dashed", size = 1) +  # Linea verticale per la media Gamma
-  geom_vline(xintercept = media_campionaria, color = "green", linetype = "dashed", size = 1) +  # Linea verticale per la media campionaria
-  annotate("text", x = media_gamma + 0.5, y = max(prior) * 0.8, label = "Media Gamma", color = "red", size = 4) +  # Etichetta per la media Gamma
-  annotate("text", x = media_campionaria + 0.5, y = max(prior) * 0.7, label = "Media Campionaria", color = "green", size = 4) +  # Etichetta per la media campionaria
+ggplot(df_prior, aes(x = lambda, y = densita)) +
+  geom_line() +
+  geom_vline(xintercept = media_gamma,       linetype = "dashed") +
+  geom_vline(xintercept = media_campionaria, linetype = "dashed") +
   labs(
     title = "Distribuzione Gamma a Priori",
-    x = expression(lambda),  # Label dell'asse x usando espressioni matematiche
-    y = "Densità di probabilità"  # Label dell'asse y
-  ) +
-  theme(plot.title = element_text(hjust = 0.5))  # Centrare il titolo
+    x = expression(lambda),
+    y = "Densità"
+  )
 ```
 
-Calcoliamo la verosimiglianza:
+**2. Calcolo della Verosimiglianza.**
+
+Per una famiglia di distribuzioni di Poisson, la verosimiglianza di un insieme di dati $y_1, y_2, \dots, y_n$ è il prodotto delle probabilità:
+
+$$
+\mathcal{L}(\lambda) \;=\; \prod_{i=1}^n \mathrm{P}(Y=y_i \mid \lambda)
+\;=\; \prod_{i=1}^n \mathrm{dpois}(y_i, \lambda).
+$$
+
+In R, possiamo calcolarla per tutti i valori di $\lambda$ della griglia in modo vettoriale:
 
 ```{r}
-# Inizializzazione della verosimiglianza
-likelihood <- rep(1, length(lambda_grid))
-
-# Calcolo iterativo della verosimiglianza
-for (yi in y) {
-  likelihood <- likelihood * dpois(yi, lambda = lambda_grid)
-}
+# Calcolo vettoriale della verosimiglianza
+likelihood <- sapply(lambda_grid, function(l) prod(dpois(y, l)))
 ```
 
-Calcoliamo la distribuzione a posteriori non normalizzata:
+L’istruzione precedente fa questo:
+
+1. **Passo su ciascun valore di $\lambda$** nella griglia (`lambda_grid`).  
+2. Per **ogni** $\lambda$, calcola $\mathrm{dpois}(y, \lambda)$, che restituisce un vettore di lunghezza $n$ (il numero di osservazioni), ossia la probabilità di osservare ciascun $y_i$ secondo una Poisson($\lambda$).  
+3. **Moltiplica** insieme tutte queste probabilità con `prod(...)`, ottenendo un singolo numero che è la verosimiglianza $\mathcal{L}(\lambda)$ per quell’insieme di dati.  
+4. Ripete il procedimento per **ogni** $\lambda$ della griglia, restituendo un **vettore** di verosimiglianze (una per ciascun punto della griglia).
+
+In altre parole, ogni elemento del vettore `likelihood` corrisponde alla verosimiglianza calcolata in un punto $\lambda$. E la verosimiglianza è appunto il **prodotto** delle probabilità di ciascuno dei valori $y_i$, assumendo che i dati provengano da una $\mathrm{Poisson}(\lambda)$ e che le osservazioni siano indipendenti.
+
+**3. Calcolo della *A Posteriori* (non normalizzata).**
+
+La distribuzione *a posteriori*, a meno di una costante di normalizzazione, è data da:
+
+$$
+\pi(\lambda \mid y) \; \propto \; \mathcal{L}(\lambda)\,\pi(\lambda).
+$$
+
+Tradotto in codice:
 
 ```{r}
-posterior_unnormalized <- likelihood * prior
+posterior_unnormalized <- prior * likelihood
 ```
 
-Normalizzazione della distribuzione a posteriori:
+**4. Normalizzazione.**
+
+Per ottenere la vera distribuzione di probabilità, dobbiamo normalizzare:
+
+$$
+\pi(\lambda \mid y) = 
+  \frac{\mathcal{L}(\lambda)\,\pi(\lambda)}{\int \mathcal{L}(\lambda)\,\pi(\lambda)\, d\lambda}.
+$$
+
+Sul computer, l’integrale si trasforma in una somma pesata dallo “spessore” di ogni intervallo nella griglia:
 
 ```{r}
-# Fattore di normalizzazione
-normalization_factor <- sum(posterior_unnormalized * diff(lambda_grid)[1])
+# Calcolo del fattore di normalizzazione
+grid_width <- lambda_grid[2] - lambda_grid[1]  # Ampiezza della griglia (costante)
+normalization_factor <- sum(posterior_unnormalized) * grid_width
 
 # Distribuzione a posteriori normalizzata
 posterior <- posterior_unnormalized / normalization_factor
 ```
 
-Creiamo un grafico delle distribuzioni a priori e a posteriori:
+**5. Confronto Visivo: A Priori vs A Posteriori.**
+
+Infine, possiamo confrontare le due curve (a priori e a posteriori) su un unico grafico:
 
 ```{r}
-# Creare un dataframe contenente i dati per il grafico
+# Creazione del dataframe
 df <- data.frame(
-  lambda = lambda_grid,
-  densita_posterior = posterior,
-  densita_prior = prior
+  lambda  = lambda_grid,
+  prior   = prior,
+  posterior = posterior
 )
 
-# Convertire i dati in formato "lungo" per facilitare la visualizzazione con ggplot2
-df_long <- reshape2::melt(
-  df, id.vars = "lambda", 
-  measure.vars = c("densita_posterior", "densita_prior"),
-  variable.name = "distribuzione", value.name = "densita"
+# Trasformiamo in formato "lungo" per ggplot
+library(reshape2)
+df_long <- melt(
+  df, 
+  id.vars = "lambda", 
+  measure.vars = c("prior", "posterior"),
+  variable.name = "Distribuzione", 
+  value.name = "Densita"
 )
 
-# Creare il grafico con ggplot2
-ggplot(df_long, aes(x = lambda, y = densita, color = distribuzione)) +
-  geom_line(size = 1) +  # Aggiungere le linee per le distribuzioni
-  scale_color_manual(
-    values = c("densita_posterior" = "blue", "densita_prior" = "red"),  # Assegnare i colori
-    labels = c("densita_posterior" = "Posteriori", "densita_prior" = "A Priori")  # Etichette personalizzate
-  ) +
+# Grafico
+ggplot(df_long, aes(x = lambda, y = Densita, color = Distribuzione)) +
+  geom_line() +
   labs(
-    title = "Distribuzione a Posteriori di Lambda",
-    x = expression(lambda),  # Label dell'asse x usando espressioni matematiche
-    y = "Densità di probabilità",  # Label dell'asse y
-    color = "Distribuzione"  # Titolo della legenda
-  ) +
-  theme(plot.title = element_text(hjust = 0.5))  # Centrare il titolo
+    title = "Distribuzione A Priori e A Posteriori",
+    x = expression(lambda),
+    y = "Densità"
+  )
 ```
 
-In conclusione,
+**Interpretazione.**
 
-- la distribuzione a posteriori è spostata a sinistra rispetto a quella a priori, indicando che i dati suggeriscono un valore più basso per $\lambda$.
-- la distribuzione a posteriori è più stretta rispetto a quella a priori, indicando una riduzione dell'incertezza.
+1. La distribuzione *a posteriori* risulta **spostata verso valori più bassi** rispetto alla *a priori*. Questo indica che i dati osservati suggeriscono $\lambda$ più piccolo di quanto ipotizzato inizialmente dalla *a priori*.
+2. La *a posteriori* appare **più concentrata** (più piccata) rispetto alla *a priori*. Ciò riflette la minor incertezza residua dopo aver incorporato l’informazione fornita dai dati.
 
-Questo approccio numerico consente di esplorare come le osservazioni aggiornano la nostra credenza sul parametro $\lambda$, evidenziando la potenza del metodo bayesiano.
+Questo semplice approccio su griglia mostra chiaramente come la verosimiglianza, “pesata” dalla *a priori*, generi la nuova distribuzione *a posteriori*. È un metodo intuitivo che permette di visualizzare passo dopo passo in che modo i dati aggiornano le nostre credenze sul parametro $\lambda$.
 
 ## Modello Coniugato Gamma-Poission
 
