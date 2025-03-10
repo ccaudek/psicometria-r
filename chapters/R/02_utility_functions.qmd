@@ -1,9 +1,11 @@
-# Utility functions in R {#sec-r-programming}
+# Utility functions {#sec-r-programming}
 
 ::: callout-important
 ## In questo capitolo imparerai a
 
-- conoscere e sapere utilizzare le principali funzioni di utilità di R.
+- conoscere e sapere utilizzare le principali funzioni di utilità di R;
+- sapere come importare un data set in R e esportare un data set in un file esterno;
+- usare i percorsi relativi rispetto alla radice del progetto con `here::here()`.
 :::
 
 ::: callout-tip
@@ -29,9 +31,122 @@ pacman::p_load(tidyr)
 
 ## Introduzione
 
-In questo capitolo esamineremo le principali funzioni di utilità di R per raccogliere statistiche descrittive e altre informazioni generali sui data frame.
+In questo capitolo, esploreremo le principali funzioni di utilità in R per l'importazione di dati da file esterni e la raccolta di statistiche descrittive, fornendo una panoramica generale sui data frame.
 
-### Funzioni principali e loro utilizzo
+## Importare dati in R con `rio::import()`
+
+Prima di analizzare i dati, è necessario importarli in R. 
+
+### Il problema: Tanti Formati, un'Unica Soluzione
+
+Nella ricerca psicologica i dati possono essere forniti in molti formati:
+
+- File Excel (`.xlsx`) da questionari compilati in laboratorio,
+- CSV (`.csv`) da piattaforme online come Qualtrics,
+- File SPSS (`.sav`) per confrontare studi precedenti,
+- Solo testo (`.txt`) da esperimenti comportamentali.
+
+Invece di imparare funzioni diverse, una specifica per ciascun formato, il pacchetto **rio** offre **un solo comando universale** per le importazioni.
+
+### Come Funziona `import()`
+
+```r
+# Carica il pacchetto (installalo prima con install.packages("rio"))
+library(rio)
+
+# Importa un file CSV da una cartella "dati" nel tuo progetto
+risposte <- rio::import("dati/questionario.csv")
+
+# Importa un foglio Excel con i tempi di reazione
+tempi_reazione <- rio::import("dati/esperimento1.xlsx")
+
+# Importa un file SPSS con dati demografici
+dati_demografici <- rio::import("dati/partecipanti.sav")
+```
+
+**Perché è utile:**
+
+1. riconosce **automaticamente** il formato dal nome del file;
+2. traduce i dati in un formato R pronto per l'analisi (`data.frame`);
+3. conserva le etichette delle variabili (cruciale per questionari!).
+
+### Esportare Dati con `rio::export()`
+
+Dopo aver pulito i dati, è possibile salvarli in qualsiasi formato usando `rio::export()`:
+
+```r
+rio::export(risposte, "dati/cleaned/dati_puliti.xlsx")
+rio::export(tempi_reazione, "dati/cleaned/tempi_reazione.sav")
+```
+
+## Utilizzare Percorsi Relativi con `here::here()`
+
+Quando importiamo i dati da file esterni in R, succede spesso di commettere uno dei tre errori seguenti. Vediamo come eviarli.
+
+1. **Percatori sbagliati**  
+
+   ```r
+   # SBAGLIATO (il file non è nella cartella di lavoro)
+   import("questionario.csv")  
+
+   # CORRETTO: usa percorsi relativi o il pacchetto 'here'
+   import("dati/raw/questionario.csv")  
+   ```
+
+2. **File aperti in altri programmi**  
+   "Errore: non posso aprire il file" → Chiudi Excel/SPSS e riprova
+
+3. **Codifica caratteri strani**  
+   Se vedi � nei testi, specifica l'encoding:
+   
+   ```r
+   import("dati/testo.txt", encoding = "UTF-8")
+   ```
+
+### Evitare Percorsi Assoluti
+
+Come vedremo meglio nel @sec-eda-proj-structure, il primo passo di un progetto di analisi dei dati è l'organizzazione dei file in cartelle con una struttura chiara:
+
+   ```
+   tuo_progetto/
+   ├── dati/
+   │   ├── raw/        # Dati originali
+   │   └── cleaned/    # Dati elaborati
+   ├── script/
+   └── rapporti/
+   ```
+
+**Tutti i file e le cartelle devono essere contenuti nella directory del progetto.**
+
+Il pacchetto **here** rende l'importazione dei dati più semplice, evitando problemi dovuti a percorsi assoluti che possono cambiare se si modifica la directory di lavoro o si sposta il progetto.
+
+La funzione `here()` crea **percorsi relativi a partire dalla radice del progetto** (cioè dalla cartella che contiene il file `.Rproj` o da dove viene inizializzato il progetto RStudio).
+
+**Esempio di utilizzo combinato con `rio::import()`:**
+
+```r
+library(rio)
+library(here)
+
+# Percorso robusto al file csv
+dati <- import(here("data", "dati.csv"))
+
+# Percorso robusto al file Excel
+dati_excel <- import(here("data", "dati.xlsx"))
+```
+
+In questo modo, l'importazione diventa indipendente dalla cartella di lavoro attuale e il codice sarà più facilmente condivisibile e riproducibile.
+
+**Vantaggi:**
+
+- **Semplicità**: `rio::import()` riconosce automaticamente il tipo di file.
+- **Robustezza**: `here::here()` garantisce che il percorso sia sempre corretto, indipendentemente da dove viene eseguito lo script.
+
+Questa combinazione rende le analisi riproducibili e consente di collaborare facilmente con altri ricercatori o studenti.
+
+## Funzioni Principali e Loro Utilizzo
+
+R offre una serie di funzioni per esplorare rapidamente i dati e comprenderne la struttura prima di passare a manipolazioni più avanzate.
 
 | **Funzione** | **Descrizione** |
 |--------------|-----------------|
@@ -45,41 +160,79 @@ In questo capitolo esamineremo le principali funzioni di utilità di R per racco
 | `length()`  | Restituisce il numero di elementi di un oggetto. Per i data frame, restituisce il numero di colonne. **Esempio:** `length(iris)` restituisce 5 (colonne). |
 | `nrow()` e `ncol()` | Restituiscono rispettivamente il numero di righe e colonne di un data frame. **Esempio:** `nrow(iris)` restituisce 150 (righe), mentre `ncol(iris)` restituisce 5 (colonne). |
 
-Questi strumenti rappresentano la base per esplorare rapidamente i dati e comprenderne la struttura prima di passare a manipolazioni più avanzate.
 
---- 
+## Illustrazione
 
-## Un Esempio Concreto
+Immagina di dover analizzare i dati del tuo esperimento sul sonno e la memoria, salvati nel file `msleep.csv`. La struttura del tuo progetto RStudio è organizzata così:
 
-Importiamo il dataset `msleep` contenuto nel pacchetto `ggplot2` che abbiamo caricato in precedenza:
-
-```{r}
-data(msleep)
+```
+mio_esperimento/
+├── mio_esperimento.Rproj
+├── data/
+│   └── msleep.csv
+├── script/
+│   └── analisi.R
+└── output/
 ```
 
-Esaminiamo la struttura del data frame usando `str()`:
+La prima cosa da fare è caricare i pacchetti necessari:
 
-```{r}
-str(msleep)
+```r
+library(rio)    # Per importare i dati
+library(here)   # Per gestire i percorsi in modo affidabile
 ```
 
-oppure usando `glimpse()`:
+A questo punto possiamo importare i dati:
 
 ```{r}
-glimpse(msleep)
+msleep <- rio::import(
+  here::here(  # Costruisce il percorso automaticamente
+    "data",    # Cartella dei dati
+    "msleep.csv"  # Nome del file
+  )
+)
 ```
 
-Stampiamo le prime righe del data frame:
+Controlli post-importazione (fondamentali!)
 
 ```{r}
 head(msleep)
 ```
 
-oppure le ultime righe:
+```{r}
+str(msleep)
+```
 
 ```{r}
-tail(msleep)
+glimpse(msleep)
 ```
+
+```{r}
+names(msleep)
+```
+
+```{r}
+dim(msleep)
+```
+
+**Errori comuni e soluzioni.**
+
+1. **"File not found"**:
+   - Verifica che:
+     - il file sia realmente in `data/`;
+     - il nome del file sia esatto (attenzione a .csv vs .CSV);
+     - **non ci siano spazi nel nome del file**.
+
+2. **Pacchetti non installati**:
+   ```r
+   # Esegui una volta
+   install.packages("rio")
+   install.packages("here")
+   ```
+
+3. **Progetto non aperto**:
+   - Assicurati di aver aperto il file `.Rproj` prima di iniziare.
+
 
 Esaminiamo le modalità della variabile qualitativa `vore`:
 
