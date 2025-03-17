@@ -43,7 +43,6 @@ La scelta dell'indice di tendenza centrale appropriato dipende dalla natura dei 
 ## Moda
 
 La **moda** ($\text{Mo}$) rappresenta il valore della variabile che **compare con maggiore frequenza** in una distribuzione. In altre parole, è il valore più **ricorrente** nei dati.  
-
 - Nelle **distribuzioni unimodali**, esiste una sola moda, che coincide con il valore centrale della distribuzione più frequente.  
 - Tuttavia, in alcune distribuzioni, possono emergere **più di una moda**, rendendole **multimodali**. In questi casi, la moda perde il suo significato di indicatore unico di tendenza centrale, poiché la presenza di più valori con frequenze elevate rende difficile individuare un singolo punto di riferimento.  
 
@@ -60,6 +59,21 @@ $$
 $$ {#eq-mean}
 
 dove $x_i$ rappresenta i valori nell'insieme, $n$ è il numero totale di valori, e $\sum$ indica la sommatoria.
+
+### Calcolo della Media con `R`
+
+Per calcolare la media di un piccolo numero di valori in R, possiamo utilizzare la somma di questi valori e dividerla per il numero totale di elementi. Consideriamo ad esempio i valori 12, 44, 21, 62, 24:
+
+```{r}
+(12 + 44 + 21 + 62 + 24) / 5
+```
+
+ovvero
+
+```{r}
+x <- c(12, 44, 21, 62, 24)
+mean(x)
+```
 
 ### Proprietà della Media
 
@@ -81,6 +95,26 @@ $$
 
 Questa proprietà implica che i dati sono equamente distribuiti intorno alla media.
 
+In R abbiamo:
+
+```{r}
+sum(x - mean(x))
+```
+
+::: {.callout-tip title="Nota" collapse="true"}
+Quando in un terminale viene visualizzato un numero come `-7.105e-15` in notazione scientifica, esso corrisponde a $-7.105 \cdot 10^{-15}$, che è effettivamente zero nel contesto dei calcoli numerici.  
+
+Questa approssimazione è una conseguenza diretta della **precisione finita** dei calcolatori. I sistemi digitali, infatti, rappresentano i numeri reali attraverso una codifica in **virgola mobile** (*floating point*), che comporta inevitabili errori di arrotondamento. La ragione risiede nell'impossibilità di memorizzare numeri reali con precisione assoluta.  
+
+Lo standard **IEEE 754 a doppia precisione** (64 bit), ampiamente utilizzato, suddivide la memoria in tre componenti:  
+
+- 1 bit per il segno (positivo/negativo),  
+- 11 bit per l'esponente (intervallo di scala),  
+- 52 bit per la mantissa (o significando), che definisce le cifre significative.
+
+Grazie a questa struttura, è possibile rappresentare numeri con una precisione di circa **15-17 cifre decimali**. Tuttavia, qualsiasi valore non esprimibile in formato binario entro questi limiti subisce un troncamento o un arrotondamento, generando piccole discrepanze rispetto al risultato teorico.
+:::
+
 ### La media come Centro di Gravità dell'Istogramma
 
 La media aritmetica può essere interpretata come il centro di gravità o il punto di equilibrio della distribuzione dei dati. In termini fisici, il centro di gravità è il punto in cui la massa di un sistema è equilibrata o concentrata.
@@ -89,22 +123,54 @@ In termini statistici, possiamo considerare la media come il punto in cui la dis
 
 ### Principio dei Minimi Quadrati
 
-La posizione della media minimizza la somma delle distanze quadrate dai dati, un principio noto come "metodo dei minimi quadrati". Matematicamente, questo si traduce nel fatto che la somma dei quadrati degli scarti tra ciascun valore e la media è minima. Questo principio è alla base dell'analisi statistica dei modelli di regressione e conferma l'interpretazione della media come centro di gravità dell'istogramma.
+Il **metodo dei minimi quadrati** afferma che la posizione della media minimizza la somma dei quadrati delle distanze dai dati. Matematicamente, ciò significa che la somma dei quadrati degli scarti tra ciascun valore osservato e la media è minima. Questo principio è alla base dell'analisi statistica della regressione e conferma il ruolo della media come **centro di gravità** della distribuzione dei dati.
 
-### Calcolo della Media con `R`
+#### Simulazione
 
-Per calcolare la media di un piccolo numero di valori in R, possiamo utilizzare la somma di questi valori e dividerla per il numero totale di elementi. Consideriamo ad esempio i valori 12, 44, 21, 62, 24:
+Utilizziamo una simulazione per verificare questo principio, calcolando la somma dei quadrati degli scarti per diversi valori e visualizzando il risultato con **ggplot2**.
 
 ```{r}
-(12 + 44 + 21 + 62 + 24) / 5
+# Definizione dell'intervallo di valori da testare
+nrep <- 10000
+M <- seq(20, 40, length.out = nrep)
+res <- rep(NA, nrep)
+
+# Calcolo della somma dei quadrati degli scarti per ciascun valore di M
+for (i in 1:nrep) {
+  res[i] = sum((x - M[i])^2)
+}
+
+# Identificazione del valore minimo
+min_index <- which.min(res)
+min_M <- M[min_index]
+
+# Creazione del dataframe per ggplot
+df <- data.frame(M, res)
+
+df |> 
+  ggplot(aes(x = M, y = res)) +
+  geom_line(color = "blue") +
+  geom_vline(xintercept = min_M, linetype = "dashed", color = "red") +
+  labs(
+    title = "Minimizzazione della somma dei quadrati",
+    x = "Valore di M",
+    y = "Somma dei quadrati degli scarti"
+  ) 
 ```
 
-ovvero
+Stampiamo il minimo:
 
 ```{r}
-x <- c(12, 44, 21, 62, 24)
+min_M
+```
+
+Confronto con la media:
+
+```{r}
 mean(x)
 ```
+
+Osserviamo che il valore di `M` che minimizza la somma dei quadrati degli scarti coincide con la media dei dati, confermando il principio dei minimi quadrati.
 
 ### Le Proporzioni Sono Medie
 
@@ -213,6 +279,28 @@ percentage_data |>
   theme(legend.position = "none")
 ```
 
+::: {.callout-tip title="Nota" collapse="true"}
+Senza distinguere per genere, è possibile ottenere l'istogramma con il seguente codice:
+
+```{r}
+df_truncated |>
+  ggplot(
+    aes(
+      x = NumPartners,
+      y = after_stat(density)
+    )
+  ) +
+  geom_histogram(binwidth = 2, fill = "lightblue", color = "black", alpha = 0.7) +
+  labs(
+    title = "Distribuzione del Numero di Partner Sessuali",
+    x = "Numero di Partner",
+    y = "Densità"
+  )
+```
+
+Si noti l'uso di `y = after_stat(density)` all'interno di `aes()`, che consente di normalizzare l'istogramma affinché l'area totale sia pari a 1. In questo modo, l'istogramma rappresenta una densità di probabilità anziché una semplice frequenza assoluta.
+:::
+
 Notiamo che la distribuzione è altamente asimmetrica positiva. Come possiamo descrivere la tendenza centrale di questi dati?
 
 Calcoliamo gli indici di tendenza centrale all'interno dei due gruppi. Per la moda utilizziamo una funzione personalizzata:
@@ -234,6 +322,22 @@ df |>
     mode_sex_partner = get_mode(NumPartners)  # Usa la funzione personalizzata per la moda
   )
 ```
+
+::: {.callout-tip title="Nota" collapse="true"}
+Per trovare la moda, anziché definire una funzione personalizzata come `get_mode()` è anche possibile usare **dplyr**:
+
+```{r}
+df |> 
+  group_by(Gender) |> 
+  summarise(
+    mean_sex_partner = mean(NumPartners, na.rm = TRUE),
+    median_sex_partner = median(NumPartners, na.rm = TRUE),
+    mode_sex_partner = as.numeric(names(which.max(table(NumPartners))))
+  )
+```
+
+Questa soluzione evita la definizione esplicita di una funzione `get_mode()`, ma il principio è lo stesso.
+:::
 
 È evidente che, quando la distribuzione dei dati è altamente asimmetrica, come nel caso attuale, gli indici di tendenza centrale – media, mediana e moda – possono fornire risultati molto diversi, rendendo difficile individuare una misura rappresentativa della tendenza centrale.
 
@@ -580,7 +684,6 @@ $$
 
 Dunque la varianza è 1.25.
 
-
 ### Interpretazione
 
 Una varianza pari a 1.25 indica che le ore di studio giornaliere si discostano, in media, di **1.25** unità quadrate dalla media di 2.5 ore. Per comprendere meglio l’ordine di grandezza di questa dispersione, solitamente si fa riferimento alla **deviazione standard**, che è la radice quadrata della varianza. In questo caso, $\sqrt{1.25} \approx 1.12$ ore.
@@ -588,10 +691,9 @@ Una varianza pari a 1.25 indica che le ore di studio giornaliere si discostano, 
 - Se la varianza (o la deviazione standard) fosse stata molto più grande, avremmo dedotto che gli studenti del campione presentano abitudini di studio molto diverse.
 - Al contrario, se la varianza fosse prossima a 0, significherebbe che quasi tutti studiano un numero di ore molto simile a 2.5.
 
-
 ### Calcolo in R
 
-Se volessimo effettuare lo stesso calcolo in **R**, potremmo fare così:
+Se volessimo effettuare lo stesso calcolo in R, potremmo fare così:
 
 ```{r}
 # Dati
