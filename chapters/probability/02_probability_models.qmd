@@ -23,7 +23,7 @@ here::here("code", "_common.R") |>
 
 # Load packages
 if (!requireNamespace("pacman")) install.packages("pacman")
-pacman::p_load(readr)
+pacman::p_load(readr, VennDiagram)
 ```
 :::
 
@@ -46,6 +46,8 @@ Rispondi alle seguenti domande.
 2. Con 30 persone, quale probabilità stimi? (10%? 50%? 70%?)
 
 Scrivi le tue risposte su un foglietto senza condividere con i compagni.
+
+**Per svolgere un esercizio in classe**, compila il seguente [modulo](https://docs.google.com/forms/d/e/1FAIpQLScRZBPFsdT2P13BmcT5N6z7aQLf8YCkBcvc_jQXEM6x8SdcJg/viewform?usp=header) su Google Forms. 
 :::
 
 ## Esperimenti Casuali
@@ -76,7 +78,7 @@ x <- runif(100) < 0.5 # Genera 100 numeri casuali e verifica se sono minori di 0
 x
 ```
 
-Nel codice, la funzione `runif` genera 100 numeri casuali distribuiti uniformemente nell'intervallo [0, 1]. Confrontando ciascun numero con **0.5**, otteniamo un vettore logico che rappresenta il risultato di ogni lancio: **Testa** (TRUE) o **Croce** (FALSE). 
+Nel codice, la funzione `runif` genera 100 numeri casuali distribuiti uniformemente nell'intervallo [0, 1]. Confrontando ciascun numero con 0.5, otteniamo un vettore logico che rappresenta il risultato di ogni lancio: **Testa** (TRUE) o **Croce** (FALSE). 
 
 
 ```{r}
@@ -84,7 +86,7 @@ t <- 1:100 # Sequenza degli indici dei lanci
 
 # Creazione del dataframe per ggplot2
 dat <- tibble(
-  Lancio = t, 
+  Lancio = t,
   Risultato = ifelse(x, "Testa", "Croce")
 )
 head(dat)
@@ -95,7 +97,9 @@ Il grafico a barre mostra la distribuzione osservata degli esiti.
 ```{r}
 # Creazione del grafico a barre della distribuzione dei risultati
 dat |>
-  ggplot(aes(x = Risultato)) +
+  ggplot(
+    aes(x = Risultato)
+  ) +
   geom_bar(fill = "lightblue", color = "black", width = 0.5) +
   labs(
     title = "Distribuzione dei risultati del lancio della moneta",
@@ -104,16 +108,22 @@ dat |>
   )
 ```
 
-Un aspetto interessante di questo esperimento è l'**andamento della frequenza relativa di Testa** al crescere del numero di lanci. Il grafico seguente mostra l’evoluzione della **media cumulativa** delle Teste, che dovrebbe convergere al valore teorico di **0.5**.
+Un aspetto rilevante di questo esperimento è l'**andamento della proporzione osservata di esiti "Testa"** in funzione del numero di lanci. Il grafico riportato di seguito illustra l’evoluzione della **media cumulativa** degli esiti "Testa", che, in accordo con la legge dei grandi numeri, dovrebbe convergere al valore teorico di **0.5**.
 
 ```{r}
 y <- cumsum(x) / t # Calcola la media cumulativa delle Teste
 
 # Creazione del dataframe per il grafico della media mobile
-data_mean <- data.frame(Lancio = t, Media_Testa = y)
+data_mean <- tibble(
+  Lancio = t, 
+  Media_Testa = y
+)
 
 # Creazione del grafico della media cumulativa
-ggplot(data_mean, aes(x = Lancio, y = Media_Testa)) +
+data_mean |>
+  ggplot(
+    aes(x = Lancio, y = Media_Testa)
+  ) +
   geom_line(linewidth = 1.5) +
   geom_hline(yintercept = 0.5, linetype = "dashed", color = "red") +
   labs(
@@ -168,8 +178,6 @@ L’esperimento casuale del lancio di una moneta porta a numerose domande, tra c
 
 - Qual è la probabilità di ottenere un certo numero $x$ di Teste in 100 lanci?
 - Qual è il numero atteso di Teste in un esperimento di 100 lanci?
-- Quanto tempo occorre in media per ottenere la prima Testa?
-- Con quale rapidità la frequenza cumulativa delle Teste converge al valore teorico $p = 0.5$?
 
 Dal punto di vista statistico, quando osserviamo i risultati di un esperimento reale (ad esempio, 100 lanci di una moneta), possiamo anche porci domande come:
 
@@ -179,15 +187,17 @@ Dal punto di vista statistico, quando osserviamo i risultati di un esperimento r
 
 Questi interrogativi costituiscono la base della **statistica inferenziale**, che permette di testare ipotesi sulla probabilità di un evento e stimare parametri sconosciuti sulla base di dati osservati.
 
-### Modellizzazione
+### **Modellizzazione**
 
-I modelli matematici usati per descrivere un esperimento casuale sono costituiti da tre componenti principali:
+La descrizione matematica di un esperimento casuale si basa su tre elementi fondamentali:
 
-1. **lo spazio campionario**,  
-2. **gli eventi**,  
-3. **la probabilità**.
+1. **Lo spazio campionario**: rappresenta l'insieme di tutti i possibili esiti dell'esperimento. Nel caso di esperimenti semplici, lo spazio campionario è immediato da individuare, mentre in situazioni più complesse è necessario applicare i principi del calcolo combinatorio.  
 
-Esaminiamo di seguito ciascuna di queste componenti.
+2. **Gli eventi**: sono sottoinsiemi dello spazio campionario e rappresentano gli esiti di interesse. Per analizzare e manipolare gli eventi, utilizziamo gli strumenti della teoria degli insiemi.  
+
+3. **La probabilità**: assegna un valore numerico a ciascun evento, indicando la sua probabilità di verificarsi. L'assegnazione delle probabilità avviene secondo gli assiomi di Kolmogorov.  
+
+Nei paragrafi seguenti, analizzeremo ciascuna di queste componenti in dettaglio.
 
 ## Spazio Campionario
 
@@ -304,6 +314,66 @@ $$
 A \cap B = \emptyset.
 $$
 
+::: {#exm-}
+
+```{r}
+# Universo
+U <- 1:10  
+
+# Definizione degli insiemi A e B
+A <- c(1, 2, 3, 4, 5)
+B <- c(4, 5, 6, 7, 8)
+
+# Calcolare l'unione, l'intersezione e il complemento relativo a un universo U
+union_AB <- union(A, B)
+intersect_AB <- intersect(A, B)
+complement_A <- setdiff(U, A)
+complement_B <- setdiff(U, B)
+
+# Visualizzazione testuale
+cat("Unione A ∪ B:", union_AB, "\n")
+cat("Intersezione A ∩ B:", intersect_AB, "\n")
+cat("Complemento di A:", complement_A, "\n")
+cat("Complemento di B:", complement_B, "\n")
+```
+
+```{r}
+# Visualizzazione con diagrammi di Venn
+venn.plot <- draw.pairwise.venn(
+  area1 = length(A),
+  area2 = length(B),
+  cross.area = length(intersect_AB),
+  category = c("A", "B"),
+  fill = c("blue", "red"),
+  alpha = 0.5,
+  cat.col = c("blue", "red")
+)
+grid.draw(venn.plot)
+```
+
+```{r}
+# Esempio di eventi mutualmente esclusivi
+C <- c(9, 10)  # Insieme disgiunto da A e B
+intersect_AC <- intersect(A, C)  # Deve essere vuoto
+
+cat("Intersezione A ∩ C (eventi mutualmente esclusivi):", intersect_AC, "\n")
+```
+
+```{r}
+# Visualizzazione di eventi mutualmente esclusivi
+venn.plot2 <- draw.pairwise.venn(
+  area1 = length(A),
+  area2 = length(C),
+  cross.area = 0,  # Nessuna intersezione
+  category = c("A", "C"),
+  fill = c("blue", "green"),
+  alpha = 0.5,
+  cat.col = c("blue", "green")
+)
+grid.draw(venn.plot2)
+```
+:::
+
 ### Proprietà Fondamentali delle Operazioni su Eventi
 
 - **Idempotenza:**
@@ -327,6 +397,27 @@ $$
   $$
 
 Queste operazioni forniscono la base per costruire e manipolare eventi in contesti probabilistici, permettendo di calcolare probabilità e prendere decisioni basate sull’analisi degli esiti possibili.
+
+::: {#exm-}
+Per gli insiemi definiti nell'esempio precedente, possiamo verificare la prima legge di De Morgan in R confrontando il complemento dell'unione con l'intersezione dei complementi:
+
+- complemento dell'unione: $(A \cup B)^c$,
+- intersezione dei complementi: $A^c \cap B^c$.
+
+Eseguiamo i calcoli in R:
+
+```{r}
+# Complemento dell'unione: (A ∪ B)^c
+setdiff(U, union(A, B))
+```
+
+```{r}
+# Intersezione dei complementi: A^c ∩ B^c
+intersect(setdiff(U, A), setdiff(U, B))
+```
+
+Secondo la legge di De Morgan, i due risultati dovrebbero coincidere.
+:::
 
 
 ::: {#exm-}
@@ -433,45 +524,6 @@ Questo esercizio illustra come definire e manipolare eventi in R, utilizzando op
 :::
 
 ::: {#exm-}
-Vogliamo verificare in R se due eventi $A$ e $B$ sono disgiunti. Per farlo, controlliamo se la loro intersezione è un insieme vuoto.
-
-Supponiamo di avere i due seguenti eventi:
-
-- $A = \{1, 2, 3\}$
-- $B = \{4, 5, 6\}$
-
-In R, definiamo questi eventi come vettori numerici:
-
-```{r}
-# Definizione degli eventi A e B
-A <- c(1, 2, 3)
-B <- c(4, 5, 6)
-```
-
-Per verificare se $A$ e $B$ sono disgiunti, utilizziamo la funzione `intersect`, che calcola l'intersezione tra due insiemi. Se l'intersezione è vuota, i due eventi sono disgiunti.
-
-```{r}
-# Calcolo dell'intersezione tra A e B
-intersezione <- intersect(A, B)
-
-# Verifica se l'intersezione è vuota
-if (length(intersezione) == 0) {
-  print("A e B sono disgiunti: l'intersezione è vuota.")
-} else {
-  print("A e B non sono disgiunti: l'intersezione non è vuota.")
-}
-```
-
-Spiegazione del codice:
-
-- `intersect(A, B)` calcola l'intersezione tra i vettori $A$ e $B$;
-- `length(intersezione) == 0` verifica se l'intersezione è vuota (cioè se non ci sono elementi in comune);
-- se l'intersezione è vuota, i due eventi sono disgiunti; altrimenti, non lo sono;
-- `numeric(0)` indica che l'intersezione è un insieme vuoto;
-- il messaggio conferma che $A$ e $B$ sono disgiunti.
-:::
-
-::: {#exm-}
 Consideriamo l’esperimento del lancio consecutivo di due dadi. Lo spazio campionario $\Omega$ è costituito da tutte le possibili coppie di risultati:
 
 $$
@@ -507,7 +559,7 @@ La funzione `expand.grid` crea tutte le combinazioni possibili tra gli elementi 
 
 ```{r}
 # Definizione delle facce dei dadi (1-6)
-dado <- 1:6  
+dado <- 1:6
 
 # Creazione di tutte le 36 combinazioni possibili
 Omega <- expand.grid(
@@ -525,7 +577,7 @@ head(Omega)
 Filtriamo le righe dove la colonna `Dado1` è uguale a 6:
 
 ```{r}
-A <- Omega[Omega$Dado1 == 6, ]  # Selezione condizionale
+A <- Omega[Omega$Dado1 == 6, ] # Selezione condizionale
 print("Evento A:")
 A
 ```
@@ -572,7 +624,7 @@ In sintesi,
 
 - lo spazio campionario $\Omega$ è stato generato algoritmicamente in R;
 - gli eventi $A$ e $B$ sono stati definiti filtrando lo spazio campionario;
-- l'intersezione $A \cap B$ corrisponde all'evento in cui entrambi i dadi mostrano un 6: $\{(6, 6)\}$.
+- l'intersezione $A \cap B$ corrisponde all'evento in cui entrambi i dadi mostrano un 6: $\{(6, 6)\}.$
 :::
 
 
