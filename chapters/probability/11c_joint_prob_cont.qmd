@@ -1,0 +1,166 @@
+# Caso continuo {#sec-prob-join-prob}
+
+**Prerequisiti**
+
+- Leggere il capitolo *Joint Distributions* [@kroese2025statistical].
+- Leggere il capitolo *Joint Distributions* [@blitzstein2019introduction].
+
+**Concetti e Competenze Chiave**
+
+- Estendere i concetti di probabilità congiunta, marginale e condizionale alle variabili continue, utilizzando gli integrali.
+
+**Preparazione del Notebook**
+
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+```
+
+## Introduzione 
+
+Passiamo ora a considerare le variabili casuali continue, come l'altezza o il tempo, che possono assumere infiniti valori in un intervallo. Invece di parlare di "probabilità di un singolo valore" (come nel caso discreto), lavoriamo con la **densità di probabilità**, che descrive come la probabilità è distribuita in modo continuo. Pensatela come un'ombreggiatura su un grafico: più scura è l'area, maggiore è la concentrazione di probabilità.
+
+
+## Densità di Probabilità Congiunta (Versione Continua)
+
+Immaginate di studiare due caratteristiche, come l'altezza e il peso di una persona. La **densità di probabilità congiunta** $f(x, y)$ rappresenta quanto è "probabile" osservare una specifica combinazione di altezza $x$ e peso $y$. Nel caso discreto, useremmo una tabella con tutte le coppie possibili; qui, invece, usiamo una superficie continua.
+
+**Come si calcola la probabilità?**  
+Nel caso discreto, sommeremmo le probabilità delle coppie \((x, y)\) in una regione. Nel continuo, sostituiamo la somma con un'operazione matematica chiamata **integrale**, che misura l'area sotto la curva della densità in una certa zona.
+Ad esempio, la probabilità che una persona sia tra 160-170 cm e 60-70 kg è l'area della "collina" definita da $f(x, y)$ in quell'intervallo.
+
+
+## Densità Marginali 
+
+Nel caso discreto, per trovare la probabilità marginale di $X$, sommiamo tutte le probabilità congiunte lungo le righe di una tabella. Nel continuo, facciamo qualcosa di simile: "appiattiamo" una dimensione integrando rispetto all'altra variabile.
+
+- **Densità marginale di $X$** ($f_X(x)$): Immaginate di proiettare tutta la densità congiunta $f(x, y)$ sull'asse delle altezze ($X$). Ogni punto $x$ avrà una "densità totale" ottenuta sommando (integrando) tutti i contributi dei possibili pesi $y$.
+- **Formula analogica**:  
+  $f_X(x) = \int_{-\infty}^{+\infty} f(x, y)\, dy$  
+  (Nel discreto: $P(X=x) = \sum_y P(X=x, Y=y)$).
+
+
+## Densità Condizionale 
+
+La densità condizionale $f(x \mid y)$ risponde alla domanda: *"Se so che una persona pesa $y$ kg, qual è la distribuzione della sua altezza $X$?"*.  
+Nel discreto, useremmo $P(X=x \mid Y=y) = \frac{P(X=x, Y=y)}{P(Y=y)}$. Nel continuo, sostituiamo le probabilità con le densità:
+
+$$
+f(x \mid y) = \frac{f(x, y)}{f_Y(y)}
+$$
+
+**Esempio intuitivo**:  
+Se $f_Y(y)$ è la densità marginale del peso (quanti individui hanno circa $y$ kg), $f(x \mid y)$ ci dice come si distribuiscono le altezze *solo* tra quelle persone. È come restringere l'attenzione a una fetta verticale del grafico congiunto (Figura 1).
+
+## Esempio: Altezza e Peso
+
+![Densità di probabilità congiunta [figura tratta da @martin2024bayesian].](../../figures/cond_prob_cont.png){ width=60% }
+
+1. **Congiunta ($f(x, y)$)**: La collina 3D mostra dove le coppie altezza-peso sono più probabili.  
+2. **Marginale ($f_X(x)$)**: Il profilo della collina proiettato sull'asse delle altezze.  
+3. **Condizionale ($f(x \mid y)$)**: Una fetta verticale della collina a un peso fisso $y$, ridimensionata per essere una densità valida.
+
+
+## Transizione da Discrete a Continue
+
+La transizione dal trattamento delle variabili discrete a quello delle variabili continue richiede un cambiamento di strumenti matematici: le **somme** utilizzate nel caso discreto vengono sostituite da **integrali** nel caso continuo. Tuttavia, i concetti fondamentali di probabilità congiunta, marginale e condizionale rimangono invariati. 
+
+- **Discreto**: Probabilità come conteggi (es: lanci di dadi). Usiamo **somme** per aggregare probabilità.  
+- **Continue**: Probabilità come aree sotto una curva. Usiamo **integrali**, che sono l'equivalente continuo delle somme.  
+
+**Analogia pratica**:  
+
+- Immaginate di misurare l'area di un prato. Nel discreto, contate i ciuffi d'erba; nel continuo, usate un integrale per calcolare l'area totale.
+
+
+Certamente! Qui ti propongo un esempio intuitivo e didattico, con un'applicazione psicologica, utilizzando R e la distribuzione normale bivariata.
+
+## Esempio Psicologico: Ansia e Prestazione Cognitiva
+
+Supponiamo che in uno studio psicologico vogliamo analizzare la relazione tra:
+
+- **ansia (X)**: punteggio di ansia misurato con un test standardizzato (ad esempio STAI, da 20 a 80 punti);
+- **prestazione Cognitiva (Y)**: punteggio di prestazione cognitiva misurato attraverso un test di memoria (da 0 a 100 punti).
+
+Supponiamo che questi punteggi seguano una distribuzione normale bivariata.  
+
+### Ipotesi del nostro esempio:
+
+- Media ansia: $\mu_X = 50$
+- Deviazione standard ansia: $\sigma_X = 10$
+- Media prestazione: $\mu_Y = 60$
+- Deviazione standard prestazione: $\sigma_Y = 15$
+- Correlazione ansia-prestazione: $\rho = -0.6$ (relazione negativa: più ansia, minore prestazione cognitiva)
+
+### Codice R per generare e visualizzare i dati:
+
+```{r}
+# Carica il pacchetto necessario
+library(MASS)
+
+# Parametri della distribuzione normale bivariata
+mu <- c(50, 60) # medie (ansia, prestazione)
+sigma_x <- 10
+sigma_y <- 15
+rho <- -0.6
+
+# Matrice di covarianza
+Sigma <- matrix(c(sigma_x^2, rho * sigma_x * sigma_y,
+                  rho * sigma_x * sigma_y, sigma_y^2),
+                nrow = 2)
+
+# Generiamo un campione casuale di 500 osservazioni
+set.seed(123) # per replicabilità
+campione <- mvrnorm(n = 500, mu = mu, Sigma = Sigma)
+
+# Convertiamo in data frame per chiarezza
+dati <- data.frame(ansia = campione[, 1], prestazione = campione[, 2])
+
+# Visualizziamo graficamente i dati generati
+plot(dati$ansia, dati$prestazione,
+     xlab = "Punteggio Ansia",
+     ylab = "Punteggio Prestazione Cognitiva",
+     main = "Distribuzione Bivariata: Ansia e Prestazione",
+     pch = 19, col = rgb(0.1, 0.2, 0.5, 0.5))
+
+# Aggiungiamo la retta di regressione per interpretare la correlazione
+abline(lm(prestazione ~ ansia, data = dati), col = "red", lwd = 2)
+```
+
+**Interpretazione dei risultati:**
+
+- il grafico mostra la relazione negativa tra ansia e prestazione cognitiva: al crescere dell'ansia, la prestazione cognitiva tende a diminuire;
+- la correlazione (ρ = -0.6) indica una relazione forte e negativa tra queste due variabili.
+
+**Calcolo empirico della correlazione e covarianza:**
+
+È possibile calcolare empiricamente la covarianza e la correlazione dal campione generato in R con:
+
+```{r}
+cov(dati$ansia, dati$prestazione)
+cor(dati$ansia, dati$prestazione)
+```
+
+Questi valori empirici saranno molto vicini ai valori teorici impostati.
+
+Questo esempio permette di visualizzare intuitivamente la relazione tra due variabili continue, comprendere il significato della distribuzione normale bivariata e interpretare i concetti di covarianza e correlazione in un contesto psicologico.
+
+## Riflessioni Conclusive
+
+I concetti di probabilità congiunta, marginale e condizionale sono identici nel discreto e nel continuo:  
+
+- **Congiunta**: Studia due variabili assieme.  
+- **Marginale**: Ignora una variabile.  
+- **Condizionale**: Fissa una variabile.  
+
+L'unica differenza è lo strumento matematico: **somme** per il discreto, **integrali** per il continuo. Questa analogia permette di applicare gli stessi principi logici a fenomeni sia discreti che continui, dall'analisi di questionari psicologici (discreto) allo studio di tempi di reazione (continuo).
+
+
+## Informazioni sull'Ambiente di Sviluppo
+
+```{r}
+sessionInfo()
+```
+
+## Bibliografia {.unnumbered}
+
