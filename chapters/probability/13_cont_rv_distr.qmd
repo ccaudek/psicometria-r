@@ -621,13 +621,181 @@ ggplot(df, aes(x=x, y=pdf)) +
 **In sintesi**, la distribuzione normale standardizzata permette di standardizzare qualsiasi fenomeno Gaussiano, rendendo confrontabili dati eterogenei. La relazione tra deviazioni standard e aree sottese è universale: **indipendentemente dalla media e varianza originale, il 68-95-99.7% dei dati cadrà sempre entro 1-2-3σ**. 
 
 
+
+::: {.callout-important title="Esercizio" collapse="true"}
+Una psicologa vuole studiare i **livelli di ansia** tra gli studenti universitari durante la settimana degli esami. Dalle ricerche precedenti si sa che nella **popolazione universitaria**:
+
+- il **punteggio medio di ansia** è di **50 punti** su una scala da 0 a 100;
+- la **deviazione standard** dei punteggi di ansia è **10 punti**.
+
+La psicologa decide di **estrarre un campione casuale di 25 studenti**.
+
+Vogliamo usare la **distribuzione campionaria della media** per rispondere a due domande:
+
+1. Qual è la probabilità di ottenere una media campionaria maggiore di 54 punti?
+2. Quale media campionaria rappresenta il **95° percentile** della distribuzione campionaria?
+
+📘 **Concetti chiave.**
+
+La **distribuzione campionaria della media** ha:
+
+- la **stessa media** della popolazione ($\mu$),
+- una **deviazione standard più piccola**, detta *errore standard della media* (SE):
+
+$$
+SE = \frac{\sigma}{\sqrt{n}} = \frac{10}{\sqrt{25}} = 2 .
+$$
+
+Useremo due funzioni importanti in R:
+
+- `dnorm(x, mean, sd)`: calcola la **densità** della normale in un punto $x$.
+- `qnorm(p, mean, sd)`: calcola il valore di $x$ corrispondente a una certa **probabilità cumulativa** $p$.
+
+
+✅ **Codice base.**
+
+```{r}
+# Parametri della popolazione e del campione
+mu <- 50       # media della popolazione
+sigma <- 10    # deviazione standard
+n <- 25        # dimensione campione
+
+# Errore standard della media
+SE <- sigma / sqrt(n)
+SE
+```
+
+🔍 **Domanda 1: Probabilità di ottenere una media > 54.**
+
+```{r}
+# Probabilità che la media campionaria sia maggiore di 54
+p_oltre_54 <- pnorm(54, mean = mu, sd = SE, lower.tail = FALSE)
+p_oltre_54
+```
+
+La probabilità è molto bassa. Questo vuol dire che, se la vera media della popolazione fosse 50, ottenere una media campionaria superiore a 54 sarebbe raro.
+
+🔍 **Domanda 2: Media al 95° percentile.**
+
+```{r}
+# Calcolo del valore soglia al 95° percentile
+q_95 <- qnorm(0.95, mean = mu, sd = SE)
+q_95
+```
+
+All'interno della distribuzione campionaria, solo il 5% dei campioni ha una media superiore a questo valore.
+
+📊 Grafico 1: Probabilità di media > 54
+
+```{r}
+# Dati per la distribuzione normale
+x_vals <- seq(44, 56, length.out = 300)
+dens_vals <- dnorm(x_vals, mean = mu, sd = SE)
+df <- data.frame(x = x_vals, y = dens_vals)
+
+# Grafico
+ggplot(df, aes(x, y)) +
+  geom_line(color = "black") +
+  geom_area(data = subset(df, x >= 54), aes(x, y), fill = "red", alpha = 0.4) +
+  geom_vline(xintercept = 54, color = "red", linetype = "dashed") +
+  labs(
+    title = "Distribuzione campionaria della media (n = 25)",
+    subtitle = "Area rossa = P(media > 54)",
+    x = "Media campionaria",
+    y = "Densità"
+  ) 
+```
+
+
+📊 **Grafico 2: Valore al 95° percentile**
+
+```{r}
+# Grafico con il 95° percentile evidenziato
+ggplot(df, aes(x, y)) +
+  geom_line(color = "black") +
+  geom_area(data = subset(df, x <= q_95), aes(x, y), fill = "blue", alpha = 0.4) +
+  geom_vline(xintercept = q_95, color = "blue", linetype = "dashed") +
+  labs(
+    title = "Distribuzione campionaria della media (n = 25)",
+    subtitle = "Area blu = 95% dei campioni (valore critico ≈ 53.29)",
+    x = "Media campionaria",
+    y = "Densità"
+  ) 
+```
+
+**Domande di approfondimento.**
+
+1. Perché l'errore standard della media è più piccolo della deviazione standard della popolazione?
+2. Se la dimensione del campione aumentasse a 100, come cambierebbe l'errore standard?
+3. Che cosa rappresenta `pnorm(54, ...)` nel nostro contesto?
+4. In quali casi, in psicologia, potresti voler calcolare il 95° percentile di una distribuzione campionaria?
+
+**Simulazione Monte Carlo.**
+
+Simuliamo 10.000 campioni casuali, ciascuno di **25 studenti**, estratti da una popolazione normale con media = 50 e deviazione standard = 10. Per ogni campione calcoliamo la media. Alla fine, visualizziamo la distribuzione di queste medie.
+
+```{r}
+set.seed(123)  # per rendere la simulazione replicabile
+
+# Parametri
+mu <- 50
+sigma <- 10
+n <- 25
+n_sim <- 10000  # numero di campioni
+
+# Simulazione: 10.000 medie campionarie
+campioni <- replicate(n_sim, mean(rnorm(n, mean = mu, sd = sigma)))
+
+# Visualizza le prime 5 medie
+head(campioni)
+```
+
+📊 **Istogramma delle medie campionarie.**
+
+```{r}
+
+df_sim <- data.frame(media_campionaria = campioni)
+
+ggplot(df_sim, aes(x = media_campionaria)) +
+  geom_histogram(aes(y = ..density..), bins = 40, fill = "lightblue", color = "black") +
+  stat_function(fun = dnorm, args = list(mean = mu, sd = sigma / sqrt(n)),
+                color = "red", size = 1) +
+  labs(
+    title = "Distribuzione delle medie campionarie (Simulazione Monte Carlo)",
+    subtitle = "Istogramma di 10.000 medie di campioni di 25 studenti",
+    x = "Media campionaria",
+    y = "Densità"
+  ) 
+```
+
+Cosa si osserva?
+
+- Le medie **non sono tutte uguali**, ma si distribuiscono **intorno alla media vera** (50).
+- La forma della distribuzione delle medie è **normale**, anche se i dati originali **non devono necessariamente esserlo** (grazie al Teorema del Limite Centrale).
+- La **deviazione standard** della distribuzione simulata è vicina all'**errore standard teorico**:
+
+```{r}
+# Confronto tra errore standard teorico e osservato
+SE_teorico <- sigma / sqrt(n)
+SE_osservato <- sd(campioni)
+
+c(SE_teorico = SE_teorico, SE_osservato = SE_osservato)
+```
+
+**Domande di approfondimento.**
+
+1. Perché la forma dell’istogramma è simile a una curva normale?
+2. Cosa succederebbe alla **larghezza della distribuzione** se aumentassimo la dimensione del campione?
+3. Se la media osservata in un esperimento reale fosse **fuori dalla zona centrale**, come potremmo interpretarla?
+:::
+
 ## Distribuzione Chi-Quadrato
 
 La distribuzione **$\chi^2$** deriva dalla distribuzione normale e descrive la somma dei quadrati di $k$ variabili casuali indipendenti e identicamente distribuite (i.i.d.) che seguono la distribuzione normale standard $\mathcal{N}(0, 1)$. Una variabile casuale $\chi^2_{~k}$ con $k$ gradi di libertà è definita come:
 
 $$
 Z_1^2 + Z_2^2 + \dots + Z_k^2,
-$$
+$$ {#eq-chisq-def}
 
 dove $Z_1, Z_2, \dots, Z_k \sim \mathcal{N}(0, 1)$. Il parametro $k$, detto **gradi di libertà** ($\nu$), determina la forma della distribuzione.
 
@@ -637,7 +805,7 @@ La densità di probabilità della distribuzione $\chi^2_{~\nu}$ è data da:
 
 $$
 f(x) = C_{\nu} x^{\nu/2 - 1} \exp(-x/2), \quad \text{per } x > 0,
-$$
+$$ {#eq-chisq-def2}
 
 dove $C_{\nu}$ è una costante di normalizzazione. 
 
@@ -889,7 +1057,7 @@ La **funzione Beta di Eulero** è una funzione matematica, non una densità di p
 
 $$
 \mathcal{B}(\alpha, \beta) = \frac{\Gamma(\alpha)\Gamma(\beta)}{\Gamma(\alpha + \beta)}\,,
-$$
+$$ {#eq-eulero-beta-def}
 
 dove $\Gamma(x)$ rappresenta la funzione Gamma, una generalizzazione del fattoriale definita per numeri reali positivi. Quando $x$ è un numero intero, la funzione Gamma si riduce al fattoriale traslato:
 
@@ -935,23 +1103,37 @@ La funzione Beta è utilizzata nella definizione della **densità di probabilit�
 
 ## Distribuzione Beta
 
-La **distribuzione Beta**, indicata come $\mathcal{Beta}(\alpha, \beta)$, è una distribuzione di probabilità continua definita sull'intervallo $(0, 1)$. È particolarmente utile per modellare proporzioni, probabilità o qualsiasi fenomeno limitato tra 0 e 1. 
+La **distribuzione Beta**, indicata come $\mathcal{Beta}(\alpha, \beta)$, è una distribuzione di probabilità continua definita sull’intervallo $(0, 1)$. È particolarmente utile per modellare proporzioni, probabilità, o in generale qualsiasi fenomeno che assume valori compresi tra 0 e 1.
 
-::: {#def-}
-Se una variabile casuale $\theta$ segue una distribuzione Beta con parametri $\alpha > 0$ e $\beta > 0$, indicata come $\theta \sim \mathcal{Beta}(\alpha, \beta)$, la sua funzione di densità è data da:
+Questa distribuzione è molto flessibile: a seconda dei valori dei parametri $\alpha$ e $\beta$, può assumere forme simmetriche, asimmetriche, concave, convesse, ecc. È frequentemente utilizzata come distribuzione a priori nei modelli bayesiani per parametri che rappresentano probabilità.
 
-$$
-\mathcal{Beta}(\theta \mid \alpha, \beta) = \frac{1}{B(\alpha, \beta)} \theta^{\alpha-1} (1-\theta)^{\beta-1}, \quad \theta \in (0, 1),
-$$
+### Definizione
 
-dove $\mathcal{B}(\alpha, \beta)$ è la funzione Beta di Eulero.
-:::
-
-Un'altra rappresentazione equivalente è:
+:::: {.definition #def-beta}
+Sia $\theta$ una variabile casuale continua. Se $\theta$ segue una distribuzione Beta con parametri $\alpha > 0$ e $\beta > 0$, scriviamo:
 
 $$
-\mathcal{Beta}(\theta \mid \alpha, \beta) = \frac{\Gamma(\alpha + \beta)}{\Gamma(\alpha)\Gamma(\beta)} \theta^{\alpha-1} (1-\theta)^{\beta-1}, \quad \theta \in (0, 1).
+\theta \sim \mathcal{Beta}(\alpha, \beta),
 $$
+
+e la sua **funzione di densità di probabilità** (pdf) è data da:
+
+$$
+\mathcal{Beta}(\theta \mid \alpha, \beta) = \frac{1}{\mathcal{B}(\alpha, \beta)} \, \theta^{\alpha - 1} (1 - \theta)^{\beta - 1}, \quad \text{per } \theta \in (0, 1),
+$$ {#eq-beta-distr-def}
+
+dove $\mathcal{B}(\alpha, \beta)$ è la funzione Beta (o funzione beta di Eulero).
+::::
+
+### Rappresentazione alternativa
+
+Un’espressione equivalente della densità, che mette in evidenza il legame con la funzione Gamma, è:
+
+$$
+\mathcal{Beta}(\theta \mid \alpha, \beta) = \frac{\Gamma(\alpha + \beta)}{\Gamma(\alpha) \, \Gamma(\beta)} \, \theta^{\alpha - 1} (1 - \theta)^{\beta - 1}, \quad \text{per } \theta \in (0, 1),
+$$ {#eq-beta-distr-def2}
+
+dove $\Gamma(\cdot)$ è la funzione Gamma, che generalizza il fattoriale: $\Gamma(n) = (n - 1)!$ per ogni intero positivo $n$.
 
 
 ### Ruolo dei Parametri $\alpha$ e $\beta$
@@ -984,18 +1166,39 @@ Queste proprietà evidenziano come $\alpha$ e $\beta$ possano essere interpretat
 
 ### Relazione con la Distribuzione Binomiale
 
-La distribuzione Beta può essere vista come una generalizzazione continua della distribuzione binomiale. In particolare, mentre la distribuzione binomiale modella il **numero di successi** in una serie di prove, la distribuzione Beta modella la **probabilità di successo** come una variabile casuale.
+La **distribuzione Beta** può essere interpretata come una generalizzazione continua della distribuzione binomiale. Mentre la distribuzione binomiale descrive la **probabilità di osservare un certo numero di successi** in un numero fissato di prove ($n$), la distribuzione Beta descrive l’**incertezza sulla probabilità di successo** $\theta$ stessa, trattandola come una variabile casuale.
 
-Nell'inferenza bayesiana, la distribuzione Beta è spesso utilizzata come **prior coniugato** per la distribuzione binomiale. Ad esempio:
+#### Contesto bayesiano
 
-- se $\theta \sim \mathcal{Beta}(\alpha, \beta)$ è il prior,
-- e osserviamo $x$ successi in $n$ prove, allora la distribuzione a posteriori è:
+In un contesto di **inferenza bayesiana**, la distribuzione Beta viene comunemente utilizzata come **distribuzione a priori coniugata** per il modello binomiale. Ciò significa che, se si assume una distribuzione Beta come prior per $\theta$, anche la distribuzione a posteriori (dopo aver osservato i dati) sarà una Beta, ma con parametri aggiornati.
+
+Supponiamo:
+
+- che $\theta$ sia la probabilità di successo in un compito con esiti binari (es. risposta corretta o errata),
+- di assumere una distribuzione a priori:  
+  $$
+  \theta \sim \mathcal{Beta}(\alpha, \beta),
+  $$
+- e di osservare $y$ successi su $n$ prove, con modello di verosimiglianza:
+  $$
+  y \sim \mathcal{Binom}(n, \theta).
+  $$
+
+Allora, per il teorema di Bayes, la distribuzione a posteriori di $\theta$ sarà:
 
 $$
-\theta \mid \text{dati} \sim \mathcal{Beta}(\alpha + x, \beta + n - x).
+\theta \mid \text{dati} \sim \mathcal{Beta}(\alpha + y, \beta + n - y).
 $$
 
-Questa proprietà consente un aggiornamento semplice delle credenze basato sui dati osservati.
+#### Vantaggi della coniugatezza
+
+Questo aggiornamento è particolarmente comodo perché:
+
+- si ottiene in forma chiusa (senza dover ricorrere a metodi numerici),
+- i parametri $\alpha$ e $\beta$ possono essere interpretati come **conteggi fittizi di successi e insuccessi** prima dell’osservazione dei dati,
+- l’informazione a priori e quella empirica si combinano sommando i rispettivi “conteggi.”
+
+Questa proprietà rende la distribuzione Beta una scelta naturale nei modelli bayesiani con dati binomiali, come in contesti psicologici in cui si vogliono modellare incertezze sulla probabilità di una risposta corretta, sull’esito di una scelta, o sul successo di un comportamento.
 
 ### Visualizzazione della Distribuzione Beta
 
@@ -1060,24 +1263,6 @@ cat("Integrale della funzione non normalizzata:", integrale, "\n")
 # Calcoliamo il valore della funzione Beta usando la funzione beta() di R
 valore_beta <- beta(alpha, beta)
 cat("Valore della funzione Beta B(alpha, beta):", valore_beta, "\n")
-
-# Verifichiamo che l'integrale calcolato coincide con B(alpha, beta)
-if (abs(integrale - valore_beta) < 1e-8) {
-  cat("L'integrale coincide con il valore della funzione Beta.\n")
-} else {
-  cat("C'è una discrepanza tra l'integrale e il valore della funzione Beta.\n")
-}
-
-# Calcoliamo la costante di normalizzazione, che è il reciproco della funzione Beta
-costante_normalizzazione <- 1 / valore_beta
-cat("Costante di normalizzazione (1 / B(alpha, beta)):", costante_normalizzazione, "\n")
-
-# Verifica: l'integrale della densità normalizzata deve essere 1
-densita_normalizzata <- function(theta) {
-  costante_normalizzazione * unnormalized_beta(theta)
-}
-integrale_normalizzato <- integrate(densita_normalizzata, lower = 0, upper = 1)$value
-cat("Integrale della densità normalizzata:", integrale_normalizzato, "\n")
 ```
 
 Spiegazione del Codice
