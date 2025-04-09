@@ -522,6 +522,178 @@ In sintesi, l'approccio basato sulla griglia è intuitivo e non richiede compete
 
 [^036_posterior_sim-1]: Per comprendere la maledizione della dimensionalità, possiamo considerare l'esempio di una griglia di 100 punti equispaziati. Nel caso di un solo parametro, sarebbe necessario calcolare solo 100 valori. Tuttavia, se abbiamo due parametri, il numero di valori da calcolare diventa $100^2$. Se invece abbiamo 10 parametri, il numero di valori da calcolare sarebbe di $10^{10}$. È evidente che la quantità di calcoli richiesta diventa troppo grande persino per un computer molto potente. Pertanto, per modelli che richiedono la stima di un numero significativo di parametri, è necessario utilizzare un approccio diverso.
 
+::: {.callout-important title="Esercizio" collapse="true"}
+
+In uno studio sulla percezione delle emozioni, un partecipante osserva 10 fotografie di volti arrabbiati. Deve indicare se il volto esprime **rabbia** o no. Ogni risposta può essere **corretta (1)** o **errata (0)**.
+
+I dati osservati del partecipante sono:
+
+```
+1, 0, 1, 1, 1, 0, 0, 1, 1, 1
+```
+
+→ Totale: **7 successi** su **10 prove** → $y = 7$, $n = 10$.
+
+**Obiettivo:** stimare la probabilità $\theta$ che il partecipante riconosca correttamente un volto arrabbiato, tenendo conto sia dei **dati osservati** sia di **conoscenze pregresse**.
+
+**Prior Informativo.**
+
+Supponiamo di voler adottare un approccio cautamente *pessimistico* sulle capacità iniziali del partecipante, basandoci su studi precedenti che indicano un riconoscimento della rabbia **non sempre accurato**, ad esempio mediamente intorno al **40%** con moderata incertezza.
+
+Per rappresentare questa convinzione, scegliamo come **distribuzione a priori** una **Beta(4, 6)**:
+
+- **Media**: $\mu = \frac{4}{4+6} = 0.4$
+- **Varianza**: $\frac{4 \cdot 6}{(10)^2 \cdot 11} = 0.0218$
+
+Questa prior concentra la massa di probabilità su valori inferiori a 0.5, ma lascia spazio anche a livelli di competenza superiori.
+
+
+**Calcolo della Distribuzione a Posteriori con il Metodo Basato su Griglia.**
+
+**1. Griglia di valori per $\theta$.**
+
+```{r}
+theta <- seq(0, 1, length.out = 1000)
+head(theta)
+tail(theta)
+```
+
+**2. Calcolo della distribuzione a priori Beta(4, 6).**
+
+```{r}
+prior <- dbeta(theta, shape1 = 4, shape2 = 6)
+prior <- prior / sum(prior)  # normalizzazione
+```
+
+Visualizzazione:
+
+```{r}
+ggplot(data.frame(theta, prior), aes(x = theta, y = prior)) +
+  geom_line(linewidth = 1.2, color = okabe_ito_palette[2]) +
+  labs(
+    title = "Distribuzione a Priori Informativa: Beta(4, 6)",
+    x = expression(theta),
+    y = "Densità (normalizzata)"
+  ) +
+  theme_minimal(base_size = 14)
+```
+
+**3. Calcolo della verosimiglianza per 7 successi su 10.**
+
+```{r}
+likelihood <- dbinom(7, size = 10, prob = theta)
+likelihood <- likelihood / sum(likelihood)  # normalizzazione
+```
+
+Visualizzazione:
+
+```{r}
+ggplot(data.frame(theta, likelihood), aes(x = theta, y = likelihood)) +
+  geom_line(linewidth = 1.2, color = okabe_ito_palette[1]) +
+  labs(
+    title = "Funzione di Verosimiglianza: 7 successi su 10",
+    x = expression(theta),
+    y = "Densità (normalizzata)"
+  ) +
+  theme_minimal(base_size = 14)
+```
+
+**4. Calcolo della distribuzione a posteriori.**
+
+```{r}
+unnormalized_posterior <- prior * likelihood
+posterior <- unnormalized_posterior / sum(unnormalized_posterior)
+```
+
+**5. Visualizzazione congiunta: prior, likelihood e posteriori.**
+
+```{r}
+data <- data.frame(theta, prior, likelihood, posterior)
+
+# Imposta i livelli desiderati con nomi leggibili
+long_data <- pivot_longer(
+  data,
+  cols = c("prior", "likelihood", "posterior"),
+  names_to = "distribution",
+  values_to = "density"
+) |>
+  mutate(distribution = factor(
+    distribution,
+    levels = c("prior", "likelihood", "posterior"),
+    labels = c("A Priori", "Verosimiglianza", "A Posteriori")
+    )
+  )
+
+ggplot(
+  long_data, 
+  aes(x = theta, y = density, color = distribution)
+  ) +
+  geom_line(linewidth = 1.2) +
+  labs(
+    title = "Distribuzioni Bayesiane: A Priori, Verosimiglianza e A Posteriori",
+    x = expression(theta),
+    y = "Densità (normalizzata)",
+    color = NULL
+  ) +
+  scale_color_manual(
+    values = c(
+      "A Priori" = okabe_ito_palette[2],       # blu
+      "Verosimiglianza" = okabe_ito_palette[1],# arancione
+      "A Posteriori" = okabe_ito_palette[3]    # verde
+    )
+  ) +
+  theme(legend.position = "bottom")
+```
+
+**Riepilogo:**
+
+- la **prior** (Beta(4,6)) riflette una convinzione iniziale più scettica;
+- la **verosimiglianza** è centrata su $\theta = 0.7$, corrispondente a 7 successi su 10;
+- la **posteriori** media tra prior e dati, ma si sposta chiaramente verso destra, evidenziando l’**effetto aggiornamento bayesiano**.
+
+Questo esempio mostra come l’approccio bayesiano:
+
+- **integra in modo trasparente** dati individuali e credenze pregresse;
+- **produce una stima personalizzata** della capacità del partecipante;
+- permette di **quantificare l’incertezza** in modo completo, tramite la distribuzione a posteriori.
+
+**Quantità a Posteriori.**
+
+Media:
+
+```{r}
+posterior_mean <- sum(theta * posterior)
+posterior_mean
+```
+
+Deviazione standard:
+
+```{r}
+posterior_sd <- sqrt(sum((theta^2) * posterior) - posterior_mean^2)
+posterior_sd
+```
+
+Moda:
+
+```{r}
+posterior_mode <- theta[which.max(posterior)]
+posterior_mode
+```
+
+Intervallo di credibilità al 94%:
+
+```{r}
+samples <- sample(theta, size = 10000, replace = TRUE, prob = posterior)
+quantile(samples, probs = c(0.03, 0.97))
+```
+
+Questo esercizio mostra come:
+
+- l’informazione pregressa può essere incorporata in modo trasparente in un modello bayesiano;
+- la posteriori riflette **una combinazione tra dati osservati e conoscenze precedenti**.
+
+:::
+
 ## Riflessioni Conclusive
 
 In questo capitolo, abbiamo esplorato l'aggiornamento bayesiano utilizzando una distribuzione a priori discreta, accennando brevemente al caso delle distribuzioni a priori continue. Quando si affrontano scenari con distribuzioni a priori continue, l'elaborazione della distribuzione a posteriori generalmente richiede la risoluzione di un integrale che, nella maggior parte dei casi, non ammette una soluzione analitica. Tuttavia, ci sono eccezioni notevoli, come nell'inferenza relativa alle proporzioni, dove la distribuzione a priori è modellata come una distribuzione Beta e la funzione di verosimiglianza segue una distribuzione binomiale. In queste circostanze particolari, è possibile derivare analiticamente la distribuzione a posteriori. L'analisi dettagliata di questo caso sarà trattata nel capitolo successivo.

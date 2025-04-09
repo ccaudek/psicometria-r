@@ -59,7 +59,7 @@ likelihood <- dnorm(y_obs, mean = mu_values, sd = sigma)
 
 # Grafico della verosimiglianza
 ggplot(data.frame(mu = mu_values, likelihood = likelihood), aes(x = mu, y = likelihood)) +
-  geom_line(color = "blue") +
+  geom_line(color = okabe_ito_palette[2], linewidth = 1.2) +
   labs(
     title = "Verosimiglianza per un singolo valore di QI (114)",
     x = "Media (μ)",
@@ -87,8 +87,10 @@ $$
 **Calcolo pratico con R:**
 
 ```{r}
+# Funzione di log-verosimiglianza negativa usando dnorm()
 negative_log_likelihood <- function(mu, y, sigma) {
-  0.5 * log(2 * pi) + log(sigma) + ((y - mu)^2) / (2 * sigma^2)
+  # Ritorniamo il valore negativo della log-verosimiglianza
+  -dnorm(y, mean = mu, sd = sigma, log = TRUE)
 }
 
 result <- optim(
@@ -107,66 +109,79 @@ cat("Il valore ottimale di μ dalla log-verosimiglianza è:", mu_max_loglik)
 
 In questo caso, otteniamo nuovamente $\mu = 114$.
 
-### Campione di Osservazioni Indipendenti
 
-Consideriamo ora un insieme più grande di osservazioni indipendenti, ciascuna co  una distribuzione normale con la stessa media $\mu$ e la stessa deviazione standard $\sigma$. Supponiamo di aver misurato i punteggi di depressione (ad esempio, scala BDI-II) per 30 persone:
+## Campione di Osservazioni Indipendenti
+
+Supponiamo di aver raccolto i punteggi alla scala **BDI-II** per 30 persone. Ciascun punteggio è un’osservazione indipendente da una distribuzione normale con **media incognita $\mu$** e **deviazione standard nota $\sigma = 6.5$**.
 
 ```{r}
+# Dati osservati (punteggi BDI-II)
 y <- c(
-  26, 35, 30, 25, 44, 30, 33, 43, 22, 43, 24, 19, 39, 31, 25, 28, 35, 30, 26, 
-  31, 41, 36, 26, 35, 33, 28, 27, 34, 27, 22
+  26, 35, 30, 25, 44, 30, 33, 43, 22, 43, 24, 19, 39, 31, 25, 
+  28, 35, 30, 26, 31, 41, 36, 26, 35, 33, 28, 27, 34, 27, 22
 )
+
+sigma <- 6.5
 ```
 
-Assumiamo inoltre che $\sigma$ sia nota (ad esempio $\sigma = 6.50$). In questo caso, la **log-verosimiglianza** si calcola così:
+### Calcolo della Log-Verosimiglianza 
+
+Definiamo una funzione che calcola la **log-verosimiglianza totale**:
 
 ```{r}
 log_likelihood <- function(mu, y, sigma) {
-  n <- length(y)
-  term1 <- -n * log(sigma) - n * log(sqrt(2 * pi))
-  term2 <- -sum((y - mu)^2) / (2 * sigma^2)
-  return(term1 + term2)
-}
-
-sigma <- 6.50
-mu_range <- seq(mean(y) - 2 * sigma, mean(y) + 2 * sigma, length.out = 1000)
-
-# Calcolo della log-verosimiglianza con un ciclo for
-log_lik_values <- numeric(length(mu_range))
-
-for (i in seq_along(mu_range)) {
-  log_lik_values[i] <- log_likelihood(mu_range[i], y, sigma)
+  sum(dnorm(y, mean = mu, sd = sigma, log = TRUE))
 }
 ```
 
-Il ciclo `for()` scorre ogni valore di `mu_range`, calcolando la log-verosimiglianza per ciascun valore e salvando i risultati nel vettore `log_lik_values`. 
+Esploriamo ora un intervallo di valori plausibili per $\mu$ e calcoliamo la log-verosimiglianza per ciascun valore:
 
-**Visualizziamo la log-verosimiglianza:**
+```{r}
+# Intervallo di valori possibili per μ
+mu_range <- seq(mean(y) - 2 * sigma, mean(y) + 2 * sigma, length.out = 1000)
+
+# Inizializza vettore dei risultati
+log_lik_values <- numeric(length(mu_range))
+
+# Ciclo esplicito per chiarezza didattica
+for (i in seq_along(mu_range)) {
+  mu_val <- mu_range[i]
+  log_lik_values[i] <- log_likelihood(mu_val, y, sigma)
+}
+```
+
+### Visualizzazione della Log-Verosimiglianza
 
 ```{r}
 ggplot(
   data.frame(mu = mu_range, log_likelihood = log_lik_values),
   aes(x = mu, y = log_likelihood)
 ) +
-  geom_line(color = "blue") +
+  geom_line(color = okabe_ito_palette[2], linewidth = 1.2) +
+  geom_vline(xintercept = mean(y), linetype = "dashed", color = "red") +
   labs(
-    title = "Log-verosimiglianza per dati BDI-II",
-    x = "Media (μ)",
+    title = "Log-verosimiglianza per punteggi BDI-II",
+    x = expression(mu),
     y = "Log-verosimiglianza"
-  ) +
-  geom_vline(xintercept = mean(y), linetype = "dashed", color = "red")
+  )
 ```
 
-**Ottimizzazione numerica per $\mu$:**
+La linea tratteggiata rossa indica la **media campionaria**, che — come ci aspettiamo — è anche il valore che **massimizza la log-verosimiglianza**.
+
+### Ottimizzazione Numerica
+
+Se volessimo calcolare il valore ottimale di $\mu$ in modo automatico:
 
 ```{r}
+# Funzione negativa da minimizzare
 negative_log_likelihood <- function(mu, y, sigma) {
-  -log_likelihood(mu, y, sigma)
+  -sum(dnorm(y, mean = mu, sd = sigma, log = TRUE))
 }
 
+# Ottimizzazione con limiti
 result <- optim(
-  par = mean(y),
-  fn = negative_log_likelihood,
+  par = mean(y),                   # Valore iniziale
+  fn = negative_log_likelihood,   # Funzione da minimizzare
   y = y,
   sigma = sigma,
   method = "L-BFGS-B",
@@ -177,6 +192,11 @@ result <- optim(
 mu_optimal <- result$par
 cat("Il valore ottimale di μ è:", mu_optimal)
 ```
+
+- Abbiamo utilizzato `dnorm(..., log = TRUE)` per calcolare in modo semplice e numericamente stabile la log-verosimiglianza.
+- Il valore di $\mu$ che **massimizza la log-verosimiglianza** corrisponde alla **media campionaria**.
+- Questo è un caso in cui **la stima di massima verosimiglianza ha una forma chiusa**, ma l’approccio numerico resta utile e generalizzabile.
+
 
 ## Riflessioni Conclusive
 
