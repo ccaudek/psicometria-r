@@ -151,6 +151,13 @@ Possiamo interpretare i dati $y = 14$ come l'esito di una variabile casuale Bino
 
 Supponiamo che le nostre credenze pregresse riguardo a $\theta$ possano essere modellate attraverso una distribuzione Beta(4, 6).
 
+```{r}
+tibble(x = seq(0, 1, .01),
+       y = dbeta(x, 4, 6)) |>
+  ggplot(aes(x=x, y=y)) + 
+  geom_line()
+```
+
 Sfruttando le proprietà delle distribuzioni coniugate, possiamo calcolare esattamente la distribuzione a posteriori:
 
 ```r
@@ -186,12 +193,12 @@ ggplot(df_long, aes(x = x, y = densita, fill = distribuzione)) +
   geom_line(aes(color = distribuzione), size = 1) +  # Aggiungere le linee per le distribuzioni
   geom_area(aes(fill = distribuzione), alpha = 0.5, position = "identity") +  # Aggiungere le aree sotto le curve
   scale_fill_manual(
-    values = c("prior" = adjustcolor("blue", alpha.f = 0.5), 
-               "posterior" = adjustcolor("red", alpha.f = 0.5)),
+    values = c("prior" = adjustcolor(okabe_ito_palette[1], alpha.f = 0.5), 
+               "posterior" = adjustcolor(okabe_ito_palette[2], alpha.f = 0.5)),
     labels = c("Prior: Beta(4, 6)", "Posterior: Beta(18, 92)")
   ) +
   scale_color_manual(
-    values = c("prior" = "blue", "posterior" = "red"),
+    values = c("prior" = okabe_ito_palette[1], "posterior" = okabe_ito_palette[2]),
     labels = c("Prior: Beta(4, 6)", "Posterior: Beta(18, 92)")
   ) +
   labs(
@@ -242,7 +249,7 @@ mean(rbeta(10000, shape1 = 18, shape2 = 92))
 
 Quando il numero di campioni dalla distribuzione a posteriori diventa molto grande, la media campionaria *converge* al valore atteso della distribuzione della popolazione. Questo principio non si applica solo alla media, ma anche ad altre statistiche descrittive come la moda e la varianza.
 
-È importante sottolineare che l'applicazione della simulazione di Monte Carlo è efficace per calcolare distribuzioni a posteriori solo quando conosciamo la distribuzione stessa e possiamo utilizzare funzioni Python per estrarre campioni casuali da tale distribuzione. Ciò è stato possibile nel caso della distribuzione a posteriori $Beta(18, 92)$. 
+È importante sottolineare che l'applicazione della simulazione di Monte Carlo è efficace per calcolare distribuzioni a posteriori solo quando conosciamo la distribuzione stessa e possiamo utilizzare funzioni R per estrarre campioni casuali da tale distribuzione. Ciò è stato possibile nel caso della distribuzione a posteriori $Beta(18, 92)$. 
 
 Tuttavia, questa situazione ideale non si verifica sempre nella pratica, poiché le distribuzioni a priori coniugate alla verosimiglianza sono spesso rare. Per esempio, nel caso di una verosimiglianza binomiale e una distribuzione a priori gaussiana, l'espressione
 
@@ -250,7 +257,7 @@ $$
 p(\theta \mid y) = \frac{\mathrm{e}^{-(\theta - 1 / 2)^2} \theta^y (1 - \theta)^{n - y}} {\int_0^1 \mathrm{e}^{-(t - 1 / 2)^2} t^y (1 - t)^{n - y} dt}
 $$
 
-rende impossibile calcolare analiticamente la distribuzione a posteriori di $\theta$, precludendo quindi l'utilizzo diretto di Python per generare campioni casuali.
+rende impossibile calcolare analiticamente la distribuzione a posteriori di $\theta$, precludendo quindi l'utilizzo diretto di R per generare campioni casuali.
 
 In queste circostanze, però, è possibile ottenere campioni casuali dalla distribuzione a posteriori mediante l'uso di metodi Monte Carlo basati su Catena di Markov (MCMC). Gli algoritmi MCMC, come ad esempio l'algoritmo Metropolis, costituiscono una classe di metodi che consentono di estrarre campioni casuali dalla distribuzione a posteriori *senza richiedere la conoscenza della sua rappresentazione analitica*. Le tecniche MCMC sono ampiamente adottate per risolvere problemi di inferenza bayesiana e rappresentano il principale strumento computazionale per ottenere stime approssimate di distribuzioni a posteriori in situazioni complesse e non analiticamente trattabili.
 
@@ -304,24 +311,30 @@ Utilizzando una regola probabilistica per accettare campioni peggiori (con minor
 
 - **Accettazione probabilistica**: Accettare campioni peggiori occasionalmente aiuta l'algoritmo a evitare di bloccarsi in minimi locali. Questo è uno dei punti di forza dell'algoritmo di Metropolis, che garantisce una buona esplorazione dello spazio dei parametri.
 
+
 ## Esempio di Implementazione
 
-Per questa simulazione, adattiamo l'approccio proposto da [Elizaveta Semenova](https://elizaveta-semenova.com/), implementando l'algoritmo di Metropolis-Hastings in R. Cominciamo definendo alcune funzioni fondamentali.
+Supponiamo di voler stimare la probabilità $\theta$ che un artista della Generazione X sia esposto al MoMA. Disponiamo di 14 successi (presenze) osservati su un campione di 100 artisti. Adottiamo un modello binomiale con distribuzione a priori Beta(4, 6) per $\theta$, integrando dati osservati e conoscenza a priori mediante l'algoritmo MCMC. Seguiremo l'impostazione metodologica proposta da [Elizaveta Semenova](https://elizaveta-semenova.com/), implementando l'algoritmo di Metropolis-Hastings in R. 
 
-Definiamo una funzione `prior` che calcola la densità della distribuzione Beta(4, 6) per un dato valore di $\theta$:
+### Definizione della Distribuzione a Priori
+
+La funzione `prior` calcola la densità della distribuzione Beta(4, 6) per un dato $\theta$:
 
 ```{r}
-# Definizione della distribuzione a priori (Beta(4, 6))
+# Distribuzione a priori Beta(4, 6)
 prior <- function(p) {
   dbeta(p, shape1 = 4, shape2 = 6)
 }
 ```
 
-Definiamo la funzione `likelihood`, che calcola la densità della verosimiglianza binomiale per 14 successi su 100 prove:
+Questa distribuzione esprime la nostra plausibilità iniziale sui valori di $\theta$ prima di osservare i dati.
+
+### Funzione di Verosimiglianza
+
+La funzione `likelihood` modella la probabilità di osservare 14 successi su 100 prove:
 
 ```{r}
-# Definizione della funzione di verosimiglianza (Binomiale 
-# con y = 14 su n = 100)
+# Verosimiglianza binomiale (y = 14 successi su n = 100 prove)
 likelihood <- function(p) {
   y <- 14
   n <- 100
@@ -329,93 +342,87 @@ likelihood <- function(p) {
 }
 ```
 
-Definiamo la funzione `posterior`, che calcola la densità della distribuzione a posteriori non normalizzata come prodotto tra la distribuzione a priori e la verosimiglianza:
+### Distribuzione a Posteriori Non Normalizzata
+
+La posteriori si ottiene combinando priori e verosimiglianza:
 
 ```{r}
-# Definizione della distribuzione a posteriori (non normalizzata)
+# Posteriori non normalizzata (prodotto tra verosimiglianza e priori)
 posterior <- function(p) {
   likelihood(p) * prior(p)
 }
 ```
 
-La distribuzione proposta sarà una distribuzione normale centrata sullo stato corrente con una deviazione standard specificata:
+### Distribuzione Proposta
+
+Utilizziamo una camminata casuale con distribuzione normale centrata sullo stato corrente:
 
 ```{r}
-# Distribuzione proposta (normale centrata sullo stato corrente)
+# Generazione proposta (normale con media sullo stato corrente)
 proposal_distribution <- function(current_state, proposal_sigma) {
   rnorm(1, mean = current_state, sd = proposal_sigma)
 }
 ```
 
-Definiamo infine la distribuzione target, che corrisponde alla distribuzione a posteriori:
+### Implementazione dell'Algoritmo Metropolis-Hastings
+
+Esecuzione dell'algoritmo per campionare dalla posteriori:
 
 ```{r}
-# Distribuzione target, equivalente alla distribuzione a posteriori
-target_distribution <- function(p) {
-  posterior(p)
-}
-```
+# Algoritmo Metropolis-Hastings
+metropolis_hastings <- function(n_samples, start, proposal_sigma) {
+  samples <- numeric(n_samples)
+  current <- start  # Stato iniziale
 
-Procediamo ora con l'implementazione dell'algoritmo di Metropolis-Hastings, considerando i dati relativi agli artisti della Generazione X presenti al MoMA. La distribuzione a priori per $\theta$ è modellata come una Beta(4, 6).
-
-```{r}
-# Algoritmo di Metropolis-Hastings
-metropolis_hastings <- function(num_samples, initial_state, proposal_sigma) {
-  # Inizializza lo stato corrente e la lista dei campioni
-  samples <- numeric(num_samples)
-  current_state <- initial_state
-
-  for (i in seq_len(num_samples)) {
-    # Proponi un nuovo stato dalla distribuzione proposta
-    proposed_state <- proposal_distribution(current_state, proposal_sigma)
-
-    # Verifica che il valore proposto sia tra 0 e 1
-    if (proposed_state >= 0 && proposed_state <= 1) {
-      # Calcola il rapporto di accettazione
-      acceptance_ratio <- min(
-        1,
-        target_distribution(proposed_state) / target_distribution(current_state)
-      )
-
-      # Accetta o rifiuta lo stato proposto
+  for (i in seq_len(n_samples)) {
+    proposal <- proposal_distribution(current, proposal_sigma)
+    
+    # Verifica validità e calcolo rapporto di accettazione
+    if (proposal >= 0 && proposal <= 1) {
+      acceptance_ratio <- min(1, posterior(proposal) / posterior(current))
+      # Accetta/rifiuta con probabilità acceptance_ratio
       if (runif(1) < acceptance_ratio) {
-        current_state <- proposed_state
+        current <- proposal
       }
     }
-
-    # Registra lo stato corrente (accettato o rifiutato)
-    samples[i] <- current_state
+    samples[i] <- current  # Aggiorna la catena
   }
-
   return(samples)
 }
 ```
 
+**Interpretazione intuitiva:** Immaginate di esplorare un paesaggio montuoso (la posteriori) avvolto dalla nebbia, dove le alture rappresentano regioni ad alta densità di probabilità. L'algoritmo replica il comportamento di un escursionista che:
+
+1. **Valuta la posizione corrente** (`current`) tramite l'altezza locale (`posterior(current)`).
+2. **Propone un passo casuale** in una direzione vicina (`proposal`), determinata da una distribuzione normale.
+3. **Decide il movimento** confrontando le altezze relative:
+   - Se il nuovo punto è più alto ($R \geq 1$), lo accetta immediatamente.
+   - Se è più basso ($R < 1$), lo accetta con probabilità $R$, simulando un'*accettazione stocastica* per evitare massimi locali.
+4. **Registra ogni posizione** visitata, costruendo gradualmente una mappa proporzionale alla vera distribuzione.
+
 ::: callout-note
-## Punti Chiave dell'Algoritmo
+## Meccanismo Chiave dell'Algoritmo
 
-1. **Generazione dei nuovi stati**: Ogni nuovo stato viene proposto campionando da una distribuzione normale centrata sullo stato corrente. Questo approccio consente un'esplorazione sistematica dello spazio dei parametri.  
-2. **Controllo dei limiti**: Gli stati proposti devono rientrare nell'intervallo [0, 1], poiché rappresentano probabilità. Questo assicura che i valori generati siano validi nel contesto dell'analisi.  
-3. **Rapporto di accettazione**: La decisione di accettare o rifiutare un nuovo stato è basata sul confronto tra la densità a posteriori del nuovo stato e quella dello stato corrente. Stati più probabili vengono sempre accettati, mentre quelli meno probabili sono accettati con una probabilità proporzionale.  
-4. **Memorizzazione degli stati**: Ogni iterazione salva lo stato corrente, sia che il nuovo stato venga accettato sia che venga rifiutato, garantendo una catena continua di valori.
-
+1. **Esplorazione guidata**: La proposta normale bilancia esplorazione (ampiezza passo) ed exploitation (frequenza accettazione).  
+2. **Vincoli di dominio**: Le proposte al di fuori di [0,1] vengono automaticamente scartate, mantenendo $\theta$ come probabilità valida.  
+3. **Efficienza computazionale**: Il calcolo evita la normalizzazione esplicita della posteriori, utilizzando il rapporto delle densità.  
+4. **Memoria della catena**: Ogni stato viene registrato indipendentemente dall'accettazione, garantendo la proprietà markoviana.  
 :::
 
-Questa implementazione fornisce una stima robusta della distribuzione a posteriori utilizzando una combinazione di una distribuzione a priori e dei dati osservati.
+**Proprietà della proposta simmetrica**: L'algoritmo di Metropolis (quello base come questo) funziona bene se la maniera in cui proponi di "spostarti" da un punto A a un punto B è esattamente la stessa della maniera in cui proporresti di spostarti da B ad A. Pensa a una proposta "neutra" rispetto alla direzione. Questa "simmetria" nella proposta è utile perché ci permette di decidere se accettare un passo basandoci esclusivamente sul confronto della 'probabilità' (la densità) dei due punti (proposto e attuale) sotto la distribuzione che vogliamo esplorare. In pratica, non dobbiamo preoccuparci di 'correggere' il rapporto di accettazione per tenere conto di proposte che potrebbero essere più facili in una direzione che nell'altra. Questa semplicità aiuta l'algoritmo a trovare il giusto bilanciamento negli spostamenti, permettendogli di campionare correttamente dalla distribuzione desiderata nel lungo periodo.
 
-La distribuzione normale utilizzata per la proposta è simmetrica, soddisfacendo i requisiti dell'algoritmo di Metropolis. Questa simmetria garantisce che la probabilità di proporre uno stato $\theta_p$ partendo da $\theta_t$ sia uguale alla probabilità inversa, assicurando l'equilibrio dettagliato necessario per la corretta convergenza della catena Markoviana.
 
 ### Esecuzione dell'Algoritmo
 
 ```{r}
 # Parametri dell'algoritmo
-num_samples <- 10000
-initial_state <- 0.5
+n_samples <- 10000
+start <- 0.5
 proposal_sigma <- 0.1
 
 # Esecuzione del campionamento
 set.seed(123)  # Per riproducibilità
-samples <- metropolis_hastings(num_samples, initial_state, proposal_sigma)
+samples <- metropolis_hastings(n_samples, start, proposal_sigma)
 ```
 
 ### Analisi dei Risultati
@@ -423,7 +430,7 @@ samples <- metropolis_hastings(num_samples, initial_state, proposal_sigma)
 Scartiamo i primi 5000 campioni per considerare solo quelli generati dopo il burn-in:
 
 ```{r}
-burnin <- floor(num_samples * 0.5)
+burnin <- floor(n_samples * 0.5)
 post_burnin_samples <- samples[-seq_len(burnin)]
 ```
 
@@ -440,56 +447,62 @@ sd(post_burnin_samples)
 Visualizziamo l'evoluzione della catena per i primi 200 campioni e per quelli post-burn-in:
 
 ```{r}
-# Trace plot dei primi 200 campioni
-plot(
-  samples[1:200], 
-  type = "l", 
-  main = "Trace Plot (Primi 200 Campioni)",
-  xlab = "Iterazioni", 
-  ylab = expression(theta)
-)
+tibble(
+  Iterazione = 1:200,
+  Theta = samples[1:200]
+) |> 
+  ggplot(aes(x = Iterazione, y = Theta)) +
+  geom_line() + # Specifica che vuoi un grafico a linea
+  ggtitle("Trace Plot (Primi 200 Campioni)") + # Aggiunge il titolo principale
+  xlab("Iterazioni") + # Etichetta l'asse X
+  ylab(expression(theta)) # Etichetta l'asse Y usando l'espressione per theta
 ```
 
 ```{r}
-# Trace plot dopo il burn-in
-plot(
-  post_burnin_samples, 
-  type = "l", 
-  main = "Trace Plot (Post Burn-in)",
-  xlab = "Iterazioni", 
-  ylab = expression(theta)
-)
+tibble(
+  Iterazione = 1:length(post_burnin_samples), 
+  Theta = post_burnin_samples
+) |> 
+  ggplot(aes(x = Iterazione, y = Theta)) +
+  geom_line() + # Specifica un grafico a linea
+  ggtitle("Trace Plot (Post Burn-in)") + # Aggiunge il titolo
+  xlab("Iterazioni") + # Indice all'interno della serie post-burn-in
+  ylab(expression(theta)) # Etichetta l'asse Y
 ```
 
 Sovrapponiamo la distribuzione analitica $\text{Beta}(18, 92)$ all'istogramma dei campioni post-burn-in:
 
 ```{r}
-# Istogramma e distribuzione analitica
-hist(
-  post_burnin_samples, 
-  breaks = 20, 
-  probability = TRUE, 
-  col = "lightblue",
-  main = "Istogramma e Distribuzione Posteriori", 
-  xlab = expression(theta)
-)
-curve(
-  dbeta(x, 18, 92), 
-  add = TRUE, 
-  col = "red", 
-  lwd = 2
-)
-legend(
-  "topright", 
-  legend = c("Istogramma MCMC", "Beta(18, 92)"),
-  col = c("lightblue", "red"), lwd = 2, fill = c("lightblue", NA)
-)
+plot_data_post_burnin <- data.frame(Theta = post_burnin_samples)
+
+ggplot(plot_data_post_burnin, aes(x = Theta)) +
+  geom_histogram(aes(y = after_stat(density), fill = "Istogramma MCMC"),
+                 bins = 30, 
+                 color = "black", 
+                 alpha = 0.7) + 
+  stat_function(aes(color = "Beta(18, 92)"),
+                fun = dbeta, # Specifica la funzione da disegnare (densità Beta)
+                args = list(shape1 = 18, shape2 = 92), 
+                linewidth = 1.2) + 
+  labs(title = "Istogramma e Distribuzione Posteriori",
+       x = expression(theta),
+       y = "Densità",
+       fill = "Distribuzione", 
+       color = "Distribuzione") +
+  scale_fill_manual(values = c("Istogramma MCMC" = okabe_ito_palette[1])) +
+  scale_color_manual(values = c("Beta(18, 92)" = okabe_ito_palette[2]))
 ```
 
 Calcoliamo l'intervallo di credibilità al 94%:
 
 ```{r}
 quantile(post_burnin_samples, probs = c(0.03, 0.97))
+```
+
+I valori ottenuti con l'algoritmo di Metropolis (usando solo un piccolo numero di iterazioni) sono quasi identici ai valori esatti:
+
+```{r}
+qbeta(c(0.03, 0.97), 18, 92)
 ```
 
 Questa implementazione in R dimostra come utilizzare l'algoritmo di Metropolis per stimare una distribuzione a posteriori e analizzare i risultati in modo dettagliato e riproducibile.
