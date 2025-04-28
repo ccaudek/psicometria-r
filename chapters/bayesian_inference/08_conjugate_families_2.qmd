@@ -26,78 +26,188 @@ pacman::p_load(mice)
 ```
 :::
 
-## Introduzione 
+## Introduzione
 
-La statistica bayesiana ci permette di aggiornare le nostre credenze iniziali o conoscenze a priori sulla distribuzione di un parametro (in questo caso, la media della popolazione) in base ai dati osservati. Questo processo di aggiornamento ci porta a ottenere una distribuzione a posteriori che riflette una nuova comprensione del parametro, integrata con le informazioni fornite dal campione.
+La statistica bayesiana **aggiorna** ciò che credevamo prima, chiamato prior, con ciò che osserviamo ora, i dati, per produrre ciò che sappiamo dopo, la posteriori.
+In pratica:
 
-Il concetto fondamentale è che, attraverso l'aggiornamento bayesiano, l'incertezza sulla stima del parametro si riduce. Questo è dovuto al fatto che l'informazione aggiuntiva fornita dai dati osservati consente di "restringere" la distribuzione a posteriori rispetto alla distribuzione a priori, riducendo così la varianza (o deviazione standard) della distribuzione del parametro di interesse.
+1.  **partiamo** da una distribuzione a priori su un parametro, qui la media $\mu$;
+2.  **osserviamo** un campione e ne calcoliamo la verosimiglianza;
+3.  **combiniamo** le due informazioni tramite il teorema di Bayes per ottenere la distribuzione a posteriori, che incorpora sia le conoscenze pregresse sia l’evidenza empirica.
 
-In questo capitolo, approfondiremo il tema delle famiglie coniugate (@sec-bayesian-inference-conjugate-1), focalizzandoci sul modello normale-normale. Una caratteristica distintiva di questo modello è la sua capacità di auto-coniugazione rispetto a una funzione di verosimiglianza gaussiana. In termini più semplici, se la funzione di verosimiglianza segue una distribuzione gaussiana, l'adozione di una distribuzione a priori gaussiana per la media garantisce che anche la distribuzione a posteriori mantenga la sua forma gaussiana.
+L’effetto principale è che l’incertezza, misurata dalla varianza, sulla stima di $\mu$ **diminuisce**: più dati abbiamo, più la distribuzione si restringe.
 
-## Perché Usare la Distribuzione Normale?
+In questo capitolo esploriamo le **famiglie coniugate** (@sec-bayesian-inference-conjugate-1), concentrandoci sul modello **normale-normale**. Quando sia la prior sia la verosimiglianza sono distribuzioni gaussiane, anche la distribuzione a posteriori risulta gaussiana.
 
-Spesso, quando la distribuzione a posteriori è nota per essere unimodale e simmetrica, possiamo modellarla efficacemente con una distribuzione normale, anche se sappiamo che la sua forma è solo approssimativamente normale. Nei casi in cui il ricercatore abbia un'idea approssimativa di dove sia centrato un parametro sconosciuto, la distribuzione normale fornisce un metodo utile per modellare questa stima, permettendo di descrivere il livello di incertezza tramite il termine di varianza della distribuzione normale. Questa convenienza può offrire buone approssimazioni alla densità a posteriori desiderata, con la consapevolezza che, con l'aumentare dei dati osservati, tali assunzioni perdono di importanza.
+## Vantaggi della Scelta Gaussiana
 
-Come dimostrato di seguito, il modello normale bayesiano possiede proprietà frequentiste desiderabili. Sebbene l'enfasi nell'analisi bayesiana non sia sulle stime puntuali, si può dimostrare che, con campioni sempre più grandi, la media della distribuzione a posteriori bayesiana si avvicina alla stima di massima verosimiglianza. Questa proprietà esiste perché la distribuzione a posteriori è un compromesso ponderato tra la distribuzione a priori specificata dall'utente, che in questo capitolo è normale, e la funzione di verosimiglianza derivata dai dati, anch'essa normale in questo capitolo. Con l'aumentare delle dimensioni del campione, la verosimiglianza diventa sempre più dominante in questa ponderazione.
+1.  **Simmetria e Universalità:**
+    La forma a campana simmetrica approssima adeguatamente molti fenomeni psicologici, ad esempio i tempi di reazione o i punteggi QI. La simmetria facilita l'interpretazione di media e varianza come parametri centrali.
 
-Nel caso di una media normale, illustrato qui, la varianza della distribuzione di campionamento frequentista diminuisce con l'aumento della dimensione del campione. Nel contesto bayesiano, la riduzione della varianza media dalla funzione di verosimiglianza alla fine prevale anche su una varianza a priori deliberatamente grande. Pertanto, se si prevede che la dimensione del dataset sia grande, i ricercatori possono permettersi di essere liberali nella specificazione della varianza a priori.
+2.  **Economia Parametrica:**
+    L'incertezza è catturata da un solo parametro, $\sigma^2$, semplificando la comunicazione dei risultati.
 
-## Distribuzione a Posteriori in un Contesto Normale con Varianza Nota
+3.  **Consistenza con l'Inferenza Frequentista:**
+    Per grandi campioni, le stime bayesiane convergono a quelle classiche, una proprietà nota come calibrazione frequente, offrendo un ponte tra paradigmi.
 
-Consideriamo un insieme di dati $y = [y_1, y_2, \ldots, y_n]$, composto da $n$ osservazioni indipendenti e identicamente distribuite (i.i.d.) secondo una distribuzione normale $\mathcal{N}(\mu, \sigma^2)$. In questo scenario, il nostro obiettivo è stimare il valore del parametro $\mu$, che rappresenta la media della popolazione da cui provengono i dati.
+4.  **Trattabilità Matematica:**
+    Le operazioni tra distribuzioni gaussiane rimangono in forma chiusa, evitando complessi calcoli numerici.
 
-### Distribuzione a Priori
+**Morale:** se ci aspettiamo molti dati o una posteriori unimodale e simmetrica, la distribuzione normale è un ottimo lavoro di prima approssimazione.
 
-Nell'approccio bayesiano, assumiamo una conoscenza iniziale sul parametro $\mu$ mediante una distribuzione a priori. In questo caso, utilizziamo una distribuzione normale coniugata, ovvero una distribuzione normale con media $\mu_0$ e varianza $\sigma_0^2$. Questa scelta riflette la nostra incertezza iniziale su $\mu$.
+## Inferenza con varianza nota
 
-### Funzione di Verosimiglianza
+Supponiamo di aver misurato i **tempi di reazione** in millisecondi di 20 studenti durante un compito Stroop, volendo stimare il vero tempo medio $\mu$ della popolazione. Assumiamo nota la variabilità intrinseca del compito, $\sigma = 50$ ms.
 
-La funzione di verosimiglianza, denotata da $p(y | \mu, \sigma)$, rappresenta la probabilità di osservare i dati $y$ dato il valore del parametro $\mu$ e la varianza nota $\sigma^2$. Per una distribuzione normale i.i.d., la funzione di verosimiglianza è data da:
+### I tre passi dell'Inferenza Bayesiana
 
-$$
-p(y | \mu, \sigma) = \prod_{i=1}^n \frac{1}{\sigma \sqrt{2\pi}} \exp\left(-\frac{(y_i - \mu)^2}{2\sigma^2}\right).
-$$
+| Passo           | Significato intuitivo             | Notazione                                                                |
+| :-------------- | :-------------------------------- | :----------------------------------------------------------------------- |
+| **A. Prior** | Opinione preliminare su $\mu$     | $\mu \sim \mathcal{N}(\mu_0,\sigma_0^2)$                                 |
+| **B. Verosimiglianza** | Che cosa dicono i dati            | $y_i \stackrel{\text{iid}}{\sim} \mathcal{N}(\mu,\sigma^2)$             |
+| **C. Posteriori** | Opinione aggiornata               | $\mu \mid y \sim \mathcal{N}(\mu_p,\sigma_p^2)$                          |
 
-### Teorema di Bayes e Distribuzione a Posteriori
+Con $\sigma^2$ fisso la distribuzione normale è **coniugata**: la forma rimane invariata in ogni passaggio.
 
-Il teorema di Bayes combina la distribuzione a priori con la funzione di verosimiglianza per ottenere la distribuzione a posteriori del parametro $\mu$, data l'evidenza osservata $y$:
+### Distribuzione A priori
 
-$$
-p(\mu | y) = \frac{ p(y | \mu) p(\mu) }{ p(y) }.
-$$
+$\mu \sim \mathcal{N}(\mu_0,\sigma_0^2)$: descrive dove crediamo sia $\mu$ e quanta incertezza abbiamo, una varianza grande significa poca informazione.
 
-Poiché la distribuzione a priori e la funzione di verosimiglianza sono entrambe distribuzioni normali, la distribuzione a posteriori risulterà anch'essa una distribuzione normale con media a posteriori $\mu_p$ e varianza a posteriori $\sigma_p^2$.
-
-### Formula per la Media a Posteriori ($\mu_p$)
-
-La media a posteriori $\mu_p$ rappresenta la stima aggiornata del parametro $\mu$ alla luce delle informazioni contenute nei dati osservati. La sua formula è:
-
-$$
-\mu_p = \frac{\frac{1}{\sigma_0^2} \mu_0 + \frac{n}{\sigma^2} \bar{y}}{\frac{1}{\sigma_0^2} + \frac{n}{\sigma^2}},
-$$
-
-dove $\bar{y}$ rappresenta la media campionaria:
+### Verosimiglianza
 
 $$
-\bar{y} = \frac{\sum_{i=1}^n y_i}{n}.
+p(y\mid\mu,\sigma)=\prod_{i=1}^{n}\frac{1}{\sigma\sqrt{2\pi}}
+                  \exp\!\Bigl[-\tfrac{(y_i-\mu)^2}{2\sigma^2}\Bigr].
 $$
 
-Osserviamo che $\mu_p$ è una combinazione ponderata tra la media a priori $\mu_0$ e la media campionaria $\bar{y}$. Il peso di $\bar{y}$ aumenta con il numero di osservazioni $n$, mentre il peso di $\mu_0$ diminuisce. Questo riflette il fatto che con più dati, la nostra fiducia nella media campionaria cresce, mentre l'incertezza a priori diminuisce.
+### Teorema di Bayes
 
-### Formula per la Varianza a Posteriori ($\sigma_p^2$)
-
-La varianza a posteriori $\sigma_p^2$ rappresenta l'incertezza residua sulla stima del parametro $\mu$ dopo aver incorporato le informazioni dai dati. La sua formula è:
+Il teorema di Bayes combina prior e verosimiglianza attraverso un prodotto ponderato:
 
 $$
-\sigma_p^2 = \frac{1}{\frac{1}{\sigma_0^2} + \frac{n}{\sigma^2}}.
+p(\mu\mid y)=\frac{p(y\mid\mu)\,p(\mu)}{p(y)} \;\; \propto\;\;
+\underbrace{\mathcal{N}(\mu_0,\sigma_0^2)}_{\text{prior}}
+\; \times \;
+\underbrace{\mathcal{N}(\bar y,\sigma^2/n)}_{\text{verosimiglianza}} .
 $$
 
-La varianza a posteriori $\sigma_p^2$ è sempre inferiore o uguale a quella a priori $\sigma_0^2$, perché abbiamo aggiunto informazioni dai dati. In altre parole, l'incertezza sulla stima di $\mu$ si riduce con l'aumentare del numero di osservazioni. La varianza a posteriori rappresenta un bilanciamento tra l'incertezza a priori ($\sigma_0^2$) e l'informazione derivata dai dati ($\sigma^2/n$).
+Il prodotto di due distribuzioni gaussiane è una distribuzione gaussiana: basta **aggiornare media e varianza**.
 
-In sintesi, nel caso normale-normale con varianza nota, la distribuzione a posteriori risulta essere una distribuzione normale con una media e una varianza che riflettono un'integrazione bilanciata tra l'informazione a priori e quella ottenuta dai dati osservati. Questo approccio garantisce una stima aggiornata e affinata del parametro $\mu$ che migliora con l'aumento del numero di osservazioni.
+### Media a posteriori
+
+$$
+\mu_p=\frac{\tfrac{1}{\sigma_0^2}\,\mu_0 + \tfrac{n}{\sigma^2}\,\bar y}
+           {\tfrac{1}{\sigma_0^2} + \tfrac{n}{\sigma^2}},
+\qquad
+\bar y=\frac{1}{n}\sum_{i=1}^{n}y_i.
+$$
+
+* $\mu_0$: l'idea iniziale.
+* $\sigma_0^2$: la fiducia in quell’idea.
+* $\bar y$: ciò che dicono i dati.
+* $n/\sigma^2$: la quantità di informazione empirica, aumenta con più casi e diminuisce con misure rumorose.
+
+* **Interpretazione:** Il peso relativo di prior e dati dipende dalla loro credibilità:
+    * La prior è influente se ha alta precisione, ovvero 1/$\sigma_0^2$ è grande, o se ci sono pochi dati, $n$ piccolo.
+    * I dati sono dominanti se la prior ha bassa precisione o se c'è un ampio campione.
+
+### Varianza a posteriori
+
+$$\sigma_p^2=\frac{1}{\tfrac{1}{\sigma_0^2}+\tfrac{n}{\sigma^2}}.$$
+
+* **Proprietà Chiave:** $\sigma_p^2 \le \min(\sigma_0^2, \sigma^2/n)$. L'incertezza diminuisce monotonicamente all'aumentare di $n$.
 
 ::: {#exm-}
+Consideriamo l'esempio dei tempi di reazione nell'effetto Stroop. La prior e i dati osservati sono i seguenti:
 
+| Simbolo    | Valore   |
+| :--------- | :------- |
+| $\mu_0$    | 500 ms   |
+| $\sigma_0$ | 100 ms   |
+| $\sigma$   | 50 ms    |
+| $n$        | 20       |
+| $\bar y$   | 480 ms   |
+
+1.  **Pesi**
+
+    $$
+    \frac{1}{\sigma_0^{2}}=\frac{1}{100^{2}}=0.0001,\quad
+    \frac{n}{\sigma^{2}}=\frac{20}{50^{2}}=0.008
+    $$
+
+2.  **Media a posteriori**
+
+    $$
+    \mu_p=\frac{0.0001\cdot500 + 0.008\cdot480}{0.0081}\approx 480.2\text{ ms}
+    $$
+
+3.  **Varianza a posteriori**
+
+    $$
+    \sigma_p^{2}=\frac{1}{0.0081}\approx 123
+    \implies \sigma_p\approx 11\text{ ms}
+    $$
+
+**Risultato:** da circa $\mu\approx500\pm100$ ms a circa $\mu\approx480\pm11$ ms.
+Un salto enorme di precisione dopo sole 20 osservazioni.
+
+::: callout-note
+### Messaggi chiave
+1.  Bayes è un dialogo fra ipotesi e dati.
+2.  Con varianza nota i conti sono lineari e si fanno a mano.
+3.  L’incertezza può solo scendere dopo aver visto i dati.
+4.  Con pochi dati o molto rumore la prior pesa tanto; con molti dati precisi quasi scompare.
+5.  Lo stesso schema si applica a moltissimi problemi di psicologia sperimentale come tempi di reazione, punteggi o ampiezze EEG.
+:::
+
+```{r}
+# ---- Parametri dell'esempio -------------------------------------------
+mu0    <- 500   # Media a priori (intuizione iniziale)
+sigma0 <- 100   # Deviazione standard a priori (quanto siamo incerti)
+sigma  <-  50   # Deviazione standard nota (errore di misura)
+n      <-  20   # Dimensione del campione
+ybar   <- 480   # Media campionaria osservata
+
+# ---- Calcolo dei parametri a posteriori -------------------------------
+sigma_p2 <- 1 / (1 / sigma0^2 + n / sigma^2)    # Varianza a posteriori
+sigma_p  <- sqrt(sigma_p2)                      # Deviazione standard a posteriori
+mu_p     <- (mu0 / sigma0^2 + n * ybar / sigma^2) /
+            (1 / sigma0^2 + n / sigma^2)        # Media a posteriori
+
+# ---- Griglia di valori per il parametro mu -----------------------------
+mu_grid <- seq(400, 600, length.out = 1000)
+
+# ---- Calcolo delle densità delle tre curve -----------------------------
+prior_dens <- dnorm(mu_grid, mean = mu0,  sd = sigma0)    # Densità a priori
+post_dens  <- dnorm(mu_grid, mean = mu_p, sd = sigma_p)   # Densità a posteriori
+
+# Verosimiglianza (scalata per confrontabilità grafica)
+lik_prop <- dnorm(mu_grid, mean = ybar, sd = sigma / sqrt(n))
+lik_dens <- lik_prop * max(prior_dens) / max(lik_prop)
+
+# ---- Preparazione dati in formato "lungo" per ggplot2 ------------------
+df <- tibble(
+  mu         = mu_grid,
+  Prior      = prior_dens,
+  Likelihood = lik_dens,
+  Posterior  = post_dens
+)
+
+df_long <- pivot_longer(df, -mu, names_to = "Curve", values_to = "Density")
+
+# ---- Grafico delle distribuzioni ---------------------------------------
+ggplot(df_long, aes(x = mu, y = Density, colour = Curve)) +
+  geom_line(linewidth = 1) +
+  labs(
+    x     = expression(mu),
+    y     = "Densità (unità arbitrarie)",
+    title = "Distribuzioni a priori, verosimiglianza (riscalata)\ne distribuzione a posteriori"
+  ) +
+  theme(legend.title = element_blank())
+```
+:::
+
+::: {#exm-}
 I test standard di QI sono progettati per misurare l'intelligenza con una media di 100 e una deviazione standard di 15. Tuttavia, si dice anche che questi test presentino bias culturali che favoriscono alcuni gruppi rispetto ad altri. Un'ulteriore complicazione si verifica quando i punteggi di QI vengono aggregati a livello nazionale, poiché le caratteristiche interne ai paesi vengono mascherate. Questo esempio analizza i dati di QI raccolti a livello internazionale (Lynn e Vanhanen, 2001) per 80 paesi da fonti nazionali pubblicate e discussi da @gill2015bayesian. L'idea chiave nella descrizione della distribuzione a posteriori è se le differenze tra le nazioni alterano la parametrizzazione prevista.
 
 I dati di Lynn e Vanhanen (2001) sono forniti di seguito:
