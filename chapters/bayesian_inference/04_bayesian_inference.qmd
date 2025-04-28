@@ -14,6 +14,7 @@
 
 - Leggere il capitolo *Bayes' Rule* del testo di @Johnson2022bayesrules.
 - Leggere *Navigating the Bayes maze: The psychologist's guide to Bayesian statistics, a hands-on tutorial with R code* [@alter2025navigating].
+- Leggere *Ten quick tips to get you started with Bayesian statistics* [@gimenez2025ten].
 :::
 
 ::: callout-caution
@@ -27,110 +28,148 @@ here::here("code", "_common.R") |>
 
 ## Introduzione  
 
-Riprendiamo il quadro concettuale della modellizzazione e analisi statistica presentato nella @fig-modeling-analysis. L'inferenza statistica si concentra sulla parte centrale di questo schema, ovvero sul processo di trarre conclusioni sul modello a partire dai dati osservati. I due principali approcci all'inferenza statistica sono:  
+Negli ultimi vent’anni l’inferenza bayesiana è passata da “curiosità matematica” a strumento di lavoro quotidiano in campi che vanno dalla biologia all’economia, dalla medicina alle scienze cognitive. In psicologia la sua popolarità è legata a due vantaggi pratici:
 
-- statistica bayesiana;  
-- statistica frequentista.  
+- integrare conoscenze pregresse (p.e. studi precedenti, expertise clinica) all’interno dell’analisi;
+- gestire al meglio campioni piccoli o rumorosi, frequenti nei contesti sperimentali e clinici.
 
-Nell'**approccio bayesiano**, l'inferenza statistica si basa sull'integrazione di informazioni *a priori* riguardo al vettore dei parametri $\mathbf{\theta}$, spesso rappresentate da una densità di probabilità $f(\mathbf{\theta})$, nota come distribuzione *a priori*. Questo permette di trattare $\mathbf{\theta}$ come un vettore aleatorio ai fini computazionali. L'inferenza su $\mathbf{\theta}$ viene condotta analizzando la densità di probabilità condizionata $f(\mathbf{\theta} \mid \mathbf{x})$, nota come distribuzione *a posteriori*. 
+Per uno studente di psicologia la curva di apprendimento può sembrare ripida. Non è così: i concetti chiave si acquisiscono gradualmente e si ripagano in fretta. In questo capitolo mostreremo come.
 
-Il teorema di Bayes fornisce il fondamento matematico per questa inferenza:
+## Dove si colloca l’inferenza nel processo di ricerca?
+  
+Richiamiamo il diagramma di modellizzazione e analisi introdotto in @fig-modeling-analysis. L’inferenza occupa la parte centrale: partendo dai **dati osservati** vogliamo trarre conclusioni sul **modello** e sui suoi **parametri** $\boldsymbol\theta$. Esistono due cornici teoriche:
+  
+  |                                                                 | Statistica Bayesiana                            | Statistica Frequentista                     |
+  |-----------------------------------------------------------------|-------------------------------------------------|--------------------------------------------|
+  | **Natura di $\boldsymbol\theta$**                               | variabile aleatoria con distribuzione _a priori_ | valore fisso ma ignoto                      |
+  | **Uso di informazioni pregresse**                               | sì (explicita nella prior)                      | no (basata solo sui dati)                   |
+  | **Obiettivi tipici**                                            | posteriore, previsione, decisione               | stima, test d’ipotesi                       |
+  | **Fondamento concettuale**                                      | probabilità come grado di credenza soggettivo   | probabilità come frequenza a lungo termine  |
+  
+  Nel prosieguo ci concentreremo sul paradigma bayesiano, rimandando alla sezione … per il frequentista.
+
+
+## Il teorema di Bayes come regola di aggiornamento 
+
+L’idea centrale è semplice: **si parte da una distribuzione _a priori_ sui parametri, si osservano i dati, si ottiene una distribuzione _a posteriori_**:
+  
+$$
+    p(\boldsymbol\theta\mid\mathbf{x})=\frac{p(\mathbf{x}\mid\boldsymbol\theta)\,p(\boldsymbol\theta)}{p(\mathbf{x})},
+$$
+
+dove  
+
+* $p(\mathbf{x}\mid\boldsymbol\theta)$ è la **verosimiglianza** (il modello generativo dei dati);  
+* $p(\boldsymbol\theta)$ è la **prior** (ciò che sapevamo prima);  
+* $p(\mathbf{x})$ è la **evidenza** o **marginal likelihood**, costante di normalizzazione.
+
+Il risultato è un **meccanismo di apprendimento cumulativo**: ogni nuova evidenza aggiorna coerentemente le nostre credenze. Questo rende l’approccio naturale in psicologia, dove le ricerche successive spesso si accumulano su temi simili (p.e. effetti di un trattamento cognitivo-comportamentale).
+ 
+
+## Un esempio intuitivo: la moneta sbilanciata
+  
+Supponiamo di lanciare una moneta $N=10$ volte ottenendo $y=8$ teste. Vogliamo inferire la probabilità $\theta$ di ottenere “testa”.
+
+1. **Model specification**  
 
 $$
-f(\mathbf{\theta} \mid \mathbf{x}) = \frac{f(\mathbf{x} \mid \mathbf{\theta}) f(\mathbf{\theta})}{f(\mathbf{x})},
+y\sim\text{Binomiale}(N,\theta).
 $$
 
-dove:  
+2. **Scelta della prior**  
+  *Uniforme* su $[0,1]$ (prior non informativo) oppure *Beta(2,2)* se riteniamo monete di solito quasi eque.
 
-- $f(\mathbf{x} \mid \mathbf{\theta})$ è la funzione di verosimiglianza, che descrive la probabilità (o densità) dei dati $\mathbf{x}$ dato il parametro $\mathbf{\theta}$;  
-- $f(\mathbf{\theta})$ è la distribuzione *a priori*, che codifica le nostre conoscenze o credenze iniziali su $\mathbf{\theta}$;  
-- $f(\mathbf{x})$ è la marginal likelihood (o evidenza), che agisce come una costante di normalizzazione e dipende solo dai dati osservati $\mathbf{x}$.  
+3. **Aggiornamento**  
+  Con prior Beta e verosimiglianza binomiale otteniamo una posteriore ancora Beta: 
+  
+$$
+\theta\mid y \sim \text{Beta}(\alpha\!+\!y,\;\beta\!+\!N-y).
+$$
 
-Questo approccio fornisce un quadro rigoroso per aggiornare le nostre credenze alla luce di nuove evidenze, un aspetto fondamentale sia nel ragionamento scientifico che nelle decisioni quotidiane.  
+4. **Risultati**  
+  * Stima puntuale: media $\hat\theta=(\alpha+y)/(\alpha+\beta+N)\approx0{,}73$.  
+* Incertezza: intervallo di credibilità (p.e. 95 %) dal percentilo 2,5 al 97,5 della posteriore.  
+* Decisione: la probabilità che $\theta>0{,}5$ è $\approx0{,}97$ → forte evidenza di moneta sbilanciata.
 
-Nel resto di questo capitolo, esploreremo in dettaglio i principali elementi dell'approccio bayesiano all'inferenza statistica, partendo da un semplice esempio introduttivo. Approfondiremo il processo di aggiornamento bayesiano, un meccanismo formale che consente di combinare nuove osservazioni con conoscenze pregresse in modo coerente e sistematico.
+L’intero procedimento è automatizzabile in software come **R + brms**, **Stan** o **PyMC**; l’utente indica modello e prior, l’algoritmo MCMC campiona la posteriore.
 
-Per contrasto, nella **statistica frequentista**, il vettore dei dati $\mathbf{x}$ è interpretato come il risultato di un vettore aleatorio $\mathbf{X}$, descritto da un modello probabilistico. Solitamente, il modello è definito fino a un parametro (multidimensionale) $\mathbf{\theta}$, espresso come $\mathbf{X} \sim f(\cdot; \mathbf{\theta})$. L'inferenza statistica si focalizza quindi sul modello stesso e, in particolare, sul parametro $\mathbf{\theta}$. Ad esempio, sulla base dei dati, si potrebbe voler:  
+## Perché usare le probabilità come gradi di credenza?
 
-1. **stimare il parametro**, ad esempio calcolando un estimatore $\hat{\mathbf{\theta}}$;  
-2. **eseguire test statistici sul parametro**, valutando ipotesi specifiche riguardo a $\mathbf{\theta}$.  
+L’interpretazione della probabilità come misura quantitativa dei gradi di credenza soggettivi si fonda su tre argomenti teorici fondamentali. Questi dimostrano perché le regole della probabilità siano indispensabili per modellare le credenze in modo coerente, razionale ed efficiente.
 
-Una differenza chiave tra i due approcci risiede proprio nell'uso di informazioni *a priori*: mentre la statistica bayesiana le incorpora esplicitamente attraverso la distribuzione *a priori* $f(\mathbf{\theta})$, la statistica frequentista si basa esclusivamente sui dati osservati $\mathbf{x}$.  
 
-| Caratteristica               | Statistica Bayesiana                      | Statistica Frequentista                |  
-|-----------------------------|-------------------------------------------|----------------------------------------|  
-| Interpretazione del parametro | $\mathbf{\theta}$ è un vettore aleatorio | $\mathbf{\theta}$ è una quantità fissa |  
-| Uso delle informazioni *a priori* | Incorporate esplicitamente               | Non utilizzate                         |  
-| Obiettivo principale         | Aggiornare la distribuzione *a posteriori* | Stima e test sul parametro             |  
-| Inferenza                   | Probabilistica                            | Basata sulla frequenza degli eventi    |  
+### 1. Argomento della Scommessa Olandese (Dutch Book)
 
-L'inferenza frequentista sarà esaminata in una sezione successiva della dispensa, mentre questo capitolo si concentrerà sull'approccio bayesiano, evidenziandone la potenza e la flessibilità nel contesto della modellizzazione statistica. In particolare, vedremo come l'approccio bayesiano consenta di integrare informazioni diverse (ad esempio, dati storici o esperti) in modo naturale, fornendo risultati interpretabili sotto forma di distribuzioni di probabilità.
+*Credenze incoerenti espongono a perdite certe (Ramsey, 1926; De Finetti, 1972).*  
 
-### L'Inferenza Bayesiana 
+Se un individuo assegna gradi di credenza che **violano gli assiomi della probabilità** (es.: la somma delle probabilità di eventi mutualmente esclusivi supera 1), è possibile costruire un insieme di scommesse (un "Dutch Book") che garantisce una **perdita certa**, indipendentemente dall’esito degli eventi.  
 
-Nella scienza, così come nella vita quotidiana, spesso ci troviamo a valutare ipotesi con diversi gradi di credibilità. Ad esempio, consideriamo la domanda su quale nazione vincerà il Campionato Mondiale di Calcio del 2026. Potremmo ritenere la Grecia un candidato molto improbabile, l'Inghilterra non del tutto implausibile, e l'Italia, la Francia o la Germania come favoriti. Questo esempio illustra che lo stato epistemico di un'ipotesi non è una questione di "vero o falso", ma piuttosto di gradazione. È qui che entra in gioco l'approccio bayesiano: i bayesiani utilizzano il concetto di **grado di credenza** per descrivere gli atteggiamenti epistemici riguardo a proposizioni incerte, e rappresentano questi gradi di credenza attraverso una struttura matematica specifica: le **funzioni di probabilità**. Questi due presupposti modellistici sono gli elementi centrali dell'inferenza bayesiana. In sintesi, i bayesiani interpretano le probabilità come espressioni di incertezza soggettiva, un'interpretazione che risale a Thomas Bayes (1701–1761).
+**Esempio intuitivo**:  
+Immaginate di attribuire una probabilità del 60% a un evento $A$ e del 50% al suo complementare $\neg A$. Un avversario potrebbe proporvi due scommesse:  
 
-La funzione di probabilità non solo assegna gradi di credenza a singole proposizioni, ma anche a combinazioni logiche di proposizioni (ad esempio, congiunzioni, disgiunzioni e negazioni). Tuttavia, per semplicità, concentriamoci su una singola proposizione. Consideriamo un esempio tratto dalla **psicologia cognitiva**, in cui una teoria afferma che "l'esposizione a stimoli positivi migliora l'umore". Questa proposizione può essere rappresentata come:
+- Pagare €60 per ricevere €100 se $A$ si verifica.  
+- Pagare €50 per ricevere €100 se $\neg A$ si verifica.  
 
-- **$A$**: "L'esposizione a stimoli positivi migliora l'umore."
+In totale, spendete €110, ma vincete solo €100 qualunque sia l’esito. Perdete quindi €10 con certezza. Questo mostra che **credere incoerentemente rende vulnerabili a strategie che sfruttano le incongruenze**.  
 
-Attraverso l'inferenza bayesiana, possiamo assegnare un grado di credenza iniziale (a priori) a questa proposizione, basandoci su conoscenze pregresse o evidenze preliminari. Ad esempio, potremmo iniziare con una probabilità iniziale:
 
-- $p(A) = 0.7$: crediamo che l'esposizione a stimoli positivi migliori l'umore con una probabilità del 70%.
+### 2. Teoria della Decisione Razionale
 
-Supponiamo ora di condurre un esperimento in cui i partecipanti esposti a stimoli positivi mostrano un significativo miglioramento dell'umore. Alla luce di questi nuovi dati, possiamo aggiornare la nostra credenza utilizzando il teorema di Bayes. Se i dati supportano fortemente la proposizione $A$, la probabilità a posteriori $p(A \mid \text{dati})$ potrebbe aumentare, ad esempio, a 0.9.
+*Massimizzare l’utilità attesa richiede probabilità coerenti (Savage, 1954; von Neumann & Morgenstern, 1947).*  
 
-Questo processo di aggiornamento bayesiano ci permette di affinare le nostre credenze in modo dinamico, integrando nuove evidenze empiriche con le conoscenze pregresse. In questo modo, l'inferenza bayesiana non solo quantifica l'incertezza, ma fornisce anche un quadro chiaro e sistematico per valutare la validità di singole proposizioni all'interno di una teoria scientifica, sia in psicologia che in altre discipline.
+Un agente razionale deve allineare le proprie scelte alla massimizzazione dell’**utilità attesa**, calcolata combinando i gradi di credenza (probabilità) con una funzione di utilità.  
 
-### Argomenti a Favore della Probabilità come Misura di Credenza
+**Problema delle incoerenze decisionali**:  
+Se i gradi di credenza non rispettano le regole probabilistiche, l’agente potrebbe:  
 
-L'interpretazione della probabilità come misura quantitativa dei gradi di credenza soggettivi è sostenuta da tre principali linee di argomentazione, ciascuna delle quali fornisce una giustificazione teorica e pratica per l'adozione delle regole probabilistiche nella modellazione delle credenze. Tali argomenti provengono dai domini delle decisioni, della coerenza e dell'epistemologia.
+- Cadere in **preferenze cicliche** (es.: preferire $A$ a $B$, $B$ a $C$, ma $C$ ad $A$).  
+- Scegliere opzioni **subottimali** rispetto ai propri obiettivi.  
 
-#### Argomenti della Scommessa Olandese (Dutch Book)
+**Esempio**:  
+Supponete di valutare tre investimenti con probabilità incoerenti. Potreste sovrastimare i rendimenti di due opzioni contemporaneamente, portandovi a scelte contraddittorie e perdite evitabili.  
 
-Gli argomenti della scommessa olandese costituiscono una dimostrazione formale del fatto che gradi di credenza non probabilistici portano a incoerenze logiche e vulnerabilità economiche. Se un individuo assegna gradi di credenza che violano gli assiomi della probabilità (ad esempio, la regola della somma per eventi mutuamente esclusivi), è possibile costruire un insieme di scommesse (un "Dutch Book") che garantisce una perdita certa, indipendentemente dall'esito degli eventi (Ramsey, 1926; De Finetti, 1972).
 
-Formalmente, se $p(A)$ rappresenta il grado di credenza di un evento $A$ e non rispetta le leggi della probabilità (ad esempio, $p(A \cup B) \neq p(A) + p(B)$ per eventi mutuamente esclusivi $A$ e $B$), esiste una combinazione di scommesse che sfrutta questa incoerenza per generare una perdita sicura. La coerenza probabilistica protegge da tali situazioni di perdita certa, che sono considerate irrazionali.
+### 3. Accuratezza Epistemica  
 
-#### Argomenti Decisionistici
+*Solo le funzioni di probabilità minimizzano l’errore medio tra credenza e verità.*  
 
-Gli argomenti basati sulla teoria della decisione razionale dimostrano che l'adozione di gradi di credenza probabilistici è una condizione necessaria per massimizzare l'**utilità attesa**, un principio cardine delle scelte razionali (Savage, 1954; von Neumann & Morgenstern, 1947). Secondo questa teoria, un agente razionale assegna probabilità agli eventi per rappresentare il proprio grado di fiducia e combina tali probabilità con una funzione di utilità che riflette le proprie preferenze, al fine di scegliere l'alternativa che offre il massimo beneficio atteso.
+Le funzioni di probabilità sono ottimali nel ridurre l’**inaccuratezza epistemica**, ovvero la discrepanza media tra le credenze e i valori di verità (1 se un evento accade, 0 altrimenti).  
 
-Quando i gradi di credenza non rispettano le regole della probabilità, l'agente non è in grado di calcolare correttamente l'utilità attesa. Ciò può portare a **incoerenze decisionali**, come preferenze cicliche o scelte subottimali che contraddicono gli obiettivi dell'agente. Ad esempio, 
+**Perché funziona**:  
+- Studi formali (Cox, 1946; Joyce, 1998; Pettigrew, 2016) dimostrano che solo le probabilità minimizzano l’errore *atteso* in tutti i possibili scenari.  
+- **Analogia**: Come un meteorologo migliora le previsioni usando probabilità (es.: 80% pioggia), un agente bayesiano riduce l’errore aderendo alle regole probabilistiche.  
 
-- una **violazione della regola della somma** (ad esempio, $p(A \cup B) \neq p(A) + p(B)$ per eventi mutuamente esclusivi) può comportare l'assegnazione di risorse in modo inefficiente tra opzioni alternative;
-- una **violazione della regola del prodotto** (ad esempio, $p(A \cap B) \neq p(A) \cdot p(B)$ per eventi indipendenti) può indurre l'agente a sottostimare o sovrastimare i rischi associati a decisioni complesse.
+**Implicazione**:  
+Credere in modo non probabilistico aumenta sistematicamente il rischio di essere in errore, anche con informazioni incomplete.  
 
-Queste incoerenze non solo compromettono la razionalità formale dell'agente, ma lo espongono a decisioni che possono portano a esiti non ottimali.
 
-In sintesi, la coerenza probabilistica non è un semplice requisito tecnico, ma un presupposto indispensabile affinché un agente possa agire in modo razionale e allineare le proprie decisioni agli obiettivi di massimizzazione dell'utilità attesa.
+In sintesi, questi tre argomenti mostrano che le probabilità non sono solo un formalismo matematico, ma un requisito per: 
 
-#### Argomenti Epistemici
+1. **evitare conseguenze pratiche dannose** (Dutch Book);  
+2. **ottimizzare le decisioni** in condizioni di incertezza; 
+3. **avvicinarsi alla verità** in modo efficiente.  
 
-Gli argomenti epistemici si concentrano sulla relazione tra i gradi di credenza e la verità, sostenendo che le credenze probabilistiche rappresentano il modo più razionale per minimizzare l'inaccuratezza epistemica rispetto alla realtà (Cox, 1946). L'inaccuratezza epistemica può essere definita come una misura della discrepanza tra il grado di credenza assegnato a una proposizione e il suo valore di verità oggettivo (ad esempio, 1 se la proposizione è vera, 0 se è falsa). In altre parole, l'inaccuratezza epistemica quantifica quanto una credenza si discosta dalla realtà.
+L’inferenza bayesiana integra questi principi, offrendo un framework coerente per aggiornare le credenze alla luce di nuove evidenze (*teorema di Bayes*).
 
-La minimizzazione dell'inaccuratezza epistemica richiede l'adozione di credenze probabilistiche che rispettino i principi fondamentali della teoria della probabilità. Studi condotti da autori come Joyce (1998, 2009) e Pettigrew (2016) dimostrano che le funzioni di probabilità sono l'unica struttura matematica in grado di minimizzare l'inaccuratezza media rispetto a un'ampia gamma di possibili stati del mondo. In altre parole, le credenze probabilistiche non solo sono coerenti, ma sono anche ottimali nel ridurre l'errore epistemico.
 
-In sintesi, anche se ciascun argomento, preso singolarmente, non è sufficiente a giustificare in modo definitivo l'approccio probabilistico, insieme formano un quadro robusto a favore dell'utilizzo della probabilità come misura di credenza razionale. Questi principi costituiscono il fondamento dell'inferenza bayesiana, che rappresenta un approccio potente per modellare il ragionamento e il processo decisionale scientifico.
-
-### Il Paradigma dell'Inferenza Bayesiana
+## Il Paradigma dell'Inferenza Bayesiana
 
 L'inferenza bayesiana si basa sull'idea che la probabilità misuri il grado di certezza soggettiva riguardo a un'ipotesi o alla plausibilità di un valore per un parametro sconosciuto. Il cuore di questo approccio è l'**aggiornamento continuo**: le credenze iniziali (**priori**) vengono riviste alla luce di nuove informazioni provenienti dai dati, producendo credenze aggiornate (**posteriori**).
 
-Per comprendere meglio questo processo, è necessario introdurre due concetti chiave: il **modello generativo dei dati** e il **parametro**.
+Per comprendere meglio questo processo, è necessario introdurre due concetti chiave: il **modello generativo dei dati** e i **parametri**.
 
-#### Modello Generativo dei Dati
+### Modello Generativo dei Dati
 
 Un **modello generativo dei dati** è una rappresentazione matematica che descrive come i dati osservati potrebbero essere generati da un processo sottostante. In altre parole, è un'astrazione che specifica le relazioni tra le variabili osservabili (i dati) e le variabili non osservabili (i parametri). Il modello generativo ci permette di simulare dati ipotetici e di fare previsioni su ciò che potremmo osservare in base a determinate ipotesi.
 
 Ad esempio, nel contesto del lancio di una moneta, il modello generativo potrebbe essere basato sulla distribuzione binomiale, che descrive la probabilità di ottenere un certo numero di "teste" in un dato numero di lanci, assumendo una certa probabilità di successo (in questo caso, la probabilità di ottenere "testa").
 
-#### Parametro
+### Parametri
 
 Un **parametro** è una quantità sconosciuta che caratterizza il modello generativo. Nel caso del lancio della moneta, il parametro di interesse è la probabilità $\theta$ di ottenere "testa". Questo parametro è ciò che vogliamo stimare o inferire attraverso l'osservazione dei dati. In generale, i parametri possono rappresentare diverse caratteristiche del processo generativo, come medie, varianze, coefficienti di regressione, ecc.
 
 
-#### Applicazione all'Esempio del Lancio della Moneta
+### Applicazione all'Esempio del Lancio della Moneta
 
 Ora che abbiamo introdotto i concetti di **modello generativo dei dati** e **parametro**, possiamo applicarli all'esempio del lancio della moneta. Immaginiamo di lanciare una moneta 10 volte e osservare 8 teste ($y = 8$). Vogliamo stabilire se la moneta sia equilibrata ($\theta = 0.5$) o meno.
 
@@ -140,7 +179,7 @@ In questo contesto, il parametro $\theta$ è l'oggetto della nostra inferenza. V
 
 La distribuzione a priori, $p(\theta)$, riflette ciò che riteniamo plausibile prima di osservare i dati. Quando raccogliamo nuove informazioni, rivediamo le nostre credenze, ridistribuendo la credibilità su tutto il range di valori possibili del parametro. Questo processo di aggiornamento produce la **distribuzione a posteriori**, $p(\theta \mid \text{dati})$, che rappresenta la nostra credenza aggiornata [@gelman1995bayesian].
 
-Un aspetto filosofico e matematico distintivo dell'approccio bayesiano è la concezione del parametro d'interesse come una **variabile casuale** che può assumere valori differenti, anziché come un valore fisso (come avviene nel paradigma frequentista). Questa prospettiva permette di trattare il parametro come una distribuzione, fornendo una rappresentazione più flessibile delle incertezze [@doing_bayesian_data_an]. Ad esempio, se tracciassimo la distribuzione a posteriori, l'asse $x$ rappresenterebbe l'intero intervallo di valori possibili per il parametro, mentre l'asse $y$ indicherebbe la densità di probabilità associata a ciascun valore. Il valore "utilizzabile" più credibile è spesso quello che massimizza la distribuzione (moda), o la sua media o mediana.
+Un aspetto filosofico e matematico distintivo dell'approccio bayesiano è la concezione del parametro d'interesse come una **variabile casuale** che può assumere valori differenti, anziché come un valore fisso (come avviene nel paradigma frequentista). Questa prospettiva permette di trattare il parametro come una distribuzione, fornendo una rappresentazione più flessibile delle incertezze [@doing_bayesian_data_an]. Ad esempio, se tracciassimo la distribuzione a posteriori, l'asse $x$ rappresenterebbe l'intero intervallo di valori possibili per il parametro, mentre l'asse $y$ indicherebbe la densità di probabilità associata a ciascun valore. Il valore più credibile è spesso quello che massimizza la distribuzione (moda), o la sua media o mediana.
 
 ### Approccio Classico: Massima Verosimiglianza
 
@@ -148,38 +187,7 @@ Nel contesto classico, uno dei metodi più utilizzati per stimare $\theta$ è la
 
 ### Approccio Bayesiano: Priori e Posteriori
 
-L'approccio bayesiano supera i limiti dell'approccio classico basato sulla massima verosimiglianza, offrendo un quadro più completo e flessibile per l'aggiornamento delle credenze. Questo risultato è reso possibile dal **teorema di Bayes**, che formalizza il processo di integrazione tra le informazioni iniziali (rappresentate dalla distribuzione a priori) e le nuove evidenze fornite dai dati osservati. Attraverso questo meccanismo, l'approccio bayesiano non solo fornisce stime puntuali, ma quantifica anche l'incertezza associata ai parametri, permettendo una valutazione più robusta e informata delle ipotesi. L'equazione fondamentale è:
-
-$$
-p(\theta \mid \text{dati}) = \frac{p(\theta) \cdot p(\text{dati} \mid \theta)}{p(\text{dati})},
-$$
-
-dove:
-
-- $p(\theta)$ è la distribuzione **a priori**, che rappresenta ciò che sappiamo del parametro prima di osservare i dati.
-- $p(\text{dati} \mid \theta)$ è la **verosimiglianza**, che descrive la probabilità di osservare i dati dati i valori ipotizzati del parametro.
-- $p(\text{dati})$ è la **probabilità marginale dei dati**, che funge da costante di normalizzazione per garantire che la distribuzione a posteriori sia una distribuzione di probabilità valida.
-
-La distribuzione **a posteriori** $p(\theta \mid \text{dati})$ riflette la combinazione delle credenze iniziali con le informazioni derivanti dai dati osservati.
-
-**Esempio: Moneta con $y = 8$ e $N = 10$.** Supponiamo di adottare una distribuzione a priori uniforme su $[0, 1]$, che attribuisce la stessa plausibilità a tutti i valori di $p$. Osservando $y = 8$ teste su $N = 10$ lanci, la verosimiglianza $p(y \mid \theta)$ sarà determinata dal modello binomiale:
-
-$$
-p(y \mid \theta) = \binom{N}{y} p^y (1-p)^{N-y}.
-$$
-
-Combinando prior e verosimiglianza attraverso il teorema di Bayes otteniamo:
-
-$$
-p(\theta \mid y) \propto p(y \mid \theta) \cdot p(\theta).
-$$
-
-La distribuzione a posteriori risultante ci consente di:
-
-1. **Calcolare stime plausibili di $\theta$**, come la mediana o la moda.
-2. **Quantificare l'incertezza su $\theta$**, ad esempio tramite varianza o intervalli di credibilità.
-
-Questo processo fornisce un quadro completo che integra informazioni iniziali e nuove evidenze, superando i limiti delle stime puntuali della massima verosimiglianza. Ad esempio, se la distribuzione a posteriori è concentrata attorno a $\theta = 0.8$, possiamo concludere che è plausibile che la moneta sia sbilanciata a favore di "testa". Tuttavia, l'intervallo di credibilità (ad esempio, $[0.6, 0.95]$) ci fornisce anche una misura dell'incertezza associata a questa stima.
+L'approccio bayesiano supera i limiti dell'approccio classico basato sulla massima verosimiglianza, offrendo un quadro più completo e flessibile per l'aggiornamento delle credenze. Questo risultato è reso possibile dal **teorema di Bayes**, che formalizza il processo di integrazione tra le informazioni iniziali (rappresentate dalla distribuzione a priori) e le nuove evidenze fornite dai dati osservati. Attraverso questo meccanismo, l'approccio bayesiano non solo fornisce stime puntuali, ma quantifica anche l'incertezza associata ai parametri, permettendo una valutazione più robusta e informata delle ipotesi. 
 
 ## Un'introduzione ai Priori
 
@@ -187,25 +195,17 @@ Ciò che distingue l'approccio bayesiano da quello basato sulla massima verosimi
 
 A seconda del grado di conoscenza o incertezza che abbiamo prima di raccogliere i dati, le distribuzioni a priori possono assumere forme diverse. Questa variabilità riflette il livello di fiducia o informazione iniziale e influenza in modo significativo il modo in cui le nuove evidenze vengono integrate nel processo di aggiornamento bayesiano. La scelta della distribuzione a priori è quindi un aspetto cruciale, poiché determina come le credenze iniziali interagiscono con i dati osservati per produrre la distribuzione a posteriori, ovvero la nostra credenza aggiornata.
 
-### Priori Non Informativi 
+ | Tipo di prior | Quando usarlo | Pro | Contro |
+  |---------------|--------------|-----|--------|
+  | **Non informativo** (p.e. uniforme) | Ignoranza quasi totale | Semplice, “lascia parlare i dati” | Può ricalcare l’MLE, talvolta inappropriato |
+  | **Debolmente informativo** | Conoscenza generale o vincoli di scala | Stabilizza stime, evita valori implausibili | Richiede riflessione; influenza modesta ma presente |
+  | **Informativo** | Meta-analisi, expertise, piccoli campioni | Riduce varianza, incorpora letteratura | Se eccessivo può dominare i dati |
+  | **Coniugato** | Modelli classici (Binomiale-Beta, Normale-Normale) | Aggiornamento analitico, didattico | Limitato a poche famiglie |
+  
+**Buona pratica**: effettuare un *prior predictive check* → simulare dati dalla prior, verificare che scenari impossibili (p.e. RT negativi) siano improbabili.
 
-Come suggerisce il nome, i **priori non informativi** (Flat Priors) sono generalmente privi di informazioni specifiche. Esistono diverse tipologie di distribuzioni a priori non informative, ma la loro distinzione dettagliata esula dallo scopo di questa trattazione. Sono spesso definiti **flat priors** perché la loro funzione di densità di probabilità appare come una linea orizzontale quando rappresentata graficamente. Questa distribuzione, classificata come uniforme, assegna la stessa probabilità a tutti i possibili valori del parametro, riflettendo così un'ignoranza totale riguardo al parametro [@gelman1995bayesian].
 
-In generale, l'uso di priori non informativi è sconsigliato, a meno che non si abbia effettivamente nessuna conoscenza preliminare o convinzione riguardo ai valori probabili del parametro [@Johnson2022bayesrules; @McElreath_rethinking]. Infatti, in alcuni casi, l'uso di un prior non informativo porta a una distribuzione a posteriori identica alla funzione di verosimiglianza, con stime dei parametri indistinguibili da quelle ottenute con l'approccio frequentista della massima verosimiglianza. Di conseguenza, l'adozione di un'inferenza bayesiana in tali contesti potrebbe essere non giustificata, poiché il concetto di priors è centrale nella statistica bayesiana.
-
-### Priori Debolmente Informativi 
-
-Spesso non abbiamo una conoscenza precisa del parametro d'interesse, ma solo un'idea generale o vincoli noti (ad esempio, l'associazione positiva tra ore di studio e punteggio in un test di matematica). In tali situazioni, possiamo utilizzare **priori debolmente informativi** (anche detti vaguely informative o default priors). Questi prior incorporano informazioni generali o vincoli sul parametro senza influenzare in modo eccessivo i risultati della posteriori. 
-
-I priori debolmente informativi (Default Priors) rappresentano un compromesso tra l'integrazione di conoscenze pregresse e l'evitare bias significativi, permettendo ai dati di "dominare" i risultati [@gelman2021regression]. Sono particolarmente utili quando le informazioni preliminari sono limitate o quando si desidera ridurre al minimo l'impatto di credenze iniziali forti.
-
-### Priori Informativi
-
-Diversamente dai priori debolmente informativi o non informativi, i **priori informativi** trasmettono informazioni deliberate e specifiche sul parametro d'interesse. Questi priori si basano su conoscenze consolidate, risultati di studi precedenti o opinioni di esperti [@falconer2022methods] e hanno un'influenza maggiore sulla distribuzione a posteriori rispetto ai priori default o flat. 
-
-I priori informativi sono particolarmente utili in presenza di campioni ridotti, poiché restringono lo spazio credibile del parametro e consentono intervalli di incertezza più stretti [@doing_bayesian_data_an]. Tuttavia, richiedono una definizione accurata, basata su evidenze solide.
-
-## Costante di Normalizzazione e Priori Coniugati
+## Quando il calcolo si complica: MCMC
 
 Nell'equazione del teorema di Bayes:
 
@@ -215,11 +215,11 @@ $$
 
 la **costante di normalizzazione**, indicata come $p(\text{dati})$, rappresenta la probabilità complessiva di osservare i dati, indipendentemente dal valore specifico del parametro $\theta$. Questo termine garantisce che la distribuzione a posteriori sia una distribuzione di probabilità valida, cioè che la somma (o l'integrale) delle probabilità sia uguale a 1. In altre parole, la costante di normalizzazione "aggiusta" la distribuzione risultante affinché sia coerente con le regole della probabilità.
 
-Calcolare $p(\text{dati})$ può essere complesso, poiché richiede di considerare tutte le possibili combinazioni di dati e valori del parametro. Tuttavia, in molti casi pratici, non è necessario calcolarla esplicitamente, poiché la forma della distribuzione a posteriori può essere dedotta direttamente dal prodotto tra la distribuzione a priori e la verosimiglianza, a meno di una costante.
+Calcolare $p(\text{dati})$ può essere complesso, poiché per modelli non coniugati o ad alta dimensionalità la posteriore non ha forma chiusa. 
 
 ### Priori Coniugati
 
-I **priori coniugati** sono una scelta specifica di distribuzione a priori che, quando combinata con una determinata verosimiglianza, produce una distribuzione a posteriori della stessa famiglia. Questa proprietà semplifica notevolmente i calcoli, rendendo l’aggiornamento bayesiano più efficiente dal punto di vista computazionale.
+I **priori coniugati** sono una scelta specifica di distribuzione a priori che, quando combinata con una determinata verosimiglianza, produce una distribuzione a posteriori della stessa famiglia. Questa proprietà semplifica notevolmente i calcoli.
 
 **Esempio**: Se la verosimiglianza è binomiale e la distribuzione a priori è una Beta, la distribuzione a posteriori sarà ancora una Beta. Questo caso è particolarmente utile, ad esempio, quando si studia la probabilità di successo in una serie di prove (come il lancio di una moneta).
 
@@ -258,10 +258,12 @@ Quando i modelli diventano troppo complessi per essere risolti analiticamente, l
 L’MCMC è una famiglia di algoritmi che generano una sequenza di campioni (una "catena") dalla distribuzione a posteriori. Ogni campione rappresenta un possibile valore del parametro di interesse, e i campioni successivi dipendono dai precedenti, come i collegamenti di una catena. Con un numero sufficiente di iterazioni, questa catena converge alla distribuzione a posteriori, permettendo di stimarne forma, centro e variabilità.
 
 **Come funziona l’MCMC?**
+
 - **Metropolis-Hastings**: Questo algoritmo è adatto a distribuzioni generiche. Richiede la definizione di una "funzione proposta" che suggerisce nuovi valori per il parametro, che vengono poi accettati o rifiutati in base a una regola probabilistica.
 - **Gibbs Sampling**: Questo metodo è particolarmente efficace quando le distribuzioni condizionali dei parametri sono note, anche se la distribuzione congiunta è complessa. In pratica, si campiona iterativamente da ciascuna distribuzione condizionale, aggiornando un parametro alla volta.
 
 **Pratiche comuni in MCMC**:
+
 - **Warm-up (o burn-in)**: All’inizio dell’algoritmo, i campioni vengono scartati per permettere alla catena di stabilizzarsi e raggiungere la distribuzione target. Questa fase è cruciale per evitare che i campioni iniziali, spesso non rappresentativi, influenzino i risultati.
 - **Thinning**: Per ridurre l’autocorrelazione tra i campioni, si seleziona solo uno ogni *n* campioni (ad esempio, ogni 5° campione). Questo migliora l’efficienza e l’indipendenza dei campioni utilizzati per l’analisi.
 
@@ -273,6 +275,7 @@ Oltre all’MCMC, esistono altri metodi numerici per approssimare la distribuzio
 - **Approssimazione di Laplace**: Questo metodo semplifica la distribuzione a posteriori approssimandola con una distribuzione normale centrata sul valore MAP (Maximum A Posteriori). È utile per modelli semplici ma meno accurato per distribuzioni non gaussiane.
 
 **Vantaggi e Svantaggi degli Approcci Numerici**:
+
 - **Vantaggi**:
   - Applicabilità a modelli complessi e ad alta dimensionalità.
   - Flessibilità nell’incorporare informazioni a priori dettagliate.
