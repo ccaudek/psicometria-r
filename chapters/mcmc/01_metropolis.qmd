@@ -314,7 +314,7 @@ Utilizzando una regola probabilistica per accettare campioni peggiori (con minor
 
 ## Esempio di Implementazione
 
-Supponiamo di voler stimare la probabilità $\theta$ che un artista della Generazione X sia esposto al MoMA. Disponiamo di 14 successi (presenze) osservati su un campione di 100 artisti. Adottiamo un modello binomiale con distribuzione a priori Beta(4, 6) per $\theta$, integrando dati osservati e conoscenza a priori mediante l'algoritmo MCMC. Seguiremo l'impostazione metodologica proposta da [Elizaveta Semenova](https://elizaveta-semenova.com/), implementando l'algoritmo di Metropolis-Hastings in R. 
+Supponiamo di voler stimare la probabilità $\theta$ che un artista della Generazione X sia esposto al MoMA. Disponiamo di 14 successi (presenze) osservati su un campione di 100 artisti. Adottiamo un modello binomiale con distribuzione a priori Beta(4, 6) per $\theta$, integrando dati osservati e conoscenza a priori mediante l'algoritmo MCMC. Seguiremo l'impostazione metodologica proposta da [Elizaveta Semenova](https://elizaveta-semenova.com/), implementando l'algoritmo di Metropolis-Hastings in R.  Cominciamo definendo alcune funzioni fondamentali.
 
 ### Definizione della Distribuzione a Priori
 
@@ -355,7 +355,7 @@ posterior <- function(p) {
 
 ### Distribuzione Proposta
 
-Utilizziamo una camminata casuale con distribuzione normale centrata sullo stato corrente:
+La distribuzione proposta sarà una distribuzione normale centrata sullo stato corrente con una deviazione standard specificata:
 
 ```{r}
 # Generazione proposta (normale con media sullo stato corrente)
@@ -366,7 +366,7 @@ proposal_distribution <- function(current_state, proposal_sigma) {
 
 ### Implementazione dell'Algoritmo Metropolis-Hastings
 
-Esecuzione dell'algoritmo per campionare dalla posteriori:
+Procediamo ora con l'implementazione dell'algoritmo di Metropolis-Hastings, considerando i dati relativi agli artisti della Generazione X presenti al MoMA. La distribuzione a priori per $\theta$ è modellata come una Beta(4, 6).
 
 ```{r}
 # Algoritmo Metropolis-Hastings
@@ -391,7 +391,8 @@ metropolis_hastings <- function(n_samples, start, proposal_sigma) {
 }
 ```
 
-**Interpretazione intuitiva:** Immaginate di esplorare un paesaggio montuoso (la posteriori) avvolto dalla nebbia, dove le alture rappresentano regioni ad alta densità di probabilità. L'algoritmo replica il comportamento di un escursionista che:
+::: {.callout-tip title="Interpretazione intuitiva" collapse="true"}
+Immaginate di esplorare un paesaggio montuoso (la posteriori) avvolto dalla nebbia, dove le alture rappresentano regioni ad alta densità di probabilità. L'algoritmo replica il comportamento di un escursionista che:
 
 1. **Valuta la posizione corrente** (`current`) tramite l'altezza locale (`posterior(current)`).
 2. **Propone un passo casuale** in una direzione vicina (`proposal`), determinata da una distribuzione normale.
@@ -399,18 +400,33 @@ metropolis_hastings <- function(n_samples, start, proposal_sigma) {
    - Se il nuovo punto è più alto ($R \geq 1$), lo accetta immediatamente.
    - Se è più basso ($R < 1$), lo accetta con probabilità $R$, simulando un'*accettazione stocastica* per evitare massimi locali.
 4. **Registra ogni posizione** visitata, costruendo gradualmente una mappa proporzionale alla vera distribuzione.
-
-::: callout-note
-## Meccanismo Chiave dell'Algoritmo
-
-1. **Esplorazione guidata**: La proposta normale bilancia esplorazione (ampiezza passo) ed exploitation (frequenza accettazione).  
-2. **Vincoli di dominio**: Le proposte al di fuori di [0,1] vengono automaticamente scartate, mantenendo $\theta$ come probabilità valida.  
-3. **Efficienza computazionale**: Il calcolo evita la normalizzazione esplicita della posteriori, utilizzando il rapporto delle densità.  
-4. **Memoria della catena**: Ogni stato viene registrato indipendentemente dall'accettazione, garantendo la proprietà markoviana.  
 :::
 
-**Proprietà della proposta simmetrica**: L'algoritmo di Metropolis (quello base come questo) funziona bene se la maniera in cui proponi di "spostarti" da un punto A a un punto B è esattamente la stessa della maniera in cui proporresti di spostarti da B ad A. Pensa a una proposta "neutra" rispetto alla direzione. Questa "simmetria" nella proposta è utile perché ci permette di decidere se accettare un passo basandoci esclusivamente sul confronto della 'probabilità' (la densità) dei due punti (proposto e attuale) sotto la distribuzione che vogliamo esplorare. In pratica, non dobbiamo preoccuparci di 'correggere' il rapporto di accettazione per tenere conto di proposte che potrebbero essere più facili in una direzione che nell'altra. Questa semplicità aiuta l'algoritmo a trovare il giusto bilanciamento negli spostamenti, permettendogli di campionare correttamente dalla distribuzione desiderata nel lungo periodo.
+::: {.callout-tip title="Dettagli dell'implementazione (1)" collapse="true"}
+Nel codice la “regola > 1 → accetta” è incorporata in queste **due istruzioni consecutive**:
 
+```r
+acceptance_ratio <- min(1, posterior(proposal) / posterior(current))
+...
+if (runif(1) < acceptance_ratio) {
+    current <- proposal
+}
+```
+
+1. **Clipping a 1 con `min(1, …)`**  
+   - Se il rapporto $\frac{\text{posterior(proposal)}}{\text{posterior(current)}} $ è maggiore di 1 (cioè il nuovo punto ha densità a‐posteriori più alta), `min()` lo tronca a 1.  
+   - Quindi `acceptance_ratio` vale esattamente 1 in tutti i casi in cui il “vero” rapporto sarebbe > 1.
+
+2. **Accettazione certa con il confronto `runif(1) < 1`**  
+   - `runif(1)` genera un numero uniforme in $[0,1)$; qualunque valore estratto sarà sempre < 1.  
+   - Di conseguenza, quando `acceptance_ratio` è 1 l’`if` è sempre vero e il punto proposto viene accettato con probabilità 1, esattamente come prescrive l’algoritmo di Metropolis (o di Metropolis-Hastings nel caso simmetrico).
+
+In sintesi, la riga con `min(1, …)` **traduce** la regola teorica “accetta se il rapporto è > 1” in una forma pratica che si integra con il test probabilistico successivo.
+:::
+
+::: {.callout-tip title="Dettagli dell'implementazione (2)" collapse="true"}
+**Proprietà della proposta simmetrica**: L'algoritmo di Metropolis (quello base come questo) funziona bene se la maniera in cui proponi di "spostarti" da un punto A a un punto B è esattamente la stessa della maniera in cui proporresti di spostarti da B ad A. Pensa a una proposta "neutra" rispetto alla direzione. Questa "simmetria" nella proposta è utile perché ci permette di decidere se accettare un passo basandoci esclusivamente sul confronto della 'probabilità' (la densità) dei due punti (proposto e attuale) sotto la distribuzione che vogliamo esplorare. In pratica, non dobbiamo preoccuparci di 'correggere' il rapporto di accettazione per tenere conto di proposte che potrebbero essere più facili in una direzione che nell'altra. Questa semplicità aiuta l'algoritmo a trovare il giusto bilanciamento negli spostamenti, permettendogli di campionare correttamente dalla distribuzione desiderata nel lungo periodo.
+:::
 
 ### Esecuzione dell'Algoritmo
 
@@ -705,33 +721,132 @@ Il campionamento MCMC offre notevoli vantaggi pratici rispetto alle soluzioni an
 
 ### Facilità di Manipolazione e Flessibilità
 
-Il vantaggio chiave del campionamento MCMC risiede nella semplicità con cui si possono manipolare i campioni ottenuti. Mentre le densità calcolate analiticamente possono richiedere trasformazioni matematiche complesse, i campioni MCMC possono essere facilmente trasformati con operazioni dirette. Questa flessibilità si manifesta in diversi aspetti:
-
-1. **Trasformazioni di Variabili**: 
-   Consideriamo un caso in cui siamo interessati alla varianza residua ($\sigma^2$) in un modello, ma abbiamo campioni solo della deviazione standard residua ($\sigma$). Con il campionamento MCMC, la trasformazione è immediata:
-
-$$
-(\sigma^{(s)})^2 = \sigma^{2(s)},
-$$
-
-dove $s$ indica il singolo campione. Questa operazione si traduce semplicemente nell'elevare al quadrato ogni campione di $\sigma$, ottenendo direttamente campioni validi di $\sigma^2$. In contrasto, con una densità analitica di $\sigma$, la trasformazione richiederebbe l'applicazione dell'aggiustamento del Jacobiano, un processo matematicamente più complesso.
-
-2. **Combinazione di Parametri**:
-Il MCMC semplifica notevolmente la combinazione di parametri in modelli statistici. Per una quantità $\theta$ che dipende da parametri $\beta_1$ e $\beta_2$ attraverso una funzione $f$, possiamo calcolare:
-
-$$
-\theta^{(s)} = f(\beta_1^{(s)}, \beta_2^{(s)}).
-$$
-
-Questa operazione si estende facilmente a combinazioni complesse e funzioni non lineari, contrastando nettamente con la complessità di derivare analiticamente la distribuzione di $\theta$.
+Il vantaggio chiave del campionamento MCMC risiede nella semplicità con cui si possono manipolare i campioni ottenuti. Mentre le densità calcolate analiticamente possono richiedere trasformazioni matematiche complesse, i campioni MCMC possono essere facilmente trasformati con operazioni dirette. 
 
 In conclusione, il campionamento MCMC non è solo una necessità quando le soluzioni analitiche sono introvabili, ma offre vantaggi in termini di facilità di manipolazione, flessibilità computazionale e applicabilità pratica. 
 
 ## Caso Normale-Normale con Soluzione Analitica
 
-Consideriamo un caso normale-normale per cui possiamo derivare una soluzione analitica. Supponiamo che il prior sia distribuito secondo $\mathcal{N}(30, 5^2)$.
+Applichiamo ora l'algoritmo di Metropolis al caso Normale-Normale di cui conosciamo la soluzione analitica. In pratica, ci poniamo  il problema di capire quale valore di $\mu$ (la media vera di una popolazione) sia più plausibile, dopo aver osservato alcuni dati. Abbiamo:
 
-Definiamo le funzioni per il prior, la verosimiglianza e il posterior non normalizzato.
+- un'idea iniziale (prior) che dice che $\mu$ dovrebbe stare attorno a 30, con una certa incertezza (deviazione standard 5),
+- e abbiamo i dati osservati ($y$) che ci danno informazioni aggiuntive su dove si trova davvero $\mu$.
+
+Ma non conosciamo esattamente la distribuzione a posteriori di $\mu$.
+
+Vogliamo costruire una "nuvola" di valori plausibili per $\mu$ basandoci su dati e prior. Il metodo che usiamo per risolvere questo problema è l'algoritmo di Metropolis.
+
+**Step 1. Partiamo da un punto.**
+
+```r
+x_prev <- xinit
+```
+
+- **xinit** è il valore iniziale: il nostro "primo sospetto" su dove si trovi $\mu$.
+- È come partire da un punto sulla mappa ("Penso che $\mu$ sia circa qui").
+
+**Step 2. Proponiamo un nuovo punto vicino.**
+
+```r
+x_star <- rnorm(1, mean = x_prev, sd = 0.5)
+```
+
+- Immaginiamo di essere bendati e di provare a fare **un piccolo passo a caso** partendo da dove siamo ora.
+- Quel passo è generato con una distribuzione normale centrata su **x_prev** e con una deviazione standard piccola (**0.5**): **piccoli passi casuali** attorno al punto attuale.
+
+**Nota intuitiva:**  
+Il valore 0.5 decide quanto "grandi" o "piccoli" sono i nostri passi. Più è grande, più possiamo saltare lontano; più è piccolo, più restiamo vicino.
+
+**Step 3. Calcoliamo quanto è "buono" il nuovo punto.**
+
+```r
+posterior(x_star, data)
+posterior(x_prev, data)
+```
+
+- Ogni punto sulla mappa ($\mu$) ha un certo **valore di plausibilità**: quanto è probabile dati i dati osservati e il prior.
+- **posterior(x_star, data)** ci dice: "quanto è buono il nuovo punto?"
+- **posterior(x_prev, data)** ci dice: "quanto era buono quello vecchio?"
+
+**Step 4. Decidiamo se accettare il nuovo punto.**
+
+```r
+if (runif(1) < min(1, posterior(x_star, data) / posterior(x_prev, data))) {
+  x_prev <- x_star
+}
+```
+
+Qui applichiamo il meccanismo di base dell'algoritmo di Metropolis per decidere sull'accettazione di un nuovo punto:
+
+* **se il nuovo punto è migliore** (cioè, la probabilità a posteriori è maggiore), allora lo **accettiamo sicuramente** ($\alpha > 1$, quindi $\min(1, \alpha) = 1$);
+* **se il nuovo punto è peggiore**, possiamo comunque **accettarlo con una certa probabilità**:
+    * la probabilità di accettazione diminuisce all'aumentare di quanto il punto è "peggiore";
+    * ciò è essenziale per **non rimanere bloccati** nei massimi locali.
+
+**In parole semplici:**  
+
+- se troviamo un posto migliore, ci andiamo;
+- se troviamo un posto peggiore, possiamo comunque andarci... ma tirando una monetina.
+
+
+**Step 5. Registriamo il punto attuale**
+
+Dopo aver deciso se accettare o meno il nuovo valore proposto, salviamo sempre un punto nella catena.
+
+Ma attenzione:
+
+- **se la proposta è stata accettata**, ci spostiamo al nuovo punto e lo registriamo;
+- **se la proposta è stata rifiutata**, restiamo fermi e registriamo **di nuovo** la posizione attuale.
+
+```r
+if (runif(1) < min(1, posterior(x_star, data) / posterior(x_prev, data))) {
+  x_prev <- x_star  # accettiamo: ci spostiamo
+}
+samples[i] <- x_prev  # salviamo dove ci troviamo ORA
+```
+
+In entrambi i casi, `samples[i]` tiene traccia della posizione in cui ci troviamo dopo l'iterazione.
+
+**Intuizione: l’escursionista bendato.**
+
+Immaginiamo un’escursionista bendato che vuole esplorare un paesaggio fatto di colline di plausibilità (la distribuzione a posteriori):
+
+- a ogni passo, **prova a fare un salto** in una nuova direzione (`x_star`);
+- se quel punto è più alto o non troppo peggiore, **accetta** di andarci e si sposta.
+- se il punto è troppo brutto, **rimane fermo** dov’è;
+- **in ogni caso, segna nel diario la sua posizione attuale.**
+
+Ecco perché, quando guardiamo la catena, possiamo trovare **valori ripetuti** consecutivi: l’escursionista non si è mosso.
+
+Questa caratteristica – il fatto che i campioni non siano tutti diversi – **non è un errore**, ma una **proprietà fondamentale** dell'algoritmo Metropolis: i campioni sono **dipendenti** e possono **ripetersi**.
+
+
+**Step 6. Ripetiamo tante volte.**
+
+```r
+for (i in seq_len(nsamp)) { ... }
+```
+
+- Più a lungo ripetiamo il processo (più iterazioni), più densa e accurata sarà la nostra approssimazione della distribuzione a posteriori di $\mu$.
+- Dopo un po’, **i valori salvati** formeranno un disegno della distribuzione plausibile di $\mu$.
+
+
+**🎯 Riassunto in 3 frasi:**
+
+- 1. Partiamo da un valore sospettato di $\mu$.
+- 2. Facciamo piccoli passi casuali e decidiamo se accettarli in base a quanto sono "buoni" rispetto ai dati + prior.
+- 3. Dopo molti passi, la sequenza dei punti disegna la distribuzione a posteriori di $\mu$.
+
+
+**📈 Dopo il sampling:**
+
+- possiamo **calcolare la media** dei campioni = stima puntuale di $\mu$;
+- possiamo **costruire un intervallo di credibilità** = incertezza su $\mu$;
+- possiamo **disegnare un istogramma** dei campioni = forma della distribuzione a posteriori.
+
+Anche se l'algoritmo di Metropolis può sembrare "rozzo" (tanti piccoli passi + accettare/rifiutare), funziona **benissimo** ed è uno dei motivi per cui oggi possiamo applicare la statistica bayesiana a modelli anche **molto complessi**.
+
+Applichiamo dunque l'algoritmo di Metropolis all'esercizio in discussione. Iniziamo a definire le funzioni per il prior, la verosimiglianza e il posterior non normalizzato.
 
 ```{r}
 # Prior: Normal(30, 5^2)
@@ -837,7 +952,7 @@ mean(samples)
 sd(samples)
 ```
 
-In conclusione, questo esempio mostra come applicare l'algoritmo di Metropolis per stimare una distribuzione a posteriori e come confrontare i risultati del sampling con la soluzione analitica, confermando la coerenza tra le due tecniche.
+In conclusione, questo esempio illustra l'applicazione dell'algoritmo di Metropolis per la stima di una distribuzione a posteriori nel caso Normale-Normale e dimostra come confrontare i risultati del campionamento con la soluzione analitica, confermando così la coerenza tra le due approcci.
 
 ## Riflessioni Conclusive
 
@@ -855,6 +970,364 @@ Questo approccio consente di ottenere campioni che approssimano la distribuzione
 Rispetto alle varianti più moderne, l'algoritmo di Metropolis tende a essere meno efficiente. Metodi come il **No-U-Turn Sampler (NUTS)** e l'**Hamiltonian Monte Carlo (HMC)** offrono importanti miglioramenti, specialmente in spazi di parametri di grandi dimensioni. NUTS, ad esempio, viene utilizzato in strumenti avanzati come **Stan** e **PyMC** [@hoffman2014no], permettendo un'esplorazione più rapida e accurata della distribuzione a posteriori.
 
 Tra gli altri algoritmi MCMC degni di nota troviamo il **campionatore di Gibbs** [@geman_geman_1984] e l'**Hamiltonian Monte Carlo** [@duane1987hybrid]. Questi metodi, insieme a Metropolis-Hastings, formano la base di numerose tecniche moderne per il campionamento da distribuzioni complesse. Per un approfondimento dettagliato sulle tecniche MCMC, si consiglia di consultare @hanada2022mcmc.
+
+
+::: {.callout-important title="Esercizio 1: Autostima negli Studenti Universitari" collapse="true"}
+
+In un campione casuale di 100 studenti, 25 hanno mostrato livelli alti di autostima.  
+Supponiamo un prior Beta(2,8) sulla proporzione $\theta$ di studenti con alta autostima.
+
+Obiettivo: stimare la distribuzione a posteriori di $\theta$ usando l'**algoritmo di Metropolis**.
+
+**Definizione delle Funzioni.**
+
+```{r}
+set.seed(123)  # per riproducibilità
+
+# Prior: Beta(2,8)
+prior <- function(p) dbeta(p, shape1 = 2, shape2 = 8)
+
+# Likelihood: binomiale 25 successi su 100
+likelihood <- function(p) dbinom(25, size = 100, prob = p)
+
+# Posterior non normalizzata
+posterior <- function(p) prior(p) * likelihood(p)
+
+# Distribuzione di proposta
+proposal_distribution <- function(current, proposal_sigma) {
+  rnorm(1, mean = current, sd = proposal_sigma)
+}
+
+# Algoritmo di Metropolis
+metropolis <- function(n_samples, start, proposal_sigma) {
+  samples <- numeric(n_samples)
+  current <- start
+  
+  for (i in seq_len(n_samples)) {
+    proposal <- proposal_distribution(current, proposal_sigma)
+    if (proposal >= 0 && proposal <= 1) {
+      acceptance_ratio <- min(1, posterior(proposal) / posterior(current))
+      if (runif(1) < acceptance_ratio) {
+        current <- proposal
+      }
+    }
+    samples[i] <- current
+  }
+  samples
+}
+```
+
+**Esecuzione dell'Algoritmo.**
+
+```{r}
+# Parametri
+n_samples <- 10000
+start <- 0.5
+proposal_sigma <- 0.1
+
+# Esecuzione
+samples <- metropolis(n_samples, start, proposal_sigma)
+
+# Burn-in
+burnin <- floor(n_samples * 0.5)
+post_samples <- samples[-seq_len(burnin)]
+```
+
+**Analisi dei Risultati.**
+
+```{r}
+# Media e deviazione standard
+mean(post_samples)
+sd(post_samples)
+```
+
+**Calcolo dell'Intervallo di Credibilità al 94%.**
+
+```{r}
+quantile(post_samples, probs = c(0.03, 0.97))
+```
+
+**Confronto con la Soluzione Analitica.**
+
+La distribuzione a posteriori teorica è:
+
+$$
+\theta \sim \text{Beta}(27, 83)
+$$
+
+```{r}
+# Media teorica
+mean_beta <- 27 / (27 + 83)
+mean_beta
+
+# Intervallo teorico
+qbeta(c(0.03, 0.97), 27, 83)
+```
+
+**Trace Plot.**
+
+```{r}
+# Trace plot
+post_samples |> 
+  tibble(Iteration = 1:length(post_samples), Theta = post_samples) |> 
+  ggplot(aes(x = Iteration, y = Theta)) +
+  geom_line() +
+  labs(title = "Trace Plot dopo Burn-in", x = "Iterazione", y = expression(theta))
+```
+
+**Istogramma e Curva Teorica.**
+
+```{r}
+# Prima generiamo il dataset della curva teorica separatamente
+x <- seq(0, 1, length.out = 1000)
+dens_teorica <- dbeta(x, 27, 83)
+curva_teorica <- tibble(x = x, y = dens_teorica)
+
+# Ora costruiamo il grafico correttamente
+tibble(Theta = post_samples) |> 
+  ggplot(aes(x = Theta)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 30, 
+                 color = "black", fill = "lightblue", alpha = 0.6) +
+  geom_line(data = curva_teorica, aes(x = x, y = y), 
+            color = "red", size = 1) +
+  labs(title = "Posterior: Campioni MCMC vs Beta(27,83)", 
+       x = expression(theta), y = "Densità")
+
+```
+
+**Risultati Riassunti.**
+
+| Metodo | Media | Intervallo 94% |
+|:--|:--|:--|
+| MCMC (Metropolis) | circa 0.245 | circa [0.176, 0.320] |
+| Teorico Beta(27,83) | 0.245 | [0.177, 0.318] |
+
+
+**Spiegazioni Didattiche Finali.**
+  
+::: {.callout-note title="Distribuzione a posteriori: interpretazione"}
+La distribuzione a posteriori ci dice quanto sono plausibili i diversi valori di $\theta$ dopo aver osservato i dati.
+
+> Ad esempio: "C'è una probabilità del 94% che la vera proporzione di studenti con alta autostima sia tra 17% e 32%."
+:::
+  
+::: {.callout-tip title="Accettare mosse peggiori: motivo"}
+Accettiamo campioni con probabilità più bassa per permettere alla catena di esplorare anche aree meno probabili e **non restare bloccata** nei massimi locali.
+:::
+  
+::: {.callout-warning title="Larghezza della proposta: trade-off"}
+- **Proposta stretta** (piccoli passi): alta accettazione, ma esplorazione lenta.
+- **Proposta larga** (grandi passi): bassa accettazione, ma esplorazione più ampia.
+
+Si cerca un tasso di accettazione tra 40% e 50%.
+:::
+  
+::: {.callout-important title="Diagnostica grafica"}
+- **Trace plot**: deve mostrare fluttuazioni stabili senza trend.
+- **Correlogramma**: l'autocorrelazione deve decrescere rapidamente.
+
+Questi strumenti aiutano a diagnosticare una buona esplorazione della distribuzione a posteriori.
+:::
+
+:::
+
+::: {.callout-important title="Esercizio 2 - Depressione (BDI-II)" collapse="true"}
+In uno studio clinico, sono stati raccolti i punteggi BDI-II (Beck Depression Inventory) di 30 pazienti. Vogliamo stimare il valore medio della depressione nella popolazione da cui provengono questi soggetti.
+
+Supponiamo di avere una conoscenza a priori modellata da una distribuzione **Normale(30, 5²)** per la media $\mu$.
+
+I dati osservati sono i seguenti:
+
+```{r}
+y <- c(26, 35, 30, 25, 44, 30, 33, 43, 22, 43,
+       24, 19, 39, 31, 25, 28, 35, 30, 26, 31,
+       41, 36, 26, 35, 33, 28, 27, 34, 27, 22)
+length(y)  
+```
+
+**Funzioni a priori, verosimiglianza e posteriori.**
+
+```{r}
+# Prior: Normal(30, 5^2)
+prior <- function(mu) {
+  dnorm(mu, mean = 30, sd = 5)
+}
+
+# Likelihood: Normal(mu, sigma^2), sigma stimato dai dati
+likelihood <- function(mu, data) {
+  sigma <- sd(data)
+  prod(dnorm(data, mean = mu, sd = sigma))
+}
+
+# Posterior non normalizzata
+posterior <- function(mu, data) {
+  likelihood(mu, data) * prior(mu)
+}
+```
+
+**Algoritmo di Metropolis.**
+
+```{r}
+metropolis_for_normal <- function(nsamp, xinit, data) {
+  samples <- numeric(nsamp)
+  x_prev <- xinit
+  
+  for (i in seq_len(nsamp)) {
+    x_star <- rnorm(1, mean = x_prev, sd = 0.5)  # proposta
+    if (runif(1) < min(1, posterior(x_star, data) / posterior(x_prev, data))) {
+      x_prev <- x_star
+    }
+    samples[i] <- x_prev
+  }
+  samples
+}
+```
+
+**Esecuzione dell'algoritmo.**
+
+```{r}
+set.seed(123)
+samples <- metropolis_for_normal(100000, mean(y), y)
+
+burnin <- 50000
+post_samples <- samples[-seq_len(burnin)]
+```
+
+**Confronto con la soluzione analitica.**
+
+Nel caso prior Normale e likelihood Normale con varianza nota, la posterior è ancora Normale:
+
+```{r}
+# Prior
+mu_prior <- 30
+std_prior <- 5
+var_prior <- std_prior^2
+
+# Likelihood
+n <- length(y)
+sum_y <- sum(y)
+var_data <- var(y)
+
+mu_post <- (mu_prior / var_prior + sum_y / var_data) / (1 / var_prior + n / var_data)
+var_post <- 1 / (1 / var_prior + n / var_data)
+std_post <- sqrt(var_post)
+
+c(mu_post, std_post)
+```
+
+**Trace Plot.**
+
+```{r}
+# Trace plot
+post_samples |> 
+  tibble(Iteration = 1:length(post_samples), Mu = post_samples) |> 
+  ggplot(aes(x = Iteration, y = Mu)) +
+  geom_line() +
+  labs(title = "Trace Plot (Post Burn-in)", x = "Iterazione", y = expression(mu))
+```
+
+**Istogramma vs Posterior Analitica.**
+
+```{r}
+x <- seq(mu_post - 4 * std_post, mu_post + 4 * std_post, length.out = 1000)
+dens_teorica <- dnorm(x, mean = mu_post, sd = std_post)
+curva_teorica <- tibble(x = x, y = dens_teorica)
+
+post_samples |> 
+  tibble(Mu = post_samples) |> 
+  ggplot(aes(x = Mu)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 30, fill = "skyblue", color = "black", alpha = 0.6) +
+  geom_line(data = curva_teorica, aes(x = x, y = y), color = "red", linewidth = 1) +
+  labs(title = "Posterior: MCMC vs Analitica", x = expression(mu), y = "Densit\u00e0")
+```
+
+**Cosa significa la distribuzione a posteriori?**
+
+In termini concreti, la distribuzione a posteriori rappresenta la nostra incertezza residua sul valore di $\mu$, la media dei punteggi BDI-II nella popolazione, **dopo aver visto i dati**. Per esempio, se calcoliamo che il 94% della distribuzione a posteriori cade tra 27.5 e 32.3, possiamo dire:
+
+> "Date le nostre ipotesi iniziali e i dati osservati, c'è una probabilità del 94% che il vero valore medio della depressione nella popolazione stia tra 27.5 e 32.3".
+
+Questa è una **affermazione probabilistica sul parametro**, che è una caratteristica distintiva dell'inferenza bayesiana.
+
+Questa distribuzione combina:
+
+- le credenze precedenti (il prior),
+- con l’evidenza osservata (i dati).
+
+Il risultato è una distribuzione che riflette cosa sappiamo del parametro dopo aver osservato i dati, e può essere usata per ottenere medie, intervalli di credibilità, probabilità soggettive, ecc.
+
+::: {.callout-tip title="Perché accettare anche campioni con densità più bassa?"}
+
+Nell'algoritmo di Metropolis, a ogni passo si propone un nuovo valore di $\theta$. Se questo valore ha una densità a posteriori più alta, viene accettato.
+
+Ma se ha una densità più bassa, viene comunque accettato con una certa probabilità.
+
+**Perché farlo?**
+
+Per evitare che la catena si "blocchi" in un massimo locale.
+Per esplorare anche le aree meno probabili, ma comunque possibili, della distribuzione.
+
+È un meccanismo simile a quello con cui gli esseri umani esplorano: ogni tanto vale la pena provare strade meno promettenti, per evitare di restare intrappolati.
+Accettare "mosse peggiori" è quindi un meccanismo di esplorazione utile a garantire che la catena possa visitare l’intero spazio dei parametri e convergere correttamente alla distribuzione desiderata. 
+:::
+
+::: {.callout-warning title="Larghezza della proposta: un equilibrio delicato"}
+Nel Metropolis, il nuovo valore proposto viene scelto spostandosi dal valore corrente secondo una distribuzione normale:
+
+$$\theta_{new} \sim \mathcal{N}(\theta_{attuale}, \sigma).$$
+
+Il parametro $\sigma$ controlla la distanza dei passi.
+
+Se $\sigma$ è:
+
+- Piccolo → i passi sono molto corti:
+  - Molte proposte vengono accettate (alta accettazione),
+  - Ma la catena esplora lentamente → i campioni sono fortemente autocorrelati.
+- Grande → i passi sono molto lunghi:
+  - Si propongono salti drastici → molte proposte vengono rifiutate,
+  - La catena si muove poco → anche in questo caso, esplorazione inefficiente.
+
+🎯 Obiettivo: trovare un compromesso ottimale.
+
+- Per un parametro unidimensionale, si consiglia spesso un tasso di accettazione tra 40% e 50%.
+- Negli esercizi puoi provare diversi valori di proposal_sigma e osservare il tasso di accettazione per imparare.
+:::
+
+**Risultati.**
+
+```{r}
+mean(post_samples)
+sd(post_samples)
+quantile(post_samples, probs = c(0.03, 0.97))
+```
+
+Valori teorici:
+
+```{r}
+mu_post  # media teorica
+qnorm(c(0.03, 0.97), mean = mu_post, sd = std_post)
+```
+
+**Spiegazione Didattica.**
+
+- La media $\mu$ rappresenta il livello medio di depressione nella popolazione.
+- Il prior rappresenta la nostra credenza iniziale (Normale con media 30).
+- L'evidenza fornita dai dati modifica questa credenza.
+- L'algoritmo di Metropolis permette di campionare da una distribuzione posterior anche senza conoscere la forma analitica.
+- Il confronto tra distribuzione teorica e campioni MCMC mostra un ottimo accordo.
+
+**Conclusione.**
+
+In questo esercizio abbiamo:
+
+- implementato l'algoritmo di Metropolis per un caso con prior e likelihood Normali;
+- stimato la media della distribuzione posterior;
+- confrontato i risultati con la soluzione analitica;
+- verificato la coerenza dei campioni MCMC con la distribuzione teorica.
+
+Questo mostra la potenza dell'approccio MCMC anche in situazioni dove la soluzione analitica sarebbe disponibile, e pone le basi per affrontare problemi più complessi.
+:::
+
 
 ## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
 
