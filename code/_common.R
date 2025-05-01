@@ -6,9 +6,21 @@
 if (!requireNamespace("pacman", quietly = TRUE)) install.packages("pacman")
 
 pacman::p_load(
-  here, rio, tidyverse, knitr, markdown, scales, psych, 
-  bayesplot, patchwork, gridExtra, see, tidyr, 
-  ggokabeito, MetBrewer, thematic
+  here,
+  rio,
+  tidyverse,
+  knitr,
+  markdown,
+  scales,
+  psych,
+  bayesplot,
+  patchwork,
+  gridExtra,
+  see,
+  tidyr,
+  ggokabeito,
+  MetBrewer,
+  thematic
 )
 
 # Suppress unnecessary messages from tidyverse packages
@@ -27,14 +39,14 @@ okabe_ito_palette <- c(
   "#0072B2", # Dark blue
   "#D55E00", # Red
   "#CC79A7", # Pink
-  "#999999"  # Grey
+  "#999999" # Grey
 )
 
-# Impostazione dei colori di default per ggplot2
+
 theme_set(
   theme_minimal(
-    base_size = 13,  # Font size for plots
-    base_family = "sans"  # Font family
+    base_size = 13, # Font size for plots
+    base_family = "sans" # Font family
   )
 )
 
@@ -43,7 +55,8 @@ ggplot2::update_geom_defaults("point", list(colour = okabe_ito_palette[1]))
 ggplot2::update_geom_defaults("line", list(colour = okabe_ito_palette[1]))
 
 # Impostazioni per scale discrete e continue
-default_discrete_scale <- function(...) scale_fill_manual(..., values = okabe_ito_palette)
+default_discrete_scale <- function(...)
+  scale_fill_manual(..., values = okabe_ito_palette)
 default_continuous_scale <- function(...) scale_fill_viridis_c(...)
 
 # Set color scheme for bayesplot diagnostics
@@ -54,23 +67,23 @@ color_scheme_set("brightblue")
 # -----------------------------------------------------------------------------
 
 knitr::opts_chunk$set(
-  comment = "#>",                    # Comment prefix for output
-  collapse = TRUE,                   # Collapse code and output into a single block
-  message = FALSE,                   # Suppress messages
-  warning = FALSE,                   # Suppress warnings
-  width = 72,                        # Code width
-  out.width = "70%",                 # Default output width for figures
-  fig.align = "center",              # Center-align figures
-  fig.width = 6,                      # Default figure width
-  fig.asp = 0.618,                    # Golden ratio for figure height
-  fig.show = "hold",                  # Show figures together
+  comment = "#>", # Comment prefix for output
+  collapse = TRUE, # Collapse code and output into a single block
+  message = FALSE, # Suppress messages
+  warning = FALSE, # Suppress warnings
+  width = 72, # Code width
+  out.width = "70%", # Default output width for figures
+  fig.align = "center", # Center-align figures
+  fig.width = 6, # Default figure width
+  fig.asp = 0.618, # Golden ratio for figure height
+  fig.show = "hold", # Show figures together
   R.options = list(
-    digits = 4,                      # Number of digits for output
-    width = 76                        # Console width
+    digits = 4, # Number of digits for output
+    width = 76 # Console width
   ),
-  echo = TRUE,                       # Show code by default
-  eval = TRUE,                       # Execute code by default
-  error = FALSE                      # Suppress error messages in chunks
+  echo = TRUE, # Show code by default
+  eval = TRUE, # Execute code by default
+  error = FALSE # Suppress error messages in chunks
 )
 
 # -----------------------------------------------------------------------------
@@ -78,17 +91,17 @@ knitr::opts_chunk$set(
 # -----------------------------------------------------------------------------
 
 options(
-  scipen = 1,                        # Favor standard notation over scientific
-  digits = 4,                        # Default number of digits
+  scipen = 1, # Favor standard notation over scientific
+  digits = 4, # Default number of digits
   ggplot2.discrete.colour = ggokabeito::palette_okabe_ito(),
   ggplot2.discrete.fill = ggokabeito::palette_okabe_ito(),
   ggplot2.continuous.colour = "viridis",
   ggplot2.continuous.fill = "viridis",
-  show.signif.stars = FALSE,         # Suppress significance stars in output
-  pillar.max_footer_lines = 2,       # Control console output of data frames
+  show.signif.stars = FALSE, # Suppress significance stars in output
+  pillar.max_footer_lines = 2, # Control console output of data frames
   pillar.min_chars = 15,
   pillar.bold = TRUE,
-  width = 77                         # Console width (80 chars - 3 for comments)
+  width = 77 # Console width (80 chars - 3 for comments)
 )
 
 # -----------------------------------------------------------------------------
@@ -96,4 +109,3 @@ options(
 # -----------------------------------------------------------------------------
 
 set.seed(42) # Ensure reproducibility
-

@@ -10,7 +10,6 @@
 ::: callout-tip
 ## Prerequisiti
 
-- Seguire le istruzioni fornite nell'@sec-apx-install-cmdstan per installare CmdStan.
 - Leggere *Navigating the Bayes maze: The psychologist's guide to Bayesian statistics, a hands-on tutorial with R code* [@alter2025navigating].
 - Consultare [The brms Book: Applied Bayesian Regression Modelling Using R and Stan](https://paulbuerkner.com/software/brms-book/brms-book.pdf).
 :::
@@ -24,13 +23,13 @@ here::here("code", "_common.R") |>
 
 # Load packages
 if (!requireNamespace("pacman")) install.packages("pacman")
-pacman::p_load(brms, posterior, cmdstanr)
+pacman::p_load(brms, posterior, cmdstanr, tidybayes)
 ```
 :::
 
 ## Introduzione
 
-I modelli lineari sono così ampiamente utilizzati che sono stati sviluppati appositamente una sintassi, dei metodi e delle librerie per la regressione. Una di queste librerie è **brms** (Bayesian Regression Models using Stan), già introdotta nel @sec-linmod-bayesian-reg. **brms** è un pacchetto R progettato per adattare modelli gerarchici generalizzati lineari (di cui il modello lineare bivariato è un caso particolare), utilizzando una sintassi simile a quella presente nei pacchetti R, come **lme4**, **nlme**, **rstanarm**. **brms** si basa su Stan, ma offre un'API di livello superiore.
+I modelli lineari sono così ampiamente utilizzati che sono stati sviluppati appositamente una sintassi, dei metodi e delle librerie per la regressione. Una di queste librerie è **brms** (Bayesian Regression Models using Stan), già introdotta nel @sec-linmod-bayesian-reg. **brms** è un pacchetto R progettato per adattare modelli gerarchici generalizzati lineari (di cui il modello lineare bivariato è un caso particolare), utilizzando una sintassi simile a quella presente nei pacchetti R, come **lm**, **lme4**, **nlme**, **rstanarm**. **brms** si basa su Stan, ma offre un'API di livello superiore.
 
 In questo capitolo esploreremo in maniera dettagliata come condurre un'analisi di regressione utilizzando **brms** invece di Stan.
 
@@ -129,6 +128,8 @@ fit_1 = brm(
 
 Utilizzando `center = FALSE` nel modello Bayesiano garantiamo che il centraggio venga mantenuto e non applicato nuovamente da `brms`.
 
+L'argomento `backend = "cmdstanr"` indica a `brms` di usare cmdstan per il campionamento, al posto di Stan che è l'impostazione predefinita. Poiché in questo insegnamento utilizzeremo `cmdstan`, è essenziale specificare questo backend.
+
 Le tracce dei parametri si ottengono nel modo seguente:
 
 ```{r fig.asp=1}
@@ -145,7 +146,7 @@ summary(fit_1)
 
 La stima dell'intercetta $\alpha$ = 154.60 suggerisce che, per le persone con un peso corrispondente al valore medio del campione analizzato, l'altezza prevista è di 154.60 cm.
 
-Possiamo confrontare i risultati ottenuti da **brm()** con quelli prodotti dall'appriccio frequentista:
+Possiamo confrontare i risultati ottenuti da **brm()** con quelli prodotti dall'approccio frequentista:
 
 ```{r}
 fit_2 <- lm(height ~ 1 + weight_c, data = df)
@@ -155,7 +156,7 @@ fit_2 <- lm(height ~ 1 + weight_c, data = df)
 summary(fit_2)
 ```
 
-Anche in questo caso, l'uso di prior debolmente informativi fa in modo che i risultati dei due approcci siano praticamente equivalenti.
+L'uso di prior debolmente informativi fa in modo che i risultati dei due approcci siano praticamente equivalenti.
 
 ## Visualizzazione dei Risultati
 
@@ -167,9 +168,8 @@ conditional_effects(fit_1, effects = "weight_c")
 
 Il grafico generato fornisce una rappresentazione completa della relazione stimata:
 
-- **Linea centrale (media posteriore)**: Rappresenta la stima più probabile dell'altezza per ciascun valore del peso centrato.
-- **Area colorata (intervallo di credibilità)**: Mostra l'intervallo di densità più alta (HDI) al 95%, indicando l'incertezza attorno alla stima centrale.
-- **Punti sul grafico**: Rappresentano i dati reali osservati, permettendo di confrontare il modello con i dati originali.
+- **Linea centrale (media posteriore)**: rappresenta la stima più probabile dell'altezza per ciascun valore del peso centrato.
+- **Area colorata (intervallo di credibilità)**: mostra l'intervallo di densità più alta (HDI) al 95%, indicando l'incertezza attorno alla stima centrale.
 
 È possibile adattare il livello di incertezza mostrato modificando l'argomento `prob`:
 
@@ -184,67 +184,68 @@ Ridurre il valore di `prob` (es. a 0.80 o 0.50) produce un intervallo più stret
 
 Nel grafico:
 
-- Il punto dove la linea attraversa `weight_c = 0` corrisponde all'altezza prevista per un individuo con peso medio (poiché abbiamo centrato la variabile).
-- La pendenza della linea indica quanto ci aspettiamo che l'altezza aumenti per ogni kg di peso aggiuntivo.
-- La larghezza dell'intervallo di credibilità indica la nostra certezza sulle stime: più stretto l'intervallo, maggiore la certezza.
+- il punto dove la linea attraversa `weight_c = 0` corrisponde all'altezza prevista per un individuo con peso medio (poiché abbiamo centrato la variabile);
+- la pendenza della linea indica quanto ci aspettiamo che l'altezza aumenti per ogni kg di peso aggiuntivo;
+- la larghezza dell'intervallo di credibilità indica la nostra certezza sulle stime: più stretto l'intervallo, maggiore la certezza.
 
 ## Due Tipi di Incertezza nei Modelli Bayesiani
 
-Quando visualizziamo i risultati di un modello bayesiano, esistono due tipi fondamentali di incertezza che possiamo rappresentare:
+Immaginiamo di voler capire come il **peso** (variabile X) sia collegato all’**altezza** (variabile Y) in un gruppo di persone. Con un modello bayesiano ottieniamo due tipi distinti di informazioni incerte:
 
-1. **Incertezza del parametro** (metodo predefinito): Mostra quanto siamo incerti riguardo alla "vera" relazione tra variabili.
-2. **Incertezza predittiva** (`method = "predict"`): Mostra quanto siamo incerti riguardo a singole osservazioni future.
+| Che cosa stiamo stimando? | Come si chiama l’incertezza? | Che intervallo disegniamo? |
+|---------------------------|------------------------------|---------------------------|
+| **La media “vera”** dell’altezza per ogni valore di peso | **Incertezza del parametro** (o dell’effetto medio) | **Intervallo di credibilità** (credibility/credible interval) |
+| **La singola osservazione futura** (quanto sarà alta la prossima persona di quel peso) | **Incertezza predittiva** | **Intervallo di predizione** (prediction interval) |
 
-La visualizzazione che incorpora l'incertezza sui parametri si ottiene con:
 
-```r
-conditional_effects(fit_1, effects = "weight_c")
-```
+### Incertezza del parametro  – «Quanto stiamo sbagliando la linea media?»
 
-Questa visualizzazione standard mostra:
+- **Che cosa fa il codice**  
 
-- **La linea di regressione** stimata (media posteriore)
-- **L'intervallo di credibilità** attorno alla linea (solitamente al 95%)
+  ```{r}
+  conditional_effects(fit_1, effects = "weight_c")
+  ```  
+  - Disegna la **linea di regressione** (in pratica: la media stimata dell’altezza per ogni peso).  
+  - Aggiunge intorno una **fascia stretta**: è l’intervallo di credibilità al 95 %.  
+- **Come leggerla**  
+  - Se la fascia copre, ad esempio, da 170 cm a 172 cm per un peso di 70 kg, significa che “con il 95 % di probabilità la vera media dell’altezza per quel peso sta lì dentro”.  
+  - Non dice nulla sul fatto che *le persone individuali* possano essere molto più basse o molto più alte.
 
-Ciò che vediamo è **l'incertezza della media condizionale** - ovvero, quanto siamo incerti sul valore medio dell'altezza per ogni valore del peso.
+> **Metafora veloce**  
+> Pensa a tirare freccette: la freccia media cade vicino al centro, ma ogni singola freccia può andare ovunque sul bersaglio. L’intervallo di credibilità descrive la *posizione del centro*.
 
-La visualizzazione predittiva si ottiene con:
 
-```{r}
-conditional_effects(fit_1, effects = "weight_c", method = "predict")
-```
+### Incertezza predittiva  – «Quanto potrebbe variare la prossima persona?»  
 
-Questa visualizzazione alternativa mostra:
+- **Che cosa fa il codice**  
 
-- **La stessa linea di regressione** stimata.
-- **Un intervallo di predizione** molto più ampio.
+  ```{r}
+  conditional_effects(fit_1, effects = "weight_c", method = "predict")
+  ```  
+  - Ripropone la stessa linea media.  
+  - Disegna però una **fascia molto più larga**: l’intervallo di predizione.  
+- **Perché è più largo**  
+  - Contiene le due fonti di variabilità:  
+    1. **Incertezza sulla linea media** (come sopra).  
+    2. **Variabilità residua**: le differenze naturali tra persone di uguale peso (chi è più muscoloso, chi ha ossa più leggere ecc.).  
 
-L'intervallo mostrato rappresenta:
+> **Metafora veloce**  
+> Ora guardi non il centro del bersaglio, ma l’intero disco dove ogni freccia potrebbe atterrare. Quell’area è molto più grande.
 
-- L'incertezza dei parametri (come nella visualizzazione standard).
-- **PIÙ** la variabilità residua del modello (la dispersione naturale dei dati).
 
-### Perché sono Diverse e Quale Scegliere?
+### Quando usare l’una o l’altra fascia?
 
-- **Visualizzazione standard**: Risponde alla domanda "Quanto siamo sicuri della relazione media tra peso e altezza?"
-- **Visualizzazione predittiva**: Risponde alla domanda "Dove ci aspettiamo che cadrà la prossima osservazione individuale?"
+| Obiettivo della tua domanda | Funzione da usare | Che fascia guardare |
+|-----------------------------|------------------|---------------------|
+| Capire **l’effetto medio** (es. “quanto cresce in media l’altezza al crescere di 1 kg?”) | `conditional_effects(...)` | **Intervallo di credibilità** |
+| Fare **previsioni su nuovi casi** (es. “quanto sarà alta Maria che pesa 70 kg?”) | `conditional_effects(..., method = "predict")` | **Intervallo di predizione** |
 
-#### Differenze Visive Notevoli:
 
-1. **Ampiezza dell'intervallo**: L'intervallo predittivo è sempre considerevolmente più ampio dell'intervallo di credibilità per la media.
-2. **Interpretazione pratica**: L'intervallo predittivo include la variabilità naturale delle osservazioni individuali.
+### Riepilogo 
 
-### Quando Usare Ciascun Metodo:
-
-- **Usa il metodo predefinito** quando sei interessato alla relazione tra variabili.
-- **Usa `method = "predict"`** quando vuoi fare previsioni su nuove osservazioni individuali.
-
-#### Esempio Concreto
-
-Immagina di voler predire l'altezza di una persona specifica con un dato peso:
-
-- La visualizzazione standard ti dirà quanto sei sicuro del valore medio per persone con quel peso.
-- La visualizzazione predittiva ti dirà in quale intervallo probabilmente cadrà un'osservazione individuale, incorporando sia l'incertezza del modello che la variabilità naturale.
+1. **Credibilità** = incertezza sul *parametro medio* → fascia stretta perché stiamo stimando solo la retta di regressione.  
+2. **Predizione** = incertezza su *osservazioni future* → fascia larga perché somma l’incertezza della retta + la variabilità individuale.  
+3. Scegliamo la visualizzazione che risponde alla nostra domanda: “qual è la media?” (credibilità) o “dove cadrà il prossimo dato?” (predizione).
 
 In sintesi, la differenza principale sta nell'inclusione o meno della variabilità residua. La visualizzazione predittiva è più onesta riguardo alla nostra capacità di fare previsioni per singole osservazioni, mentre quella standard è più adatta per comprendere la relazione generale tra le variabili.
 
@@ -323,10 +324,12 @@ Ora impostiamo priors espliciti e adattiamo un nuovo modello:
 
 ```{r}
 prior_guassian <-
-  prior(normal(160, 10), class = "b", coef = "Intercept") +
-  prior(normal(0, 5), class = "b", coef = "weight_c") +
-  prior(cauchy(0, 5), class = "sigma")
+  brms::prior(normal(160, 10), class = "b", coef = "Intercept") +
+  brms::prior(normal(0, 5), class = "b", coef = "weight_c") +
+  brms::prior(cauchy(0, 5), class = "sigma")
 ```
+
+Si noti l'uso di `brms::prior()`. Questa notazione specifica esplicitamente che stiamo utilizzando la funzione `prior()` propria del pacchetto `brms`, evitando potenziali conflitti con funzioni omonime presenti in altre librerie caricate.
 
 ```{r}
 #| message: false
@@ -358,13 +361,14 @@ Un aspetto fondamentale nella valutazione di un modello statistico, sia frequent
 ### Confronto Frequentista
 
 Nel caso frequentista, si confrontano i valori predetti dal modello, $\hat{y} = \hat{\alpha} + \hat{\beta}x$, con i dati osservati. Questo confronto si basa sull'analisi di:
-- La vicinanza della retta di regressione stimata ai dati osservati.
-- L'eventuale presenza di pattern nei dati che si discostano da un andamento lineare.
-- La variazione della dispersione dei valori di $y$ rispetto a $x$ (ad esempio, per verificare l'ipotesi di omoschedasticità).
+
+- la vicinanza della retta di regressione stimata ai dati osservati;
+- l'eventuale presenza di pattern nei dati che si discostano da un andamento lineare;
+- la variazione della dispersione dei valori di $y$ rispetto a $x$ (ad esempio, per verificare l'ipotesi di omoschedasticità).
 
 ### Approccio Bayesiano
 
-Nell'approccio bayesiano, si eseguono le stesse verifiche di base, ma l'analisi si arricchisce attraverso l'uso delle **Predizioni Predittive a Posteriori (Posterior Predictive Checks, PPCs)**. Questo metodo consente di confrontare i dati osservati con dati simulati dal modello, utilizzando l'incertezza stimata nelle distribuzioni a posteriori dei parametri.
+Nell'approccio bayesiano, si eseguono **le stesse verifiche di base**, ma l'analisi si arricchisce attraverso l'uso delle **Predizioni Predittive a Posteriori (Posterior Predictive Checks, PPCs)**. Questo metodo consente di confrontare i dati osservati con dati simulati dal modello, utilizzando l'incertezza stimata nelle distribuzioni a posteriori dei parametri.
 
 ### Costruzione delle Predizioni Predittive a Posteriori
 
@@ -393,9 +397,9 @@ Nel caso di un modello bivariato, il processo per generare un grafico delle Pred
 
 L'approccio delle Predizioni Predittive a Posteriori è particolarmente potente perché:
 
-- Integra l'incertezza nei parametri del modello.
-- Permette di verificare non solo la bontà di adattamento complessiva, ma anche specifici aspetti delle distribuzioni predette.
-- È visivo e intuitivo, facilitando l'identificazione di discrepanze tra modello e dati.
+- integra l'incertezza nei parametri del modello;
+- permette di verificare non solo la bontà di adattamento complessiva, ma anche specifici aspetti delle distribuzioni predette;
+- è visivo e intuitivo, facilitando l'identificazione di discrepanze tra modello e dati.
 
 In conclusione, le Predizioni Predittive a Posteriori forniscono un modo robusto per valutare l'adeguatezza di un modello bayesiano rispetto ai dati osservati. Se il modello riproduce bene la distribuzione dei dati osservati, si può concludere che è adatto almeno per il campione corrente. In caso contrario, potrebbe essere necessario rivedere le specifiche del modello, come i priors o la struttura delle variabili.
 
@@ -430,8 +434,8 @@ I modelli robusti sono utili in presenza di outlier. Ad esempio, introduciamo un
  
 ```{r}
 df_outlier <- df
-df_outlier$height[1] <- 200
-df_outlier$weight_c[1] <- -15
+df_outlier$height[1] <- 400
+df_outlier$weight_c[1] <- -25
 ```
 
 ```{r}
@@ -461,6 +465,8 @@ fit_3 = brm(
 draws <- posterior::as_draws(fit_3, variable = "^b_", regex = TRUE)
 posterior::summarise_draws(draws, "mean", "sd", "mcse_mean", "mcse_sd")
 ```
+
+Senza il valore *outlier*, la stima di beta è circa 0.9.
 
 Adattiamo ora un modello robusto utilizzando una distribuzione $t$ di Student:
 
@@ -493,7 +499,7 @@ draws <- posterior::as_draws(fit_4, variable = "nu")
 posterior::summarise_draws(draws, "mean", "sd", "mcse_mean", "mcse_sd")
 ```
 
-Con un parametro $\nu$ = 6, la $t$ di Student ha delle "code" molto maggiori di una gaussiana, e questo le consene di "assorbire" gli outliers in maniera maggiore che la gaussiana.
+Con un parametro $\nu=4$, la distribuzione $t$ di Student presenta code molto più pesanti rispetto a una gaussiana. Questo la rende più robusta nel gestire la presenza di outliers rispetto al modello gaussiano.
 
 ## Indice di Determinazione Bayesiano
 
@@ -502,7 +508,7 @@ Con il pacchetto **brms**, possiamo calcolare il **Bayes $R^2$**, che rappresent
 Il comando per calcolarlo è:
 
 ```{r}
-bayes_R2(fit_4)
+bayes_R2(fit_2)
 ```
 
 Il comando restituisce un tibble (una tabella ordinata) con le seguenti informazioni:
@@ -513,9 +519,9 @@ Il comando restituisce un tibble (una tabella ordinata) con le seguenti informaz
 
 Nel caso presente
 
-- **Stima del $R^2$**: Il modello spiega in media circa il 50% della varianza osservata nella variabile dipendente.
+- **Stima del $R^2$**: Il modello spiega in media circa il 57% della varianza osservata nella variabile dipendente.
 - **Errore Standard**: L'incertezza sulla stima è relativamente bassa (±0.02).
-- **Intervallo di Credibilità**: C'è un 95% di probabilità che il vero valore del $R^2$ si trovi tra 0.457 e 0.537.
+- **Intervallo di Credibilità**: C'è un 95% di probabilità che il vero valore del $R^2$ si trovi tra 0.52 e 0.61.
 
 ### Differenze rispetto al Frequentista $R^2$
 
@@ -524,50 +530,74 @@ Nel caso presente
 
 In conclusione, il Bayes $R^2$ è uno strumento potente per valutare l'adattamento di un modello bayesiano, permettendo di quantificare non solo la proporzione di varianza spiegata, ma anche l'incertezza associata alla stima. 
 
+```{r}
+r2_draws <- bayes_R2(fit_2, summary = FALSE)
+```
+
+```{r}
+r2_df <- data.frame(R2 = as.numeric(r2_draws))
+```
+
+```{r}
+ggplot(r2_df, aes(x = R2)) +
+  geom_density(fill = "skyblue", alpha = 0.6) +
+  geom_rug(alpha = 0.2) +
+  labs(
+    title = "Distribuzione a posteriori di R²",
+    x = expression(R^2),
+    y = "Densità"
+  ) 
+```
+
+```{r}
+round(quantile(r2_df$R2, probs = c(.025, .5, .975)), 3)
+```
+
+Lo stesso risultato si ottiene con la funzione `mcmc_areas()` di `bayesplot`:
+
+```{r}
+mcmc_areas(r2_draws, prob = 0.95) +
+  ggtitle("Posterior di R² (area = 95% CI)")
+```
 
 ## Approfondimento sulla manipolazione della distribuzione a posteriori con *brms*
 
 Di seguito illustriamo come accedere e manipolare i campioni generati dal modello bayesiano in *brms*. Supponiamo di aver costruito un modello lineare semplice, dove vogliamo predire la variabile `height` in funzione di `weight_c`:
 
 ```r
-fit_1 <- brm(
+fit_2 = brm(
   bf(height ~ 1 + weight_c, center = FALSE), 
+  prior = prior_guassian,
   data = df, 
   backend = "cmdstanr", 
   silent = 0
 )
 ```
 
-Una volta che il modello è stato `fit`, possiamo estrarre le *draws* (ossia i campioni) della distribuzione a posteriori tramite la funzione `as_draws()`:
+Una volta che il modello è stato adattato e abbiamo ottenuto l'oggetto `fit_2`, possiamo estrarre le *draws* (ossia i campioni) della distribuzione a posteriori tramite la funzione `as_draws()`:
 
 ```{r}
-posterior_1 <- as_draws(fit_1)
+posterior_2 <- as_draws(fit_2)
 ```
 
-### Struttura dei campioni a posteriori
-
-L'oggetto `posterior_1` ottenuto è di tipo *draws* (una struttura definita dal pacchetto **posterior**), che internamente può essere rappresentato come una lista o un array in cui sono memorizzati i campioni MCMC:
+L'oggetto `posterior_2` ottenuto è di tipo *draws* (una struttura definita dal pacchetto **posterior**), che internamente può essere rappresentato come una lista o un array in cui sono memorizzati i campioni MCMC:
 
 ```{r}
-str(posterior_1)
+str(posterior_2)
 ```
 
-Questa ispezione ti permette di vedere che l’oggetto contiene le catene e i parametri campionati.
-
-### Estrazione di un parametro specifico
+Questa ispezione ci permette di vedere che l’oggetto contiene le catene e i parametri campionati.
 
 Possiamo estrarre i nomi dei parametri del modello dall'oggetto creato da `brm()` nel modo seguente:
 
 ```{r}
-variables(fit_1)
+variables(fit_2)
 ```
 
 Nel nostro esempio, siamo interessati al coefficiente di regressione associato a `weight_c`, che in *brms* è etichettato come `b_weight_c`. Per semplificare la manipolazione e l’analisi, possiamo servirci di **tidybayes**, un pacchetto che fornisce funzioni utili per trasformare i campioni in formati “tidy”.
 
 ```{r}
-library(tidybayes)
-
-b_slope_draws <- posterior_1 |> 
+b_slope_draws <- posterior_2 |> 
   spread_draws(b_weight_c)
 ```
 
@@ -578,8 +608,6 @@ head(b_slope_draws)
 ```
 
 In questo modo, ogni riga corrisponde a un singolo campione della catena MCMC, per quel parametro.
-
-### Calcolo di statistiche riassuntive
 
 Una volta estratti i campioni del parametro di interesse (qui `b_weight_c`), possiamo calcolare facilmente statistiche come quantili e medie:
 
@@ -593,8 +621,6 @@ mean(b_slope_draws$b_weight_c)
 
 - I quantili a 0.03, 0.50 e 0.97 forniscono, rispettivamente, un limite inferiore al 94% (0.03–0.97), la mediana a posteriori (0.50) e un limite superiore.  
 - La funzione `mean()` restituisce la media a posteriori del coefficiente, un’altra statistica utile per la stima puntuale.
-
-### Visualizzazione della distribuzione a posteriori
 
 Per comprendere meglio la forma della distribuzione a posteriori, è buona prassi tracciarne la densità. Con **tidyverse** e **tidybayes**, possiamo creare un grafico elegante in poche righe:
 
@@ -617,7 +643,7 @@ In sintesi, utilizzando l’oggetto restituito da `brm()` e la funzione `as_draw
 - **statistiche di sintesi**, come media, mediana e quantili;
 - **distribuzioni di densità**, per una visualizzazione più immediata della variabilità e della forma della distribuzione a posteriori di un parametro.
 
-La combinazione di **posterior**, **tidybayes** e **tidyverse** rende l’intero flusso di lavoro — dall’estrazione dei campioni fino alla creazione di grafici e statistiche — semplice e molto flessibile.
+La combinazione di **posterior**, **tidybayes** e **tidyverse** rende l’intero flusso di lavoro — dall’estrazione dei campioni fino alla creazione di grafici e statistiche — semplice e flessibile.
 
 ## Riflessioni Conclusive
 
