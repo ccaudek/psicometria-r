@@ -28,7 +28,17 @@ pacman::p_load(cmdstanr, posterior, bayestestR, brms, tidyr, broom, tidybayes)
 
 ## Introduzione
 
-In questo capitolo esploreremo come affrontare il problema dell'inferenza su una proporzione o sul confronto tra due proporzioni utilizzando un approccio bayesiano. Per tale scopo, utilizzeremo il pacchetto **brms** in R. L'approccio bayesiano ci permette di ottenere una distribuzione completa della probabilità a posteriori del parametro di interesse, offrendo una visione più ricca e flessibile rispetto all'approccio frequentista tradizionale. 
+Spesso ci troviamo ad affrontare la necessità di confrontare due gruppi di dati. Mentre nei capitoli precedenti abbiamo considerato il contronto tra le medie di due gruppi indipendenti, nel caso presente ci concentreremo sul confronto tra le proporzioni di due gruppi indipendenti. Per esempio, potrebbe interessarci sapere se la proporzione di un gruppo è maggiore o diversa rispetto a quella di un altro gruppo. Come in precedenza, per effettuare tale confronto, è fondamentale utilizzare un modello statistico, poiché le vere differenze tra i gruppi sono spesso accompagnate da rumore di misurazione o fluttuazioni casuali del fenomeno in esame. Questo rende difficile trarre conclusioni basandosi unicamente sulle differenze calcolate dai dati osservati.
+
+Anche nel caso delle proporzioni, il metodo tradizionale per confrontare statisticamente due o più gruppi consiste nell'utilizzare un **test di ipotesi**. Questo approccio prevede la definizione di un'ipotesi nulla, che tipicamente afferma l'assenza di differenze tra i gruppi, e l'uso di una statistica test per valutare se i dati osservati sono compatibili con tale ipotesi. Se la statistica test supera una soglia prestabilita, l'ipotesi nulla viene rifiutata, suggerendo che esiste una differenza significativa tra i gruppi.
+
+Tuttavia, i test di ipotesi presentano diverse criticità, come vedremo in seguito. **Un approccio alternativo e più informativo è quello basato sulla stima anziché sul test dell'ipotesi nulla**, fondato sulla probabilità bayesiana piuttosto che su quella frequentista. In questo caso, l'obiettivo non è semplicemente verificare se esiste una differenza tra i gruppi, ma **stimare quanto siano effettivamente diversi**. Questo metodo è intrinsecamente più informativo, poiché fornisce una stima diretta della differenza tra i gruppi, accompagnata da una misura dell'incertezza associata. Tale incertezza riflette sia la nostra limitata conoscenza dei parametri del modello (incertezza epistemica) sia la variabilità intrinseca del sistema (incertezza aleatoria).
+
+In sintesi, mentre i test di ipotesi si concentrano sul rigetto o meno di un'ipotesi nulla, l'approccio basato sulla stima offre una visione più completa e utile, permettendo di quantificare direttamente la differenza tra i gruppi e di valutare l'incertezza associata a tale stima. Questo rende l'analisi più adatta a supportare decisioni informate e basate sui dati.
+
+In questo capitolo approfondiremo l’analisi bayesiana per il confronto tra due proporzioni, utilizzando il pacchetto **`brms`** in R. L’approccio bayesiano permette di ottenere una descrizione completa della **distribuzione a posteriori** del parametro di interesse, fornendo informazioni dettagliate sulla sua incertezza e variabilità, oltre a misure intuitive come intervalli di credibilità e probabilità dirette (es. *la probabilità che la proporzione del gruppo A sia maggiore di quella del gruppo B*).  
+
+Per illustrare i vantaggi dell'approccio bayesiano, confronteremo i risultati con quelli ottenuti tramite l'analisi frequentista tradizionale. Per facilitare l'apprendimento, inizieremo con un caso più semplice: l'inferenza su una singola proporzione. Questo ci permetterà di familiarizzarci con i concetti fondamentali prima di estenderli al confronto tra due gruppi.
 
 ## Inferenza su Una Proporzione
 
@@ -47,7 +57,7 @@ Nella prima analisi, ci concentreremo sul campione di adolescenti che hanno fatt
 
 ### Analisi Frequentista
 
-Iniziamo con un test frequentista per confrontare la proporzione osservata con il valore di riferimento 0.5.
+Iniziamo con un test frequentista usando la funzione `prop.test()` per confrontare la proporzione osservata con il valore di riferimento 0.5.
 
 ```{r}
 prop_test_freq_vol <- prop.test(
@@ -59,7 +69,7 @@ prop_test_freq_vol <- prop.test(
 tidy(prop_test_freq_vol)
 ```
 
-L'intervallo di confidenza frequentista non include il valore di riferimento 0.5, quindi, in base a questa analisi, possiamo concludere che la proporzione osservata (0.546) sia significativamente **maggiore** del valore atteso in caso di casualità (0.5). 
+L'intervallo di confidenza frequentista non include il valore di riferimento 0.5, quindi, in base a questa analisi, possiamo concludere che la proporzione osservata (0.546) sia  **maggiore** del valore atteso in caso di casualità (0.5). 
 
 ### Approccio Bayesiano con **brms**
 
@@ -129,7 +139,7 @@ summary(model_pledge_binomial)
 
 Si noti come l'intervallo di credibilità al 95% riproduce l'intervallo frequentista calcolato in precedenza.
 
-### Discussione e Confronto tra Approcci
+### Confronto tra i Due Approcci
 
 Confrontiamo ora i risultati ottenuti dai due approcci. L'analisi frequentista ha mostrato che la proporzione osservata (0.546) è significativamente maggiore del valore di riferimento 0.5. L'approccio bayesiano conferma questa conclusione, fornendo una distribuzione completa della probabilità a posteriori per la proporzione π.
 Uno dei vantaggi dell'approccio bayesiano è la possibilità di incorporare informazioni a priori, se disponibili, migliorando così la robustezza delle inferenze. Inoltre, l'intervallo di credibilità bayesiano fornisce una descrizione più completa della distribuzione dei parametri, consentendo una migliore interpretazione dei risultati.
@@ -143,13 +153,13 @@ In questo contesto, il problema può essere modellato utilizzando una distribuzi
 Per il gruppo "pledgers", abbiamo $y_1$ successi su $n_1$ prove. Se assumiamo una distribuzione a priori Beta($\alpha$, $\beta$), la distribuzione a posteriori per la proporzione $p_1$ sarà anch'essa una distribuzione Beta, data da:
 
 $$
-p_1 \mid y_1, n_1 \sim \mathcal{Beta}(\alpha + y_1, \beta + n_1 - y_1)
+p_1 \mid y_1, n_1 \sim \mathcal{Beta}(\alpha + y_1, \beta + n_1 - y_1).
 $$
 
 Nel nostro caso specifico, scegliamo una prior non informativa $\mathcal{Beta}(1, 1)$, che equivale a una distribuzione uniforme sull'intervallo [0, 1]. Questa scelta riflette l'assenza di informazioni pregresse sulla proporzione $p_1$. Pertanto, la distribuzione a posteriori per il gruppo "pledgers" diventa:
 
 $$
-p_1 \mid y_1, n_1 \sim \mathcal{Beta}(1 + 424, 1 + 777 - 424) = \mathcal{Beta}(425, 354)
+p_1 \mid y_1, n_1 \sim \mathcal{Beta}(1 + 424, 1 + 777 - 424) = \mathcal{Beta}(425, 354).
 $$
 
 #### Calcolo dell'Intervallo di Credibilità
@@ -166,7 +176,7 @@ credibility_interval <- qbeta(c(0.025, 0.975), shape1 = a_post, shape2 = b_post)
 print(credibility_interval)
 ```
 
-Il risultato ottenuto dall'analisi bayesiana analitica replica quello ottenuto tramite il modello `brm()` implementato in precedenza. Questo confronto tra approcci ci permette di validare i risultati e dimostra la coerenza tra le tecniche frequentista, bayesiana numerica e bayesiana analitica.
+Il risultato ottenuto dall'analisi bayesiana analitica replica quello ottenuto tramite il modello `brm()` implementato in precedenza. Questo confronto tra approcci dimostra la coerenza tra le tecniche frequentista, bayesiana numerica e bayesiana analitica.
 
 ### Discussione e Confronto tra Approcci
 
@@ -263,7 +273,7 @@ In conclusione, dato che solo lo 0.325% (meno dell'uno per cento) della distribu
 
 #### Discussione sulla ROPE
 
-L'utilizzo della ROPE offre una prospettiva aggiuntiva e importante nell'interpretazione delle inferenze bayesiane. Invece di semplicemente determinare se un parametro è statisticamente significativo rispetto a un valore di riferimento, la ROPE permette di valutare se le differenze osservate siano praticamente rilevanti o significative in termini di impatto reale.
+L'utilizzo della ROPE offre una prospettiva aggiuntiva nell'interpretazione delle inferenze bayesiane. Invece di semplicemente determinare se un parametro è statisticamente significativo rispetto a un valore di riferimento, la ROPE permette di valutare se le differenze osservate siano praticamente rilevanti in termini di impatto reale.
 
 - **Soglia di Rilevanza**: L'impostazione di una ROPE consente di stabilire una soglia di rilevanza pratica. Se la maggior parte della distribuzione a posteriori cade al di fuori della ROPE, possiamo concludere che la differenza è non solo statistica ma anche pratica.
 - **Interpretazione Clinica**: Nelle applicazioni pratiche, come in ambito medico o sociale, la ROPE aiuta a distinguere tra risultati statisticamente significativi ma clinicamente insignificanti e quelli che hanno un impatto rilevante.
@@ -294,20 +304,21 @@ print(pledge_data)
 Utilizziamo un modello binomiale con un predittore categorico per distinguere tra i due gruppi. Il modello può essere rappresentato come:
 
 $$
-p_i \sim \text{Binomiale}(n_i, \theta_i)
+p_i \sim \text{Binomiale}(n_i, \theta_i),
 $$
 
 dove $\theta_i$ è la proporzione di utilizzo del preservativo nel gruppo $i$, e modelliamo la probabilità di successo come:
 
 $$
-\theta = \beta_0 + \beta_1 \cdot \text{group}
+\theta = \beta_0 + \beta_1 \cdot \text{group},
 $$
 
 dove:
+
 - $\beta_0$ rappresenta la proporzione di *non-pledgers* che usano il preservativo.
 - $\beta_1$ rappresenta la differenza tra *pledgers* e *non-pledgers* (cioè la variazione della proporzione di utilizzo del preservativo associata all'appartenenza al gruppo dei *pledgers*).
 
-Stimiamo il modello in **brms** utilizzando una distribuzione binomiale e un link identità:
+Le caratteristiche di questo modello verranno approfondite nel capitolo successivo. Per ora, limitiamoci a stimare il modello in **brms** utilizzando una distribuzione binomiale e un link identità:
 
 ```{r}
 model_pledge_diff <- brm(
@@ -394,9 +405,7 @@ I risultati ottenuti confermano che i "pledgers" hanno una minore propensione al
 
 ### Conclusione
 
-In sintesi, l'approccio bayesiano, implementato attraverso il pacchetto **brms**, rappresenta uno strumento estremamente potente e flessibile per l'inferenza statistica. Offre una visione più dettagliata e comprensiva rispetto agli approcci frequentisti tradizionali, permettendo di ottenere risultati coerenti e facilmente interpretabili. La capacità di fornire una distribuzione completa della probabilità a posteriori rende l'approccio bayesiano ideale per affrontare problemi complessi e per sostenere decisioni basate su dati con maggiore fiducia e precisione. 
-
-Questo capitolo ha illustrato come l'inferenza bayesiana possa essere applicata efficacemente a problemi reali, fornendo una base solida per ulteriori sviluppi e applicazioni in ambiti diversi, dall'epidemiologia alla psicologia sociale, e oltre.
+In sintesi, l'approccio bayesiano, implementato attraverso il pacchetto **brms**, rappresenta uno strumento estremamente potente e flessibile per l'inferenza statistica. Offre una visione più dettagliata e comprensiva rispetto agli approcci frequentisti tradizionali, permettendo di ottenere risultati coerenti e facilmente interpretabili. 
 
 ## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
 

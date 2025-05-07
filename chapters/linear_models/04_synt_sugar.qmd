@@ -650,6 +650,104 @@ La combinazione di **posterior**, **tidybayes** e **tidyverse** rende l’intero
 Questo capitolo ha mostrato come utilizzare **brms** per costruire e interpretare modelli lineari, evidenziando le sue capacità di gestione dei priors, diagnostica e modellizzazione robusta. Grazie alla sua semplicità e flessibilità, **brms** rappresenta un potente strumento per l'inferenza bayesiana.
 
 
+::: {.callout-important title="Problemi" collapse="true"}
+
+1. **Modello base**  
+   Importa il dataset `Howell_18.csv`, filtra gli individui di età ≥ 18 anni e adatta un modello bayesiano lineare `height ∼ weight` usando `brm()`. Visualizza il sommario.
+
+2. **Centraggio del predittore**  
+   Calcola la variabile centrata `weight_c` e adatta il modello `height ∼ weight_c`. Confronta l’intercetta (`b_Intercept`) con quella del modello non centrato. Spiega la differenza.
+
+3. **Specificazione dei prior**  
+   Usa `get_prior()` per recuperare i prior di default, poi definisci manualmente prior debolmente informativi:
+   
+   - `Intercept ∼ Normal(150, 20)`
+   - `weight_c ∼ Normal(0, 10)`
+   - `sigma ∼ Cauchy(0, 5)`
+   
+   Adatta il modello con questi prior e confronta le stime a posteriori con quelle del modello con prior di default.
+
+4. **Predizioni predittive a posteriori**  
+   Per il modello con prior personalizzati:
+   
+   - Esegui `pp_check()` per la densità e per l’errore medio (`type = "error_scatter_avg"`).
+   - Descrivi brevemente cosa mostrano i due grafici.
+
+5. **Modello robusto**  
+   Introduci un outlier modificando il primo record: imposta `height = 400`.  
+   
+   - Adatta prima un modello gaussiano e poi uno robusto con `family = student()`.
+   - Confronta le stime di `b_weight_c` nei due modelli e discuti l’impatto dell’outlier.
+
+:::
+
+::: {.callout-tip title="Soluzioni" collapse="true"}
+
+1. **Modello base**  
+
+   ```r
+   library(brms)
+   df <- rio::import("data/Howell_18.csv")
+   df_adults <- subset(df, age >= 18)
+   fit_base <- brm(height ~ weight, data = df_adults, backend = "cmdstanr")
+   summary(fit_base)
+   ```
+
+2. **Centraggio del predittore**  
+
+   ```r
+   df_adults$weight_c <- df_adults$weight - mean(df_adults$weight)
+   fit_centered <- brm(height ~ weight_c, data = df_adults, backend = "cmdstanr")
+   summary(fit_centered)
+   ```
+   - Il `b_Intercept` nel modello non centrato è l’altezza prevista per peso = 0 (non interpretabile realisticamente).  
+   - Nel modello centrato, l’intercetta rappresenta l’altezza media alla media del peso del campione.
+
+3. **Specificazione dei prior**  
+
+   ```r
+   get_prior(height ~ weight_c, data = df_adults)
+   
+   priors_custom <- c(
+     prior(normal(150, 20), class = "b", coef = "Intercept"),
+     prior(normal(0, 10), class = "b", coef = "weight_c"),
+     prior(cauchy(0, 5), class = "sigma")
+   )
+   fit_priors <- brm(
+     height ~ weight_c,
+     data = df_adults,
+     prior = priors_custom,
+     backend = "cmdstanr"
+   )
+   summary(fit_priors)
+   ```
+   - Le stime a posteriori rimangono simili, ma i prior personalizzati influenzano leggermente l’incertezza.
+
+4. **Predizioni predittive a posteriori**  
+
+   ```r
+   pp_check(fit_priors)
+   pp_check(fit_priors, type = "error_scatter_avg")
+   ```
+   - Il grafico di densità mostra se la distribuzione simulata riproduce quella osservata.  
+   - Il grafico degli errori media evidenzia eventuali pattern sistematici nei residui.
+
+5. **Modello robusto**  
+
+   ```r
+   df_out <- df_adults
+   df_out$height[1] <- 400
+   fit_gauss <- brm(height ~ weight_c, data = df_out, backend = "cmdstanr")
+   fit_student <- brm(height ~ weight_c, family = student(),
+                      data = df_out, backend = "cmdstanr")
+   summary(fit_gauss)$fixed["weight_c", ]
+   summary(fit_student)$fixed["weight_c", ]
+   ```
+   - Il modello gaussiano vede una variazione marcata di `b_weight_c` a causa dell’outlier.  
+   - Il modello Student stima un coefficiente più vicino al valore senza outlier, dimostrando robustezza.
+
+:::
+
 ## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
 
 ```{r}

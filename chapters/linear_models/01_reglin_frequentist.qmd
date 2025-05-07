@@ -85,7 +85,7 @@ dove:
 ### Aspetti principali
 
 1. **Stima dei coefficienti**  
-   I coefficienti $a$ e $b$ vengono stimati mediante il metodo dei **minimi quadrati**, che minimizza la somma dei quadrati degli errori residui (\(\sum e_i^2\)).  
+   I coefficienti $a$ e $b$ vengono stimati mediante il metodo dei **minimi quadrati**, che minimizza la somma dei quadrati degli errori residui ($\sum e_i^2$).  
 
 2. **Interpretazione dei coefficienti**  
    - $a$: rappresenta il valore medio previsto di $y$ quando $x = 0$.  
@@ -773,7 +773,6 @@ Sotto le precedenti assunzioni, chiamate **assunzioni di Gauss-Markov**, più l'
     * Sotto le assunzioni di Gauss-Markov (ma *senza* assumere la normalità degli errori), per **grandi campioni** (in virtù del Teorema del Limite Centrale), la distribuzione campionaria di $b_1$ è approssimativamente **Normale**.
     * Se aggiungiamo l'assunzione che i termini di errore $\varepsilon_i$ si distribuiscano normalmente, $\varepsilon_i \sim N(0, \sigma^2)$, allora la distribuzione campionaria di $b_1$ è **esattamente Normale** per *qualsiasi* dimensione del campione $n$. Tuttavia, quando usiamo l'errore standard *stimato* (che dipende dalla stima della varianza degli errori), la statistica test (t-statistic) segue una distribuzione t di Student.
 
-
 **Importanza della Distribuzione Campionaria di $b_1$**
 
 Conoscere la distribuzione campionaria di $b_1$ permette all'approccio frequentista di:
@@ -785,9 +784,122 @@ In sintesi, la distribuzione campionaria di $b_1$ descrive la variabilità attes
 
 [^1]: Per un approfondimento sull'approccio frequentista alla regressione, si veda, per esempio, @caudek2001statistica.
 
----
 
-The user asked for corrections and improvements to their Italian text. There's no need for browsing since the content is conceptual and focused on language revision. I should just concentrate on improving the text. It seems they want a direct revision without extra materials, like a canvas, but I’ll remember the possibility of iterative changes if needed. So, I'll aim to correct and enhance the writing directly in my response, without too much extra complexity.
+## Simulazione in R
+
+**Modello Simulato**
+
+Studiamo il modello di regressione lineare senza intercetta, per variabili $X$ e $Y$ **standardizzate**:
+
+$$
+Y_i = \beta X_i + \varepsilon_i, \quad \varepsilon_i \sim N(0, \sigma_\varepsilon = 0.5).
+$$
+Fissiamo $\beta = 1.5$, $n = 30$ (dimensione del campione) e ripetiamo la simulazione $100,\!000$ volte per approssimare la distribuzione campionaria di $\hat{\beta}_1$.
+
+```{r}
+# Parametri del modello
+beta <- 1.5           # Vero valore del coefficiente
+sigma_e <- 0.5        # Deviazione standard degli errori
+n_sample <- 30        # Dimensione del campione per ogni simulazione
+nrep <- 100000        # Numero di repliche (campioni) da generare
+
+# Preallocazione di un vettore per salvare gli stimatori
+b_hat <- rep(NA, nrep)
+
+# Genera la variabile indipendente X una volta (fissa tra i campioni)
+# Questo corrisponde a condizionare sulle X, come nelle assunzioni di Gauss-Markov
+x <- rnorm(n_sample, mean = 0, sd = 1)
+
+# Ciclo per replicare il processo di campionamento
+for (i in 1:nrep) {
+  # 1. Genera errori casuali ε_i ~ N(0, σ_ε)
+  e <- rnorm(n_sample, mean = 0, sd = sigma_e)
+  
+  # 2. Genera la variabile dipendente Y_i = β * X_i + ε_i
+  y <- beta * x + e
+  
+  # 3. Stima β_1 usando la formula OLS: Cov(X,Y)/Var(X)
+  # Questa formula è valida per modelli con intercetta, ma qui X è centrata (media ≈ 0)
+  b_hat[i] <- cov(x, y) / var(x)
+}
+```
+
+```{r}
+# Analisi dei risultati
+hist(
+  b_hat, 
+  breaks = 50, 
+  col = "lightblue", 
+  main = expression("Distribuzione Campionaria di" ~ hat(beta)[1]), 
+  xlab = expression("Valore Stimato" ~ hat(beta)[1]),
+  freq = FALSE
+)
+
+# Sovrappone una curva normale con media teorica e deviazione standard osservata
+curve(dnorm(x, mean = mean(b_hat), sd = sd(b_hat)), add = TRUE, col = "red", lwd = 2)
+```
+
+```{r}
+# Media empirica di β̂₁ (dovrebbe essere vicina a β = 1.5)
+mean_b_hat <- mean(b_hat)
+cat("Media empirica di β̂₁:", round(mean_b_hat, 3), "\n")
+
+# Deviazione standard empirica di β̂₁ (confronto con teoria)
+sd_b_hat <- sd(b_hat)
+cat("Deviazione standard empirica di β̂₁:", round(sd_b_hat, 3), "\n")
+
+# Calcolo dell'errore standard teorico
+# Var(β̂₁) = σ_ε² / Σ(X_i - X̄)²
+theoretical_se <- sqrt(sigma_e^2 / sum((x - mean(x))^2))
+cat("Errore standard teorico:", round(theoretical_se, 3), "\n")
+```
+
+**Interpretazione dei Risultati**
+
+**1. Non Distorsione (Unbiasedness)**
+
+- La **media empirica** di $\hat{\beta}_1$ (calcolata come `mean(b_hat)`) dovrebbe essere molto vicina al valore vero $\beta = 1.5$.  
+- **Teoria:** Sotto le assunzioni di Gauss-Markov (linearità, esogeneità, campionamento casuale), lo stimatore OLS è non distorto: $E(\hat{\beta}_1) = \beta_1$.  
+- **Simulazione:** Se la media è prossima a $1.5$, confermiamo questa proprietà.
+
+**2. Precisione (Varianza)**
+
+- La **deviazione standard empirica** (`sd(b_hat)`) misura la dispersione dello stimatore attorno al valore vero.  
+- **Teoria:** La varianza di $\hat{\beta}_1$ dipende da:
+  - La varianza degli errori $\sigma_\varepsilon^2$ (maggiore rumore → minore precisione),
+  - La variabilità di $X$ ($\sum (X_i - \bar{X})^2$; maggiore variabilità → maggiore precisione).
+- **Simulazione:** Confrontiamo `sd(b_hat)` con l'errore standard teorico calcolato come:
+  $$
+  SE(\hat{\beta}_1) = \sqrt{\frac{\sigma_\varepsilon^2}{\sum_{i=1}^n (X_i - \bar{X})^2}}.
+  $$
+  I valori dovrebbero essere simili.
+
+**3. Normalità Asintotica**
+
+- L'istogramma mostra la distribuzione degli stimatori $\hat{\beta}_1$ ottenuti nei $100,\!000$ campioni.  
+- **Teoria:** Per grandi campioni (o se gli errori sono normali), la distribuzione campionaria di $\hat{\beta}_1$ è normale.  
+- **Simulazione:** La curva rossa (densità normale) dovrebbe sovrapporsi bene all'istogramma, confermando la forma normale.
+
+**Collegamento con le Assunzioni del Modello**
+
+1. **Esogeneità ($E(\varepsilon_i \mid X_i) = 0$):**  
+   Nella simulazione, gli errori $\varepsilon_i$ sono generati indipendentemente da $X_i$, soddisfacendo questa assunzione. Se invece $\varepsilon_i$ fosse correlato con $X_i$ (es. $X_i$ influenzasse $\varepsilon_i$), lo stimatore sarebbe distorto.
+
+2. **Omoschedasticità:**  
+   La varianza degli errori è costante ($\sigma_\varepsilon = 0.5$), garantendo che la formula dell'errore standard sia corretta. In presenza di eteroschedasticità, l'errore standard teorico non sarebbe più affidabile.
+
+3. **Normalità degli Errori:**  
+   Gli errori sono generati da una distribuzione normale, ma la normalità asintotica della distribuzione campionaria di $\hat{\beta}_1$ sarebbe comunque approssimativamente valida anche con errori non normali (per il Teorema del Limite Centrale).
+
+**Conclusione**
+
+La simulazione conferma le proprietà teoriche della distribuzione campionaria di $\hat{\beta}_1$:
+
+- **non distorsione:** la media empirica coincide con il valore vero;
+- **precisione:** la varianza dello stimatore diminuisce con la variabilità di $X$ e aumenta con la dimensione del campione;
+- **normalità:** la distribuzione è simmetrica e approssimativamente normale, anche per $n = 30$.
+
+Questo esempio pratico chiarisce come le assunzioni del modello influenzino la qualità delle stime e l'affidabilità dell'inferenza statistica.
 
 
 ## Riflessioni conclusive 
@@ -809,6 +921,153 @@ Derivare la **distribuzione campionaria** dei coefficienti permette di svolgere 
 2. sulla costruzione degli **intervalli di fiducia**, i quali descrivono le proprietà a lungo termine della *procedura* di campionamento, ma non forniscono probabilità per il singolo intervallo.
 
 La riflessione metodologica contemporanea ha evidenziato i limiti di questa impostazione, mostrando come l’inferenza frequentista sia vulnerabile a pratiche scorrette che hanno alimentato la crisi di riproducibilità in psicologia. Per tali motivi, risulta spesso più informativo riformulare l’inferenza in termini **bayesiani**, dove si ottengono distribuzioni a posteriori dei parametri che consentono interpretazioni probabilistiche dirette e maggior trasparenza nel processo inferenziale.
+
+
+::: {.callout-important title="Problemi" collapse="true"}
+
+**1 – Definizione e scopi della regressione**    
+Secondo *Gelman et al.* (2021), quali sono i quattro principali utilizzi della regressione? Fornisci una breve descrizione di ciascuno.
+
+**2 – Errore di specificazione**  
+Cos’è l’“errore di specificazione” in un modello di regressione? Quali effetti ha sulle stime dei parametri?
+
+**3 – Stima del modello con `lm()`**  
+Usando il data‑set `kidiq` (variabili `kid_score` e `mom_iq`):  
+```{r}
+# carica i dati
+kidiq <- rio::import(here::here("data", "kidiq.dta"))
+```  
+Adatta il modello `kid_score ~ mom_iq` e riporta intercetta e pendenza.
+
+**4 – Interpretazione della pendenza**  
+Interpreta in parole la pendenza stimata al punto 3 nel contesto dei QI di madri e figli.
+
+**5 – Indice R²**  
+Calcola l’R² del modello di cui al punto 3. Cosa indica il suo valore?
+
+**6 – Centratura del predittore**  
+Crea la variabile centrata `mom_iq_c = mom_iq - mean(mom_iq)` e ri‑adatta il modello `kid_score ~ mom_iq_c`. Qual è la nuova intercetta e perché adesso è più interpretabile?
+
+**7 – Calcolo manuale di $b$**  
+Calcola manualmente la pendenza con la formula  
+$b = \frac{\text{Cov}(x,y)}{\text{Var}(x)}$  
+e confrontala col risultato di `lm()`.
+
+**8 – Confronto tra σ̂ (tradizionale) e σ_CV**  
+* (a) Calcola l’errore standard della regressione (σ̂) usando il modello completo.  
+* (b) Esegui una validazione incrociata leave‑one‑out (LOOCV) e ottieni σ_CV.  
+* (c) Spiega perché, in genere, σ_CV è ≥ σ̂.
+
+**9 – Assunzioni di Gauss‑Markov**  
+Elenca le cinque assunzioni di Gauss‑Markov per la regressione lineare semplice e indica quale, se violata, rende distorto lo stimatore OLS della pendenza.
+
+**10 – Simulazione della distribuzione campionaria di $b$**  
+Simula 100 000 campioni (n = 30) dal modello  
+$Y_i = 1.5\,X_i + \varepsilon_i,\; X_i \sim \mathcal N(0,1),\; \varepsilon_i \sim \mathcal N(0,0.5^2)$.  
+Per ogni campione calcola $b̂$. Rappresenta l’istogramma dei 100 000 $b̂$, riporta media e deviazione standard empiriche e confrontale con l’errore standard teorico.
+:::
+
+::: {.callout-tip title="Soluzioni" collapse="true"}
+
+**1 – Definizione e scopi**    
+1. **Previsione** – modellare / predire nuove osservazioni.  
+2. **Esplorazione delle associazioni** – quantificare relazioni $X \rightarrow Y$.  
+3. **Estrapolazione** – generalizzare dal campione alla popolazione.  
+4. **Inferenza causale** – stimare l’effetto di un intervento quando il design lo consente.
+
+**2 – Errore di specificazione**    
+Omettere un predittore rilevante ⇒ i residui assorbono la sua varianza ⇒ stime di $b$ distorte (bias) e varianze sottostimate → inferenze non valide.
+
+**3 – Stima del modello**  
+```{r}
+library(rio); library(here)
+kidiq <- import(here("data","kidiq.dta"))
+
+mod <- lm(kid_score ~ mom_iq, data = kidiq)
+coef(mod)
+```
+Esempio di output  
+```
+(Intercept)     mom_iq 
+ 25.800        0.610 
+```
+
+**4 – Interpretazione della pendenza**    
+Un punto in più di QI materno è associato, in media, a **0.61 punti** di QI del figlio.
+
+**5 – Indice R²**  
+```{r}
+summary(mod)$r.squared
+```
+Output ≈ 0.20 ⇒ il 20 % della varianza di `kid_score` è spiegato da `mom_iq`.
+
+**6 – Centratura**  
+```{r}
+kidiq$mom_iq_c <- kidiq$mom_iq - mean(kidiq$mom_iq)
+mod_c <- lm(kid_score ~ mom_iq_c, data = kidiq)
+coef(mod_c)
+```
+L’intercetta ora ≈ **media del QI dei bambini** quando il QI materno è medio.  
+La pendenza resta 0.61.
+
+**7 – Calcolo manuale di `b`**  
+```{r}
+b_manual <- cov(kidiq$mom_iq, kidiq$kid_score) / var(kidiq$mom_iq)
+all.equal(b_manual, coef(mod)["mom_iq"])
+```
+`TRUE` → concordanza perfetta (salvo arrotondamenti).
+
+**8 – σ̂ vs σ_CV**
+```{r}
+# (a) σ̂
+sigma_hat <- summary(mod)$sigma
+
+# (b) LOOCV
+n <- nrow(kidiq)
+res_cv2 <- numeric(n)
+for (i in seq_len(n)){
+  fit_i <- lm(kid_score ~ mom_iq, data = kidiq[-i,])
+  res_cv2[i] <- (kidiq$kid_score[i] - predict(fit_i, kidiq[i,]))^2
+}
+sigma_CV <- sqrt(mean(res_cv2))
+
+c(sigma_hat = sigma_hat, sigma_CV = sigma_CV)
+```
+*σ_CV* tende a superare σ̂ perché ogni predizione è fatta su dati che **non** hanno “visto” quell’osservazione → niente sovradimensionamento.
+
+**9 – Assunzioni Gauss‑Markov**    
+1. Linearità nei parametri  
+2. Campionamento casuale IID  
+3. Esogeneità $E(\varepsilon_i\!\mid X_i)=0$ ← **questa garantisce non‑distorsione**  
+4. Omoschedasticità  
+5. Assenza di collinearità perfetta  
+
+**10 – Simulazione**  
+```{r}
+set.seed(123)
+beta  <- 1.5; sigma_e <- 0.5; n  <- 30; nrep <- 1e5
+x <- rnorm(n)
+b_hat <- replicate(nrep, {
+  y <- beta * x + rnorm(n, sd = sigma_e)
+  cov(x,y) / var(x)
+})
+
+mean_emp <- mean(b_hat)
+sd_emp   <- sd(b_hat)
+se_theo  <- sqrt(sigma_e^2 / sum((x - mean(x))^2))
+c(media_empirica = mean_emp, sd_empirica = sd_emp, SE_teorico = se_theo)
+```
+L’istogramma (codice sotto) mostra la forma quasi normale centrata su 1.5.
+```{r}
+hist(b_hat, breaks = 60, freq = FALSE, main = "Distribuzione campionaria di b̂",
+     xlab = "b̂"); curve(dnorm(x, mean_emp, sd_emp), add = TRUE, lwd = 2)
+```
+
+- La media empirica ≈ 1.5 ⇒ **unbiased**.   
+- La sd empirica ≈ SE teorico ⇒ formula varianza confermata.  
+- Distribuzione simmetrica ≈ Normale ⇒ normalità asintotica verificata.  
+
+:::
 
 
 ## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 

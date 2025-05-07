@@ -383,6 +383,188 @@ che restituisce sia il **valore della statistica T**, sia l’**intervallo di co
 
 Si noti che i risultati (media stimata e intervallo di confidenza) coincidono con quanto si otterrebbe usando una **regressione lineare** con sola intercetta (come `lm(height ~ 1, data=df)`) e richiedendo l’intervallo di confidenza con `confint()`. Sia il test $t$ di Student sia la regressione lineare semplice (senza covariate) condividono infatti le stesse assunzioni di base e forniscono risultati equivalenti per quanto riguarda l’inferenza sulla media.
 
+
+::: {.callout-important title="Problemi" collapse="true"}
+
+**Obiettivo:** Utilizzare i dati dello studio di @tarrats2025efficacy per replicare i risultati riportati nella Figura 2 , applicando sia l’approccio frequentista che il framework bayesiano. Calcolare inoltre la grandezza dell’effetto nel contesto bayesiano (Cohen’s $d$) e generare un grafico che visualizzi la distribuzione a posteriori della grandezza dell’effetto ottenuta. 
+
+:::
+
+::: {.callout-tip title="Soluzioni" collapse="true"}
+
+```{r}
+library(tidyverse)
+library(readxl)
+library(brms)
+library(posterior)
+library(bayestestR)
+
+
+df <- read_excel(
+  here::here(
+    "data",
+    "Tarrats-Pons.xlsx"
+  ),
+  sheet = 3
+)
+
+df |>
+  group_by(Sample) |>
+  summarize(
+    avg = mean(`CESS-D`),
+    n = n()
+  )
+
+df_wide <- df %>%
+  select(IdentificationNumber, Sample, CESS_D = `CESS-D`) %>%
+  pivot_wider(
+    names_from = Sample, # da POST/PRE
+    values_from = CESS_D, # i valori da mettere nelle colonne
+    names_prefix = "CESSD_" # opzionale, per nominare CESSD_POST, CESSD_PRE
+  )
+
+# Controlla il risultato
+head(df_wide)
+
+df_wide$diff <- df_wide$CESSD_PRE - df_wide$CESSD_POST
+
+hist(df_wide$diff)
+
+t.test(df_wide$diff)
+
+# t-test sulle differenze
+res <- t.test(df_wide$diff)
+
+# Numero di soggetti
+n <- length(df_wide$diff)
+
+# Calcolo di Cohen's d
+d_t <- as.numeric(res$statistic) / sqrt(n)
+
+# Mostro risultato
+d_t
+
+fm1 <- brm(
+  formula = diff ~ 1, # Modello con sola intercetta (mu)
+  data = df_wide,
+  family = gaussian(), # Distribuzione Normale
+  prior = c(
+    brms::prior(normal(0, 10), class = "Intercept"), # Prior su mu
+    brms::prior(normal(0, 10), class = "sigma") # Prior su sigma
+  ),
+  chains = 4,
+  iter = 2000,
+  seed = 1234,
+  backend = "cmdstanr"
+)
+summary(fm1)
+pp_check(fm1)
+
+fm2 <- brm(
+  formula = diff ~ 1, # Modello con sola intercetta (mu)
+  data = df_wide,
+  family = student(), # Distribuzione Normale
+  prior = c(
+    brms::prior(normal(0, 10), class = "Intercept"), # Prior su mu
+    brms::prior(normal(0, 10), class = "sigma") # Prior su sigma
+  ),
+  chains = 4,
+  iter = 2000,
+  seed = 1234,
+  backend = "cmdstanr"
+)
+summary(fm2)
+pp_check(fm2)
+
+
+post_samples <- posterior::as_draws_df(fm1)
+head(post_samples)
+
+post_samples$effect_size <- post_samples$b_Intercept / post_samples$sigma
+
+# Calcolo diretto delle statistiche dell'effect size
+mean_effect_size <- mean(post_samples$effect_size)
+sd_effect_size <- sd(post_samples$effect_size)
+ci_effect_size <- quantile(post_samples$effect_size, probs = c(0.025, 0.975))
+
+# Stampa dei risultati
+cat("=== Statistiche dell'Effect Size Bayesiano ===\n")
+cat("Effect size medio:", round(mean_effect_size, 2), "\n")
+cat("SD dell'effect size:", round(sd_effect_size, 2), "\n")
+cat(
+  "Intervallo di credibilità al 95%:",
+  round(ci_effect_size[1], 2),
+  "-",
+  round(ci_effect_size[2], 2),
+  "\n\n"
+)
+
+
+# Interpretazione dell'effect size secondo le convenzioni di Cohen
+if (abs(mean_effect_size) < 0.2) {
+  interpretation <- "piccolo"
+} else if (abs(mean_effect_size) < 0.5) {
+  interpretation <- "medio-piccolo"
+} else if (abs(mean_effect_size) < 0.8) {
+  interpretation <- "medio"
+} else {
+  interpretation <- "grande"
+}
+cat("Interpretazione (Cohen):", interpretation, "\n")
+
+# Calcola la probabilità che l'effect size sia maggiore di zero
+prob_positive <- mean(post_samples$effect_size > 0)
+cat(
+  "Probabilità che l'effect size sia positivo:",
+  round(prob_positive * 100, 2),
+  "%\n"
+)
+
+# Se necessario, calcola probabilità per altre soglie
+prob_medium <- mean(post_samples$effect_size > 0.5)
+cat(
+  "Probabilità che l'effect size sia > 0.5 (medio):",
+  round(prob_medium * 100, 2),
+  "%\n"
+)
+prob_large <- mean(post_samples$effect_size > 0.8)
+cat(
+  "Probabilità che l'effect size sia > 0.8 (grande):",
+  round(prob_large * 100, 2),
+  "%\n"
+)
+
+# Visualizzazione della distribuzione posteriore dell'effect size
+# (Per eseguire questo blocco, devi avere ggplot2 installato e caricato)
+# library(ggplot2)
+ggplot(post_samples, aes(x = effect_size)) +
+  geom_density(fill = "skyblue", alpha = 0.5) +
+  geom_vline(
+    xintercept = mean_effect_size,
+    color = "red",
+    linetype = "dashed"
+  ) +
+  geom_vline(
+    xintercept = ci_effect_size[1],
+    color = "darkblue",
+    linetype = "dotted"
+  ) +
+  geom_vline(
+    xintercept = ci_effect_size[2],
+    color = "darkblue",
+    linetype = "dotted"
+  ) +
+  labs(
+    title = "Distribuzione posteriore dell'Effect Size",
+    x = "Effect Size (Cohen's d)",
+    y = "Densità"
+  ) +
+  theme_minimal()
+```
+
+:::
+
+
 ## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
 
 ```{r}

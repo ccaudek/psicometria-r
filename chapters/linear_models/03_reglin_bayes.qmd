@@ -344,8 +344,93 @@ I modelli statistici possono essere utilizzati principalmente per due scopi dist
 
 In conclusione, l'adozione di un modello statistico non è un fine in sé, ma uno strumento per esplorare, interpretare e comprendere il fenomeno di interesse. Sia che si utilizzi un approccio bayesiano o frequentista, il successo dell'analisi dipende dalla capacità di integrare i risultati quantitativi con una riflessione teorica critica e da un’attenzione costante alla validità delle ipotesi e delle conclusioni. 
 
-Per un approfondimento sul modello bayesiano di regressione lineare, oltre al testo di @Johnson2022bayesrules, si consiglia **[Regression and Other Stories](https://avehtari.github.io/ROS-Examples/)**, un riferimento fondamentale che fornisce una trattazione chiara e approfondita del tema.
+Per un approfondimento sul modello bayesiano di regressione lineare, oltre al testo di @Johnson2022bayesrules, si consiglia la lettura del testo **[Regression and Other Stories](https://avehtari.github.io/ROS-Examples/)**. Quest’ultimo rappresenta una guida pratica e ricca di esempi applicati, ideale per comprendere come integrare i metodi bayesiani nell’analisi di regressione e interpretarne i risultati in contesti reali. 
 
+
+::: {.callout-important title="Problemi" collapse="true"}
+
+1. **Verosimiglianza**  
+   Definire la funzione di verosimiglianza per il modello bayesiano di regressione lineare bivariata, esplicitando i parametri e la loro interpretazione.
+
+2. **Scelta dei prior**  
+   Proporre un set di prior debolmente informativi differenti da quelli riportati, motivando la scelta delle distribuzioni.
+
+3. **Simulazione dati**  
+   Scrivere un blocco di codice in R/Quarto per simulare un dataset con $n=50$, parametri $lpha=2$, $eta=0.5$, $\sigma=1$ e visualizzare un grafico dispersione con la retta di regressione vera.
+
+4. **Stima frequentista vs bayesiana**  
+   Utilizzando i dati simulati, adattare un modello con `lm()` e uno con `brm()` (specificando i prior). Confrontare i risultati prodotti dai due approcci, riportando i valori stimati e gli intervalli di confidenza/credibilità.
+
+5. **Diagnosi MCMC**  
+   Elencare e spiegare almeno tre controlli diagnostici da effettuare sulle catene MCMC per garantire la convergenza e un buon mescolamento.
+
+6. **Interpretazione dei coefficienti**  
+   In un contesto osservazionale, discutere perché non è appropriato interpretare i coefficienti della regressione come effetti causali. Fare riferimento ai concetti di confondimento e disegno sperimentale.
+
+:::
+
+::: {.callout-tip title="Soluzioni" collapse="true"}
+
+1. **Verosimiglianza**  
+
+   $$
+   \mathcal{L}(\alpha, \beta, \sigma \mid y, x) = \prod_{i=1}^n \frac{1}{\sqrt{2\pi}\sigma} \exp\left(-\frac{(y_i - (\alpha + \beta x_i))^2}{2\sigma^2}\right).
+   $$
+
+2. **Scelta dei prior**  
+
+   Ad esempio:  
+   
+   - $\alpha \sim \mathcal{N}(0, 5)$: consente maggiore variabilità iniziale;  
+   - $\beta \sim \text{Student-}t(3, 0, 2)$: robuste alle code pesanti;  
+   - $\sigma \sim \text{Half-}Cauchy(0, 1)$: prior leggermente più stretto sulle deviazioni.
+
+3. **Simulazione dati**  
+
+   ```r
+   set.seed(42)
+   n <- 50
+   alpha <- 2
+   beta  <- 0.5
+   sigma <- 1
+   x <- rnorm(n, 0, 1)
+   y <- alpha + beta * x + rnorm(n, 0, sigma)
+   plot(x, y, main = "Dati simulati", xlab = "x", ylab = "y")
+   abline(a = alpha, b = beta, col = "blue", lwd = 2)
+   ```
+
+4. **Stima frequentista vs bayesiana**  
+
+   - Frequentista (`lm()`):  
+   
+     ```r
+     fm_f <- lm(y ~ x)
+     summary(fm_f)
+     confint(fm_f, level = 0.95)
+     ```  
+   - Bayesiano (`brm()`):  
+   
+     ```r
+     fm_b <- brm(y ~ x, data = data.frame(x, y),
+                 prior = c(set_prior("normal(0,5)", class="Intercept"),
+                           set_prior("normal(0,5)", class="b"),
+                           set_prior("cauchy(0,1)", class="sigma")),
+                 iter = 2000, chains = 2)
+     summary(fm_b)
+     
+     ```  
+   Confronto: i valori medi a posteriori e gli intervalli di credibilità dovrebbero includere quelli di confidenza di `lm()`.
+
+5. **Diagnosi MCMC**  
+
+   - **Trace plots**: verificare mescolamento e stazionarietà delle catene;  
+   - **R-hat**: valore vicino a 1 indica convergenza;  
+   - **Effective Sample Size (ESS)**: numero di campioni indipendenti effettivi.
+
+6. **Interpretazione dei coefficienti**  
+   La regressione osservazionale non controlla automaticamente i potenziali confondenti; senza randomizzazione o disegno sperimentale rigoroso, non si può inferire causalità. Bisogna considerare variabili confondenti e criteri di validità interna.
+
+:::
 
 ## Informazioni sull'Ambiente di Sviluppo {.unnumbered}
 
