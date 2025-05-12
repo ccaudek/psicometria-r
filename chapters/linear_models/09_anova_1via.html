@@ -992,12 +992,11 @@ window.Quarto = {
   <li><a href="#preparazione-del-notebook" id="toc-preparazione-del-notebook" class="nav-link active" data-scroll-target="#preparazione-del-notebook"><span class="header-section-number">69.1</span> Preparazione del Notebook</a></li>
   <li><a href="#introduzione" id="toc-introduzione" class="nav-link" data-scroll-target="#introduzione"><span class="header-section-number">69.2</span> Introduzione</a></li>
   <li><a href="#simulazione" id="toc-simulazione" class="nav-link" data-scroll-target="#simulazione"><span class="header-section-number">69.3</span> Simulazione</a></li>
-  <li><a href="#contrasti-personalizzati" id="toc-contrasti-personalizzati" class="nav-link" data-scroll-target="#contrasti-personalizzati"><span class="header-section-number">69.4</span> Contrasti personalizzati</a></li>
-  <li><a href="#codice-r-per-impostare-e-verificare-i-contrasti" id="toc-codice-r-per-impostare-e-verificare-i-contrasti" class="nav-link" data-scroll-target="#codice-r-per-impostare-e-verificare-i-contrasti"><span class="header-section-number">69.5</span> Codice R per impostare e verificare i Contrasti</a></li>
+  <li><a href="#codifica-con-variabili-dummy" id="toc-codifica-con-variabili-dummy" class="nav-link" data-scroll-target="#codifica-con-variabili-dummy"><span class="header-section-number">69.4</span> Codifica con variabili dummy</a></li>
+  <li><a href="#contrasti-personalizzati" id="toc-contrasti-personalizzati" class="nav-link" data-scroll-target="#contrasti-personalizzati"><span class="header-section-number">69.5</span> Contrasti personalizzati</a></li>
   <li><a href="#interpretazione-dei-coefficienti" id="toc-interpretazione-dei-coefficienti" class="nav-link" data-scroll-target="#interpretazione-dei-coefficienti"><span class="header-section-number">69.6</span> Interpretazione dei coefficienti</a></li>
-  <li><a href="#pacchetto-emmeans" id="toc-pacchetto-emmeans" class="nav-link" data-scroll-target="#pacchetto-emmeans"><span class="header-section-number">69.7</span> Pacchetto <code>emmeans</code></a></li>
-  <li><a href="#altre-opzioni-utili-di-emmeans" id="toc-altre-opzioni-utili-di-emmeans" class="nav-link" data-scroll-target="#altre-opzioni-utili-di-emmeans"><span class="header-section-number">69.8</span> Altre opzioni utili di <code>emmeans</code></a></li>
-  <li><a href="#riflessioni-conclusive" id="toc-riflessioni-conclusive" class="nav-link" data-scroll-target="#riflessioni-conclusive"><span class="header-section-number">69.9</span> Riflessioni Conclusive</a></li>
+  <li><a href="#uso-del-pacchetto-emmeans" id="toc-uso-del-pacchetto-emmeans" class="nav-link" data-scroll-target="#uso-del-pacchetto-emmeans"><span class="header-section-number">69.7</span> Uso del pacchetto <code>emmeans</code></a></li>
+  <li><a href="#riflessioni-conclusive" id="toc-riflessioni-conclusive" class="nav-link" data-scroll-target="#riflessioni-conclusive"><span class="header-section-number">69.8</span> Riflessioni Conclusive</a></li>
   <li><a href="#informazioni-sullambiente-di-sviluppo" id="toc-informazioni-sullambiente-di-sviluppo" class="nav-link" data-scroll-target="#informazioni-sullambiente-di-sviluppo">Informazioni sull’Ambiente di Sviluppo</a></li>
   <li><a href="#bibliografia" id="toc-bibliografia" class="nav-link" data-scroll-target="#bibliografia">Bibliografia</a></li>
   </ul>
@@ -1070,608 +1069,416 @@ Prerequisiti
 </section>
 <section id="introduzione" class="level2" data-number="69.2">
 <h2 data-number="69.2" class="anchored" data-anchor-id="introduzione"><span class="header-section-number">69.2</span> Introduzione</h2>
-<p>Nel <a href="07_two_means.html" class="quarto-xref"><span>Capitolo 67</span></a> abbiamo visto come costruire regressori fittizi (dummy) per rappresentare l’effetto di variabili categoriche (fattori) a due livelli. Consideriamo ora il caso di un singolo fattore con più di due livelli. Per esempio, nel caso di una classificazione a tre categorie, possiamo adottare il modello</p>
+<p>Nel <a href="07_two_means.html" class="quarto-xref"><span>Capitolo 67</span></a> abbiamo visto come rappresentare <strong>fattori a due livelli</strong> mediante <strong>variabili dummy</strong>, per includere effetti categoriali all’interno di un modello lineare. In questa sezione estendiamo tale approccio al caso in cui un singolo fattore abbia <strong>più di due categorie</strong>.</p>
+<p>Supponiamo, ad esempio, di voler analizzare un fattore con <strong>tre gruppi</strong>. In questo caso possiamo utilizzare due variabili dummy per rappresentare le prime due categorie, e assumere implicitamente la terza come <strong>categoria di riferimento</strong>. Il modello lineare diventa:</p>
 <p><span id="eq-anova1"><span class="math display">\[
-Y_i = \alpha + \gamma_1 D_{i1} + \gamma_2 D_{i2} + \varepsilon_i,
+Y_i = \alpha + \gamma_1 D_{i1} + \gamma_2 D_{i2} + \varepsilon_i
 \tag{69.1}\]</span></span></p>
-<p>utilizzando la seguente codifica per i regressori dummy:</p>
+<p>dove:</p>
+<ul>
+<li><span class="math inline">\(\alpha\)</span> è l’intercetta del modello,</li>
+<li><span class="math inline">\(\gamma_1\)</span> e <span class="math inline">\(\gamma_2\)</span> sono i coefficienti associati alle variabili dummy,</li>
+<li><span class="math inline">\(D_{i1}\)</span> e <span class="math inline">\(D_{i2}\)</span> indicano l’appartenenza dell’osservazione <span class="math inline">\(i\)</span> ai gruppi 1 e 2, rispettivamente,</li>
+<li><span class="math inline">\(\varepsilon_i\)</span> è l’errore aleatorio.</li>
+</ul>
+<p>La seguente tabella mostra come codificare le dummy per ciascun gruppo:</p>
 <p><span id="eq-anova1a"><span class="math display">\[
 \begin{array}{c|cc}
-\text{Gruppo} &amp; D_1 &amp; D_2 \\
+\text{Gruppo} &amp; D_{1} &amp; D_{2} \\
 \hline
 1 &amp; 1 &amp; 0 \\
 2 &amp; 0 &amp; 1 \\
 3 &amp; 0 &amp; 0
 \end{array}
 \tag{69.2}\]</span></span></p>
-<p>L’aspettativa della variabile di risposta in ciascun gruppo (cioè in ciascuna categoria o livello del fattore) corrisponde alla media di popolazione del gruppo, indicata con <span class="math inline">\(\mu_j\)</span> per il gruppo <span class="math inline">\(j\)</span>. Poiché l’errore <span class="math inline">\(\varepsilon\)</span> ha media zero, in base alle usuali ipotesi del modello lineare, prendendo l’aspettativa di entrambi i membri dell’equazione (8.1) si ottengono le relazioni seguenti tra le medie di gruppo e i parametri:</p>
+<section id="significato-dei-parametri" class="level3" data-number="69.2.1">
+<h3 data-number="69.2.1" class="anchored" data-anchor-id="significato-dei-parametri"><span class="header-section-number">69.2.1</span> Significato dei parametri</h3>
+<p>L’obiettivo è stimare le <strong>medie di popolazione</strong> per ciascun gruppo, indicate con <span class="math inline">\(\mu_j\)</span> per il gruppo <span class="math inline">\(j\)</span>. Poiché l’errore <span class="math inline">\(\varepsilon\)</span> ha media zero, possiamo calcolare l’aspettativa del modello per ciascun gruppo:</p>
 <p><span id="eq-anova1b"><span class="math display">\[
 \begin{aligned}
-\text{Gruppo 1: } \mu_1 &amp;= \alpha + \gamma_1 \cdot 1 + \gamma_2 \cdot 0 = \alpha + \gamma_1, \\
-\text{Gruppo 2: } \mu_2 &amp;= \alpha + \gamma_1 \cdot 0 + \gamma_2 \cdot 1 = \alpha + \gamma_2, \\
-\text{Gruppo 3: } \mu_3 &amp;= \alpha + \gamma_1 \cdot 0 + \gamma_2 \cdot 0 = \alpha.
+\text{Gruppo 1: } \mu_1 &amp;= \mathbb{E}(Y \mid D_1 = 1, D_2 = 0) = \alpha + \gamma_1 \\
+\text{Gruppo 2: } \mu_2 &amp;= \mathbb{E}(Y \mid D_1 = 0, D_2 = 1) = \alpha + \gamma_2 \\
+\text{Gruppo 3: } \mu_3 &amp;= \mathbb{E}(Y \mid D_1 = 0, D_2 = 0) = \alpha
 \end{aligned}
 \tag{69.3}\]</span></span></p>
-<p>Qui troviamo tre parametri <span class="math inline">\((\alpha, \gamma_1, \gamma_2)\)</span> e tre medie di gruppo, per cui è possibile risolvere in modo univoco i parametri in termini delle medie di gruppo:</p>
+<p>Queste espressioni mostrano come i coefficienti del modello siano <strong>relativi alla categoria di riferimento</strong>, cioè il Gruppo 3. Possiamo dunque esprimere i parametri del modello in funzione delle medie di gruppo:</p>
 <p><span id="eq-anova1c"><span class="math display">\[
-\alpha = \mu_3, \quad \gamma_1 = \mu_1 - \mu_3, \quad \gamma_2 = \mu_2 - \mu_3.
+\alpha = \mu_3, \quad \gamma_1 = \mu_1 - \mu_3, \quad \gamma_2 = \mu_2 - \mu_3 .
 \tag{69.4}\]</span></span></p>
-<p>Non sorprende che <span class="math inline">\(\alpha\)</span> rappresenti la media della categoria di riferimento (il Gruppo 3), mentre <span class="math inline">\(\gamma_1\)</span> e <span class="math inline">\(\gamma_2\)</span> descrivono quanto le altre due medie di gruppo si discostino dalla media della categoria di riferimento.</p>
+<p>In sintesi:</p>
+<ul>
+<li><span class="math inline">\(\alpha\)</span> rappresenta la media del <strong>gruppo di riferimento</strong> (Gruppo 3),</li>
+<li><span class="math inline">\(\gamma_1\)</span> è la <strong>differenza tra la media del Gruppo 1 e quella del Gruppo 3</strong>,</li>
+<li><span class="math inline">\(\gamma_2\)</span> è la <strong>differenza tra la media del Gruppo 2 e quella del Gruppo 3</strong>.</li>
+</ul>
+<p>Questa struttura rende il modello facilmente interpretabile: i coefficienti delle dummy indicano quanto ciascun gruppo si discosta dalla categoria di riferimento, mentre l’intercetta fornisce direttamente la media di quest’ultima. Questo schema può essere esteso a fattori con un numero arbitrario di categorie.</p>
+</section>
 </section>
 <section id="simulazione" class="level2" data-number="69.3">
 <h2 data-number="69.3" class="anchored" data-anchor-id="simulazione"><span class="header-section-number">69.3</span> Simulazione</h2>
-<p>Per esaminare un’applicazione pratica, simuliamo i dati di un fattore con 3 livelli:</p>
+<p>Per illustrare il funzionamento di un modello con un fattore a tre livelli, simuliamo un dataset con tre condizioni sperimentali: <code>controllo</code>, <code>psicoterapia1</code> e <code>psicoterapia2</code>. Supponiamo che ogni gruppo abbia una diversa media, ma la stessa deviazione standard:</p>
 <div class="cell" data-layout-align="center">
-<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Imposta un seme per riproducibilità (opzionale)</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">123</span>)</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Definiamo il numero di osservazioni per ogni gruppo</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>n <span class="ot">&lt;-</span> <span class="dv">30</span></span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Definiamo le medie</span></span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>mean_control <span class="ot">&lt;-</span> <span class="dv">30</span></span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>mean_psico1  <span class="ot">&lt;-</span> <span class="dv">25</span></span>
-<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>mean_psico2  <span class="ot">&lt;-</span> <span class="dv">20</span></span>
-<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Definiamo la deviazione standard (ipotizziamo la stessa per tutti i gruppi)</span></span>
-<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>sd_value <span class="ot">&lt;-</span> <span class="dv">5</span></span>
-<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Generiamo i dati casuali da distribuzioni normali</span></span>
-<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>controllo     <span class="ot">&lt;-</span> <span class="fu">rnorm</span>(n, mean_control, sd_value)</span>
-<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>psicoterapia1 <span class="ot">&lt;-</span> <span class="fu">rnorm</span>(n, mean_psico1,  sd_value)</span>
-<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>psicoterapia2 <span class="ot">&lt;-</span> <span class="fu">rnorm</span>(n, mean_psico2,  sd_value)</span>
-<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a><span class="co"># Creiamo un data frame con due colonne:</span></span>
-<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a><span class="co"># - "condizione": indica il gruppo (controllo / psicoterapia1 / psicoterapia2)</span></span>
-<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a><span class="co"># - "punteggio":  contiene i dati numerici generati</span></span>
-<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>df <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
-<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>  <span class="at">condizione =</span> <span class="fu">rep</span>(<span class="fu">c</span>(<span class="st">"controllo"</span>, <span class="st">"psicoterapia1"</span>, <span class="st">"psicoterapia2"</span>), <span class="at">each =</span> n),</span>
-<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>  <span class="at">punteggio  =</span> <span class="fu">c</span>(controllo, psicoterapia1, psicoterapia2)</span>
-<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">123</span>)</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>n <span class="ot">&lt;-</span> <span class="dv">30</span>  <span class="co"># numero di osservazioni per gruppo</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Medie di ciascun gruppo</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>mean_control <span class="ot">&lt;-</span> <span class="dv">30</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>mean_psico1  <span class="ot">&lt;-</span> <span class="dv">25</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>mean_psico2  <span class="ot">&lt;-</span> <span class="dv">20</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Deviazione standard comune</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>sd_value <span class="ot">&lt;-</span> <span class="dv">5</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Generazione dei dati</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>controllo     <span class="ot">&lt;-</span> <span class="fu">rnorm</span>(n, mean_control, sd_value)</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>psicoterapia1 <span class="ot">&lt;-</span> <span class="fu">rnorm</span>(n, mean_psico1,  sd_value)</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>psicoterapia2 <span class="ot">&lt;-</span> <span class="fu">rnorm</span>(n, mean_psico2,  sd_value)</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Creazione del data frame</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>df <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>  <span class="at">condizione =</span> <span class="fu">rep</span>(<span class="fu">c</span>(<span class="st">"controllo"</span>, <span class="st">"psicoterapia1"</span>, <span class="st">"psicoterapia2"</span>), <span class="at">each =</span> n),</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>  <span class="at">punteggio  =</span> <span class="fu">c</span>(controllo, psicoterapia1, psicoterapia2)</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>df <span class="sc">|&gt;</span> <span class="fu">head</span>()</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   condizione punteggio</span></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1  controllo     27.20</span></span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 2  controllo     28.85</span></span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 3  controllo     37.79</span></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 4  controllo     30.35</span></span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 5  controllo     30.65</span></span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 6  controllo     38.58</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
+<section id="esplorazione-dei-dati" class="level3" data-number="69.3.1">
+<h3 data-number="69.3.1" class="anchored" data-anchor-id="esplorazione-dei-dati"><span class="header-section-number">69.3.1</span> Esplorazione dei dati</h3>
+<p>Visualizziamo le distribuzioni con un violin plot arricchito da un boxplot:</p>
 <div class="cell" data-layout-align="center">
-<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(df)</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   condizione punteggio</span></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1  controllo     27.20</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 2  controllo     28.85</span></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 3  controllo     37.79</span></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 4  controllo     30.35</span></span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 5  controllo     30.65</span></span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 6  controllo     38.58</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<div class="cell" data-layout-align="center">
-<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">tail</span>(df)</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;       condizione punteggio</span></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 85 psicoterapia2     18.90</span></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 86 psicoterapia2     21.66</span></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 87 psicoterapia2     25.48</span></span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 88 psicoterapia2     22.18</span></span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 89 psicoterapia2     18.37</span></span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 90 psicoterapia2     25.74</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<p>Esaminiamo la distribuzione dei dati nei tre gruppi:</p>
-<div class="cell" data-layout-align="center">
-<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(df, <span class="fu">aes</span>(<span class="at">x =</span> condizione, <span class="at">y =</span> punteggio, <span class="at">fill =</span> condizione)) <span class="sc">+</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Il violin plot</span></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_violin</span>(<span class="at">trim =</span> <span class="cn">FALSE</span>) <span class="sc">+</span></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Boxplot interno al violino</span></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_boxplot</span>(<span class="at">width =</span> <span class="fl">0.2</span>, <span class="at">outlier.shape =</span> <span class="cn">NA</span>) <span class="sc">+</span></span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">title =</span> <span class="st">"Depressione in funzione del gruppo"</span>,</span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">"Gruppo"</span>,</span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> <span class="st">"Depressione"</span></span>
-<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
-<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Rimuovi la legenda </span></span>
-<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">"none"</span>)</span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(df, <span class="fu">aes</span>(<span class="at">x =</span> condizione, <span class="at">y =</span> punteggio, <span class="at">fill =</span> condizione)) <span class="sc">+</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_violin</span>(<span class="at">trim =</span> <span class="cn">FALSE</span>) <span class="sc">+</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_boxplot</span>(<span class="at">width =</span> <span class="fl">0.2</span>, <span class="at">outlier.shape =</span> <span class="cn">NA</span>) <span class="sc">+</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">title =</span> <span class="st">"Distribuzione dei punteggi di depressione per gruppo"</span>,</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">"Condizione sperimentale"</span>,</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> <span class="st">"Punteggio di depressione"</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">"none"</span>)</span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><img src="09_anova_1via_files/figure-html/unnamed-chunk-5-1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:70.0%"></p>
+<p><img src="09_anova_1via_files/figure-html/unnamed-chunk-3-1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:70.0%"></p>
 </figure>
 </div>
 </div>
 </div>
-<p>Calcoliamo le medie dei gruppi:</p>
+<p>Calcoliamo media e deviazione standard per ogni gruppo:</p>
 <div class="cell" data-layout-align="center">
-<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>df <span class="sc">|&gt;</span> </span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(condizione) <span class="sc">|&gt;</span> </span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarize</span>(</span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">avg =</span> <span class="fu">mean</span>(punteggio),</span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">std =</span> <span class="fu">sd</span>(punteggio)</span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; # A tibble: 3 × 3</span></span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   condizione      avg   std</span></span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   &lt;chr&gt;         &lt;dbl&gt; &lt;dbl&gt;</span></span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1 controllo      29.8  4.91</span></span>
-<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 2 psicoterapia1  25.9  4.18</span></span>
-<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 3 psicoterapia2  20.1  4.35</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>df <span class="sc">|&gt;</span> </span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(condizione) <span class="sc">|&gt;</span> </span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarize</span>(</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">media =</span> <span class="fu">mean</span>(punteggio),</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">sd =</span> <span class="fu">sd</span>(punteggio)</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; # A tibble: 3 × 3</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   condizione    media    sd</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   &lt;chr&gt;         &lt;dbl&gt; &lt;dbl&gt;</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1 controllo      29.8  4.91</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 2 psicoterapia1  25.9  4.18</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 3 psicoterapia2  20.1  4.35</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>Nel caso presente, desideriamo creare due variabili dummy per codificare il fattore <span class="math inline">\(`condizione`\)</span>, assumendo come gruppo di riferimento (baseline) la categoria <code>controllo</code>. Ecco come procedere:</p>
+</section>
+</section>
+<section id="codifica-con-variabili-dummy" class="level2" data-number="69.4">
+<h2 data-number="69.4" class="anchored" data-anchor-id="codifica-con-variabili-dummy"><span class="header-section-number">69.4</span> Codifica con variabili dummy</h2>
+<p>Convertiamo <code>condizione</code> in fattore e definiamo <code>controllo</code> come categoria di riferimento:</p>
 <div class="cell" data-layout-align="center">
-<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>df<span class="sc">$</span>condizione <span class="ot">&lt;-</span> <span class="fu">factor</span>(df<span class="sc">$</span>condizione)</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>df<span class="sc">$</span>condizione <span class="ot">&lt;-</span> <span class="fu">relevel</span>(df<span class="sc">$</span>condizione, <span class="at">ref =</span> <span class="st">"controllo"</span>)</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="fu">contrasts</span>(df<span class="sc">$</span>condizione)</span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;               psicoterapia1 psicoterapia2</span></span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; controllo                 0             0</span></span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; psicoterapia1             1             0</span></span>
-<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; psicoterapia2             0             1</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>df<span class="sc">$</span>condizione <span class="ot">&lt;-</span> <span class="fu">factor</span>(df<span class="sc">$</span>condizione)</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>df<span class="sc">$</span>condizione <span class="ot">&lt;-</span> <span class="fu">relevel</span>(df<span class="sc">$</span>condizione, <span class="at">ref =</span> <span class="st">"controllo"</span>)</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="fu">contrasts</span>(df<span class="sc">$</span>condizione)</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;               psicoterapia1 psicoterapia2</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; controllo                 0             0</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; psicoterapia1             1             0</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; psicoterapia2             0             1</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>Con questa impostazione, il <strong>modello di regressione</strong> assume la forma:</p>
+<p>Il modello di regressione con dummy sarà:</p>
 <p><span class="math display">\[
-Y_i = \beta_0 \;+\; \beta_1 \,(\text{psicoterapia1}_i) \;+\; \beta_2 \,(\text{psicoterapia2}_i) \;+\; \varepsilon_i,
+Y_i = \beta_0 + \beta_1 \cdot \text{psicoterapia1}_i + \beta_2 \cdot \text{psicoterapia2}_i + \varepsilon_i,
 \]</span></p>
 <p>dove:</p>
 <ul>
-<li><span class="math inline">\(\beta_0\)</span> (l’intercetta) rappresenta la <strong>media della condizione di controllo</strong>.<br>
-</li>
-<li><span class="math inline">\(\beta_1\)</span> indica la <strong>differenza</strong> tra la media del gruppo <code>psicoterapia1</code> e la media del gruppo <code>controllo</code>.<br>
-</li>
-<li><span class="math inline">\(\beta_2\)</span> indica la <strong>differenza</strong> tra la media del gruppo <code>psicoterapia2</code> e la media del gruppo <code>controllo</code>.</li>
+<li><span class="math inline">\(\beta_0\)</span> è la media del gruppo di <strong>controllo</strong>;</li>
+<li><span class="math inline">\(\beta_1\)</span> e <span class="math inline">\(\beta_2\)</span> sono le differenze tra le rispettive psicoterapie e il gruppo di controllo.</li>
 </ul>
-<p>Le variabili <span class="math inline">\(\text{psicoterapia1}_i\)</span> e <span class="math inline">\(\text{psicoterapia2}_i\)</span> sono i regressori dummy (0/1) che R crea per i due gruppi di psicoterapia, mentre <span class="math inline">\(\varepsilon_i\)</span> è il termine di errore.</p>
-<p>In particolare, nei vari gruppi:</p>
+<section id="stima-del-modello" class="level3" data-number="69.4.1">
+<h3 data-number="69.4.1" class="anchored" data-anchor-id="stima-del-modello"><span class="header-section-number">69.4.1</span> Stima del modello</h3>
+<p>Eseguiamo una prima analisi usando il metodo di massima verosimiglianza:</p>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>fm1 <span class="ot">&lt;-</span> <span class="fu">lm</span>(punteggio <span class="sc">~</span> condizione, <span class="at">data =</span> df)</span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(fm1)</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Call:</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; lm(formula = punteggio ~ condizione, data = df)</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Residuals:</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     Min      1Q  Median      3Q     Max </span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; -11.668  -2.620  -0.183   2.681  10.128 </span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Coefficients:</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                         Estimate Std. Error t value Pr(&gt;|t|)</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; (Intercept)               29.764      0.819   36.33  &lt; 2e-16</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; condizionepsicoterapia1   -3.873      1.159   -3.34   0.0012</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; condizionepsicoterapia2   -9.642      1.159   -8.32  1.1e-12</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Residual standard error: 4.49 on 87 degrees of freedom</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Multiple R-squared:  0.446,  Adjusted R-squared:  0.434 </span></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; F-statistic: 35.1 on 2 and 87 DF,  p-value: 6.75e-12</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Verifica delle medie e differenze tra gruppi:</p>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>out <span class="ot">&lt;-</span> <span class="fu">tapply</span>(df<span class="sc">$</span>punteggio, df<span class="sc">$</span>condizione, mean)</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>out[<span class="dv">2</span>] <span class="sc">-</span> out[<span class="dv">1</span>]  <span class="co"># psicoterapia1 - controllo</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; psicoterapia1 </span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;        -3.873</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>out[<span class="dv">3</span>] <span class="sc">-</span> out[<span class="dv">1</span>]  <span class="co"># psicoterapia2 - controllo</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; psicoterapia2 </span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;        -9.642</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+</section>
+<section id="contrasti-personalizzati" class="level2" data-number="69.5">
+<h2 data-number="69.5" class="anchored" data-anchor-id="contrasti-personalizzati"><span class="header-section-number">69.5</span> Contrasti personalizzati</h2>
+<p>L’uso di contrasti personalizzati ci permette di testare ipotesi più specifiche. Ad esempio:</p>
 <ul>
-<li><p><strong>Gruppo di controllo</strong>: <span class="math inline">\(\text{psicoterapia1}_i = 0\)</span> e <span class="math inline">\(\text{psicoterapia2}_i = 0\)</span>.<br>
-<span class="math display">\[
-E[Y_{\text{controllo}}] = \beta_0.
-\]</span></p></li>
-<li><p><strong>Gruppo psicoterapia1</strong>: <span class="math inline">\(\text{psicoterapia1}_i = 1\)</span> e <span class="math inline">\(\text{psicoterapia2}_i = 0\)</span>.<br>
-<span class="math display">\[
-E[Y_{\text{psicoterapia1}}] = \beta_0 + \beta_1.
-\]</span></p></li>
-<li><p><strong>Gruppo psicoterapia2</strong>: <span class="math inline">\(\text{psicoterapia1}_i = 0\)</span> e <span class="math inline">\(\text{psicoterapia2}_i = 1\)</span>.<br>
-<span class="math display">\[
-E[Y_{\text{psicoterapia2}}] = \beta_0 + \beta_2.
-\]</span></p></li>
+<li><strong>contrasto 1</strong>: controllare se la media del gruppo <code>controllo</code> differisce dalla media combinata delle due psicoterapie;</li>
+<li><strong>contrasto 2</strong>: confrontare direttamente <code>psicoterapia1</code> con <code>psicoterapia2</code>.</li>
 </ul>
-<p>In altre parole, <strong><span class="math inline">\(\beta_1\)</span></strong> e <strong><span class="math inline">\(\beta_2\)</span></strong> misurano rispettivamente di quanto la media di <code>psicoterapia1</code> e di <code>psicoterapia2</code> si discostino dalla media del gruppo di riferimento (<code>controllo</code>).</p>
-<hr>
-<section id="stima-del-modello-e-interpretazione-dei-coefficienti" class="level3" data-number="69.3.1">
-<h3 data-number="69.3.1" class="anchored" data-anchor-id="stima-del-modello-e-interpretazione-dei-coefficienti"><span class="header-section-number">69.3.1</span> Stima del modello e interpretazione dei coefficienti</h3>
-<p>Per verificare quanto detto, stimiamo il modello di regressione con l’approccio frequentista:</p>
+<section id="matrice-dei-contrasti" class="level3" data-number="69.5.1">
+<h3 data-number="69.5.1" class="anchored" data-anchor-id="matrice-dei-contrasti"><span class="header-section-number">69.5.1</span> Matrice dei contrasti</h3>
 <div class="cell" data-layout-align="center">
-<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>fm1 <span class="ot">&lt;-</span> <span class="fu">lm</span>(punteggio <span class="sc">~</span> condizione, <span class="at">data =</span> df)</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(fm1)</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Call:</span></span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; lm(formula = punteggio ~ condizione, data = df)</span></span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Residuals:</span></span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     Min      1Q  Median      3Q     Max </span></span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; -11.668  -2.620  -0.183   2.681  10.128 </span></span>
-<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
-<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Coefficients:</span></span>
-<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                         Estimate Std. Error t value Pr(&gt;|t|)</span></span>
-<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; (Intercept)               29.764      0.819   36.33  &lt; 2e-16</span></span>
-<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; condizionepsicoterapia1   -3.873      1.159   -3.34   0.0012</span></span>
-<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; condizionepsicoterapia2   -9.642      1.159   -8.32  1.1e-12</span></span>
-<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
-<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Residual standard error: 4.49 on 87 degrees of freedom</span></span>
-<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Multiple R-squared:  0.446,  Adjusted R-squared:  0.434 </span></span>
-<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; F-statistic: 35.1 on 2 and 87 DF,  p-value: 6.75e-12</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>my_contrasts <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="fu">c</span>(</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>  <span class="fl">0.6667</span>,  <span class="dv">0</span>,     <span class="co"># controllo</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a> <span class="sc">-</span><span class="fl">0.3333</span>,  <span class="fl">0.5</span>,   <span class="co"># psicoterapia1</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a> <span class="sc">-</span><span class="fl">0.3333</span>, <span class="sc">-</span><span class="fl">0.5</span>    <span class="co"># psicoterapia2</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>), <span class="at">ncol =</span> <span class="dv">2</span>, <span class="at">byrow =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="fu">colnames</span>(my_contrasts) <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"Ctrl_vs_PsicoMean"</span>, <span class="st">"P1_vs_P2"</span>)</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="fu">rownames</span>(my_contrasts) <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"controllo"</span>, <span class="st">"psicoterapia1"</span>, <span class="st">"psicoterapia2"</span>)</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="fu">contrasts</span>(df<span class="sc">$</span>condizione) <span class="ot">&lt;-</span> my_contrasts</span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>Possiamo anche calcolare le medie empiriche di ciascun gruppo:</p>
 <div class="cell" data-layout-align="center">
-<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>out <span class="ot">&lt;-</span> <span class="fu">tapply</span>(df<span class="sc">$</span>punteggio, df<span class="sc">$</span>condizione, mean)</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>out</span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     controllo psicoterapia1 psicoterapia2 </span></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;         29.76         25.89         20.12</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>mod_custom <span class="ot">&lt;-</span> <span class="fu">lm</span>(punteggio <span class="sc">~</span> condizione, <span class="at">data =</span> df)</span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>e quindi le differenze rispetto al controllo:</p>
 <div class="cell" data-layout-align="center">
-<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>out[<span class="dv">2</span>] <span class="sc">-</span> out[<span class="dv">1</span>]  <span class="co"># Differenza psico1 - controllo</span></span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; psicoterapia1 </span></span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;        -3.873</span></span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>out[<span class="dv">3</span>] <span class="sc">-</span> out[<span class="dv">1</span>]  <span class="co"># Differenza psico2 - controllo</span></span>
-<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; psicoterapia2 </span></span>
-<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;        -9.642</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<p>Le stime dei coefficienti ottenute da <code>summary(fm1)</code> coincideranno con queste differenze (a meno di arrotondamenti). In altre parole, l’inferenza (frequentista o bayesiana) sul coefficiente <span class="math inline">\(\beta_j\)</span> corrisponde all’inferenza su tale scostamento tra medie.</p>
-</section>
-</section>
-<section id="contrasti-personalizzati" class="level2" data-number="69.4">
-<h2 data-number="69.4" class="anchored" data-anchor-id="contrasti-personalizzati"><span class="header-section-number">69.4</span> Contrasti personalizzati</h2>
-<p>Quando abbiamo un fattore con tre livelli — ad esempio, <code>controllo</code>, <code>psicoterapia1</code> e <code>psicoterapia2</code> — esistono vari schemi di codifica per le variabili dummy. Scegliere lo schema di codifica adeguato significa decidere come interpretare i coefficienti del modello. Per esempio, se vogliamo rispondere alla domanda «la <strong>media congiunta</strong> delle due psicoterapie è minore (o maggiore) della <strong>media del controllo</strong>?», possiamo definire un <strong>contrasto lineare</strong> ad hoc che confronti il gruppo <code>controllo</code> con la media delle due <code>psicoterapie</code>.</p>
-<section id="possibili-approcci" class="level3" data-number="69.4.1">
-<h3 data-number="69.4.1" class="anchored" data-anchor-id="possibili-approcci"><span class="header-section-number">69.4.1</span> Possibili approcci</h3>
-<ol type="1">
-<li><strong>Creare un contrasto lineare ad hoc</strong> che confronti <span class="math inline">\(\{\text{psicoterapia1}, \text{psicoterapia2}\}\)</span> con <code>controllo</code>.<br>
-</li>
-<li><strong>Raggruppare</strong> i due livelli di psicoterapia in un nuovo fattore binario (<code>controllo</code> vs.&nbsp;<code>psicoterapia</code>) e condurre un test su questo fattore a due livelli (ma in questo modo si perderebbe la distinzione tra “psicoterapia1” e “psicoterapia2”).</li>
-</ol>
-<p>Il metodo più <strong>flessibile</strong> è definire direttamente contrasti personalizzati sul fattore a tre livelli. In tal modo, possiamo gestire contemporaneamente più confronti, ad esempio:</p>
-<ul>
-<li><strong>Contrasto 1</strong>: <code>controllo</code> vs.&nbsp;media (<code>psicoterapia1</code>, <code>psicoterapia2</code>)<br>
-</li>
-<li><strong>Contrasto 2</strong>: <code>psicoterapia1</code> vs.&nbsp;<code>psicoterapia2</code></li>
-</ul>
-<hr>
-</section>
-<section id="contrasti-personalizzati-in-r" class="level3" data-number="69.4.2">
-<h3 data-number="69.4.2" class="anchored" data-anchor-id="contrasti-personalizzati-in-r"><span class="header-section-number">69.4.2</span> Contrasti personalizzati in R</h3>
-<p><strong>Obiettivo</strong>: definire due contrasti ortogonali per confrontare (1) il gruppo di controllo con la <strong>media</strong> delle due psicoterapie e (2) <code>psicoterapia1</code> con <code>psicoterapia2</code>.</p>
-</section>
-<section id="contrasto-1-controllo-vs.-psico1-psico2" class="level3" data-number="69.4.3">
-<h3 data-number="69.4.3" class="anchored" data-anchor-id="contrasto-1-controllo-vs.-psico1-psico2"><span class="header-section-number">69.4.3</span> Contrasto 1: Controllo vs.&nbsp;(psico1 + psico2)</h3>
-<ul>
-<li><p>Contrasto “grezzo” (non normalizzato):</p>
-<p><span class="math display">\[
-  (-2,\; +1,\; +1)
-  \quad \text{con} \quad -2 + 1 + 1 = 0.
-\]</span></p>
-<p>Se usassimo questi pesi direttamente, il coefficiente stimato <span class="math inline">\(\beta_1\)</span> sarebbe proporzionale alla differenza tra la media del <code>controllo</code> e la <strong>media delle due psicoterapie</strong>. Tuttavia, il passo da <code>controllo</code> (<span class="math inline">\(-2\)</span>) a ciascuna psicoterapia (<span class="math inline">\(+1\)</span>) è di 3 unità, il che può rendere il coefficiente meno intuitivo da leggere.</p></li>
-<li><p><strong>Normalizzazione</strong><br>
-Possiamo dividere ogni valore di <span class="math inline">\((-2, +1, +1)\)</span> per la <strong>somma assoluta</strong> (o per la <strong>radice della somma dei quadrati</strong>, o per un altro fattore) al fine di ottenere contrasti più semplici.<br>
-Ad esempio, se dividiamo <span class="math inline">\((-2, +1, +1)\)</span> per 3, otteniamo <span class="math inline">\(\bigl(-\tfrac{2}{3}, +\tfrac{1}{3}, +\tfrac{1}{3}\bigr)\)</span>. In tal caso, passare da <code>controllo</code> a <code>psicoterapia</code> fa variare il contrasto di <strong>1</strong> (anziché di 3).</p></li>
-</ul>
-</section>
-<section id="contrasto-2-psico1-vs.-psico2" class="level3" data-number="69.4.4">
-<h3 data-number="69.4.4" class="anchored" data-anchor-id="contrasto-2-psico1-vs.-psico2"><span class="header-section-number">69.4.4</span> Contrasto 2: psico1 vs.&nbsp;psico2</h3>
-<ul>
-<li><p>Contrasto “grezzo”:</p>
-<p><span class="math display">\[
-   (\,0,\; +1,\; -1\,)
-   \quad \text{con} \quad 0 + 1 + (-1) = 0.
-\]</span></p>
-<p>Questo pesi confrontano direttamente <code>psicoterapia1</code> con <code>psicoterapia2</code>.</p></li>
-<li><p><strong>Normalizzazione</strong> (opzionale)<br>
-Possiamo anche qui dividere per la radice della somma dei quadrati <span class="math inline">\(\sqrt{(0^2 + 1^2 + (-1)^2)}= \sqrt{2}\)</span>, oppure lasciare i pesi così (poiché qui già passare da p1 a p2 equivale a 2 unità, e potrebbe essere chiaro abbastanza).</p></li>
-</ul>
-<p>Nel codice seguente, si è scelto di <strong>riscalare</strong> (o “normalizzare”) i pesi in modo leggermente diverso, ottenendo numeri come <code>0.6667</code> e <code>-0.3333</code>. L’importante è che:</p>
-<ol type="1">
-<li>La <strong>somma</strong> dei pesi in ciascun contrasto rimanga <strong>0</strong>.<br>
-</li>
-<li>I due contrasti siano <strong>ortogonali</strong> (i prodotti incrociati dei pesi per ogni livello sommano a 0).</li>
-</ol>
-<hr>
-</section>
-</section>
-<section id="codice-r-per-impostare-e-verificare-i-contrasti" class="level2" data-number="69.5">
-<h2 data-number="69.5" class="anchored" data-anchor-id="codice-r-per-impostare-e-verificare-i-contrasti"><span class="header-section-number">69.5</span> Codice R per impostare e verificare i Contrasti</h2>
-<p>Di seguito mostriamo un esempio concreto. <strong>Prima</strong> descriviamo la matrice di contrasti “grezza” e <strong>poi</strong> quella normalizzata usata nel codice.</p>
-<section id="matrice-di-contrasti-grezza" class="level3" data-number="69.5.1">
-<h3 data-number="69.5.1" class="anchored" data-anchor-id="matrice-di-contrasti-grezza"><span class="header-section-number">69.5.1</span> Matrice di contrasti “grezza”</h3>
-<div class="cell" data-layout-align="center">
-<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Contrasto 1 (grezzo):  -2, +1, +1</span></span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Contrasto 2 (grezzo):   0, +1, -1</span></span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>my_contrasts_raw <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="fu">c</span>(</span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>  <span class="sc">-</span><span class="dv">2</span>,  <span class="dv">0</span>,  <span class="co"># controllo</span></span>
-<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>   <span class="dv">1</span>, <span class="sc">+</span><span class="dv">1</span>,  <span class="co"># psicoterapia1</span></span>
-<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>   <span class="dv">1</span>, <span class="sc">-</span><span class="dv">1</span>   <span class="co"># psicoterapia2</span></span>
-<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>), <span class="at">ncol =</span> <span class="dv">2</span>, <span class="at">byrow =</span> <span class="cn">TRUE</span>)</span>
-<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a><span class="fu">colnames</span>(my_contrasts_raw) <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"Ctrl_vs_PsicoMean"</span>, <span class="st">"P1_vs_P2"</span>)</span>
-<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a><span class="fu">rownames</span>(my_contrasts_raw) <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"controllo"</span>,<span class="st">"psicoterapia1"</span>,<span class="st">"psicoterapia2"</span>)</span>
-<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>my_contrasts_raw</span>
-<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;               Ctrl_vs_PsicoMean P1_vs_P2</span></span>
-<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; controllo                    -2        0</span></span>
-<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; psicoterapia1                 1        1</span></span>
-<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; psicoterapia2                 1       -1</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-</section>
-<section id="matrice-di-contrasti-normalizzata-quella-effettivamente-nel-codice" class="level3" data-number="69.5.2">
-<h3 data-number="69.5.2" class="anchored" data-anchor-id="matrice-di-contrasti-normalizzata-quella-effettivamente-nel-codice"><span class="header-section-number">69.5.2</span> Matrice di contrasti “normalizzata” (quella effettivamente nel codice)</h3>
-<p>Nel codice che segue, i pesi sono stati <strong>riscalati</strong> per avere differenze di “1” anziché “3” o “2” quando si passa da un gruppo all’altro. Puoi notare, per il primo contrasto, i valori <span class="math inline">\((+0.6667, -0.3333, -0.3333)\)</span> invece di <span class="math inline">\((+1, -0.5, -0.5)\)</span> o <span class="math inline">\((-2, +1, +1)\)</span>. Sono solo versioni <strong>multiplicativamente equivalenti</strong>.</p>
-<div class="cell" data-layout-align="center">
-<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">123</span>)</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Esempio: definizione della matrice di contrasti</span></span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>my_contrasts <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="fu">c</span>(</span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>  <span class="fl">0.6667</span>,  <span class="dv">0</span>,    <span class="co"># controllo  = +0.6667</span></span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>  <span class="sc">-</span><span class="fl">0.3333</span>, <span class="fl">0.5</span>,  <span class="co"># p1         = -0.3333</span></span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>  <span class="sc">-</span><span class="fl">0.3333</span>, <span class="sc">-</span><span class="fl">0.5</span>  <span class="co"># p2         = -0.3333</span></span>
-<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>), <span class="at">ncol =</span> <span class="dv">2</span>, <span class="at">byrow =</span> <span class="cn">TRUE</span>)</span>
-<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a><span class="fu">colnames</span>(my_contrasts) <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"Ctrl_vs_PsicoMean"</span>, <span class="st">"P1_vs_P2"</span>)</span>
-<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a><span class="fu">rownames</span>(my_contrasts) <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"controllo"</span>, <span class="st">"psicoterapia1"</span>, <span class="st">"psicoterapia2"</span>)</span>
-<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Verifica: ogni colonna deve sommare a 0</span></span>
-<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a><span class="fu">colSums</span>(my_contrasts)  <span class="co"># dovrebbero essere circa (0, 0)</span></span>
-<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Ctrl_vs_PsicoMean          P1_vs_P2 </span></span>
-<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;            0.0001            0.0000</span></span>
-<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Verifica: i due contrasti sono ortogonali?</span></span>
-<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a><span class="fu">sum</span>(my_contrasts[,<span class="dv">1</span>] <span class="sc">*</span> my_contrasts[,<span class="dv">2</span>])  <span class="co"># dovrebbe essere 0</span></span>
-<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] 0</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-</section>
-<section id="applicazione-al-modello" class="level3" data-number="69.5.3">
-<h3 data-number="69.5.3" class="anchored" data-anchor-id="applicazione-al-modello"><span class="header-section-number">69.5.3</span> Applicazione al modello</h3>
-<div class="cell" data-layout-align="center">
-<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1) Convertiamo 'condizione' in fattore (se non già fattore)</span></span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>df<span class="sc">$</span>condizione <span class="ot">&lt;-</span> <span class="fu">factor</span>(df<span class="sc">$</span>condizione)</span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 2) Assegnamo la matrice di contrasti al fattore</span></span>
-<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="fu">contrasts</span>(df<span class="sc">$</span>condizione) <span class="ot">&lt;-</span> my_contrasts</span>
-<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 3) Stimiamo il modello di regressione lineare</span></span>
-<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>mod_custom <span class="ot">&lt;-</span> <span class="fu">lm</span>(punteggio <span class="sc">~</span> condizione, <span class="at">data =</span> df)</span>
-<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 4) Esaminiamo il riepilogo</span></span>
-<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mod_custom)</span>
-<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
-<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Call:</span></span>
-<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; lm(formula = punteggio ~ condizione, data = df)</span></span>
-<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
-<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Residuals:</span></span>
-<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     Min      1Q  Median      3Q     Max </span></span>
-<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; -11.668  -2.620  -0.183   2.681  10.128 </span></span>
-<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
-<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Coefficients:</span></span>
-<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                             Estimate Std. Error t value Pr(&gt;|t|)</span></span>
-<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; (Intercept)                   25.259      0.473   53.40  &lt; 2e-16</span></span>
-<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; condizioneCtrl_vs_PsicoMean    6.758      1.003    6.73  1.7e-09</span></span>
-<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; condizioneP1_vs_P2             5.770      1.159    4.98  3.2e-06</span></span>
-<span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
-<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Residual standard error: 4.49 on 87 degrees of freedom</span></span>
-<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Multiple R-squared:  0.446,  Adjusted R-squared:  0.434 </span></span>
-<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; F-statistic: 35.1 on 2 and 87 DF,  p-value: 6.75e-12</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mod_custom)</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Call:</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; lm(formula = punteggio ~ condizione, data = df)</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Residuals:</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     Min      1Q  Median      3Q     Max </span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; -11.668  -2.620  -0.183   2.681  10.128 </span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Coefficients:</span></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                             Estimate Std. Error t value Pr(&gt;|t|)</span></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; (Intercept)                   25.259      0.473   53.40  &lt; 2e-16</span></span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; condizioneCtrl_vs_PsicoMean    6.758      1.003    6.73  1.7e-09</span></span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; condizioneP1_vs_P2             5.770      1.159    4.98  3.2e-06</span></span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Residual standard error: 4.49 on 87 degrees of freedom</span></span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Multiple R-squared:  0.446,  Adjusted R-squared:  0.434 </span></span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; F-statistic: 35.1 on 2 and 87 DF,  p-value: 6.75e-12</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
 </section>
 <section id="interpretazione-dei-coefficienti" class="level2" data-number="69.6">
 <h2 data-number="69.6" class="anchored" data-anchor-id="interpretazione-dei-coefficienti"><span class="header-section-number">69.6</span> Interpretazione dei coefficienti</h2>
-<ol type="1">
-<li><p><strong>Intercetta (<span class="math inline">\(\hat{\alpha}\)</span>)</strong><br>
-In base allo schema di contrasti adottato, può non coincidere con la media effettiva di uno dei tre gruppi. Spesso rappresenta una qualche combinazione lineare delle medie di <code>controllo</code>, <code>psicoterapia1</code> e <code>psicoterapia2</code>.</p></li>
-<li><p><strong>Primo coefficiente (“Ctrl_vs_PsicoMean”)</strong><br>
-Confronta la media del gruppo di controllo con la media (eventualmente pesata) delle due psicoterapie.</p>
 <ul>
-<li>Se è <strong>positivo</strong>, il controllo ha una media <strong>maggiore</strong> rispetto a quella (combinata) delle psicoterapie.<br>
-</li>
-<li>Se è <strong>negativo</strong>, indica il contrario (psicoterapie &gt; controllo).</li>
-</ul></li>
-<li><p><strong>Secondo coefficiente (“P1_vs_P2”)</strong><br>
-Confronta direttamente <code>psicoterapia1</code> con <code>psicoterapia2</code>.</p>
-<ul>
-<li>Se è <strong>positivo</strong>, <code>psicoterapia1</code> ha un punteggio <strong>maggiore</strong> (in media) di <code>psicoterapia2</code>.<br>
-</li>
-<li>Se è <strong>negativo</strong>, <code>psicoterapia2</code> supera <code>psicoterapia1</code>.</li>
-</ul></li>
-</ol>
-<p>Per controllare manualmente queste differenze, puoi calcolare:</p>
-<ul>
-<li><span class="math inline">\(\text{controllo} - \frac{\text{psicoterapia1} + \text{psicoterapia2}}{2}\)</span>:</li>
+<li><strong>Intercetta</strong>: non rappresenta più una singola media, ma una combinazione lineare dei gruppi.</li>
+<li><strong>Ctrl_vs_PsicoMean</strong>: confronta la media di <code>controllo</code> con la media combinata delle due psicoterapie.</li>
+<li><strong>P1_vs_P2</strong>: differenza tra le due psicoterapie.</li>
 </ul>
+<p>Verifica manuale:</p>
 <div class="cell" data-layout-align="center">
-<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>out[<span class="dv">1</span>] <span class="sc">-</span> (out[<span class="dv">2</span>] <span class="sc">+</span> out[<span class="dv">3</span>]) <span class="sc">/</span> <span class="dv">2</span></span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; controllo </span></span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     6.758</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<p>dove <code>out[i]</code> è la media empirica del gruppo <span class="math inline">\(i\)</span>.</p>
-<ul>
-<li><span class="math inline">\(\text{psicoterapia1} - \text{psicoterapia2}\)</span>:</li>
-</ul>
-<div class="cell" data-layout-align="center">
-<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>out[<span class="dv">2</span>] <span class="sc">-</span> out[<span class="dv">3</span>]</span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; psicoterapia1 </span></span>
-<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;          5.77</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<p>In sintesi,</p>
-<ol type="1">
-<li>La <strong>matrice grezza</strong> <span class="math inline">\(\begin{pmatrix} -2 &amp; 0 \\ 1 &amp; 1 \\ 1 &amp; -1 \end{pmatrix}\)</span> e la <strong>matrice normalizzata</strong> (con valori decimali) rappresentano lo stesso schema di contrasti, ma con differenti scale numeriche.<br>
-</li>
-<li>L’aspetto essenziale è che ciascun contrasto <strong>sommi a 0</strong> e che i due contrasti siano <strong>ortogonali</strong> (prodotto incrociato dei pesi = 0), garantendo interpretazioni indipendenti.<br>
-</li>
-<li>Normalizzare i pesi modifica il <strong>valore numerico</strong> dei coefficienti, ma non la loro <strong>significatività statistica</strong>.</li>
-</ol>
-<p>Scegliendo opportunamente la matrice dei contrasti, possiamo verificare se la media congiunta di <code>psicoterapia1</code> e <code>psicoterapia2</code> differisce da quella di <code>controllo</code> e, contemporaneamente, se <code>psicoterapia1</code> differisce da <code>psicoterapia2</code>. L’eventuale <strong>normalizzazione</strong> dei pesi non incide sulle conclusioni del test, ma influenza la scala numerica dei coefficienti.</p>
-</section>
-<section id="pacchetto-emmeans" class="level2" data-number="69.7">
-<h2 data-number="69.7" class="anchored" data-anchor-id="pacchetto-emmeans"><span class="header-section-number">69.7</span> Pacchetto <code>emmeans</code></h2>
-<p>Le stesse analisi descritte sopra possono essere svolte utilizzando le funzioni del pacchetto <code>emmeans</code>. L’idea è:</p>
-<ol type="1">
-<li>Stimare un modello lineare (come prima).<br>
-</li>
-<li>Calcolare le stime delle medie marginali (le “means” del fattore <code>condizione</code>) tramite <code>emmeans()</code>.<br>
-</li>
-<li>Definire i <strong>contrasti</strong> di interesse con la funzione <code>contrast()</code>.</li>
-</ol>
-<p>In questo modo, è possibile ottenere stime delle medie di ciascun gruppo e confrontarle (ad esempio “controllo” vs.&nbsp;“media delle psicoterapie” o “psicoterapia1” vs.&nbsp;“psicoterapia2”), anche in forma di test statistici (p-value, intervalli di confidenza, ecc.).</p>
-<section id="preparazione-del-modello" class="level3" data-number="69.7.1">
-<h3 data-number="69.7.1" class="anchored" data-anchor-id="preparazione-del-modello"><span class="header-section-number">69.7.1</span> Preparazione del modello</h3>
-<p>Usiamo ora un modello bayesiano, con prior non informativi o debolmente informativi:</p>
-<div class="cell" data-layout-align="center">
-<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>mod <span class="ot">&lt;-</span> <span class="fu">brm</span>(punteggio <span class="sc">~</span> condizione, <span class="at">data =</span> df, <span class="at">backend =</span> <span class="st">"cmdstanr"</span>)</span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<div class="cell" data-layout-align="center">
-<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mod)</span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  Family: gaussian </span></span>
-<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Links: mu = identity; sigma = identity </span></span>
-<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Formula: punteggio ~ condizione </span></span>
-<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;    Data: df (Number of observations: 90) </span></span>
-<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Draws: 4 chains, each with iter = 2000; warmup = 1000; thin = 1;</span></span>
-<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;          total post-warmup draws = 4000</span></span>
-<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
-<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Regression Coefficients:</span></span>
-<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                             Estimate Est.Error l-95% CI u-95% CI Rhat</span></span>
-<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Intercept                      25.25      0.48    24.30    26.21 1.00</span></span>
-<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; condizioneCtrl_vs_PsicoMean     6.77      1.02     4.79     8.77 1.00</span></span>
-<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; condizioneP1_vs_P2              5.73      1.20     3.34     8.03 1.00</span></span>
-<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                             Bulk_ESS Tail_ESS</span></span>
-<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Intercept                       4391     3161</span></span>
-<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; condizioneCtrl_vs_PsicoMean     4794     3220</span></span>
-<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; condizioneP1_vs_P2              4632     2764</span></span>
-<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
-<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Further Distributional Parameters:</span></span>
-<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;       Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS</span></span>
-<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; sigma     4.54      0.35     3.93     5.30 1.00     4090     2859</span></span>
-<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
-<span id="cb17-23"><a href="#cb17-23" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Draws were sampled using sample(hmc). For each parameter, Bulk_ESS</span></span>
-<span id="cb17-24"><a href="#cb17-24" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; and Tail_ESS are effective sample size measures, and Rhat is the potential</span></span>
-<span id="cb17-25"><a href="#cb17-25" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; scale reduction factor on split chains (at convergence, Rhat = 1).</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Controllo - media delle psicoterapie</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>out[<span class="dv">1</span>] <span class="sc">-</span> (out[<span class="dv">2</span>] <span class="sc">+</span> out[<span class="dv">3</span>]) <span class="sc">/</span> <span class="dv">2</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; controllo </span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     6.758</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Psicoterapia1 - Psicoterapia2</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>out[<span class="dv">2</span>] <span class="sc">-</span> out[<span class="dv">3</span>]</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; psicoterapia1 </span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;          5.77</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
-<section id="calcolo-delle-medie-marginali-con-emmeans" class="level3" data-number="69.7.2">
-<h3 data-number="69.7.2" class="anchored" data-anchor-id="calcolo-delle-medie-marginali-con-emmeans"><span class="header-section-number">69.7.2</span> Calcolo delle medie marginali con <code>emmeans</code></h3>
-<p>Calcoliamo le stime delle medie (ls-means) per ciascun livello di ‘condizione’:</p>
+<section id="uso-del-pacchetto-emmeans" class="level2" data-number="69.7">
+<h2 data-number="69.7" class="anchored" data-anchor-id="uso-del-pacchetto-emmeans"><span class="header-section-number">69.7</span> Uso del pacchetto <code>emmeans</code></h2>
+<p>Il pacchetto <code>emmeans</code> consente di ottenere gli stessi risultati in modo più diretto e modulare.</p>
+<section id="stima-con-brms" class="level3" data-number="69.7.1">
+<h3 data-number="69.7.1" class="anchored" data-anchor-id="stima-con-brms"><span class="header-section-number">69.7.1</span> Stima con <code>brms</code></h3>
+<p>Usiamo ora <code>emmeans</code> con <code>brms</code>:</p>
 <div class="cell" data-layout-align="center">
-<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>em <span class="ot">&lt;-</span> <span class="fu">emmeans</span>(mod, <span class="at">specs =</span> <span class="st">"condizione"</span>)</span>
-<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>em</span>
-<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  condizione    emmean lower.HPD upper.HPD</span></span>
-<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  controllo       29.8      28.3      31.5</span></span>
-<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  psicoterapia1   25.9      24.3      27.6</span></span>
-<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  psicoterapia2   20.1      18.4      21.8</span></span>
-<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
-<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Point estimate displayed: median </span></span>
-<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; HPD interval probability: 0.95</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>mod <span class="ot">&lt;-</span> <span class="fu">brm</span>(punteggio <span class="sc">~</span> condizione, <span class="at">data =</span> df, <span class="at">backend =</span> <span class="st">"cmdstanr"</span>)</span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>Questo oggetto <code>em</code> contiene le medie stimate (e i relativi errori standard) per i tre gruppi: “controllo”, “psicoterapia1” e “psicoterapia2”.</p>
-</section>
-<section id="confronti-pairwise-tra-i-gruppi" class="level3" data-number="69.7.3">
-<h3 data-number="69.7.3" class="anchored" data-anchor-id="confronti-pairwise-tra-i-gruppi"><span class="header-section-number">69.7.3</span> Confronti (pairwise) tra i gruppi</h3>
-<p>Confronti a coppie tra tutti i livelli di ‘condizione’ (psicoterapia1 vs controllo, ecc.):</p>
 <div class="cell" data-layout-align="center">
-<div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="fu">pairs</span>(em)</span>
-<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  contrast                      estimate lower.HPD upper.HPD</span></span>
-<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  controllo - psicoterapia1         3.91      1.62      6.21</span></span>
-<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  controllo - psicoterapia2         9.64      7.24     11.94</span></span>
-<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  psicoterapia1 - psicoterapia2     5.74      3.30      7.96</span></span>
-<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
-<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Point estimate displayed: median </span></span>
-<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; HPD interval probability: 0.95</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-</section>
-<section id="contrasti-personalizzati-1" class="level3" data-number="69.7.4">
-<h3 data-number="69.7.4" class="anchored" data-anchor-id="contrasti-personalizzati-1"><span class="header-section-number">69.7.4</span> Contrasti personalizzati</h3>
-<p>Replichiamo i contrasti “ad hoc” (“controllo vs (psico1+psico2)” e “psicoterapia1 vs psicoterapia2”) utilizzati in precedenza:</p>
-<div class="cell" data-layout-align="center">
-<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Definiamo i contrasti desiderati</span></span>
-<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>my_list <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
-<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>  <span class="st">"Ctrl_vs_PsicoMean"</span> <span class="ot">=</span> </span>
-<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">c</span>(<span class="st">"controllo"</span> <span class="ot">=</span> <span class="dv">1</span>, <span class="st">"psicoterapia1"</span> <span class="ot">=</span> <span class="sc">-</span><span class="fl">0.5</span>, <span class="st">"psicoterapia2"</span> <span class="ot">=</span> <span class="sc">-</span><span class="fl">0.5</span>),</span>
-<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>  <span class="st">"P1_vs_P2"</span>          <span class="ot">=</span> </span>
-<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">c</span>(<span class="st">"controllo"</span> <span class="ot">=</span> <span class="dv">0</span>,  <span class="st">"psicoterapia1"</span> <span class="ot">=</span> <span class="dv">1</span>,    <span class="st">"psicoterapia2"</span> <span class="ot">=</span> <span class="sc">-</span><span class="dv">1</span>)</span>
-<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a><span class="fu">contrast</span>(em, <span class="at">method =</span> my_list)</span>
-<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  contrast          estimate lower.HPD upper.HPD</span></span>
-<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  Ctrl_vs_PsicoMean     6.76      4.78      8.74</span></span>
-<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  P1_vs_P2              5.74      3.30      7.96</span></span>
-<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
-<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Point estimate displayed: median </span></span>
-<span id="cb20-15"><a href="#cb20-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; HPD interval probability: 0.95</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mod)</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  Family: gaussian </span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Links: mu = identity; sigma = identity </span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Formula: punteggio ~ condizione </span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;    Data: df (Number of observations: 90) </span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Draws: 4 chains, each with iter = 2000; warmup = 1000; thin = 1;</span></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;          total post-warmup draws = 4000</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Regression Coefficients:</span></span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                             Estimate Est.Error l-95% CI u-95% CI Rhat</span></span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Intercept                      25.26      0.48    24.33    26.15 1.00</span></span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; condizioneCtrl_vs_PsicoMean     6.78      1.04     4.73     8.85 1.00</span></span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; condizioneP1_vs_P2              5.76      1.16     3.49     8.08 1.00</span></span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                             Bulk_ESS Tail_ESS</span></span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Intercept                       4321     2937</span></span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; condizioneCtrl_vs_PsicoMean     4260     2964</span></span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; condizioneP1_vs_P2              4598     2785</span></span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Further Distributional Parameters:</span></span>
+<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;       Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS</span></span>
+<span id="cb14-21"><a href="#cb14-21" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; sigma     4.54      0.34     3.93     5.26 1.00     4287     3279</span></span>
+<span id="cb14-22"><a href="#cb14-22" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb14-23"><a href="#cb14-23" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Draws were sampled using sample(hmc). For each parameter, Bulk_ESS</span></span>
+<span id="cb14-24"><a href="#cb14-24" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; and Tail_ESS are effective sample size measures, and Rhat is the potential</span></span>
+<span id="cb14-25"><a href="#cb14-25" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; scale reduction factor on split chains (at convergence, Rhat = 1).</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
+<section id="calcolo-delle-medie-marginali" class="level3" data-number="69.7.2">
+<h3 data-number="69.7.2" class="anchored" data-anchor-id="calcolo-delle-medie-marginali"><span class="header-section-number">69.7.2</span> Calcolo delle medie marginali</h3>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>em <span class="ot">&lt;-</span> <span class="fu">emmeans</span>(mod, <span class="at">specs =</span> <span class="st">"condizione"</span>)</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>em</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  condizione    emmean lower.HPD upper.HPD</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  controllo       29.8      28.1      31.4</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  psicoterapia1   25.9      24.3      27.5</span></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  psicoterapia2   20.1      18.4      21.7</span></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Point estimate displayed: median </span></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; HPD interval probability: 0.95</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
 </section>
-<section id="altre-opzioni-utili-di-emmeans" class="level2" data-number="69.8">
-<h2 data-number="69.8" class="anchored" data-anchor-id="altre-opzioni-utili-di-emmeans"><span class="header-section-number">69.8</span> Altre opzioni utili di <code>emmeans</code></h2>
-<ul>
-<li><strong>Credibility intervals</strong>:</li>
-</ul>
+<section id="confronti-tra-gruppi" class="level3" data-number="69.7.3">
+<h3 data-number="69.7.3" class="anchored" data-anchor-id="confronti-tra-gruppi"><span class="header-section-number">69.7.3</span> Confronti tra gruppi</h3>
 <div class="cell" data-layout-align="center">
-<div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="fu">confint</span>( <span class="fu">contrast</span>(em, <span class="at">method =</span> my_list) )</span>
-<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  contrast          estimate lower.HPD upper.HPD</span></span>
-<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  Ctrl_vs_PsicoMean     6.76      4.78      8.74</span></span>
-<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  P1_vs_P2              5.74      3.30      7.96</span></span>
-<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
-<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Point estimate displayed: median </span></span>
-<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; HPD interval probability: 0.95</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="fu">pairs</span>(em)  <span class="co"># confronti a coppie</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  contrast                      estimate lower.HPD upper.HPD</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  controllo - psicoterapia1         3.90      1.70      6.21</span></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  controllo - psicoterapia2         9.65      7.31     12.03</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  psicoterapia1 - psicoterapia2     5.75      3.57      8.14</span></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Point estimate displayed: median </span></span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; HPD interval probability: 0.95</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>per intervalli di confidenza dei contrasti specificati.</p>
-<ul>
-<li><strong>Test corretti per confronti multipli</strong>:</li>
-</ul>
+</section>
+<section id="contrasti-personalizzati-con-emmeans" class="level3" data-number="69.7.4">
+<h3 data-number="69.7.4" class="anchored" data-anchor-id="contrasti-personalizzati-con-emmeans"><span class="header-section-number">69.7.4</span> Contrasti personalizzati con <code>emmeans</code></h3>
 <div class="cell" data-layout-align="center">
-<div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="fu">contrast</span>(em, <span class="at">method =</span> my_list, <span class="at">adjust =</span> <span class="st">"bonferroni"</span>)</span>
-<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  contrast          estimate lower.HPD upper.HPD</span></span>
-<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  Ctrl_vs_PsicoMean     6.76      4.78      8.74</span></span>
-<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  P1_vs_P2              5.74      3.30      7.96</span></span>
-<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
-<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Point estimate displayed: median </span></span>
-<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; HPD interval probability: 0.95</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>my_list <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>  <span class="st">"Ctrl_vs_PsicoMean"</span> <span class="ot">=</span> <span class="fu">c</span>(</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"controllo"</span> <span class="ot">=</span> <span class="dv">1</span>, <span class="st">"psicoterapia1"</span> <span class="ot">=</span> <span class="sc">-</span><span class="fl">0.5</span>, <span class="st">"psicoterapia2"</span> <span class="ot">=</span> <span class="sc">-</span><span class="fl">0.5</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>  ),</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>  <span class="st">"P1_vs_P2"</span> <span class="ot">=</span> <span class="fu">c</span>(</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"controllo"</span> <span class="ot">=</span> <span class="dv">0</span>, <span class="st">"psicoterapia1"</span> <span class="ot">=</span> <span class="dv">1</span>, <span class="st">"psicoterapia2"</span> <span class="ot">=</span> <span class="sc">-</span><span class="dv">1</span></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>o altre correzioni (ad es. <code>"holm"</code>, <code>"sidak"</code>, <code>"none"</code>).</p>
-<ul>
-<li><p><strong>Visualizzazione</strong>:</p>
-<p>Il pacchetto <code>emmeans</code> ha anche funzioni per la visualizzazione (<code>plot(em)</code>, <code>pwpp()</code>, ecc.).</p></li>
-</ul>
 <div class="cell" data-layout-align="center">
-<div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(em)</span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">contrast</span>(em, <span class="at">method =</span> my_list)</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  contrast          estimate lower.HPD upper.HPD</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  Ctrl_vs_PsicoMean     6.77      4.77      8.88</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  P1_vs_P2              5.75      3.57      8.14</span></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Point estimate displayed: median </span></span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; HPD interval probability: 0.95</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Visualizzazione</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(em)</span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><img src="09_anova_1via_files/figure-html/unnamed-chunk-23-1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:70.0%"></p>
+<p><img src="09_anova_1via_files/figure-html/unnamed-chunk-19-1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:70.0%"></p>
 </figure>
 </div>
 </div>
 </div>
-<p>In conclusione, usare <code>emmeans</code> semplifica notevolmente:</p>
-<ol type="1">
-<li><strong>Il calcolo delle medie stimate</strong> (o “ls-means”) di ciascun livello di un fattore in un modello lineare (o GLM, o mixed model, ecc.).<br>
-</li>
-<li><strong>La definizione di contrasti personalizzati</strong>, senza dover ridefinire manualmente la matrice di contrasti nel modello (come si fa con <code>contrasts(fattore) &lt;- ...</code>).<br>
-</li>
-<li><strong>La produzione di test e intervalli di confidenza</strong> per i confronti desiderati, integrando anche correzioni per confronti multipli se necessario.</li>
-</ol>
-<p>In questo modo, è possibile ottenere <em>esattamente</em> gli stessi risultati che otterresti impostando manualmente i contrasti a livello di design matrix, ma con <strong>un approccio più flessibile</strong> e con <strong>meno passaggi</strong>.</p>
 </section>
-<section id="riflessioni-conclusive" class="level2" data-number="69.9">
-<h2 data-number="69.9" class="anchored" data-anchor-id="riflessioni-conclusive"><span class="header-section-number">69.9</span> Riflessioni Conclusive</h2>
-<p>L’ANOVA ad una via non è altro che l’applicazione del modello di regressione al caso di una variabile dipendente quantitativa e di un fattore con più di due livelli. L’aspetto più utile dell’ANOVA riguarda i contrasti, ovvero specifiche ipotesi sulla differenza tra le medie.</p>
+</section>
+<section id="riflessioni-conclusive" class="level2" data-number="69.8">
+<h2 data-number="69.8" class="anchored" data-anchor-id="riflessioni-conclusive"><span class="header-section-number">69.8</span> Riflessioni Conclusive</h2>
+<p>Un’ANOVA a una via può essere vista come un caso speciale di regressione lineare, applicato a un fattore con più di due livelli. L’elemento più informativo dell’analisi non è tanto la verifica globale dell’effetto del fattore, ma l’esplorazione mirata di <strong>contrasti specifici tra le medie</strong>.</p>
+<p>La possibilità di definire <strong>contrasti personalizzati</strong>, come quelli che confrontano un singolo gruppo con la media degli altri, oppure due gruppi tra loro, permette di rispondere a <strong>domande teoriche mirate</strong>. Questo approccio si integra perfettamente con il framework bayesiano, in cui i contrasti possono essere interpretati in termini di <strong>probabilità a posteriori</strong>, anziché solo di significatività.</p>
+<p>Il pacchetto <code>emmeans</code> rende questo processo ancora più accessibile, offrendo strumenti per:</p>
+<ul>
+<li>calcolare medie marginali stimate;</li>
+<li>specificare contrasti personalizzati;</li>
+<li>ottenere intervalli di confidenza (o credibilità) e p-value corretti.</li>
+</ul>
+<p>In definitiva, l’uso combinato di regressione, contrasti e strumenti come <code>emmeans</code> o <code>brms</code> fornisce un approccio potente, flessibile e interpretabile per analizzare l’effetto di fattori categoriali in modelli lineari.</p>
 </section>
 <section id="informazioni-sullambiente-di-sviluppo" class="level2 unnumbered">
 <h2 class="unnumbered anchored" data-anchor-id="informazioni-sullambiente-di-sviluppo">Informazioni sull’Ambiente di Sviluppo</h2>
 <div class="cell" data-layout-align="center">
-<div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sessionInfo</span>()</span>
-<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; R version 4.4.2 (2024-10-31)</span></span>
-<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Platform: aarch64-apple-darwin20</span></span>
-<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Running under: macOS Sequoia 15.3.2</span></span>
-<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
-<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Matrix products: default</span></span>
-<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; BLAS:   /Library/Frameworks/R.framework/Versions/4.4-arm64/Resources/lib/libRblas.0.dylib </span></span>
-<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; LAPACK: /Library/Frameworks/R.framework/Versions/4.4-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.0</span></span>
-<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
-<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; locale:</span></span>
-<span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] C/UTF-8/C/C/C/C</span></span>
-<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
-<span id="cb24-13"><a href="#cb24-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; time zone: Europe/Rome</span></span>
-<span id="cb24-14"><a href="#cb24-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; tzcode source: internal</span></span>
-<span id="cb24-15"><a href="#cb24-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
-<span id="cb24-16"><a href="#cb24-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; attached base packages:</span></span>
-<span id="cb24-17"><a href="#cb24-17" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] stats     graphics  grDevices utils     datasets  methods   base     </span></span>
-<span id="cb24-18"><a href="#cb24-18" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
-<span id="cb24-19"><a href="#cb24-19" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; other attached packages:</span></span>
-<span id="cb24-20"><a href="#cb24-20" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [1] rstan_2.32.7        StanHeaders_2.32.10 emmeans_1.11.0     </span></span>
-<span id="cb24-21"><a href="#cb24-21" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [4] brms_2.22.0         Rcpp_1.0.14         bayestestR_0.15.2  </span></span>
-<span id="cb24-22"><a href="#cb24-22" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [7] posterior_1.6.1     cmdstanr_0.8.1      thematic_0.1.6     </span></span>
-<span id="cb24-23"><a href="#cb24-23" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [10] MetBrewer_0.2.0     ggokabeito_0.1.0    see_0.11.0         </span></span>
-<span id="cb24-24"><a href="#cb24-24" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [13] gridExtra_2.3       patchwork_1.3.0     bayesplot_1.11.1   </span></span>
-<span id="cb24-25"><a href="#cb24-25" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [16] psych_2.5.3         scales_1.3.0        markdown_2.0       </span></span>
-<span id="cb24-26"><a href="#cb24-26" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [19] knitr_1.50          lubridate_1.9.4     forcats_1.0.0      </span></span>
-<span id="cb24-27"><a href="#cb24-27" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [22] stringr_1.5.1       dplyr_1.1.4         purrr_1.0.4        </span></span>
-<span id="cb24-28"><a href="#cb24-28" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [25] readr_2.1.5         tidyr_1.3.1         tibble_3.2.1       </span></span>
-<span id="cb24-29"><a href="#cb24-29" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [28] ggplot2_3.5.1       tidyverse_2.0.0     rio_1.2.3          </span></span>
-<span id="cb24-30"><a href="#cb24-30" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [31] here_1.0.1         </span></span>
-<span id="cb24-31"><a href="#cb24-31" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
-<span id="cb24-32"><a href="#cb24-32" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; loaded via a namespace (and not attached):</span></span>
-<span id="cb24-33"><a href="#cb24-33" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [1] tidyselect_1.2.1     farver_2.1.2         loo_2.8.0           </span></span>
-<span id="cb24-34"><a href="#cb24-34" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [4] fastmap_1.2.0        TH.data_1.1-3        tensorA_0.36.2.1    </span></span>
-<span id="cb24-35"><a href="#cb24-35" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [7] pacman_0.5.1         digest_0.6.37        timechange_0.3.0    </span></span>
-<span id="cb24-36"><a href="#cb24-36" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [10] estimability_1.5.1   lifecycle_1.0.4      survival_3.8-3      </span></span>
-<span id="cb24-37"><a href="#cb24-37" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [13] processx_3.8.6       magrittr_2.0.3       compiler_4.4.2      </span></span>
-<span id="cb24-38"><a href="#cb24-38" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [16] rlang_1.1.5          tools_4.4.2          utf8_1.2.4          </span></span>
-<span id="cb24-39"><a href="#cb24-39" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [19] yaml_2.3.10          data.table_1.17.0    labeling_0.4.3      </span></span>
-<span id="cb24-40"><a href="#cb24-40" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [22] bridgesampling_1.1-2 htmlwidgets_1.6.4    curl_6.2.2          </span></span>
-<span id="cb24-41"><a href="#cb24-41" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [25] pkgbuild_1.4.7       mnormt_2.1.1         plyr_1.8.9          </span></span>
-<span id="cb24-42"><a href="#cb24-42" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [28] abind_1.4-8          multcomp_1.4-28      withr_3.0.2         </span></span>
-<span id="cb24-43"><a href="#cb24-43" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [31] stats4_4.4.2         grid_4.4.2           inline_0.3.21       </span></span>
-<span id="cb24-44"><a href="#cb24-44" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [34] xtable_1.8-4         colorspace_2.1-1     MASS_7.3-65         </span></span>
-<span id="cb24-45"><a href="#cb24-45" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [37] insight_1.1.0        cli_3.6.4            mvtnorm_1.3-3       </span></span>
-<span id="cb24-46"><a href="#cb24-46" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [40] rmarkdown_2.29       generics_0.1.3       RcppParallel_5.1.10 </span></span>
-<span id="cb24-47"><a href="#cb24-47" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [43] rstudioapi_0.17.1    reshape2_1.4.4       tzdb_0.5.0          </span></span>
-<span id="cb24-48"><a href="#cb24-48" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [46] splines_4.4.2        parallel_4.4.2       matrixStats_1.5.0   </span></span>
-<span id="cb24-49"><a href="#cb24-49" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [49] vctrs_0.6.5          V8_6.0.2             Matrix_1.7-3        </span></span>
-<span id="cb24-50"><a href="#cb24-50" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [52] sandwich_3.1-1       jsonlite_1.9.1       hms_1.1.3           </span></span>
-<span id="cb24-51"><a href="#cb24-51" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [55] glue_1.8.0           codetools_0.2-20     ps_1.9.0            </span></span>
-<span id="cb24-52"><a href="#cb24-52" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [58] distributional_0.5.0 stringi_1.8.4        gtable_0.3.6        </span></span>
-<span id="cb24-53"><a href="#cb24-53" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [61] QuickJSR_1.6.0       munsell_0.5.1        pillar_1.10.1       </span></span>
-<span id="cb24-54"><a href="#cb24-54" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [64] htmltools_0.5.8.1    Brobdingnag_1.2-9    R6_2.6.1            </span></span>
-<span id="cb24-55"><a href="#cb24-55" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [67] rprojroot_2.0.4      evaluate_1.0.3       lattice_0.22-6      </span></span>
-<span id="cb24-56"><a href="#cb24-56" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [70] backports_1.5.0      rstantools_2.4.0     coda_0.19-4.1       </span></span>
-<span id="cb24-57"><a href="#cb24-57" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [73] nlme_3.1-167         checkmate_2.3.2      xfun_0.51           </span></span>
-<span id="cb24-58"><a href="#cb24-58" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [76] zoo_1.8-13           pkgconfig_2.0.3</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sessionInfo</span>()</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; R version 4.5.0 (2025-04-11)</span></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Platform: aarch64-apple-darwin20</span></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Running under: macOS Sequoia 15.4.1</span></span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Matrix products: default</span></span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; BLAS:   /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRblas.0.dylib </span></span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; LAPACK: /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.1</span></span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; locale:</span></span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] C/UTF-8/C/C/C/C</span></span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; time zone: Europe/Rome</span></span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; tzcode source: internal</span></span>
+<span id="cb20-15"><a href="#cb20-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb20-16"><a href="#cb20-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; attached base packages:</span></span>
+<span id="cb20-17"><a href="#cb20-17" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] stats     graphics  grDevices utils     datasets  methods   base     </span></span>
+<span id="cb20-18"><a href="#cb20-18" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb20-19"><a href="#cb20-19" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; other attached packages:</span></span>
+<span id="cb20-20"><a href="#cb20-20" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [1] emmeans_1.11.1    brms_2.22.0       Rcpp_1.0.14       bayestestR_0.15.3</span></span>
+<span id="cb20-21"><a href="#cb20-21" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [5] posterior_1.6.1   cmdstanr_0.9.0    thematic_0.1.6    MetBrewer_0.2.0  </span></span>
+<span id="cb20-22"><a href="#cb20-22" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [9] ggokabeito_0.1.0  see_0.11.0        gridExtra_2.3     patchwork_1.3.0  </span></span>
+<span id="cb20-23"><a href="#cb20-23" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [13] bayesplot_1.12.0  psych_2.5.3       scales_1.4.0      markdown_2.0     </span></span>
+<span id="cb20-24"><a href="#cb20-24" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [17] knitr_1.50        lubridate_1.9.4   forcats_1.0.0     stringr_1.5.1    </span></span>
+<span id="cb20-25"><a href="#cb20-25" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [21] dplyr_1.1.4       purrr_1.0.4       readr_2.1.5       tidyr_1.3.1      </span></span>
+<span id="cb20-26"><a href="#cb20-26" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [25] tibble_3.2.1      ggplot2_3.5.2     tidyverse_2.0.0   rio_1.2.3        </span></span>
+<span id="cb20-27"><a href="#cb20-27" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [29] here_1.0.1       </span></span>
+<span id="cb20-28"><a href="#cb20-28" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb20-29"><a href="#cb20-29" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; loaded via a namespace (and not attached):</span></span>
+<span id="cb20-30"><a href="#cb20-30" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [1] tidyselect_1.2.1     farver_2.1.2         loo_2.8.0           </span></span>
+<span id="cb20-31"><a href="#cb20-31" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [4] fastmap_1.2.0        tensorA_0.36.2.1     pacman_0.5.1        </span></span>
+<span id="cb20-32"><a href="#cb20-32" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [7] digest_0.6.37        timechange_0.3.0     estimability_1.5.1  </span></span>
+<span id="cb20-33"><a href="#cb20-33" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [10] lifecycle_1.0.4      StanHeaders_2.32.10  processx_3.8.6      </span></span>
+<span id="cb20-34"><a href="#cb20-34" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [13] magrittr_2.0.3       compiler_4.5.0       rlang_1.1.6         </span></span>
+<span id="cb20-35"><a href="#cb20-35" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [16] tools_4.5.0          utf8_1.2.5           yaml_2.3.10         </span></span>
+<span id="cb20-36"><a href="#cb20-36" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [19] data.table_1.17.0    labeling_0.4.3       bridgesampling_1.1-2</span></span>
+<span id="cb20-37"><a href="#cb20-37" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [22] htmlwidgets_1.6.4    curl_6.2.2           pkgbuild_1.4.7      </span></span>
+<span id="cb20-38"><a href="#cb20-38" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [25] mnormt_2.1.1         plyr_1.8.9           RColorBrewer_1.1-3  </span></span>
+<span id="cb20-39"><a href="#cb20-39" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [28] abind_1.4-8          withr_3.0.2          grid_4.5.0          </span></span>
+<span id="cb20-40"><a href="#cb20-40" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [31] stats4_4.5.0         colorspace_2.1-1     xtable_1.8-4        </span></span>
+<span id="cb20-41"><a href="#cb20-41" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [34] inline_0.3.21        insight_1.2.0        cli_3.6.5           </span></span>
+<span id="cb20-42"><a href="#cb20-42" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [37] mvtnorm_1.3-3        rmarkdown_2.29       generics_0.1.3      </span></span>
+<span id="cb20-43"><a href="#cb20-43" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [40] RcppParallel_5.1.10  rstudioapi_0.17.1    reshape2_1.4.4      </span></span>
+<span id="cb20-44"><a href="#cb20-44" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [43] tzdb_0.5.0           rstan_2.32.7         parallel_4.5.0      </span></span>
+<span id="cb20-45"><a href="#cb20-45" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [46] matrixStats_1.5.0    vctrs_0.6.5          V8_6.0.3            </span></span>
+<span id="cb20-46"><a href="#cb20-46" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [49] Matrix_1.7-3         jsonlite_2.0.0       hms_1.1.3           </span></span>
+<span id="cb20-47"><a href="#cb20-47" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [52] glue_1.8.0           codetools_0.2-20     ps_1.9.1            </span></span>
+<span id="cb20-48"><a href="#cb20-48" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [55] distributional_0.5.0 stringi_1.8.7        gtable_0.3.6        </span></span>
+<span id="cb20-49"><a href="#cb20-49" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [58] QuickJSR_1.7.0       pillar_1.10.2        htmltools_0.5.8.1   </span></span>
+<span id="cb20-50"><a href="#cb20-50" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [61] Brobdingnag_1.2-9    R6_2.6.1             rprojroot_2.0.4     </span></span>
+<span id="cb20-51"><a href="#cb20-51" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [64] evaluate_1.0.3       lattice_0.22-7       backports_1.5.0     </span></span>
+<span id="cb20-52"><a href="#cb20-52" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [67] rstantools_2.4.0     coda_0.19-4.1        nlme_3.1-168        </span></span>
+<span id="cb20-53"><a href="#cb20-53" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [70] checkmate_2.3.2      xfun_0.52            pkgconfig_2.0.3</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
 <section id="bibliografia" class="level2 unnumbered">
