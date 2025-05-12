@@ -33,57 +33,101 @@ pacman::p_load(cmdstanr, posterior, see, brms)
 ```
 :::
 
-## Introduzione  
 
-In questa sezione della dispensa, introdurremo il **modello di regressione lineare bivariata bayesiano**, mettendolo a confronto con l'approccio frequentista. L'obiettivo è offrire una chiara intuizione pratica delle differenze tra l'approccio bayesiano e quello classico, evitando tecnicismi complessi.
+## Introduzione
 
-### Il Modello di Regressione Bayesiano  
+In questa sezione della dispensa esploreremo il **modello di regressione lineare bivariata** (cioè con una sola variabile indipendente), ponendo particolare attenzione alla formulazione bayesiana. Confronteremo questo approccio con quello frequentista, così da mettere in luce i principali vantaggi dell'inferenza bayesiana, senza introdurre tecnicismi inutilmente complessi. Il nostro obiettivo comprendere come si costruisce un modello di regressione e come si interpretano i risultati nel contesto dell'incertezza.
 
-A differenza dei metodi classici, come i **minimi quadrati** o la **massima verosimiglianza**, la regressione bayesiana integra le informazioni contenute nei dati con conoscenze preesistenti, rappresentate da **distribuzioni a priori**. Questo approccio consente di ottenere **distribuzioni a posteriori**, che aggiornano le credenze iniziali alla luce delle nuove osservazioni. In questo modo, il metodo bayesiano non fornisce semplicemente stime puntuali dei parametri, ma restituisce una descrizione completa dell'incertezza associata a ciascun parametro sotto forma di distribuzioni probabilistiche.
+## Il modello di regressione lineare semplice
 
-Nel contesto di un modello lineare bayesiano, consideriamo:  
-
-- $y$ come variabile dipendente (risultato),
-- $x$ come variabile indipendente (predittore),
-- $i$ come indice delle osservazioni, da 1 al numero totale di dati.  
-
-### La Verosimiglianza  
-
-In un modello bayesiano di regressione bivariata, si assume che la relazione tra $y$ e $x$ segua una distribuzione normale centrata sulla retta di regressione:
+Supponiamo di voler prevedere una variabile quantitativa $y$ (per esempio, il livello di ansia) a partire da una variabile esplicativa $x$ (per esempio, il numero di ore di sonno). Il modello di regressione lineare assume che la relazione tra le due variabili sia descritta da:
 
 $$
-y_i \sim \text{Normale}(\alpha + \beta x_i, \sigma).
+y_i = \beta_0 + \beta_1 x_i + \varepsilon_i
 $$
 
-Questo implica che ogni osservazione di $y$ è una combinazione lineare dell’intercetta $\alpha$, del coefficiente $\beta$ associato alla variabile $x$, e di un termine di errore distribuito normalmente con deviazione standard $\sigma$. La regressione cerca quindi di stimare i parametri $\alpha$, $\beta$ e $\sigma$ in modo da rappresentare al meglio il legame tra $x$ e $y$.
+dove:
 
-### Le Distribuzioni a Priori  
+* $\beta_0$ è l’intercetta (valore medio di $y$ quando $x = 0$),
+* $\beta_1$ è il coefficiente di regressione (quanto cambia $y$ per ogni unità di aumento di $x$),
+* $\varepsilon_i$ è un termine di errore casuale, che tiene conto delle deviazioni impreviste rispetto alla linea di regressione.
 
-Un elemento distintivo dell'approccio bayesiano è l'introduzione di **distribuzioni a priori** per i parametri del modello. Queste rappresentano la conoscenza (o l’assenza di conoscenza) sui parametri prima di osservare i dati.  
-
-Un'opzione potrebbe essere l'uso di **prior non informativi**, che esprimono un'assenza totale di informazioni iniziali. Tuttavia, è spesso preferibile adottare **prior debolmente informativi**, che evitano stime estreme e migliorano la stabilità del modello. Un esempio comune è il seguente:
+Assumiamo che gli errori $\varepsilon_i$ siano **indipendenti** e **distribuiti normalmente** con media zero e varianza costante $\sigma^2$. Questo implica che anche i valori di $y_i$, condizionati ai rispettivi $x_i$, seguano una distribuzione normale:
 
 $$
-\alpha \sim \mathcal{N}(0, 2.5), \quad \beta \sim \mathcal{N}(0, 2.5), \quad \sigma \sim \text{Cauchy}(0, 2.5).
+y_i \sim \mathcal{N}(\mu_i, \sigma^2), \quad \text{con} \quad \mu_i = \beta_0 + \beta_1 x_i .
 $$
 
-Queste scelte riflettono ipotesi iniziali ragionevoli senza imporre restrizioni rigide ai parametri.
+## Cos'è la verosimiglianza?
 
-### Le Distribuzioni a Posteriori  
+La **verosimiglianza** è una funzione che misura quanto bene un certo insieme di parametri del modello (cioè $\beta_0$, $\beta_1$, $\sigma$) riesce a spiegare i dati osservati $(x_i, y_i)$. Si tratta di un concetto centrale sia nell'inferenza frequentista sia in quella bayesiana.
 
-Una volta specificata la verosimiglianza e le distribuzioni a priori, possiamo applicare il **teorema di Bayes** per ottenere le **distribuzioni a posteriori** dei parametri. Le posteriori rappresentano la conoscenza aggiornata sui parametri dopo aver osservato i dati, combinando l'informazione empirica con le ipotesi iniziali.
+Nel nostro caso, la probabilità di osservare un dato $y_i$ condizionato a $x_i$ è data dalla densità di una normale. Assumendo che tutte le osservazioni siano indipendenti, la **funzione di verosimiglianza congiunta** si ottiene moltiplicando le densità per ciascuna osservazione:
 
-Un vantaggio cruciale dell'approccio bayesiano è che, invece di restituire un'unica stima puntuale (come accade nei metodi frequentisti), fornisce una distribuzione completa per ciascun parametro, permettendo di quantificare direttamente l'incertezza nelle stime.
+$$
+\mathcal{L}(\beta_0, \beta_1, \sigma \mid \mathbf{y}, \mathbf{x}) = \prod_{i=1}^n \frac{1}{\sqrt{2\pi \sigma^2}} \exp\left(-\frac{(y_i - \beta_0 - \beta_1 x_i)^2}{2\sigma^2}\right) .
+$$
 
-### Stima dei Parametri: Algoritmi MCMC  
+Poiché lavorare con prodotti può essere complicato, spesso si usa la **log-verosimiglianza**, che trasforma i prodotti in somme:
 
-Poiché le distribuzioni a posteriori spesso non hanno una forma analitica semplice, vengono approssimate mediante **campionamento numerico**. In particolare, si utilizzano algoritmi di **Markov Chain Monte Carlo (MCMC)**, che permettono di generare un insieme di valori campionati dalla distribuzione a posteriori. Questo consente di stimare in modo accurato anche modelli complessi.
+$$
+\log \mathcal{L}(\beta_0, \beta_1, \sigma \mid \mathbf{y}, \mathbf{x}) = -\frac{n}{2} \log(2\pi) - n \log \sigma - \frac{1}{2\sigma^2} \sum_{i=1}^n (y_i - \beta_0 - \beta_1 x_i)^2 .
+$$
 
-### Implementazione in **brms**  
+## Verosimiglianza: confronto tra approccio frequentista e bayesiano
 
-Nella prossima sezione, vedremo come implementare un modello di regressione bayesiano utilizzando la funzione **brm()** del pacchetto **brms**. Analizzeremo come ottenere le stime a posteriori, interpretarle e confrontarle con l’approccio frequentista, evidenziando i vantaggi e le implicazioni dell’inferenza bayesiana.
+* Nell’**approccio frequentista**, l’obiettivo è trovare i valori dei parametri che **massimizzano** la verosimiglianza: è il metodo della **massima verosimiglianza**.
+* Nell’**approccio bayesiano**, la verosimiglianza non è sufficiente: viene **combinata con una distribuzione a priori** sui parametri, e il risultato è una **distribuzione a posteriori** che riflette sia le evidenze empiriche, sia le nostre ipotesi iniziali.
 
-## Adattare una Retta di Regressione a Dati Simulati  
+
+## Le distribuzioni a priori
+
+Uno degli aspetti distintivi del metodo bayesiano è la specificazione delle **distribuzioni a priori**, che riflettono ciò che si crede possibile per i parametri **prima** di osservare i dati. Esistono diversi tipi di priori:
+
+* **non informativi**, che riflettono un'assenza di conoscenza iniziale. Sono distribuzioni molto larghe o piatte, progettate per influenzare il meno possibile la distribuzione a posteriori. Un esempio è una distribuzione normale con varianza molto elevata, come $\mathcal{N}(0, 1000)$;
+
+* **debolmente informativi**, che introducono un minimo di informazione strutturale per evitare stime estreme o non plausibili. Sono particolarmente utili nei modelli complessi o quando il numero di dati è limitato. Un esempio comune è $\mathcal{N}(0, 2.5)$ per i coefficienti di regressione: consente ampio margine di variazione, ma previene valori irrealistici;
+
+* **informativi**, che riflettono una conoscenza specifica accumulata prima della raccolta dei dati, per esempio da ricerche precedenti, meta-analisi, o teorie ben consolidate. Questi priori sono più ristretti e centrati su valori considerati plausibili. Possono migliorare l'efficienza dell'inferenza, ma devono essere giustificati accuratamente per evitare di introdurre distorsioni arbitrarie.
+
+
+## Le distribuzioni a posteriori
+
+Una volta specificata:
+
+1. la **verosimiglianza** (basata sul modello e sui dati), e
+2. le **distribuzioni a priori** (che esprimono le nostre credenze iniziali),
+
+è possibile applicare il **teorema di Bayes** per ottenere la **distribuzione a posteriori** di ciascun parametro. Questa distribuzione rappresenta la nostra conoscenza aggiornata dopo aver osservato i dati.
+
+A differenza dell’approccio frequentista, che fornisce **stime puntuali**, l’approccio bayesiano restituisce **intere distribuzioni**, permettendo di valutare l’incertezza nei risultati (ad esempio, attraverso gli intervalli di credibilità).
+
+## Implementazione con `brms`: la formula di Wilkinson
+
+Nel pacchetto `brms` (che usa `Stan` come motore di calcolo), non è necessario scrivere la funzione di verosimiglianza a mano. Basta specificare il modello nella classica **forma di Wilkinson**:
+
+```r
+brm(y ~ x, data = dati)
+```
+
+Questa notazione compatta definisce:
+
+* il modello di regressione,
+* la verosimiglianza implicita,
+* e consente a `brms` di costruire automaticamente il modello bayesiano.
+
+Se non si specificano i **priori**, `brms` utilizza prior debolmente informativi di default.
+
+
+## Come vengono stimate le distribuzioni a posteriori?
+
+Poiché la distribuzione a posteriori è spesso **troppo complessa per essere calcolata esattamente**, `brms` utilizza tecniche di **campionamento numerico** chiamate **MCMC** (Markov Chain Monte Carlo).
+
+In particolare, utilizza l’algoritmo **NUTS** (No-U-Turn Sampler), una variante evoluta dell’algoritmo di Metropolis-Hastings, che esplora lo spazio dei parametri in modo efficiente e adattivo. Grazie a questo, otteniamo **campioni dalla distribuzione a posteriori**, dai quali è possibile calcolare medie, intervalli di credibilità e fare previsioni.
+
+In sintesi, il modello di regressione bayesiano consente di incorporare in modo trasparente incertezze, conoscenze pregresse e informazioni contenute nei dati. Rispetto all’approccio classico, non restituisce una singola stima puntuale ma un’intera distribuzione per ogni parametro. Questo permette inferenze più flessibili e più ricche di informazioni, particolarmente utili nelle scienze psicologiche, dove l’incertezza è la regola più che l’eccezione.
+
+## Un Esempio Concreto
 
 Definiamo i parametri e simuliamo i dati.
 
@@ -327,24 +371,25 @@ La regressione è uno strumento matematico utilizzato principalmente per fare pr
 
 ## Riflessioni Conclusive
 
-In questo capitolo abbiamo adottato un approccio bayesiano per stimare i parametri di un modello di regressione bivariato. È emerso che, quando i prior sono debolmente informativi, le stime bayesiane tendono a coincidere con quelle ottenute tramite l'approccio frequentista. Tuttavia, il valore dell'approccio bayesiano risiede non solo nella stima dei parametri, ma anche nella possibilità di incorporare conoscenze a priori e di rappresentare esplicitamente l'incertezza nelle stime.
+In questo capitolo abbiamo esplorato il modello di regressione lineare bivariata adottando una prospettiva bayesiana. Abbiamo visto che, quando si utilizzano **priori debolmente informativi**, le stime bayesiane tendono a coincidere con quelle dell'approccio frequentista, specialmente in presenza di un numero consistente di dati. Tuttavia, il **valore distintivo dell’approccio bayesiano** non si limita alla stima dei parametri: esso risiede soprattutto nella possibilità di **integrare conoscenze a priori** e di **rappresentare l'incertezza in modo esplicito e probabilistico**.
 
-Al di là della scelta tra approccio frequentista e bayesiano, è cruciale riflettere sul ruolo dei modelli statistici nella ricerca scientifica, in particolare nel contesto psicologico. Come evidenziato da @alexander2023telling, i modelli statistici non sono strumenti per rivelare una verità assoluta, ma mezzi per interpretare i dati e costruire significato a partire da essi. Essi non rappresentano la realtà in modo fedele, ma piuttosto funzionano come "lenti" attraverso le quali possiamo mettere a fuoco aspetti specifici del fenomeno studiato.
+Indipendentemente dalla scelta tra approccio bayesiano o frequentista, è importante sottolineare che i **modelli statistici** non offrono verità definitive. Come ricordato da @alexander2023telling, i modelli non sono specchi della realtà, ma strumenti concettuali per darle significato. Agiscono come **lenti interpretative**, attraverso cui possiamo mettere a fuoco specifici aspetti del fenomeno studiato.
 
-I modelli statistici possono essere utilizzati principalmente per due scopi distinti ma complementari: **inferenza** e **previsione**.
+In particolare, i modelli statistici possono essere utilizzati per due scopi principali, entrambi fondamentali nella ricerca psicologica:
 
-- **Previsione**: mira a descrivere le associazioni tra variabili, consentendo di formulare stime future basate sui dati disponibili. È un processo empirico, in cui la bontà del modello viene valutata sulla sua capacità di fare previsioni accurate.
+* **Previsione**: si concentra sulla capacità del modello di anticipare nuovi dati. È un uso pragmatico ed empirico della modellizzazione, in cui l’attenzione è rivolta alla bontà predittiva del modello, spesso valutata con tecniche di validazione incrociata.
 
-- **Inferenza**: si concentra sull'individuazione di relazioni causali tra variabili. Questo tipo di analisi richiede una progettazione rigorosa, come esperimenti controllati o disegni quasi-sperimentali, e una chiara giustificazione delle ipotesi del modello. La regressione, in particolare, può supportare inferenze causali solo se accompagnata da un contesto teorico robusto e da dati appropriati.
+* **Inferenza**: mira a comprendere le **relazioni causali** tra variabili. Per rendere credibili le inferenze causali, la regressione deve essere accompagnata da una solida **progettazione dello studio** (es. esperimenti, disegni longitudinali, controllo di variabili confondenti) e da **ipotesi teoriche ben motivate**.
 
-È fondamentale ricordare che la regressione rappresenta una forma di media ponderata e, di conseguenza, i suoi risultati possono essere influenzati da bias intrinseci e dalle caratteristiche specifiche del dataset. Pertanto:
+La regressione lineare, in ogni caso, rappresenta una forma di **media ponderata** tra le osservazioni, il che implica alcune limitazioni:
 
-- La qualità dei risultati dipende dalla qualità dei dati e dalla correttezza delle ipotesi del modello.
-- È importante considerare potenziali fonti di bias, come la selezione dei dati, variabili confondenti non incluse nel modello, o ipotesi non verificate sulla linearità delle relazioni.
+* i risultati possono essere **distorti** dalla presenza di variabili confondenti non incluse nel modello;
+* la **qualità dei dati** e la **verifica delle ipotesi del modello** (normalità degli errori, indipendenza, omoschedasticità) giocano un ruolo cruciale nella validità delle stime;
+* l’**assunzione di linearità** potrebbe non essere adatta a descrivere alcune relazioni psicologiche, che spesso sono complesse o non lineari.
 
-In conclusione, l'adozione di un modello statistico non è un fine in sé, ma uno strumento per esplorare, interpretare e comprendere il fenomeno di interesse. Sia che si utilizzi un approccio bayesiano o frequentista, il successo dell'analisi dipende dalla capacità di integrare i risultati quantitativi con una riflessione teorica critica e da un’attenzione costante alla validità delle ipotesi e delle conclusioni. 
+Pertanto, è essenziale non assumere il modello come un fine, ma considerarlo uno **strumento di esplorazione e interpretazione**, da integrare in una riflessione teorica più ampia. I risultati di una regressione non parlano da soli: vanno interpretati alla luce del disegno dello studio, della letteratura scientifica, e delle ipotesi formulate dal ricercatore.
 
-Per un approfondimento sul modello bayesiano di regressione lineare, oltre al testo di @Johnson2022bayesrules, si consiglia la lettura del testo **[Regression and Other Stories](https://avehtari.github.io/ROS-Examples/)**. Quest’ultimo rappresenta una guida pratica e ricca di esempi applicati, ideale per comprendere come integrare i metodi bayesiani nell’analisi di regressione e interpretarne i risultati in contesti reali. 
+Per chi desidera approfondire il modello bayesiano di regressione lineare, oltre al testo di @Johnson2022bayesrules, si consiglia la lettura del testo **[Regression and Other Stories](https://avehtari.github.io/ROS-Examples/)**. Quest’ultimo rappresenta una guida pratica e ricca di esempi applicati, ideale per comprendere come integrare i metodi bayesiani nell’analisi di regressione e interpretarne i risultati in contesti reali. 
 
 
 ::: {.callout-important title="Problemi" collapse="true"}

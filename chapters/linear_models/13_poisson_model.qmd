@@ -26,41 +26,28 @@ pacman::p_load(HDInterval, lubridate, brms, bayesplot, tidybayes)
 ```
 :::
 
+
 ## Introduzione
 
-Nel precedente @sec-bayes-inference-gamma-poisson abbiamo visto come si ottiene la distribuzione a posteriori per i parametri di una Poisson con prior Gamma. Qui, costruiremo lo stesso tipo di analisi in **R** tramite **brms**.  
+Nel capitolo precedente abbiamo visto come, in un contesto bayesiano, la distribuzione a posteriori del parametro di una distribuzione di Poisson possa essere calcolata usando una prior Gamma. In questo capitolo, mostreremo come eseguire un’analisi simile in **R** usando il pacchetto **brms**, focalizzandoci sull’interpretazione diretta del tasso $\lambda$ di sparatorie fatali per anno negli Stati Uniti.
 
 ## Domanda della ricerca
 
-Come spiegato [qui](https://github.com/washingtonpost/data-police-shootings), i dati che esamineremo sono raccolti dal Washington Post con lo scopo di registrare ogni sparatoria mortale negli Stati Uniti ad opera di agenti di polizia, a partire dal 1° gennaio 2015. Il Washington Post ha adottato un approccio sistematico e accurato nella raccolta di queste informazioni, fornendo dati che possono essere utili per valutare i problemi legati alla violenza delle forze di polizia negli Stati Uniti.
+Analizziamo i dati raccolti dal *Washington Post* su tutte le sparatorie fatali da parte della polizia statunitense dal 2015. Il nostro obiettivo è stimare il tasso medio annuo $\lambda$ di queste sparatorie e quantificare l’incertezza associata.
 
-Lo scopo della presente analisi dei dati è determinare il tasso di sparatorie fatali da parte della polizia negli Stati Uniti per ogni anno, e fornire una stima dell'incertezza associata a questo valore.
+## Preparazione dei dati
 
-## Importazione e pre-processing dei dati
-
-Scarichiamo i dati direttamente da GitHub:
+Importiamo i dati direttamente da GitHub:
 
 ```{r}
 url <- "https://raw.githubusercontent.com/washingtonpost/data-police-shootings/master/v2/fatal-police-shootings-data.csv"
 fps_dat <- read.csv(url, stringsAsFactors = FALSE)
-head(fps_dat)
-```
-
-Convertiamo la colonna delle date e creiamo la variabile “year”:
-
-```{r}
-fps_dat$date <- as.Date(fps_dat$date)  # conversione in oggetto Date
+fps_dat$date <- as.Date(fps_dat$date)
 fps_dat$year <- as.numeric(format(fps_dat$date, "%Y"))
+fps <- subset(fps_dat, year != 2025)  # Rimuove dati parziali del 2025
 ```
 
-Rimuoviamo eventuali osservazioni del 2025 (dato che è incompleto):
-
-```{r}
-fps <- subset(fps_dat, year != 2025)
-table(fps$year)
-```
-
-Creiamo poi un data frame con i conteggi per anno:
+Creiamo un dataset aggregato per anno:
 
 ```{r}
 year_counts <- table(fps$year)
@@ -68,359 +55,162 @@ df <- data.frame(
   year   = as.numeric(names(year_counts)),
   events = as.vector(year_counts)
 )
-df
 ```
 
-Qui, `df$events` indica quante sparatorie fatali sono state registrate in ogni anno compreso tra il 2015 e il 2023 (estremi inclusi).
+## Specifica del modello
 
-## Modello di Poisson
-
-Vogliamo stimare il parametro $\lambda$ della Poisson (tasso di sparatorie all’anno). Se denotiamo con $Y$ il numero di sparatorie in un anno, l’assunto è:
+Assumiamo che il numero di sparatorie $Y$ in ciascun anno segua una distribuzione di Poisson con tasso costante $\lambda$:
 
 $$
-Y \sim \text{Poisson}(\lambda).
+Y \sim \text{Poisson}(\lambda)
 $$
 
-## Distribuzione a priori
+Vogliamo stimare $\lambda$, che rappresenta il numero medio di eventi per anno.
 
-### Motivazione
+## Scelta della distribuzione a priori
 
-Scegliamo una distribuzione a priori su $\lambda$. In teoria, potremmo adottare una Gamma($\alpha, \beta$) “esplicita”. Tuttavia, **brms** richiede di specificare i prior nella forma più consueta per i modelli GLM in Stan, ovvero sul *log* della media di Poisson (in quanto, per difetto, la famiglia Poisson usa il link log).  
+Invece di ragionare in termini di $\log(\lambda)$, possiamo scegliere una distribuzione lognormale che, trasformata, abbia una media plausibile per $\lambda$. Supponiamo di credere, a priori, che il numero medio annuo di sparatorie sia circa 600, con incertezza di circa ±200.
 
-Se desiderassimo imporre esattamente una prior Gamma su $\lambda$, potremmo dover ricorrere a definizioni custom in Stan. Di solito, però, si sceglie una *normal* sul log($\lambda$) che approssimi bene la forma desiderata (la log-normal è un'approssimazione comune di una generica gamma).  
+Una distribuzione lognormale approssima bene questa idea. Una `normal(6.4, 0.3)` sul logaritmo corrisponde a una distribuzione su $\lambda$ centrata intorno a 600, con valori plausibili tra circa 400 e 900.
 
-### Esempio di prior per $\lambda$
-
-Ipotizziamo una media a priori di 600 e una deviazione standard di 200. Se vogliamo approssimare questa gamma con una log-normal, basta trovare media e dev. std. (sul log-scale) corrispondenti. Faremo una stima spannometrica direttamente:
-
-- media del log($\lambda$) $\approx \log(600)\approx 6.4$.
-- dev. std. $\approx 0.3$ (che dà un intervallo ragionevole intorno a 600 $\pm$ qualche centinaio).
-
-Così scriviamo:
+Scriviamo:
 
 ```{r}
-prior_approx <- c(
-  prior(normal(6.4, 0.3), class = "Intercept")  # normal su log(lambda)
+prior_lambda <- c(
+  prior(normal(6.4, 0.3), class = "Intercept")
 )
 ```
 
-In tal modo, stiamo dicendo a **brms** che il log della media di Poisson (cioè l’`Intercept` del modello) segue pressappoco $\mathcal{N}(6.4, 0.3^2)$. Questo corrisponde a una distribuzione su $\lambda$ ($\exp(\log($\lambda$))$) i cui valori plausibili si aggirano intorno a 600.
+Anche se specifichiamo la prior su $\log(\lambda)$ (per compatibilità con `brms`), interpreteremo i risultati direttamente sulla scala di $\lambda$.
 
-## Stima del tasso annuo
+## Stima di $\lambda$ con `brms`
 
-### Costruzione del modello in brms
-
-Creiamo un modello di Poisson semplicissimo: un unico intercept (cioè ipotizziamo che in tutti gli anni il tasso sia costante). Chiaramente questa è un’approssimazione: si potrebbe estendere per anno, trend, ecc. Ma qui mostriamo solo la logica gamma-Poisson di base.
+Costruiamo un modello molto semplice, senza effetti per anno:
 
 ```{r}
 #| message: false
 #| warning: false
 #| output: false
 #| 
-# df ha due colonne: year, events
-# Poiché brms si aspetta le "osservazioni" riga per riga,
-# creeremo un data frame in cui ogni riga rappresenta un anno
-# e la colonna events è il numero di sparatorie di quell'anno.
-
 m0 <- brm(
-  formula = events ~ 1, # solo intercetta
-  family  = poisson(link = "log"),
+  formula = events ~ 1,
+  family  = poisson(),
   data    = df,
-  prior   = prior_approx,
-  iter    = 3000, # numero di iterazioni (warmup+sampling)
-  warmup  = 1000,
-  chains  = 4,
-  seed    = 123
+  prior   = prior_lambda,
+  iter    = 3000, warmup = 1000, chains = 4, seed = 123
 )
 ```
 
-Terminato l’addestramento del modello, esaminiamo un sommario dei parametri:
+Otteniamo un riepilogo:
 
 ```{r}
 summary(m0)
 ```
 
-Uscita tipica (semplificata):
+## Interpretazione dei risultati
 
-- `b_Intercept`: stima dell’intercetta sullo scale log.
-- `Est.Error`: errore standard a posteriori.
-- `l-95% CI` e `u-95% CI`: limiti dell’intervallo di credibilità (IC) al 95% predefinito.
-
-Per ottenere il tasso $\lambda$ a posteriori possiamo ricorrere a:
+Per ottenere direttamente i valori del tasso $\lambda$ (non il log), possiamo trasformare i campioni posteriori dell’intercetta:
 
 ```{r}
-# Ottieni i campioni posteriori usando as_draws
-posterior_draws_m0 <- as_draws(m0)
-
-# Estrai i campioni dell'intercetta (b_Intercept)
-b_Intercept_draws <- posterior_draws_m0 %>% 
-  tidybayes::spread_draws(b_Intercept)
-
-# Converti i campioni in lambda (exp(b_Intercept))
-lambda_draws <- exp(b_Intercept_draws$b_Intercept)
-
-# Calcola i quantili
-quantile(lambda_draws, probs = c(0.03, 0.5, 0.97))
+posterior_lambda <- as_draws(m0) %>%
+  spread_draws(b_Intercept) %>%
+  mutate(lambda = exp(b_Intercept))
 ```
 
-Se vogliamo un IC al 94% (invece del 95%), basta:
+Otteniamo la stima e l’intervallo di credibilità al 94%:
 
 ```{r}
-quantile(lambda_draws, probs = c(0.03, 0.5, 0.97)) 
+posterior_lambda %>%
+  median_qi(lambda, .width = 0.94)
 ```
 
-o più elegantemente:
+## Visualizzazione
 
 ```{r}
-tidybayes::median_qi(lambda_draws, .width = 0.94)
-```
-
-Questo ci darà una stima mediana a posteriori di $\lambda$ e l’intervallo di credibilità al 94%.
-
-### Visualizzazione
-
-Possiamo infine tracciare la densità a posteriori del parametro $\lambda$:
-
-```{r}
-tibble(lambda = lambda_draws) %>%
+posterior_lambda %>%
   ggplot(aes(x = lambda)) +
   stat_halfeye(fill = "skyblue", alpha = 0.6) +
   labs(
-    title = "Distribuzione a posteriori di λ (tasso Poisson annuo)",
-    x = "λ",
-    y = "Densità a posteriori"
+    title = "Distribuzione a posteriori del tasso λ",
+    x = "Tasso annuo di sparatorie fatali (λ)",
+    y = "Densità"
   )
 ```
 
-In sostanza, otteniamo (come nel caso Stan/Python) una stima del tasso $\lambda$ e un intervallo di incertezza.
 
-## Derivazione analitica (breve richiamo)
+## Estensione: confronto tra gruppi
 
-Quando la verosimiglianza è di tipo Poisson e si usa un prior Gamma($\alpha_0$, $\beta_0$), la posterior di $\lambda$ rimane gamma, con parametri aggiornati:
+Supponiamo di voler confrontare il tasso di sparatorie fatali **di vittime disarmate** tra due gruppi: persone bianche e non bianche.
 
-- $\alpha_{\text{post}} = \alpha_0 + \sum y_i$
-- $\beta_{\text{post}}  = \beta_0 + n$,
-
-dove $n$ è il numero di osservazioni (in questo caso, anni) e $y_i$ sono i conteggi. **brms** di default usa la scala log per le stime e calcola la posterior via MCMC. La soluzione chiusa rimane utile come conferma analitica.
-
-## Vittime non armate
-
-Riprendiamo ora l’argomento di [@ross2021racial] sul differente tasso di sparatorie fatali tra persone di razza caucasica (bianche) e non-caucasica, limitandoci ai casi in cui la vittima risulti disarmata.  
-
-### Pre-processing dei dati
-
-Filtriamo i casi “unarmed”:
+### Filtraggio e aggregazione
 
 ```{r}
 fps_unarmed <- subset(fps, armed_with == "unarmed")
-```
-
-Separiamo in due gruppi:
-
-```{r}
-white_df    <- subset(fps_unarmed, race == "W")
+white_df <- subset(fps_unarmed, race == "W")
 non_white_df <- subset(fps_unarmed, race != "W")
-```
 
-Verifichiamo:
-
-```{r}
-head(white_df)
-```
-
-```{r}
-head(non_white_df)
-```
-
-Ora costruiamo i conteggi anno per anno nei due gruppi:
-
-```{r}
 count_white <- table(white_df$year)
-events_by_year_white <- data.frame(
-  year = as.numeric(names(count_white)),
-  event_count = as.vector(count_white)
-)
-
 count_non_white <- table(non_white_df$year)
-events_by_year_non_white <- data.frame(
-  year = as.numeric(names(count_non_white)),
-  event_count = as.vector(count_non_white)
+
+df_white <- data.frame(year = as.numeric(names(count_white)), events = as.vector(count_white), group = "White")
+df_nonwhite <- data.frame(year = as.numeric(names(count_non_white)), events = as.vector(count_non_white), group = "NonWhite")
+df_groups <- rbind(df_white, df_nonwhite)
+```
+
+### Prior plausibile
+
+Supponiamo una media a priori di circa 30 eventi l’anno con deviazione 10. Una lognormale approssimativa corrisponde a `normal(3.4, 0.3)` sulla scala logaritmica.
+
+```{r}
+prior_race <- c(
+  prior(normal(3.4, 0.3), class = "b", coef = "groupWhite"),
+  prior(normal(3.4, 0.3), class = "b", coef = "groupNonWhite")
 )
 ```
 
-```{r}
-events_by_year_white
-```
-
-```{r}
-events_by_year_non_white
-```
-
-### Una prior plausibile
-
-Dalle medie dei due campioni, immaginiamo di mettere una prior lognormale su $\lambda$ attorno a 30 (dev. std. $\approx 10$). Approfittiamo di un’ulteriore approssimazione:
-
-```{r}
-# prior ~ lognormal(meanlog = 3.4, sdlog = 0.3) ~ circa media 30, sd ~10
-prior_unarmed <- c(
-  prior(normal(3.4, 0.3), class = "Intercept")
-)
-```
-
-### Stima separata per i due gruppi
-
-#### Gruppo caucasico (white)
+### Modello con due gruppi
 
 ```{r}
 #| message: false
 #| warning: false
 #| output: false
 #| 
-m_white <- brm(
-  formula = event_count ~ 1,
-  family  = poisson(link = "log"),
-  data    = events_by_year_white,
-  prior   = prior_unarmed,
-  iter    = 3000, warmup = 1000, seed = 123
-)
-```
-
-```{r}
-summary(m_white)
-```
-
-Otteniamo la *posterior* su $\lambda_{\text{white}}$:
-
-```{r}
-# Ottieni i campioni posteriori usando as_draws
-posterior_draws_m_white <- as_draws(m_white)
-
-# Estrai i campioni dell'intercetta (b_Intercept)
-b_Intercept_draws <- posterior_draws_m_white %>% 
-  tidybayes::spread_draws(b_Intercept)
-
-# Converti i campioni in lambda (exp(b_Intercept))
-lambda_draws <- exp(b_Intercept_draws$b_Intercept)
-
-median_qi(lambda_draws, .width = 0.94)
-```
-
-
-#### Gruppo non-caucasico
-
-```{r}
-#| message: false
-#| warning: false
-#| output: false
-#| 
-m_non_white <- brm(
-  formula = event_count ~ 1,
-  family  = poisson(link = "log"),
-  data    = events_by_year_non_white,
-  prior   = prior_unarmed,
-  iter    = 3000, warmup = 1000, seed = 123
-)
-```
-
-```{r}
-summary(m_non_white)
-```
-
-Estraiamo la posterior e calcoliamo l’intervallo di credibilità:
-
-```{r}
-# Ottieni i campioni posteriori usando as_draws
-posterior_draws_m_non_white <- as_draws(m_non_white)
-
-# Estrai i campioni dell'intercetta (b_Intercept)
-b_Intercept_draws <- posterior_draws_m_non_white %>% 
-  tidybayes::spread_draws(b_Intercept)
-
-# Converti i campioni in lambda (exp(b_Intercept))
-lambda_draws <- exp(b_Intercept_draws$b_Intercept)
-
-median_qi(lambda_draws, .width = 0.94)
-```
-
-Il confronto tra i due intervalli di credibilità, come già visto in precedenza, indica che il tasso di vittime disarmate (per anno) sia più elevato tra i non-caucasici rispetto ai caucasici.
-
-### Modello congiunto (due gruppi in un unico fit)
-
-Possiamo anche costruire un unico modello che stimi congiuntamente i due tassi e la loro differenza. Per far ciò, costruiamo un data frame in cui ogni riga è un anno-gruppo:
-
-```{r}
-events_white    <- events_by_year_white %>%
-  mutate(group = "White")
-
-events_nonwhite <- events_by_year_non_white %>%
-  mutate(group = "NonWhite")
-
-df_groups <- bind_rows(events_white, events_nonwhite) %>%
-  arrange(year, group)
-
-df_groups
-```
-
-Ora adattiamo un modello con un effetto fittizio per ogni gruppo (senza intercetta globale, se vogliamo stime distinte e dirette sul link log):
-
-```{r}
-#| message: false
-#| warning: false
-#| output: false
-#| 
-# Il simbolo 0 + group rimuove l’intercetta e stima un parametro di log-tasso
-# per il gruppo White e un altro per NonWhite.
-
 m_groups <- brm(
-  formula = event_count ~ 0 + group,  # 2 coefficienti: groupWhite, groupNonWhite
-  family  = poisson(link = "log"),
+  formula = events ~ 0 + group,
+  family  = poisson(),
   data    = df_groups,
-  prior   = c(
-    prior(normal(3.4, 0.3), class="b", coef="groupWhite"),
-    prior(normal(3.4, 0.3), class="b", coef="groupNonWhite")
-  ),
-  iter = 3000, warmup = 1000, chains = 4, seed=123
+  prior   = prior_race,
+  iter = 3000, warmup = 1000, chains = 4, seed = 123
 )
-
-summary(m_groups)
 ```
 
-Nell’output avremo:
-
-- `b_groupWhite`: stima log($\lambda_{\text{white}}$)
-- `b_groupNonWhite`: stima log($\lambda_{\text{nonwhite}}$)
-
-#### Calcolo della differenza delle frequenze attese
-
-Se vogliamo la differenza *sulla scala naturale* (cioè $\lambda_{\text{nonwhite}} - \lambda_{\text{white}}$), basta estrarre i campioni e poi calcolare:
+Otteniamo i tassi stimati:
 
 ```{r}
-post_mg <- posterior_samples(m_groups)
-lambda_white_mg    <- exp(post_mg$b_groupWhite)
-lambda_nonwhite_mg <- exp(post_mg$b_groupNonWhite)
-diff_lambda <- lambda_nonwhite_mg - lambda_white_mg
+post <- posterior_samples(m_groups)
+lambda_white <- exp(post$b_groupWhite)
+lambda_nonwhite <- exp(post$b_groupNonWhite)
+diff_lambda <- lambda_nonwhite - lambda_white
+```
 
+Intervallo credibile:
+
+```{r}
 median_qi(diff_lambda, .width = 0.94)
 ```
 
-Se questo IC al 94% sta tutto sopra lo zero, possiamo concludere che $\lambda_{\text{nonwhite}} > \lambda_{\text{white}}$ con alta credibilità.
 
-## Riflessioni Conclusive
+## Conclusioni
 
-Sulla base dei risultati ottenuti dal modello di Poisson, possiamo trarre le seguenti conclusioni:
+* Il tasso medio annuo stimato di vittime disarmate uccise dalla polizia è **più alto per il gruppo non caucasico** rispetto a quello caucasico.
+* La **differenza media stimata** è di circa 11.5 casi l’anno, con un intervallo di credibilità al 94% che va da circa 6.8 a 16.4.
+* I tassi stimati per ciascun gruppo sono:
 
-- Il tasso stimato di incidenza delle vittime disarmate uccise dalla polizia negli Stati Uniti è più alto per il gruppo non caucasico rispetto al gruppo caucasico. La differenza media stimata tra i due tassi di incidenza è di 11.508, con una deviazione standard di 2.586. Questo significa che, in media, il tasso per il gruppo non caucasico è di circa 11.5 punti superiore rispetto al tasso per il gruppo caucasico.
+  * **Non caucasici**: media ≈ 35.6 (CI: 32–39.3)
+  * **Caucasici**: media ≈ 24.1 (CI: 21.1–27.3)
 
-- L'intervallo di credibilità al 94% per questa differenza va da 6.792 a 16.443, indicando che è molto probabile che la vera differenza tra i tassi di incidenza dei due gruppi si trovi all'interno di questo intervallo. Questo intervallo di credibilità non include lo zero, il che fornisce ulteriore evidenza che il tasso di incidenza per il gruppo non caucasico è effettivamente più alto rispetto al gruppo caucasico.
+Questi risultati forniscono una base solida per affermare che il tasso di sparatorie fatali di vittime disarmate è più alto tra le persone non caucasiche.
 
-Inoltre, i tassi di incidenza stimati per ciascun gruppo sono i seguenti:
-
-- Gruppo non caucasico: tasso medio di 35.577 con un intervallo di credibilità al 94% tra 31.978 e 39.260.
-- Gruppo caucasico: tasso medio di 24.069 con un intervallo di credibilità al 94% tra 21.098 e 27.285.
-
-Questi risultati indicano chiaramente che il gruppo non caucasico ha un tasso di incidenza più alto di vittime disarmate uccise dalla polizia rispetto al gruppo caucasico. L'intervallo di credibilità per ciascun tasso fornisce una stima robusta e credibile della variabilità di questi tassi.
-
-In sintesi, il modello di Poisson fornisce una forte evidenza che esiste una differenza robusta tra i tassi di incidenza dei due gruppi, con il gruppo non caucasico che presenta un tasso più elevato di vittime disarmate uccise dalla polizia rispetto al gruppo caucasico.
 
 ## Esercizi {.unnumbered} 
 
@@ -437,7 +227,7 @@ Nella finale olimpica di calcio 2024, la Spagna ha sconfitto la Francia per 5 a 
 
 **Suggerimento:** puoi risolvere il problema in modo analitico (Gamma-Poisson con un solo conteggio) oppure puoi usare **brms** costruendo un dataframe:
 
-```r
+```{r}
 df_soccer <- data.frame(
   team = c("Spain", "France"),
   goals = c(5, 3)

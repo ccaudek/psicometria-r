@@ -28,320 +28,143 @@ pacman::p_load(cmdstanr, posterior, bayestestR, brms, emmeans,
 ```
 :::
 
-## Introduzione 
+## Introduzione
 
-L'ANOVA a due o più vie estende il caso dell'ANOVA ad una via alla presenza di molteplici criteri di classificazione. Qui ci concentreremo sull'ANOVA a due vie.
+L'ANOVA a due vie estende il modello dell'ANOVA a una via alla situazione in cui la variabile dipendente è influenzata da **due fattori** distinti, ciascuno con due o più livelli. Questa estensione consente di analizzare non solo gli **effetti principali** di ciascun fattore, ma anche l'**interazione** tra i due.
 
-### Pattern delle medie nella classificazione a due vie
+### Medie di popolazione in una classificazione a due vie
 
-Immaginiamo di disporre delle medie di popolazione. La notazione per la classificazione a due vie è illustrata nella seguente tabella:
+Supponiamo di conoscere le medie di popolazione per ciascuna combinazione dei livelli dei due fattori. La struttura può essere rappresentata in una tabella come la seguente:
 
-|            |  C1   |  C2   |  …   |  Cc   | Totale colonna |
-|------------|-------|-------|------|-------|----------------|
-| **R1**     | µ11   | µ12   | …    | µ1c   | µ1:            |
-| **R2**     | µ21   | µ22   | …    | µ2c   | µ2:            |
-| **…**      | …     | …     | …    | …     | …              |
-| **Rr**     | µr1   | µr2   | …    | µrc   | µr:            |
-|------------|-------|-------|------|-------|----------------|
-| **Totale riga** | µ:1   | µ:2   | …    | µ:c   | µ::            |
+|               | $C_1$   | $C_2$   | $\dots$ | $C_c$   | Media riga          |
+|---------------|-------------|-------------|-------------|-------------|----------------------|
+| $R_1$     | $\mu_{11}$ | $\mu_{12}$ | $\dots$  | $\mu_{1c}$ | $\mu_{1\cdot}$   |
+| $R_2$     | $\mu_{21}$ | $\mu_{22}$ | $\dots$  | $\mu_{2c}$ | $\mu_{2\cdot}$   |
+| $\vdots$  | $\vdots$   | $\vdots$   | $\ddots$ | $\vdots$   | $\vdots$         |
+| $R_r$     | $\mu_{r1}$ | $\mu_{r2}$ | $\dots$  | $\mu_{rc}$ | $\mu_{r\cdot}$   |
+| **Media colonna** | $\mu_{\cdot 1}$ | $\mu_{\cdot 2}$ | $\dots$  | $\mu_{\cdot c}$ | $\mu_{\cdot\cdot}$ |
 
-Qui, i fattori $R$ e $C$ (così denominati in riferimento alle **righe** e alle **colonne** della tabella delle medie) presentano rispettivamente $r$ e $c$ categorie. Indichiamo le categorie dei fattori come $R_j$ e $C_k$.
+dove:
 
-**All’interno di ogni cella del disegno sperimentale**—cioè per ciascuna combinazione di categorie $\{R_j, C_k\}$ dei due fattori—si trova una media di popolazione $\mu_{jk}$ relativa alla variabile di risposta. 
-
-Per descrivere le medie su righe, colonne e quella complessiva, utilizziamo la **notazione a “punti”**:
-
-$$
-\mu_{j:} \;=\; \frac{\sum_{k=1}^{c} \mu_{jk}}{c}
-\quad\text{(media marginale sulla riga $j$)},
-$$
-
-$$
-\mu_{:k} \;=\; \frac{\sum_{j=1}^{r} \mu_{jk}}{r}
-\quad\text{(media marginale sulla colonna $k$)},
-$$
-
-$$
-\mu_{::} \;=\; \frac{\sum_{j=1}^{r}\sum_{k=1}^{c} \mu_{jk}}{r\,c}
-\;=\; \frac{\sum_{j=1}^{r} \mu_{j:}}{r}
-\;=\; \frac{\sum_{k=1}^{c} \mu_{:k}}{c}
-\quad\text{(media generale, o grand mean)}.
-$$
+* $µ_{jk}$ è la media della cella per il livello $j$ del fattore R e $k$ del fattore C.
+* $µ_{j:}$ è la media marginale per la riga $j$.
+* $µ_{:k}$ è la media marginale per la colonna $k$.
+* $µ_{::}$ è la media complessiva.
 
 ### Effetti principali e interazione
 
-Se i fattori $R$ e $C$ **non interagiscono** nel determinare la variabile di risposta, allora l’effetto di uno di essi, a parità di categoria dell’altro, rimane costante. In termini pratici, la differenza fra le medie di cella $\mu_{jk} - \mu_{j'k}$—quando confrontiamo due categorie di $R$, ad esempio $R_j$ e $R_{j'}$—è **la stessa** per tutte le categorie di $C$ (cioè per $k = 1, 2, \dots, c$). 
+Se **non c'è interazione** tra i due fattori, la **differenza tra livelli di un fattore è costante** a prescindere dal livello dell'altro fattore. In altre parole, le differenze tra medie di cella si riflettono esattamente nelle differenze tra le medie marginali.
 
-Di conseguenza, la differenza fra le medie nelle righe è uguale alla differenza fra le corrispondenti **medie marginali** di riga:
+Ad esempio, se il fattore R non interagisce con il fattore C, allora:
 
 $$
-\mu_{jk} - \mu_{j'k} \;=\; \mu_{jk'} - \mu_{j'k'} \;=\; \mu_{j:} - \mu_{j':}
-\quad\text{per ogni } j, j' \text{ e } k, k'.
+µ_{j1} - µ_{j'1} = µ_{j2} - µ_{j'2} = ... = µ_{j:} - µ_{j':}
 $$
 
-Un altro modo di vedere questa **assenza di interazione** è attraverso i profili di medie di cella, che in questo caso risultano “paralleli”. Se i profili sono paralleli, allora la differenza fra $\mu_{j1}$ e $\mu_{j2}$ (categorie $C_1$ e $C_2$) resta costante fra le diverse righe $j = 1, 2$, e coincide con la differenza fra le medie marginali di colonna, $\mu_{:1} - \mu_{:2}$.
+Quando i profili delle medie sono **paralleli**, l'assenza di interazione è facilmente visibile. L'**interazione** si manifesta quando le differenze tra livelli di un fattore **variano** al variare dell'altro fattore.
 
-L’**interazione** è un concetto **simmetrico**: se il fattore $R$ interagisce con il fattore $C$, vale anche il contrario. Quando non si verifica interazione, l’**effetto principale** (o **main effect**) di ogni fattore corrisponde semplicemente alla differenza fra le medie marginali di popolazione relative a quel fattore.
+L'interazione è **simmetrica**: se R interagisce con C, allora C interagisce con R. Se invece non vi è interazione, gli **effetti principali** dei fattori corrispondono alle differenze tra le rispettive medie marginali.
 
-La figura seguente presentata diversi scenari possibili.
+Un esempio visivo chiarisce meglio i concetti di effetto principale e interazione.
 
-```{r fig.asp=1}
-#| echo: false
-#| 
-# ------------------------------------------------------------
-# 2) Definizione dei livelli dei fattori
-# ------------------------------------------------------------
-levels_A <- c("A1", "A2", "A3")
-levels_B <- c("B1", "B2")
-
-# ------------------------------------------------------------
-# 3) Creazione di un data frame con le medie di cella
-#    per ciascuno scenario didattico
-# ------------------------------------------------------------
-# Ogni riga corrisponde a una combinazione (A, B)
-# Abbiamo 6 celle totali per un disegno 3x2.
-
-dfScenarios <- data.frame(
-  A = rep(levels_A, each = 2),  # A1,A1,A2,A2,A3,A3 ...
-  B = rep(levels_B, times = 3), # B1,B2,B1,B2,B1,B2 ...
-  
-  # Scenario 1: Nessun effetto (tutto = 10)
-  scenario1 = c(10, 10,
-                10, 10,
-                10, 10),
-  
-  # Scenario 2: Effetto principale solo di A
-  # A1=10, A2=12, A3=14 (uguale su B1 e B2)
-  scenario2 = c(10, 10,
-                12, 12,
-                14, 14),
-  
-  # Scenario 3: Effetto principale solo di B
-  # B1=10, B2=12 (uguale su A1, A2, A3)
-  scenario3 = c(10, 12,
-                10, 12,
-                10, 12),
-  
-  # Scenario 4: Entrambi gli effetti principali, no interazione
-  # Esempio: base=10, A effetto: 0 / +2 / +4, B effetto: 0 / +3
-  # => (A1,B1)=10, (A1,B2)=13, (A2,B1)=12, (A2,B2)=15, (A3,B1)=14, (A3,B2)=17
-  scenario4 = c(10, 13,
-                12, 15,
-                14, 17),
-  
-  # Scenario 5: Interazione
-  # Per evidenziare l'interazione, facciamo crescere la differenza
-  # tra B1 e B2 in modo diverso a seconda di A (vedi A3).
-  # Esempio:
-  # (A1,B1)=10, (A1,B2)=11
-  # (A2,B1)=12, (A2,B2)=13
-  # (A3,B1)=14, (A3,B2)=19
-  scenario5 = c(10, 11,
-                12, 13,
-                14, 19)
-)
-
-# ------------------------------------------------------------
-# 4) Passaggio al formato "lungo" (tidy) per tracciare i grafici
-# ------------------------------------------------------------
-dfLong <- dfScenarios %>%
-  pivot_longer(
-    cols = starts_with("scenario"),
-    names_to = "Scenario",
-    values_to = "Y"
-  )
-
-# ------------------------------------------------------------
-# 5) Creazione del grafico con ggplot2
-# ------------------------------------------------------------
-# - Sull'asse x mettiamo i livelli di A (A1, A2, A3)
-# - Sull'asse y le medie di cella (Y)
-# - Colori/linee per B (B1, B2)
-# - Facciamo un facet_wrap per "Scenario"
-# - Niente errore o varianza, perché abbiamo medie pure (senza rumore).
-# ------------------------------------------------------------
-
-ggplot(dfLong, aes(x = A, y = Y, color = B, group = B)) +
-  geom_point(size = 3) +
-  geom_line(linewidth = 1) +
-  facet_wrap(~ Scenario, scales = "free_y") +
-  labs(
-    title = "Pattern di effetti principali e interazione",
-    x = "Fattore A",
-    y = "Media di cella (Y)"
-  ) +
-  theme(legend.position = "bottom")
-```
+![Pattern di effetti principali e interazione](pattern_effetti.png)
 
 ## Simulazione
 
-Per fare un esempio concreto, simuliamo dei dati seguendo lo schema utilizzato con l'ANOVA ad una via. In questo caso, aggiungiamo un secondo fattore: la gravità dei sintomi.
+Simuliamo ora un dataset che rispecchi una struttura a due vie. Consideriamo:
+
+* fattore 1: `condizione` (controllo, psicoterapia1, psicoterapia2)
+* fattore 2: `gravita` (molto\_gravi, poco\_gravi)
+
+Impostiamo le medie di cella in modo che riflettano sia effetti principali sia un'interazione.
 
 ```{r}
-# Imposta un seme per riproducibilità (opzionale)
 set.seed(123)
-
-# Definiamo il numero di osservazioni per ogni cella
 n <- 30
-
-# Definiamo le categorie dei fattori
-gravita <- c("molto_gravi", "poco_gravi")
 condizione <- c("controllo", "psicoterapia1", "psicoterapia2")
-
-# Definiamo la deviazione standard (ipotizziamo la stessa per tutte le celle)
+gravita <- c("molto_gravi", "poco_gravi")
 sd_value <- 5
 
-# Definiamo le medie attese per ciascuna combinazione (gravita x condizione)
-# Esempio:
-# - Pazienti molto gravi:  (controllo=30, psico1=25, psico2=20)
-# - Pazienti poco gravi:   (controllo=25, psico1=20, psico2=15)
-
 mean_table <- matrix(
-  c(30, 25, 20,  # molto_gravi
-    25, 20, 15), # poco_gravi
-  nrow = 2,      # 2 righe per "molto_gravi" e "poco_gravi"
-  ncol = 3,      # 3 colonne per "controllo", "psicoterapia1", "psicoterapia2"
-  byrow = TRUE
+  c(30, 25, 20,
+    25, 20, 15),
+  nrow = 2, byrow = TRUE
 )
 
-# Crea un data frame vuoto che riempiremo con i dati simulati
 df <- data.frame()
 
 for (i in seq_along(gravita)) {
   for (j in seq_along(condizione)) {
-    # Estraiamo la media corrispondente alla combinazione (i, j)
-    current_mean <- mean_table[i, j]
-    
-    # Generiamo 'n' osservazioni normali con media = current_mean e sd = sd_value
-    simulated_data <- rnorm(n, mean = current_mean, sd = sd_value)
-    
-    # Creiamo un data frame temporaneo per questa combinazione
-    temp_df <- data.frame(
-      gravita    = gravita[i],
+    media <- mean_table[i, j]
+    dati <- rnorm(n, mean = media, sd = sd_value)
+    df <- rbind(df, data.frame(
+      gravita = gravita[i],
       condizione = condizione[j],
-      punteggio  = simulated_data
-    )
-    
-    # Append al data frame finale
-    df <- rbind(df, temp_df)
+      punteggio = dati
+    ))
   }
 }
 ```
 
-Esaminiamo le medie:
-
-```{r}
-# Esempio di sintesi statistica
-aggregate(punteggio ~ gravita + condizione, data = df, mean)
-```
-
-Rappresentiamo graficamente la distribuzione dei dati nelle varie condizioni:
+Visualizziamo i dati:
 
 ```{r}
 ggplot(df, aes(x = condizione, y = punteggio, fill = gravita)) +
   geom_boxplot(position = position_dodge()) +
-  labs(title = "Simulazione dati: Effetto gravità e condizione",
-       x = "Condizione sperimentale",
-       y = "Punteggio")
+  labs(title = "Distribuzione dei punteggi per gravita e condizione")
 ```
 
-Addattiamo ai dati un modello bayesiano:
+## Modellazione Bayesiana
+
+Adattiamo ai dati un modello che includa interazione:
 
 ```{r}
+#| message: false
+#| warning: false
 #| output: false
 #| 
-mod <- brm(
-  punteggio ~ gravita * condizione, 
-  data = df,
-  backend = "cmdstanr"
-)
+mod <- brm(punteggio ~ gravita * condizione, data = df, backend = "cmdstanr")
 ```
 
-Esaminiamo le stime del modello:
+Esploriamo gli effetti condizionati:
 
 ```{r}
 conditional_effects(mod, "condizione:gravita")
 ```
 
-Un sommario delle stime a posteriori si ottiene nel modo seguente:
-
-```{r}
-summary(mod)
-```
-
-L'esame dell'output precedente mostra come sia difficile rispondere alle domende di interesse mediante l'esame dei singoli coefficienti. Per valutare gli effetti principali e la presenza di interazione si usa invece un metodo basato sul confronto tra modelli.
-
 ## Confronto tra Modelli
 
-Il test degli effetti principali e dell'interazione viene eseguito, nell'approccio frequentista, calcolando R^2 per i vari modelli per poi fare una differenza tra gli R^2 pesati per i gradi di libertà. Questa differenza si distribuisce come F e quindi disponiamo di una distribuzione campionaria nota per questa statistica. Il test si fa nel solito modo, ovvero ci si chiede se la differenza in R^2 osservata è sufficientemente piccola da potere essere attribuita al caso, sotto l'ipotesi che i due modelli sono equivalenti, oppure no. 
+Confrontiamo due modelli:
 
-I test bayesiani si basano su una logica diversa, anche se ha alcuni punti in comune. Il confronto tra modelli si basa su una quantità chiamata **LOO (Leave-One-Out cross-validation)**.
-
----
-
-## Cos'è LOO (Leave-One-Out cross-validation)?
-
-**LOO** è un metodo per stimare **quanto bene un modello predice nuovi dati**. In particolare, misura quanto il modello è in grado di generalizzare oltre i dati usati per costruirlo.
-
-1. **Come funziona**:  
-   Si rimuove iterativamente **una osservazione** dal dataset, si stima il modello sui dati rimanenti e si valuta quanto bene il modello predice l'osservazione esclusa. Questo processo viene ripetuto per tutte le osservazioni.
-
-2. **Nel contesto Bayesiano**:  
-   Poiché ricalcolare il modello per ogni possibile sottogruppo di dati sarebbe computazionalmente oneroso, si usa una **stima approssimativa** di LOO basata sul concetto di **PSIS-LOO** (Pareto Smoothed Importance Sampling). Questa stima è disponibile direttamente in `brms` tramite il comando `loo()`.
-
----
-
-## **Indicatori principali nei risultati di LOO**
-
-1. **`elpd` (expected log predictive density)**:  
-   È la somma logaritmica delle probabilità predittive del modello per ogni osservazione, calcolata dopo aver escluso quella stessa osservazione. Valori più **alti** indicano un modello che predice meglio.
-
-2. **`elpd_diff`**:  
-   Differenza di `elpd` tra due modelli. Se $\text{elpd}_{\text{model1}} > \text{elpd}_{\text{model2}}$, il **modello 1** è preferito.
-
-3. **`se_diff` (standard error of difference)**:  
-   L'incertezza associata a `elpd_diff`. Se `|elpd_diff|` è **molto piccolo** rispetto a `se_diff`, la differenza tra i modelli non è considerata robusta.
-
----
-
-Nel caso presente, confrontiamo due modelli:
-
-- **mod1**: Modello completo (con interazione).  
-- **mod**: Modello senza interazione (solo effetti principali).  
+* `mod`: con interazione
+* `mod1`: solo con effetti principali
 
 ```{r}
+#| message: false
+#| warning: false
 #| output: false
 #| 
-mod1 <- brm(
-  punteggio ~ gravita + condizione, 
-  data = df,
-  backend = "cmdstanr"
-)
+mod1 <- brm(punteggio ~ gravita + condizione, data = df, backend = "cmdstanr")
 ```
 
-### Confronto LOO
+### LOO (Leave-One-Out Cross Validation)
 
 ```{r}
-# Confronto via LOO
-loo_full <- loo(mod)
-loo_noint  <- loo(mod1)
-loo_compare(loo_full, loo_noint)
+loo_mod  <- loo(mod)
+loo_mod1 <- loo(mod1)
+loo_compare(loo_mod, loo_mod1)
 ```
 
-- **`elpd_diff = -0.9`**: Il modello con interazione (**mod**) ha un **elpd** leggermente più basso rispetto al modello senza interazione (**mod1**). Questo significa che il modello senza interazione è leggermente preferibile in termini di capacità predittiva sui nuovi dati.
+Interpretazione:
 
-- **`se_diff = 1.5`**: L'incertezza associata alla differenza di **elpd** è molto più grande della differenza stessa (`elpd_diff` / `se_diff`). Questo implica che non c'è evidenza sufficiente per concludere che uno dei due modelli sia chiaramente migliore.
+* se `elpd_diff` è piccolo rispetto a `se_diff`, la differenza non è sostanziale;
+* il modello più semplice è preferibile se non vi è evidenza chiara a favore dell'interazione.
 
-In conclusione,
 
-1. **Il modello senza interazione (`mod1`)** è leggermente preferibile in termini di **LOO-IC**, ma la differenza è trascurabile e non robusta, data l'elevata incertezza (`se_diff` = 1.5).
+## Conclusione
 
-2. **Interpretazione pratica**: 
+L'ANOVA a due vie permette di esaminare sia gli effetti separati di due fattori sia la loro interazione. La modellazione bayesiana, combinata con il confronto tramite LOO, offre un approccio potente per valutare quale struttura descrive meglio i dati. Se l'interazione non migliora la predizione in modo credibile, è preferibile adottare il modello più parsimonioso.
 
-   - Non ci sono prove sufficienti per preferire il modello con interazione (**mod**) rispetto al modello senza interazione (**mod1**).
-   - In assenza di altre considerazioni teoriche che giustifichino l’inclusione dell’interazione, il modello più semplice (**mod1**, senza interazione) è probabilmente una scelta migliore.
-
-Si procede in un modo simile per i test degli effetti principali. In quel caso potremmo confrontrare un modello con gli effetti additivi dei due fattori con un modello con un unico fattore.
 
 ## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
 

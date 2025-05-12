@@ -27,19 +27,28 @@ pacman::p_load(cmdstanr, posterior, bayestestR, brms, emmeans)
 ```
 :::
 
-## Introduzione 
+## Introduzione
 
-Nel @sec-linear-models-two-groups abbiamo visto come costruire regressori fittizi (dummy) per rappresentare l’effetto di variabili categoriche (fattori) a due livelli. Consideriamo ora il caso di un singolo fattore con più di due livelli. Per esempio, nel caso di una classificazione a tre categorie, possiamo adottare il modello
+Nel @sec-linear-models-two-groups abbiamo visto come rappresentare **fattori a due livelli** mediante **variabili dummy**, per includere effetti categoriali all'interno di un modello lineare. In questa sezione estendiamo tale approccio al caso in cui un singolo fattore abbia **più di due categorie**.
+
+Supponiamo, ad esempio, di voler analizzare un fattore con **tre gruppi**. In questo caso possiamo utilizzare due variabili dummy per rappresentare le prime due categorie, e assumere implicitamente la terza come **categoria di riferimento**. Il modello lineare diventa:
 
 $$
-Y_i = \alpha + \gamma_1 D_{i1} + \gamma_2 D_{i2} + \varepsilon_i,
+Y_i = \alpha + \gamma_1 D_{i1} + \gamma_2 D_{i2} + \varepsilon_i
 $$ {#eq-anova1}
 
-utilizzando la seguente codifica per i regressori dummy:
+dove:
+
+* $\alpha$ è l’intercetta del modello,
+* $\gamma_1$ e $\gamma_2$ sono i coefficienti associati alle variabili dummy,
+* $D_{i1}$ e $D_{i2}$ indicano l’appartenenza dell’osservazione $i$ ai gruppi 1 e 2, rispettivamente,
+* $\varepsilon_i$ è l’errore aleatorio.
+
+La seguente tabella mostra come codificare le dummy per ciascun gruppo:
 
 $$
 \begin{array}{c|cc}
-\text{Gruppo} & D_1 & D_2 \\
+\text{Gruppo} & D_{1} & D_{2} \\
 \hline
 1 & 1 & 0 \\
 2 & 0 & 1 \\
@@ -47,94 +56,94 @@ $$
 \end{array}
 $$ {#eq-anova1a}
 
-L’aspettativa della variabile di risposta in ciascun gruppo (cioè in ciascuna categoria o livello del fattore) corrisponde alla media di popolazione del gruppo, indicata con $\mu_j$ per il gruppo $j$. Poiché l’errore $\varepsilon$ ha media zero, in base alle usuali ipotesi del modello lineare, prendendo l’aspettativa di entrambi i membri dell’equazione (8.1) si ottengono le relazioni seguenti tra le medie di gruppo e i parametri:
+### Significato dei parametri
+
+L’obiettivo è stimare le **medie di popolazione** per ciascun gruppo, indicate con $\mu_j$ per il gruppo $j$. Poiché l’errore $\varepsilon$ ha media zero, possiamo calcolare l’aspettativa del modello per ciascun gruppo:
 
 $$
 \begin{aligned}
-\text{Gruppo 1: } \mu_1 &= \alpha + \gamma_1 \cdot 1 + \gamma_2 \cdot 0 = \alpha + \gamma_1, \\
-\text{Gruppo 2: } \mu_2 &= \alpha + \gamma_1 \cdot 0 + \gamma_2 \cdot 1 = \alpha + \gamma_2, \\
-\text{Gruppo 3: } \mu_3 &= \alpha + \gamma_1 \cdot 0 + \gamma_2 \cdot 0 = \alpha.
+\text{Gruppo 1: } \mu_1 &= \mathbb{E}(Y \mid D_1 = 1, D_2 = 0) = \alpha + \gamma_1 \\
+\text{Gruppo 2: } \mu_2 &= \mathbb{E}(Y \mid D_1 = 0, D_2 = 1) = \alpha + \gamma_2 \\
+\text{Gruppo 3: } \mu_3 &= \mathbb{E}(Y \mid D_1 = 0, D_2 = 0) = \alpha
 \end{aligned}
 $$ {#eq-anova1b}
 
-Qui troviamo tre parametri $(\alpha, \gamma_1, \gamma_2)$ e tre medie di gruppo, per cui è possibile risolvere in modo univoco i parametri in termini delle medie di gruppo:
+Queste espressioni mostrano come i coefficienti del modello siano **relativi alla categoria di riferimento**, cioè il Gruppo 3. Possiamo dunque esprimere i parametri del modello in funzione delle medie di gruppo:
 
 $$
-\alpha = \mu_3, \quad \gamma_1 = \mu_1 - \mu_3, \quad \gamma_2 = \mu_2 - \mu_3.
+\alpha = \mu_3, \quad \gamma_1 = \mu_1 - \mu_3, \quad \gamma_2 = \mu_2 - \mu_3 .
 $$ {#eq-anova1c}
 
-Non sorprende che $\alpha$ rappresenti la media della categoria di riferimento (il Gruppo 3), mentre $\gamma_1$ e $\gamma_2$ descrivono quanto le altre due medie di gruppo si discostino dalla media della categoria di riferimento.
+In sintesi:
+
+* $\alpha$ rappresenta la media del **gruppo di riferimento** (Gruppo 3),
+* $\gamma_1$ è la **differenza tra la media del Gruppo 1 e quella del Gruppo 3**,
+* $\gamma_2$ è la **differenza tra la media del Gruppo 2 e quella del Gruppo 3**.
+
+Questa struttura rende il modello facilmente interpretabile: i coefficienti delle dummy indicano quanto ciascun gruppo si discosta dalla categoria di riferimento, mentre l’intercetta fornisce direttamente la media di quest’ultima. Questo schema può essere esteso a fattori con un numero arbitrario di categorie.
 
 ## Simulazione
 
-Per esaminare un'applicazione pratica, simuliamo i dati di un fattore con 3 livelli:
+Per illustrare il funzionamento di un modello con un fattore a tre livelli, simuliamo un dataset con tre condizioni sperimentali: `controllo`, `psicoterapia1` e `psicoterapia2`. Supponiamo che ogni gruppo abbia una diversa media, ma la stessa deviazione standard:
 
 ```{r}
-# Imposta un seme per riproducibilità (opzionale)
 set.seed(123)
 
-# Definiamo il numero di osservazioni per ogni gruppo
-n <- 30
+n <- 30  # numero di osservazioni per gruppo
 
-# Definiamo le medie
+# Medie di ciascun gruppo
 mean_control <- 30
 mean_psico1  <- 25
 mean_psico2  <- 20
 
-# Definiamo la deviazione standard (ipotizziamo la stessa per tutti i gruppi)
+# Deviazione standard comune
 sd_value <- 5
 
-# Generiamo i dati casuali da distribuzioni normali
+# Generazione dei dati
 controllo     <- rnorm(n, mean_control, sd_value)
 psicoterapia1 <- rnorm(n, mean_psico1,  sd_value)
 psicoterapia2 <- rnorm(n, mean_psico2,  sd_value)
 
-# Creiamo un data frame con due colonne:
-# - "condizione": indica il gruppo (controllo / psicoterapia1 / psicoterapia2)
-# - "punteggio":  contiene i dati numerici generati
+# Creazione del data frame
 df <- data.frame(
   condizione = rep(c("controllo", "psicoterapia1", "psicoterapia2"), each = n),
   punteggio  = c(controllo, psicoterapia1, psicoterapia2)
 )
+
+df |> head()
 ```
 
-```{r}
-head(df)
-```
+### Esplorazione dei dati
 
-```{r}
-tail(df)
-```
-
-Esaminiamo la distribuzione dei dati nei tre gruppi:
+Visualizziamo le distribuzioni con un violin plot arricchito da un boxplot:
 
 ```{r}
 ggplot(df, aes(x = condizione, y = punteggio, fill = condizione)) +
-  # Il violin plot
   geom_violin(trim = FALSE) +
-  # Boxplot interno al violino
   geom_boxplot(width = 0.2, outlier.shape = NA) +
   labs(
-    title = "Depressione in funzione del gruppo",
-    x = "Gruppo",
-    y = "Depressione"
+    title = "Distribuzione dei punteggi di depressione per gruppo",
+    x = "Condizione sperimentale",
+    y = "Punteggio di depressione"
   ) +
-  # Rimuovi la legenda 
   theme(legend.position = "none")
 ```
 
-Calcoliamo le medie dei gruppi:
+Calcoliamo media e deviazione standard per ogni gruppo:
 
 ```{r}
 df |> 
   group_by(condizione) |> 
   summarize(
-    avg = mean(punteggio),
-    std = sd(punteggio)
+    media = mean(punteggio),
+    sd = sd(punteggio)
   )
 ```
 
-Nel caso presente, desideriamo creare due variabili dummy per codificare il fattore $`condizione`$, assumendo come gruppo di riferimento (baseline) la categoria `controllo`. Ecco come procedere:
+
+## Codifica con variabili dummy
+
+Convertiamo `condizione` in fattore e definiamo `controllo` come categoria di riferimento:
 
 ```{r}
 df$condizione <- factor(df$condizione)
@@ -142,235 +151,92 @@ df$condizione <- relevel(df$condizione, ref = "controllo")
 contrasts(df$condizione)
 ```
 
-Con questa impostazione, il **modello di regressione** assume la forma:
+Il modello di regressione con dummy sarà:
 
 $$
-Y_i = \beta_0 \;+\; \beta_1 \,(\text{psicoterapia1}_i) \;+\; \beta_2 \,(\text{psicoterapia2}_i) \;+\; \varepsilon_i,
+Y_i = \beta_0 + \beta_1 \cdot \text{psicoterapia1}_i + \beta_2 \cdot \text{psicoterapia2}_i + \varepsilon_i,
 $$
 
 dove:
 
-- $\beta_0$ (l’intercetta) rappresenta la **media della condizione di controllo**.  
-- $\beta_1$ indica la **differenza** tra la media del gruppo `psicoterapia1` e la media del gruppo `controllo`.  
-- $\beta_2$ indica la **differenza** tra la media del gruppo `psicoterapia2` e la media del gruppo `controllo`.
+* $\beta_0$ è la media del gruppo di **controllo**;
+* $\beta_1$ e $\beta_2$ sono le differenze tra le rispettive psicoterapie e il gruppo di controllo.
 
-Le variabili $\text{psicoterapia1}_i$ e $\text{psicoterapia2}_i$ sono i regressori dummy (0/1) che R crea per i due gruppi di psicoterapia, mentre $\varepsilon_i$ è il termine di errore.
+### Stima del modello
 
-In particolare, nei vari gruppi:
-
-- **Gruppo di controllo**: $\text{psicoterapia1}_i = 0$ e $\text{psicoterapia2}_i = 0$.  
-  $$
-  E[Y_{\text{controllo}}] = \beta_0.
-  $$
-
-- **Gruppo psicoterapia1**: $\text{psicoterapia1}_i = 1$ e $\text{psicoterapia2}_i = 0$.  
-  $$
-  E[Y_{\text{psicoterapia1}}] = \beta_0 + \beta_1.
-  $$
-
-- **Gruppo psicoterapia2**: $\text{psicoterapia1}_i = 0$ e $\text{psicoterapia2}_i = 1$.  
-  $$
-  E[Y_{\text{psicoterapia2}}] = \beta_0 + \beta_2.
-  $$
-
-In altre parole, **$\beta_1$** e **$\beta_2$** misurano rispettivamente di quanto la media di `psicoterapia1` e di `psicoterapia2` si discostino dalla media del gruppo di riferimento (`controllo`).
-
----
-
-### Stima del modello e interpretazione dei coefficienti
-
-Per verificare quanto detto, stimiamo il modello di regressione con l’approccio frequentista:
+Eseguiamo una prima analisi usando il metodo di massima verosimiglianza:
 
 ```{r}
 fm1 <- lm(punteggio ~ condizione, data = df)
+```
+
+```{r}
 summary(fm1)
 ```
 
-Possiamo anche calcolare le medie empiriche di ciascun gruppo:
+Verifica delle medie e differenze tra gruppi:
 
 ```{r}
 out <- tapply(df$punteggio, df$condizione, mean)
-out
+out[2] - out[1]  # psicoterapia1 - controllo
+out[3] - out[1]  # psicoterapia2 - controllo
 ```
 
-e quindi le differenze rispetto al controllo:
+## Contrasti personalizzati
+
+L’uso di contrasti personalizzati ci permette di testare ipotesi più specifiche. Ad esempio:
+
+* **contrasto 1**: controllare se la media del gruppo `controllo` differisce dalla media combinata delle due psicoterapie;
+* **contrasto 2**: confrontare direttamente `psicoterapia1` con `psicoterapia2`.
+
+### Matrice dei contrasti
 
 ```{r}
-out[2] - out[1]  # Differenza psico1 - controllo
-out[3] - out[1]  # Differenza psico2 - controllo
-```
-
-Le stime dei coefficienti ottenute da `summary(fm1)` coincideranno con queste differenze (a meno di arrotondamenti). In altre parole, l’inferenza (frequentista o bayesiana) sul coefficiente $\beta_j$ corrisponde all’inferenza su tale scostamento tra medie.
-
-## Contrasti personalizzati 
-
-Quando abbiamo un fattore con tre livelli — ad esempio, `controllo`, `psicoterapia1` e `psicoterapia2` — esistono vari schemi di codifica per le variabili dummy. Scegliere lo schema di codifica adeguato significa decidere come interpretare i coefficienti del modello. Per esempio, se vogliamo rispondere alla domanda «la **media congiunta** delle due psicoterapie è minore (o maggiore) della **media del controllo**?», possiamo definire un **contrasto lineare** ad hoc che confronti il gruppo `controllo` con la media delle due `psicoterapie`.
-
-### Possibili approcci
-
-1. **Creare un contrasto lineare ad hoc** che confronti $\{\text{psicoterapia1}, \text{psicoterapia2}\}$ con `controllo`.  
-2. **Raggruppare** i due livelli di psicoterapia in un nuovo fattore binario (`controllo` vs. `psicoterapia`) e condurre un test su questo fattore a due livelli (ma in questo modo si perderebbe la distinzione tra “psicoterapia1” e “psicoterapia2”).  
-
-Il metodo più **flessibile** è definire direttamente contrasti personalizzati sul fattore a tre livelli. In tal modo, possiamo gestire contemporaneamente più confronti, ad esempio: 
-
-- **Contrasto 1**: `controllo` vs. media (`psicoterapia1`, `psicoterapia2`)  
-- **Contrasto 2**: `psicoterapia1` vs. `psicoterapia2`
-
----
-
-### Contrasti personalizzati in R
-
-**Obiettivo**: definire due contrasti ortogonali per confrontare (1) il gruppo di controllo con la **media** delle due psicoterapie e (2) `psicoterapia1` con `psicoterapia2`.
-
-### Contrasto 1: Controllo vs. (psico1 + psico2)
-
-- Contrasto “grezzo” (non normalizzato):
-
-  $$
-    (-2,\; +1,\; +1)
-    \quad \text{con} \quad -2 + 1 + 1 = 0.
-  $$
-  
-  Se usassimo questi pesi direttamente, il coefficiente stimato $\beta_1$ sarebbe proporzionale alla differenza tra la media del `controllo` e la **media delle due psicoterapie**. Tuttavia, il passo da `controllo` ($-2$) a ciascuna psicoterapia ($+1$) è di 3 unità, il che può rendere il coefficiente meno intuitivo da leggere.
-
-- **Normalizzazione**  
-  Possiamo dividere ogni valore di $(-2, +1, +1)$ per la **somma assoluta** (o per la **radice della somma dei quadrati**, o per un altro fattore) al fine di ottenere contrasti più semplici.  
-  Ad esempio, se dividiamo $(-2, +1, +1)$ per 3, otteniamo $\bigl(-\tfrac{2}{3}, +\tfrac{1}{3}, +\tfrac{1}{3}\bigr)$. In tal caso, passare da `controllo` a `psicoterapia` fa variare il contrasto di **1** (anziché di 3).
-
-### Contrasto 2: psico1 vs. psico2
-
-- Contrasto “grezzo”:  
-
-  $$
-     (\,0,\; +1,\; -1\,)
-     \quad \text{con} \quad 0 + 1 + (-1) = 0.
-  $$  
-  
-  Questo pesi confrontano direttamente `psicoterapia1` con `psicoterapia2`.
-
-- **Normalizzazione** (opzionale)  
-  Possiamo anche qui dividere per la radice della somma dei quadrati $\sqrt{(0^2 + 1^2 + (-1)^2)}= \sqrt{2}$, oppure lasciare i pesi così (poiché qui già passare da p1 a p2 equivale a 2 unità, e potrebbe essere chiaro abbastanza).  
-
-Nel codice seguente, si è scelto di **riscalare** (o “normalizzare”) i pesi in modo leggermente diverso, ottenendo numeri come `0.6667` e `-0.3333`. L’importante è che:
-
-1. La **somma** dei pesi in ciascun contrasto rimanga **0**.  
-2. I due contrasti siano **ortogonali** (i prodotti incrociati dei pesi per ogni livello sommano a 0).
-
----
-
-## Codice R per impostare e verificare i Contrasti
-
-Di seguito mostriamo un esempio concreto. **Prima** descriviamo la matrice di contrasti “grezza” e **poi** quella normalizzata usata nel codice.
-
-### Matrice di contrasti “grezza”
-
-```{r}
-# Contrasto 1 (grezzo):  -2, +1, +1
-# Contrasto 2 (grezzo):   0, +1, -1
-
-my_contrasts_raw <- matrix(c(
-  -2,  0,  # controllo
-   1, +1,  # psicoterapia1
-   1, -1   # psicoterapia2
-), ncol = 2, byrow = TRUE)
-
-colnames(my_contrasts_raw) <- c("Ctrl_vs_PsicoMean", "P1_vs_P2")
-rownames(my_contrasts_raw) <- c("controllo","psicoterapia1","psicoterapia2")
-my_contrasts_raw
-```
-
-### Matrice di contrasti “normalizzata” (quella effettivamente nel codice)
-
-Nel codice che segue, i pesi sono stati **riscalati** per avere differenze di “1” anziché “3” o “2” quando si passa da un gruppo all’altro. Puoi notare, per il primo contrasto, i valori $(+0.6667, -0.3333, -0.3333)$ invece di $(+1, -0.5, -0.5)$ o $(-2, +1, +1)$. Sono solo versioni **multiplicativamente equivalenti**.
-
-```{r}
-set.seed(123)
-
-# Esempio: definizione della matrice di contrasti
 my_contrasts <- matrix(c(
-  0.6667,  0,    # controllo  = +0.6667
-  -0.3333, 0.5,  # p1         = -0.3333
-  -0.3333, -0.5  # p2         = -0.3333
+  0.6667,  0,     # controllo
+ -0.3333,  0.5,   # psicoterapia1
+ -0.3333, -0.5    # psicoterapia2
 ), ncol = 2, byrow = TRUE)
 
 colnames(my_contrasts) <- c("Ctrl_vs_PsicoMean", "P1_vs_P2")
 rownames(my_contrasts) <- c("controllo", "psicoterapia1", "psicoterapia2")
 
-# Verifica: ogni colonna deve sommare a 0
-colSums(my_contrasts)  # dovrebbero essere circa (0, 0)
-
-# Verifica: i due contrasti sono ortogonali?
-sum(my_contrasts[,1] * my_contrasts[,2])  # dovrebbe essere 0
+contrasts(df$condizione) <- my_contrasts
 ```
 
-###  Applicazione al modello
+```{r}
+mod_custom <- lm(punteggio ~ condizione, data = df)
+```
 
 ```{r}
-# 1) Convertiamo 'condizione' in fattore (se non già fattore)
-df$condizione <- factor(df$condizione)
-
-# 2) Assegnamo la matrice di contrasti al fattore
-contrasts(df$condizione) <- my_contrasts
-
-# 3) Stimiamo il modello di regressione lineare
-mod_custom <- lm(punteggio ~ condizione, data = df)
-
-# 4) Esaminiamo il riepilogo
 summary(mod_custom)
 ```
 
 
 ## Interpretazione dei coefficienti
 
-1. **Intercetta ($\hat{\alpha}$)**  
-   In base allo schema di contrasti adottato, può non coincidere con la media effettiva di uno dei tre gruppi. Spesso rappresenta una qualche combinazione lineare delle medie di `controllo`, `psicoterapia1` e `psicoterapia2`.
+* **Intercetta**: non rappresenta più una singola media, ma una combinazione lineare dei gruppi.
+* **Ctrl\_vs\_PsicoMean**: confronta la media di `controllo` con la media combinata delle due psicoterapie.
+* **P1\_vs\_P2**: differenza tra le due psicoterapie.
 
-2. **Primo coefficiente (“Ctrl_vs_PsicoMean”)**  
-   Confronta la media del gruppo di controllo con la media (eventualmente pesata) delle due psicoterapie.  
-   - Se è **positivo**, il controllo ha una media **maggiore** rispetto a quella (combinata) delle psicoterapie.  
-   - Se è **negativo**, indica il contrario (psicoterapie > controllo).
-
-3. **Secondo coefficiente (“P1_vs_P2”)**  
-   Confronta direttamente `psicoterapia1` con `psicoterapia2`.  
-   - Se è **positivo**, `psicoterapia1` ha un punteggio **maggiore** (in media) di `psicoterapia2`.  
-   - Se è **negativo**, `psicoterapia2` supera `psicoterapia1`.
-
-Per controllare manualmente queste differenze, puoi calcolare:
-
-- $\text{controllo} - \frac{\text{psicoterapia1} + \text{psicoterapia2}}{2}$:  
+Verifica manuale:
 
 ```{r}
+# Controllo - media delle psicoterapie
 out[1] - (out[2] + out[3]) / 2
-```  
-  dove `out[i]` è la media empirica del gruppo $i$.
-  
-- $\text{psicoterapia1} - \text{psicoterapia2}$:  
 
-```{r}
+# Psicoterapia1 - Psicoterapia2
 out[2] - out[3]
 ```
 
-In sintesi,
 
-1. La **matrice grezza** $\begin{pmatrix} -2 & 0 \\ 1 & 1 \\ 1 & -1 \end{pmatrix}$ e la **matrice normalizzata** (con valori decimali) rappresentano lo stesso schema di contrasti, ma con differenti scale numeriche.  
-2. L’aspetto essenziale è che ciascun contrasto **sommi a 0** e che i due contrasti siano **ortogonali** (prodotto incrociato dei pesi = 0), garantendo interpretazioni indipendenti.  
-3. Normalizzare i pesi modifica il **valore numerico** dei coefficienti, ma non la loro **significatività statistica**.  
+## Uso del pacchetto `emmeans`
 
-Scegliendo opportunamente la matrice dei contrasti, possiamo verificare se la media congiunta di `psicoterapia1` e `psicoterapia2` differisce da quella di `controllo` e, contemporaneamente, se `psicoterapia1` differisce da `psicoterapia2`. L’eventuale **normalizzazione** dei pesi non incide sulle conclusioni del test, ma influenza la scala numerica dei coefficienti.
+Il pacchetto `emmeans` consente di ottenere gli stessi risultati in modo più diretto e modulare.
 
-## Pacchetto `emmeans`
+### Stima con `brms`
 
-Le stesse analisi descritte sopra possono essere svolte utilizzando le funzioni del pacchetto `emmeans`.  L’idea è: 
-
-1. Stimare un modello lineare (come prima).  
-2. Calcolare le stime delle medie marginali (le “means” del fattore `condizione`) tramite `emmeans()`.  
-3. Definire i **contrasti** di interesse con la funzione `contrast()`.  
-
-In questo modo, è possibile ottenere stime delle medie di ciascun gruppo e confrontarle (ad esempio “controllo” vs. “media delle psicoterapie” o “psicoterapia1” vs. “psicoterapia2”), anche in forma di test statistici (p-value, intervalli di confidenza, ecc.).
-
-### Preparazione del modello
-
-Usiamo ora un modello bayesiano, con prior non informativi o debolmente informativi:
+Usiamo ora `emmeans` con `brms`:
 
 ```{r}
 #| output: false
@@ -382,76 +248,56 @@ mod <- brm(punteggio ~ condizione, data = df, backend = "cmdstanr")
 summary(mod)
 ```
 
-### Calcolo delle medie marginali con `emmeans`
 
-Calcoliamo le stime delle medie (ls-means) per ciascun livello di 'condizione':
+### Calcolo delle medie marginali
 
 ```{r}
 em <- emmeans(mod, specs = "condizione")
 em
 ```
 
-Questo oggetto `em` contiene le medie stimate (e i relativi errori standard) per i tre gruppi: “controllo”, “psicoterapia1” e “psicoterapia2”.
-
-### Confronti (pairwise) tra i gruppi
-
-Confronti a coppie tra tutti i livelli di 'condizione' (psicoterapia1 vs controllo, ecc.):
+### Confronti tra gruppi
 
 ```{r}
-pairs(em)
+pairs(em)  # confronti a coppie
 ```
 
-### Contrasti personalizzati 
-
-Replichiamo i contrasti “ad hoc” (“controllo vs (psico1+psico2)” e “psicoterapia1 vs psicoterapia2”) utilizzati in precedenza:
+### Contrasti personalizzati con `emmeans`
 
 ```{r}
-# Definiamo i contrasti desiderati
 my_list <- list(
-  "Ctrl_vs_PsicoMean" = 
-    c("controllo" = 1, "psicoterapia1" = -0.5, "psicoterapia2" = -0.5),
-  "P1_vs_P2"          = 
-    c("controllo" = 0,  "psicoterapia1" = 1,    "psicoterapia2" = -1)
+  "Ctrl_vs_PsicoMean" = c(
+    "controllo" = 1, "psicoterapia1" = -0.5, "psicoterapia2" = -0.5
+  ),
+  "P1_vs_P2" = c(
+    "controllo" = 0, "psicoterapia1" = 1, "psicoterapia2" = -1
+  )
 )
+```
 
+```{r}
 contrast(em, method = my_list)
 ```
 
-## Altre opzioni utili di `emmeans`
-
-- **Credibility intervals**:  
-
 ```{r}
-confint( contrast(em, method = my_list) )
-```  
-  per intervalli di confidenza dei contrasti specificati.
-
-- **Test corretti per confronti multipli**:  
-
-```{r}
-contrast(em, method = my_list, adjust = "bonferroni")
-```  
-  o altre correzioni (ad es. `"holm"`, `"sidak"`, `"none"`).
-
-- **Visualizzazione**:  
-
-  Il pacchetto `emmeans` ha anche funzioni per la visualizzazione (`plot(em)`, `pwpp()`, ecc.).
-  
-```{r}
+# Visualizzazione
 plot(em)
 ```
 
-In conclusione, usare `emmeans` semplifica notevolmente:
-
-1. **Il calcolo delle medie stimate** (o “ls-means”) di ciascun livello di un fattore in un modello lineare (o GLM, o mixed model, ecc.).  
-2. **La definizione di contrasti personalizzati**, senza dover ridefinire manualmente la matrice di contrasti nel modello (come si fa con `contrasts(fattore) <- ...`).  
-3. **La produzione di test e intervalli di confidenza** per i confronti desiderati, integrando anche correzioni per confronti multipli se necessario.
-
-In questo modo, è possibile ottenere *esattamente* gli stessi risultati che otterresti impostando manualmente i contrasti a livello di design matrix, ma con **un approccio più flessibile** e con **meno passaggi**.
 
 ## Riflessioni Conclusive
 
-L'ANOVA ad una via non è altro che l'applicazione del modello di regressione al caso di una variabile dipendente quantitativa e di un fattore con più di due livelli. L'aspetto più utile dell'ANOVA riguarda i contrasti, ovvero specifiche ipotesi sulla differenza tra le medie. 
+Un’ANOVA a una via può essere vista come un caso speciale di regressione lineare, applicato a un fattore con più di due livelli. L’elemento più informativo dell’analisi non è tanto la verifica globale dell’effetto del fattore, ma l’esplorazione mirata di **contrasti specifici tra le medie**.
+
+La possibilità di definire **contrasti personalizzati**, come quelli che confrontano un singolo gruppo con la media degli altri, oppure due gruppi tra loro, permette di rispondere a **domande teoriche mirate**. Questo approccio si integra perfettamente con il framework bayesiano, in cui i contrasti possono essere interpretati in termini di **probabilità a posteriori**, anziché solo di significatività.
+
+Il pacchetto `emmeans` rende questo processo ancora più accessibile, offrendo strumenti per:
+
+* calcolare medie marginali stimate;
+* specificare contrasti personalizzati;
+* ottenere intervalli di confidenza (o credibilità) e p-value corretti.
+
+In definitiva, l’uso combinato di regressione, contrasti e strumenti come `emmeans` o `brms` fornisce un approccio potente, flessibile e interpretabile per analizzare l’effetto di fattori categoriali in modelli lineari.
 
 
 ## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 

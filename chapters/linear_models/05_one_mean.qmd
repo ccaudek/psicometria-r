@@ -179,53 +179,62 @@ In sintesi:
 
 Nel caso frequentista, il risultato può essere riportato nel modo seguente: 
 
-- L’analisi ha fornito una stima puntuale di α pari a 154.6, con un intervallo di confidenza al 95% compreso tra [153.8; 155.4].
+> l’analisi ha fornito una stima puntuale di α pari a 154.6, con un intervallo di confidenza al 95% compreso tra [153.8; 155.4].
 
 Nel caso bayesiano diciamo:
 
-- L’analisi bayesiana, condotta con una prior non informativa, ha restituito una stima a posteriori di α pari a 154.6, con un intervallo di credibilità al 95% [153.8; 155.4].
+> l’analisi bayesiana, condotta con una prior non informativa, ha restituito una stima a posteriori di α pari a 154.6, con un intervallo di credibilità al 95% [153.8; 155.4].
 
 ## Conclusioni Intermedie
 
-- Con `lm()` (modello lineare frequen­tista), otteniamo la stima di $\alpha$ con massima verosimiglianza e un intervallo di confidenza al 95%.  
-- Con `brm()` e un priore piatto (o molto debole), il risultato numerico è essenzialmente lo stesso, ma la **filosofia interpretativa** dell’intervallo $[153.78, 155.41]$ cambia.  
-- Se volessimo aggiungere informazioni a priori, potremmo specificare un priore su $\alpha$ in `brm()`, e otterremmo stime a posteriori **diverse** dalle frequentiste, soprattutto se i dati sono poco informativi.
+* Utilizzando la funzione `lm()` (modello lineare in ottica **frequentista**), otteniamo la stima di $\alpha$ tramite il metodo della **massima verosimiglianza**, accompagnata da un **intervallo di confidenza al 95%**.
 
-In questo modo, abbiamo mostrato come **lo stesso modello** (una semplice stima di media) produca **numeri quasi identici** in ottica frequentista e bayesiana se il prior è non informativo, pur differendo profondamente nell’**interpretazione** degli intervalli risultanti.
+* Con `brm()` (modello **bayesiano**), e adottando un **prior piatto** (o debolmente informativo), otteniamo **valori numerici molto simili** a quelli frequentisti. Tuttavia, cambia in modo sostanziale la **prospettiva interpretativa** dell’intervallo di credibilità: ad esempio, un intervallo come $[153{,}78,\ 155{,}41]$ ha, in ambito bayesiano, il significato di **probabilità a posteriori** che $\alpha$ cada in quell'intervallo.
 
-## Modello Bayesiano con Prior
+* Se invece decidessimo di includere **informazioni a priori** specifiche (es. da ricerche precedenti), potremmo specificare un prior informativo su $\alpha$ all’interno di `brm()`. In tal caso, i risultati **non coincidono più** con quelli frequentisti, specialmente quando i dati sono **poco informativi** o la numerosità del campione è ridotta.
 
-Impostiamo una distribuzione a priori $\mathcal{N}(181, 30)$ per il parametro $\mu$ e una distribuzione a priori $\mathcal{N}(0, 20)$ per il parametro $\sigma$. Seguendo @McElreath_rethinking, ho impostato la distribuzione a priori per $\mu$ sul valore della mia altezza, per incorporare nel modello le mie conoscenze precedenti rispetto ai valori dell'altezza.
+## Uso dei Prior nel Modello Bayesiano
 
-Pertanto, il modello Normale si definisce nel modo seguente:
+Nel contesto bayesiano, possiamo incorporare conoscenze pregresse attraverso la specificazione di **distribuzioni a priori** sui parametri del modello. In questo esempio, assegniamo:
+
+* una distribuzione a priori $\mathcal{N}(181, 30)$ al parametro $\mu$, che rappresenta l'altezza media;
+* una distribuzione a priori $\mathcal{N}(0, 20)$ (troncata inferiormente a zero) al parametro $\sigma$, che rappresenta la deviazione standard dell’altezza.
+
+Come suggerito da @McElreath_rethinking, la scelta di centrare il prior su $\mu = 181$ riflette una **conoscenza soggettiva informata**: in questo caso, l'altezza dell'autore stesso, utilizzata come riferimento iniziale per il valore atteso della media.
+
+### Specifica del modello
+
+Il modello bayesiano può quindi essere descritto come segue:
 
 $$
-\begin{align}
-Y_i &\sim \mathcal{N}(\mu, \sigma) \notag\\
-\mu &\sim \mathcal{N}(181, 30) \notag\\
-\sigma &\sim \mathcal{N}(0, 20) \notag
-\end{align}
+\begin{aligned}
+Y_i &\sim \mathcal{N}(\mu, \sigma) \\
+\mu &\sim \mathcal{N}(181,\ 30) \\
+\sigma &\sim \mathcal{N}^+(0,\ 20)
+\end{aligned}
 $$
 
-Con questa specifica del modello:
+dove $\mathcal{N}^+$ indica una **normale troncata inferiormente a zero**, per assicurare che $\sigma$ assuma solo valori positivi, come richiesto per una deviazione standard.
 
-- la variabile casuale $Y_i$ segue una distribuzione normale con parametri $\mu$ e $\sigma$;
-- il parametro $\mu$ ha una distribuzione a priori normale con media 181 e deviazione standard 30;
-- il parametro $\sigma$ ha una distribuzione a priori normale con deviazione standard 20, troncata inferiormente a 0.
+In questo contesto:
 
-Per $\sigma$, la normale troncata con deviazione standard pari a 20 permette una grande variabilità, garantendo valori positivi per la deviazione standard della distribuzione normale di $Y_i$. I parametri $\mu$ e $\sigma$ sono sconosciuti e rappresentano l'oggetto dell'inferenza. 
+* $Y_i$ rappresenta l’altezza osservata per ciascun individuo;
+* $\mu$ e $\sigma$ sono i parametri da stimare;
+* entrambi sono trattati come **quantità aleatorie**, soggette a incertezza.
 
+### Codice in `brms`
+
+Ecco la specifica del modello in `brms`:
 
 ```{r}
 #| output: false
-#| 
 fm3 <- brm(
-  formula = height ~ 1,   # Modello con sola intercetta (mu)
+  formula = height ~ 1,  # Modello con sola intercetta (μ)
   data    = df,
-  family  = gaussian(),   # Distribuzione Normale
+  family  = gaussian(),  # Distribuzione normale
   prior   = c(
-    brms::prior(normal(181, 30), class = "Intercept"),  # Prior su mu
-    brms::prior(normal(0, 20),   class = "sigma")       # Prior su sigma
+    prior(normal(181, 30), class = "Intercept"),  # Prior su μ
+    prior(normal(0, 20), class = "sigma")         # Prior su σ (verrà troncata automaticamente)
   ),
   chains  = 4,
   iter    = 2000,
@@ -234,22 +243,30 @@ fm3 <- brm(
 )
 ```
 
+Una volta stimato il modello, possiamo esaminare il riepilogo dei risultati con:
+
 ```{r}
 summary(fm3)
 ```
 
-Anche usando questi prior debolmente informativi per $\alpha$ e $\sigma$, l'intervallo a posteriori per $\alpha$ coincide con quello frequentista. 
+Anche con questi **prior debolmente informativi**, l’intervallo di credibilità per $\mu$ (o $\alpha$, se lo chiamiamo così nel modello) risulta molto simile all’intervallo di confidenza ottenuto con l’approccio frequentista. Questo accade perché i dati sono sufficientemente informativi da "dominare" il priore.
 
-Calcoliamo ora l'intervallo di credibilità all'89%:
+### Intervallo di credibilità all’89%
+
+Possiamo specificare un diverso livello di credibilità, ad esempio l’**89%**, come proposto da @McElreath_rethinking:
 
 ```{r}
 summary(fm3, prob = 0.89)
 ```
 
-Il risultato ottenuto replica i valori riportati da @McElreath_rethinking nella sua discussione dell'analisi di questi dati, anche se McElreath usa una procedura bayesiana diversa da quella presentata qui. @McElreath_rethinking giustifica la scelta dell'89% nel modo seguente:
+Il risultato ottenuto è in linea con quanto riportato da @McElreath_rethinking, nonostante egli utilizzi una diversa implementazione bayesiana (il pacchetto `rethinking`).
 
-> Why 89%? It’s just the default. It displays a quite wide interval,
-so it shows a high-probability range of parameter values. If you want another interval, such as the conventional and mindless 95%, you can use precis(m4.1,prob=0.95). But I don’t recommend 95% intervals, because readers will have a hard time not viewing them as significance tests. 89 is also a prime number, so if someone asks you to justify it, you can stare at them meaningfully and incant, “Because it is prime.” That’s no worse justification than the conventional justification for 95%.
+@McElreath_rethinking giustifica in modo ironico ma efficace la scelta dell'intervallo all’89%:
+
+> Why 89%? It’s just the default. It displays a quite wide interval, so it shows a high-probability range of parameter values. If you want another interval, such as the conventional and mindless 95%, you can use `precis(m4.1, prob = 0.95)`. But I don’t recommend 95% intervals, because readers will have a hard time not viewing them as significance tests. 89 is also a prime number, so if someone asks you to justify it, you can stare at them meaningfully and incant, ‘Because it is prime.’ That’s no worse justification than the conventional justification for 95%.
+
+Oltre all’ironia, il messaggio è chiaro: la scelta dell’intervallo di credibilità deve riflettere **una rappresentazione onesta dell’incertezza**, piuttosto che un’adesione meccanica a convenzioni statistiche.
+
 
 ## Funzioni *bayesplot*
 
