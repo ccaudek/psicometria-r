@@ -23,7 +23,7 @@ here::here("code", "_common.R") |>
 
 # Load packages
 if (!requireNamespace("pacman")) install.packages("pacman")
-pacman::p_load(cmdstanr, posterior, bayestestR, brms)
+pacman::p_load(cmdstanr, posterior, bayestestR, brms, ggdist)
 ```
 :::
 
@@ -53,7 +53,7 @@ length(df$height)
 
 ```{r}
 ggplot(df, aes(x = height)) +
-  geom_histogram(binwidth = 5, color = "black", fill = "lightgray") +
+  geom_histogram(binwidth = 5, color = "black", fill = "lightblue") +
   labs(title = "Istogramma dell'Altezza", x = "Altezza (cm)", y = "Frequenza") +
   theme(
     plot.title = element_text(hjust = 0.5)
@@ -118,22 +118,47 @@ summary(fm1)
 
 - `summary(fm1)` mostra la stima puntuale di $\alpha$ (che è la media campionaria di `height`) assieme ad altri indicatori (p-value, R-squared e così via, anche se in questo caso non ha senso parlare di R-squared con un solo parametro).
 
-### Intervallo di confidenza al 95%
 
-Per ottenere l’intervallo di confidenza (nel senso frequentista) della stima di $\alpha$, usiamo:
+### Intervallo di confidenza al 95% per $\alpha$
+
+Per calcolare l’intervallo di confidenza al 95% della stima del parametro $\alpha$ secondo l’approccio **frequentista**, possiamo utilizzare il comando:
 
 ```{r}
 confint(fm1, level = 0.95)
 ```
 
-Questo produce l’intervallo di confidenza al 95% basato su procedure di inferenza classica (stima della varianza e dell’errore standard di $\alpha$). 
+Questo intervallo si basa sulla seguente formula classica:
+
+$$
+\hat{\alpha} \pm t_{df} \cdot \text{SE}(\hat{\alpha}),
+$$
+
+dove:
+
+* $\hat{\alpha}$ è la stima puntuale del parametro,
+* $t\_{df}$ è il quantile della distribuzione t di Student con i gradi di libertà appropriati (in genere $n - 2$ in una regressione lineare semplice),
+* $\text{SE}(\hat{\alpha})$ è l’errore standard della stima.
+
+In alternativa, possiamo calcolare manualmente l’intervallo con:
+
+```{r}
+coef(fm1) + c(-1, 1) * qt(0.975, df.residual(fm1)) * 0.413
+```
+
+Qui:
+
+* `coef(fm1)` restituisce la stima di $\alpha$,
+* `qt(0.975, df.residual(fm1))` restituisce il valore critico della distribuzione $t$ per un intervallo al 95% (con 2,5% di probabilità in ciascuna coda),
+* `0.413` è l’errore standard associato a $\hat{\alpha}$.
+
+Questo procedimento produce un **intervallo di confidenza al 95%** basato sulle proprietà della distribuzione campionaria e sull’assunzione che gli errori siano distribuiti normalmente e indipendentemente.
 
 
 ## Modello bayesiano senza specificare priori (priori uniformi)
 
-Ora vogliamo **replicare lo stesso modello** usando un approccio **bayesiano** con il pacchetto `brms`. Se **non** specifichiamo esplicitamente la distribuzione a priori di $\alpha$, `brms` **usa di default un prior debolmente informativo**, di fatto molto simile a non avere un’informazione a priori.
+Ora vogliamo **replicare lo stesso modello** usando un approccio **bayesiano** con il pacchetto `brms`. Se **non** specifichiamo esplicitamente la distribuzione a priori di $\alpha$, `brms` **userà di default un prior debolmente informativo**, di fatto molto simile a non avere un’informazione a priori.
 
-Il codice è analogo:
+Il codice è analogo a quello usato in precedenza:
 
 ```{r}
 #| output: false
@@ -156,7 +181,7 @@ summary(fm2)
 
 L’output di `summary(fm2)` presenta di default **l’intervallo di credibilità** al 95%. Questo valore può essere modificato con l’argomento `prob =`, ad esempio `summary(fm2, prob = 0.90)` per un 90% di credibilità.
 
-In assenza di un priore informativo, **la distribuzione a posteriori** è sostanzialmente uguale a quella massima verosimiglianza (più un’eventuale correzione di normalizzazione), quindi i risultati numerici corrispondono molto da vicino a quelli ottenuti dal metodo frequentista. Piccole discrepanze sono dovute alle **approssimazioni MCMC**.
+In assenza di un prior informativo, **la distribuzione a posteriori** è sostanzialmente uguale a quella massima verosimiglianza (più un’eventuale correzione di normalizzazione), quindi i risultati numerici corrispondono molto da vicino a quelli ottenuti dal metodo frequentista. Piccole discrepanze sono dovute alle **approssimazioni MCMC**.
 
 ## Differenze di interpretazione degli intervalli
 
@@ -383,9 +408,8 @@ dove $t_{0.975,\,n-1}$ è il quantile al 97.5% della distribuzione t con $n-1$ g
 Nell’esempio riportato, se vogliamo costruire l’intervallo di confidenza al 95% manualmente, possiamo scrivere:
 
 ```{r}
-mean(df$height) + c(-1, 1) * 
-  qt(0.975, length(df$height) - 1) * 
-  (sd(df$height) / sqrt(length(df$height)))
+mean(df$height) + 
+  c(-1, 1) * qt(0.975, length(df$height) - 1) * (sd(df$height) / sqrt(length(df$height)))
 ```
 
 oppure usare direttamente la funzione:
@@ -399,6 +423,10 @@ che restituisce sia il **valore della statistica T**, sia l’**intervallo di co
 ### Confronto con il modello di regressione a sola intercetta
 
 Si noti che i risultati (media stimata e intervallo di confidenza) coincidono con quanto si otterrebbe usando una **regressione lineare** con sola intercetta (come `lm(height ~ 1, data=df)`) e richiedendo l’intervallo di confidenza con `confint()`. Sia il test $t$ di Student sia la regressione lineare semplice (senza covariate) condividono infatti le stesse assunzioni di base e forniscono risultati equivalenti per quanto riguarda l’inferenza sulla media.
+
+## Riflessioni Conlusive
+
+In questo capitolo abbiamo esaminato l'inferenza sulla media di una popolazione partendo da un semplice modello con sola intercetta, sia nell'ottica frequentista che in quella bayesiana. Utilizzando `lm()`, abbiamo ricavato la stima puntuale della media campionaria e il corrispondente intervallo di confidenza al 95%, interpretato come proprietà della procedura di stima. Con `brm()`, abbiamo ottenuto risultati numericamente simili, ma con una diversa interpretazione epistemologica: l'intervallo di credibilità rappresenta **il grado di incertezza a posteriori sulla media**, dato il modello e i dati osservati. Infine, abbiamo mostrato come introdurre informazioni a priori nel modello bayesiano, evidenziando come i risultati possano discostarsi da quelli frequentisti soprattutto in presenza di campioni piccoli o dati poco informativi. In sintesi, la modellazione bayesiana offre un quadro più flessibile e trasparente, sia nell’incorporare conoscenze pregresse sia nel rappresentare incertezza, rendendola particolarmente adatta a contesti psicologici dove le fonti di variabilità sono spesso molteplici e complesse.
 
 
 ::: {.callout-important title="Problemi" collapse="true"}
