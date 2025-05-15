@@ -1,0 +1,161 @@
+# Stima bayesiana della grandezza dell’effetto {#sec-bayesian-effect-size}
+
+::: callout-note
+## In questo capitolo imparerai a
+
+- condurre un confronto bayesiano tra le medie di due gruppi utilizzando la  funzione `brm()` del pacchetto **brms**.
+:::
+
+::: callout-tip
+## Prerequisiti
+
+- Consultare l'articolo "Bayesian estimation supersedes the t test" [@kruschke2013bayesian]. 
+:::
+
+::: callout-important
+## Preparazione del Notebook
+
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(cmdstanr, posterior, brms, bayestestR, insight)
+```
+:::
+
+
+# Introduzione
+
+Nel capitolo precedente abbiamo esaminato il confronto tra due gruppi, stimando la differenza tra le medie dei punteggi di QI in base al livello di istruzione della madre. Abbiamo visto come l’approccio bayesiano consenta di ottenere la distribuzione a posteriori della differenza tra gruppi, formulare probabilità su ipotesi e generare intervalli di credibilità.
+
+In questo capitolo approfondiamo un altro aspetto fondamentale dell’inferenza: la **stima della grandezza dell’effetto** (*effect size*), ovvero quanto è “grande” o “rilevante” l’effetto osservato. L’obiettivo non è soltanto sapere *se* esiste una differenza, ma valutare *quanto è importante* quella differenza in termini comparabili e interpretabili.
+
+
+## Che cos’è una grandezza dell’effetto?
+
+Nel confronto tra due gruppi, una misura standard della grandezza dell’effetto è il **Cohen’s d**, che rappresenta la differenza tra le medie standardizzata rispetto alla deviazione standard complessiva:
+
+$$
+d = \frac{\mu_1 - \mu_2}{\sigma},
+$$
+
+dove:
+
+* $\mu_1$ e $\mu_2$ sono le medie dei due gruppi,
+* $\sigma$ è la deviazione standard pooled (una stima comune della variabilità nei due gruppi).
+
+Nel contesto bayesiano, questa quantità può essere **derivata a posteriori**, a partire dai campioni MCMC della differenza tra le medie e della deviazione standard.
+
+
+## Calcolo di Cohen's d in `brms`
+
+Carichiamo i dati e visualizziamo le prime righe per comprenderne la struttura:
+
+```{r}
+kidiq <- rio::import(here::here("data", "kidiq.dta"))
+kidiq |> 
+  head()
+```
+
+Partiamo dal modello già stimato nel capitolo precedente:
+
+```{r}
+#| output: false
+fit_1 <- brm(
+  kid_score ~ mom_hs, 
+  data = kidiq, 
+  backend = "cmdstanr", 
+  silent = 0
+)
+```
+
+Otteniamo i campioni posteriori per il coefficiente $\beta\_1$ (la differenza tra i gruppi) e per $\sigma$:
+
+```{r}
+post <- as_draws_df(fit_1)
+
+diff_samples <- post$b_mom_hs
+sigma_samples <- post$sigma
+```
+
+Calcoliamo ora la distribuzione a posteriori di Cohen’s d:
+
+```{r}
+d_posterior <- diff_samples / sigma_samples
+```
+
+### Visualizzazione della distribuzione di Cohen’s d
+
+```{r}
+mcmc_areas(as_draws_df(tibble(d = d_posterior)), pars = "d", prob = 0.89) +
+  labs(
+    title = "Distribuzione a posteriori di Cohen's d",
+    subtitle = "Differenza standardizzata tra i gruppi (QI ~ mom_hs)"
+  )
+```
+
+### Statistiche riassuntive
+
+```{r}
+bayestestR::describe_posterior(d_posterior, ci = 0.89)
+```
+
+Queste statistiche ci permettono di interpretare:
+
+* la **media a posteriori di d** (la stima puntuale),
+* l’**intervallo di credibilità** (ad esempio all’89%),
+* la **probabilità a posteriori che l’effetto sia positivo e rilevante**.
+
+
+## Interpretazione della grandezza dell’effetto
+
+Il valore di **Cohen's d** può essere interpretato secondo linee guida standard:
+
+| Valore di *d*   | Interpretazione |
+| --------------- | --------------- |
+| 0.2             | Effetto piccolo |
+| 0.5             | Effetto medio   |
+| 0.8 o superiore | Effetto grande  |
+
+Tuttavia, nel contesto bayesiano **non ci limitiamo a classificare**, ma possiamo **calcolare direttamente la probabilità che d superi una soglia rilevante**, ad esempio:
+
+```{r}
+mean(d_posterior > 0.5)  # Probabilità che l'effetto sia almeno medio
+```
+
+Oppure:
+
+```{r}
+mean(d_posterior > 0.8)  # Probabilità che l'effetto sia grande
+```
+
+Queste probabilità permettono di rispondere a domande più precise e utili del tipo:
+
+> *Quanto è probabile che l’effetto dell’istruzione materna sul QI sia almeno medio?*
+
+
+## Riflessioni conclusive
+
+La stima della **grandezza dell’effetto** è fondamentale per interpretare il significato pratico di una differenza. L’approccio bayesiano consente non solo di calcolare *Cohen’s d*, ma anche di **quantificare l’incertezza** sulla sua stima e **valutare la probabilità che l’effetto sia superiore a soglie di interesse pratico**.
+
+Rispetto all’approccio frequentista, che spesso riporta un unico valore puntuale di *d*, il metodo bayesiano:
+
+* restituisce **una distribuzione completa dell’effetto**,
+* permette di costruire **intervalli di credibilità** per *d*,
+* consente di **stimare probabilità direttamente interpretabili**, ad esempio:
+  *“C’è l’85% di probabilità che l’effetto sia almeno medio”*.
+
+Nel contesto psicologico, dove l’interesse principale è spesso legato alla rilevanza dell’effetto (e non solo alla sua esistenza), questa modalità di analisi si rivela particolarmente utile, comunicativa e rigorosa.
+
+
+
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
+
+```{r}
+sessionInfo()
+```
+
+## Bibliografia {.unnumbered}
+
