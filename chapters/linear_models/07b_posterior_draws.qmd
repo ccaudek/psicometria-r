@@ -1,0 +1,345 @@
+# Manipolazione dei campioni a posteriori {#sec-reg-post-draws}
+
+::: callout-note
+## In questo capitolo imparerai a
+
+- condurre un'analisi bayesiana della relazione tra due variabili con `brm()`;
+- estrarre e visualizzare campioni dalla distribuzione a posteriori;
+- riassumere la distribuzione a posteriori con indici descrittivi;
+- creare grafici che rappresentano l’incertezza della stima.
+:::
+
+::: callout-tip
+## Prerequisiti
+
+- Consultare l'articolo "Bayesian estimation supersedes the t test" [@kruschke2013bayesian]. 
+:::
+
+::: callout-important
+## Preparazione del Notebook
+
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(cmdstanr, posterior, brms, bayestestR, insight)
+```
+:::
+
+##  Introduzione
+
+L'inferenza bayesiana fornisce **campioni a posteriori** dei parametri del modello, ottenuti tramite tecniche MCMC. Questi campioni rappresentano la distribuzione della nostra incertezza dopo aver osservato i dati.
+
+Quando usiamo `brms()` (che si appoggia a Stan), i campioni vengono salvati in un oggetto complesso. Per manipolarli in modo semplice e intuitivo, possiamo utilizzare il pacchetto `tidybayes`, che permette di riformattare i campioni in uno stile "tidy" (*long* o *wide*), adatto per la visualizzazione e l’analisi descrittiva.
+
+
+## Dati ed esplorazione iniziale
+
+Importiamo un dataset classico e costruiamo una variabile centrata:
+
+```{r}
+dat <- rio::import(here::here("data", "Howell_18.csv"))
+head(dat)
+
+dat$weight_c <- dat$weight - mean(dat$weight)
+```
+
+Visualizziamo la relazione tra peso centrato e altezza:
+
+```{r}
+ggplot(data = dat, aes(x = weight_c, y = height)) + 
+  geom_point(size = 3, alpha = 0.3)
+```
+
+
+## Stima del modello bayesiano
+
+Stimiamo un modello di regressione lineare semplice:
+
+```{r}
+#| output: false
+model1 <- brm(
+  height ~ weight_c, 
+  data = dat,
+  backend = "cmdstanr"
+)
+```
+
+Visualizziamo il riepilogo:
+
+```{r}
+summary(model1)
+```
+
+Per una versione "tidy", usiamo `tidybayes::summarise_draws()`:
+
+```{r}
+tidybayes::summarise_draws(model1)
+```
+
+
+## Estrazione dei campioni a posteriori
+
+###  Campioni in formato *wide*
+
+Usiamo `spread_draws()` per ottenere un data frame con una colonna per ciascun parametro:
+
+```{r}
+posteriors1 <- model1 |>
+  tidybayes::spread_draws(b_weight_c, b_Intercept)
+
+head(posteriors1)
+```
+
+Se ci interessano solo le due variabili principali:
+
+```{r}
+posteriors1 <- posteriors1 |>
+  dplyr::select(b_weight_c, b_Intercept)
+head(posteriors1)
+```
+
+###  Visualizzazione dell’incertezza
+
+Sovrapponiamo al grafico dei dati grezzi alcune rette di regressione basate su 100 campioni a posteriori:
+
+```{r}
+posteriors2 <- model1 |>
+  tidybayes::spread_draws(b_weight_c, b_Intercept, ndraws = 100) |>
+  dplyr::select(b_weight_c, b_Intercept)
+
+ggplot(data = dat, aes(x = weight_c, y = height)) + 
+  geom_abline(data = posteriors2,
+              aes(intercept = b_Intercept, slope = b_weight_c), 
+              linewidth = 0.1, alpha = 0.4) +
+  geom_point(size = 3, alpha = 0.3)
+```
+
+Le molte rette grigie rappresentano l'incertezza nella stima della relazione peso-altezza: ogni retta è una possibile “verità” compatibile con i dati.
+
+
+###  Campioni in formato *long*
+
+Se preferiamo lavorare con un formato "long" (una riga per ogni campione-variabile), usiamo `gather_draws()`:
+
+```{r}
+posteriors3 <- model1 |>
+   tidybayes::gather_draws(b_weight_c) |> 
+   rename(parameter = .variable,
+          posterior = .value) |> 
+   dplyr::select(parameter, posterior)
+
+head(posteriors3)
+```
+
+
+## Riassunto dei campioni a posteriori
+
+Calcoliamo media e intervallo di credibilità al 89%:
+
+```{r}
+posteriors3_agg <- posteriors3 |> 
+  group_by(parameter) |> 
+  summarise(
+    `89lowerCrI`   = tidybayes::hdi(posterior, credMass = 0.89)[1],
+    mean_posterior = mean(posterior),
+    `89higherCrI`  = tidybayes::hdi(posterior, credMass = 0.89)[2]
+  )
+
+posteriors3_agg 
+```
+
+Questa tabella ci dice:
+
+* qual è il valore medio a posteriori (stima puntuale),
+* qual è l'intervallo di credibilità (stima dell'incertezza).
+
+La distribuzione a posteriori della pendenza si genera nel modo seguente:
+
+```{r}
+# plot only the posterior distribution of the slope (b_weight_c)
+posteriors1 |> 
+  pivot_longer(cols = everything(), names_to = "parameter", values_to = "posterior") |> 
+  dplyr::filter(parameter == "b_weight_c") |> 
+  ggplot(aes(x = posterior, y = parameter, fill = parameter)) + 
+    tidybayes::stat_halfeye(.width = 0.9) +
+    xlab("Valori della pendenza a posteriori") +
+    ylab("") +
+    scale_x_continuous(limits = c(-0.25, 1.5)) +
+    geom_segment(x = 0, xend = 0, y = Inf, yend = -Inf, lty = "dashed") +
+    theme(legend.position = "none")
+```
+
+##  Ipotesi direzionali
+
+Infine, possiamo testare un’ipotesi direzionale, ad esempio: “Il coefficiente del peso centrato è maggiore di 0.9”:
+
+```{r}
+hypothesis(model1, 'weight_c > 0.9')
+```
+
+Il risultato ci dirà con quale probabilità questa affermazione è vera, secondo la distribuzione a posteriori. Dai dati emerge che solo meno del 55% dei campioni a posteriori supera il valore di 0,9 (come indicato nella colonna `Post.Prob`).
+
+
+## Confronto tra dati predetti dai **prior** e dati osservati
+
+Una delle buone pratiche dell'inferenza bayesiana è il **controllo predittivo a priori**: si verifica **cosa il modello si aspetta prima di vedere i dati**. Questo consente di valutare se i prior siano ragionevoli o troppo restrittivi o permissivi rispetto ai dati reali.
+
+###  Definizione dei prior
+
+Specifichiamo dei **prior debolamente informativi**:
+
+```{r}
+prior_baseline <- c(
+  prior("normal(0, 2.5)", class = "b"),               # prior sulla pendenza
+  prior("student_t(3, 150, 10)", class = "Intercept") # prior sull'intercetta
+)
+```
+
+* La pendenza (`b`) ha prior centrato su 0, con deviazione standard 2.5.
+* L'intercetta ha prior Student-t (più flessibile della normale).
+
+
+### Stima del modello sui dati osservati
+
+Eseguiamo il modello completo per avere una base di riferimento:
+
+```{r}
+#| output: false
+fit <- brm(
+  height ~ weight_c,
+  prior = prior_baseline,
+  data = dat,
+  backend = "cmdstanr",
+  silent = TRUE,
+  refresh = 0
+)
+```
+
+Questo modello utilizza **i dati reali** per aggiornare i prior e ottenere la distribuzione a posteriori dei parametri.
+
+###  Stima basata solo sui prior
+
+Qui aggiorniamo il modello chiedendo a `brm()` di **ignorare i dati** e campionare solo dalle distribuzioni a priori.
+
+```{r}
+#| output: false
+fit_prior_only <- update(
+  fit,
+  sample_prior = "only", # usa solo i prior per la simulazione
+  silent = TRUE,
+  refresh = 0
+)
+```
+
+### Generazione delle predizioni a partire dai prior
+
+Simuliamo la distribuzione predittiva del valore atteso (`E[Y|X]`) per ciascun valore osservato di `weight_c`, usando **solo i prior**:
+
+```{r}
+priorPred_linPredictor <- tidybayes::add_linpred_draws(
+  fit_prior_only, 
+  newdata = tibble(weight_c = dat$weight_c),
+  ndraws = 2000,
+  value = 'height' # nome della variabile predetta
+) |> 
+  ungroup() |> 
+  dplyr::select(weight_c, .draw, height)
+```
+
+* Usiamo `add_linpred_draws()` per simulare il valore **atteso** del modello lineare (senza rumore).
+* Otteniamo 2000 simulazioni per ogni valore di `weight_c`.
+
+
+###  Predizione dai posterior (per confronto)
+
+Otteniamo **una sola simulazione** da posteriori aggiornati per ciascun valore di `weight_c`:
+
+```{r}
+postPred_linPredictor <- tidybayes::add_predicted_draws(
+  fit, 
+  newdata = tibble(weight_c = dat$weight_c),
+  ndraws = 1, 
+  value = 'height'
+) |> 
+  ungroup() |> 
+  select(weight_c, .draw, height)
+```
+
+Qui includiamo anche l’**errore residuo** (non solo il valore atteso), per simulare l’output osservabile.
+
+###  Confronto grafico tra predizioni posteriori e dati osservati
+
+Creiamo un grafico che mostra:
+
+* in **blu scuro**: i dati osservati reali
+* in **nero**: le simulazioni generate dal modello *dopo* aver visto i dati
+
+```{r}
+ggplot() + 
+  geom_point(data = postPred_linPredictor, 
+             aes(x = weight_c, y = height), 
+             size = 2, alpha = 0.9) +
+  geom_point(data = dat, 
+             aes(x = weight_c, y = height), 
+             color = "darkblue", size = 1, alpha = 0.8) +
+  labs(
+    title = "Confronto tra dati osservati e predizioni dal modello",
+    subtitle = "I punti neri sono simulazioni dal modello posteriore; quelli blu i dati reali",
+    x = "Peso centrato (weight_c)",
+    y = "Altezza"
+  ) 
+```
+
+### Mostrare le predizioni basate solo sui **prior**
+
+Per vedere cosa il modello "si aspettava" *prima* dei dati:
+
+```{r}
+# Campiona 1000 righe casuali dal data frame delle predizioni a priori
+priorPred_subset <- priorPred_linPredictor |> 
+  dplyr::sample_n(1000)
+
+ggplot() + 
+  geom_point(data = priorPred_subset, 
+             aes(x = weight_c, y = height), 
+             color = "red", size = 2, alpha = 0.3) +
+  geom_point(data = dat, 
+             aes(x = weight_c, y = height), 
+             color = "darkblue", size = 1, alpha = 0.8) +
+  labs(
+    title = "Confronto tra predizioni dai prior e dati osservati",
+    subtitle = "I punti rossi (subset) sono predizioni basate solo sui prior",
+    x = "Peso centrato (weight_c)",
+    y = "Altezza"
+  ) 
+```
+
+Questo confronto è molto utile per:
+
+* capire **che tipo di relazioni sono compatibili con i prior** scelti;
+* verificare se i prior **sono troppo ampi o troppo ristretti**;
+* giustificare le scelte di modellazione in modo trasparente.
+
+## Riflessioni Conclusive
+
+In questo capitolo hai imparato a:
+
+* estrarre campioni a posteriori con `tidybayes`;
+* visualizzare l’incertezza sui parametri stimati;
+* riassumere i campioni con intervalli di credibilità;
+* verificare ipotesi specifiche in un contesto bayesiano.
+
+Questi strumenti ti permettono di andare oltre la semplice “stima puntuale” e di ragionare in termini di distribuzioni: un passo essenziale per pensare in modo bayesiano.
+
+
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
+
+```{r}
+sessionInfo()
+```
+
+## Bibliografia {.unnumbered}
+
