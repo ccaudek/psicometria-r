@@ -1,8 +1,9 @@
-# -----------------------------------------------------------------------------
-# Common Packages and Settings
-# -----------------------------------------------------------------------------
+# =============================================================================
+#  Common Packages and Global Settings
+#  Corrado Caudek
+# =============================================================================
 
-# Use pacman to manage and load required packages automatically
+## -- 1. Package management ----------------------------------------------------
 if (!requireNamespace("pacman", quietly = TRUE)) install.packages("pacman")
 
 pacman::p_load(
@@ -23,89 +24,73 @@ pacman::p_load(
   thematic
 )
 
-# Suppress unnecessary messages from tidyverse packages
+# Riduci il rumore di caricamento da tidyverse
 options(tidyverse.quiet = TRUE)
 
-# -----------------------------------------------------------------------------
-# Configurazione colori globale
-# -----------------------------------------------------------------------------
+## -- 2. Palette e tema grafico  ----------------------------------------------
 
-# Definizione della palette Okabe-Ito personalizzata
-okabe_ito_palette <- c(
-  "#E69F00", # Orange
-  "#56B4E9", # Light blue
-  "#009E73", # Green
-  "#F0E442", # Yellow
-  "#0072B2", # Dark blue
-  "#D55E00", # Red
-  "#CC79A7", # Pink
-  "#999999" # Grey
-)
+# Palette Okabe-Ito (dal pacchetto ggokabeito)
+okabe_ito_palette <- ggokabeito::palette_okabe_ito()
 
-
+# Imposta il tema globale: bayesplot::theme_default()
+# • base_size 14 → leggibilità su pdf/A4 e presentazioni
+# • base_family "sans" → coerenza con linee guida APA
 theme_set(
-  theme_minimal(
-    base_size = 13, # Font size for plots
-    base_family = "sans" # Font family
+  bayesplot::theme_default(
+    base_size = 14,
+    base_family = "sans"
   )
 )
 
-# Impostazioni per scale di colore predefinite
+# Aggiorna i parametri estetici di default per geoms comuni
 ggplot2::update_geom_defaults("point", list(colour = okabe_ito_palette[1]))
 ggplot2::update_geom_defaults("line", list(colour = okabe_ito_palette[1]))
 
-# Impostazioni per scale discrete e continue
+# Scale manuali di convenienza (discrete/continue)
 default_discrete_scale <- function(...)
   scale_fill_manual(..., values = okabe_ito_palette)
 default_continuous_scale <- function(...) scale_fill_viridis_c(...)
 
-# Set color scheme for bayesplot diagnostics
-color_scheme_set("brightblue")
+# Schema colore di default per bayesplot
+bayesplot::color_scheme_set("brightblue")
 
-# -----------------------------------------------------------------------------
-# knitr Options for Code Chunks
-# -----------------------------------------------------------------------------
+## -- 3. Opzioni knitr ---------------------------------------------------------
 
 knitr::opts_chunk$set(
-  comment = "#>", # Comment prefix for output
-  collapse = TRUE, # Collapse code and output into a single block
-  message = FALSE, # Suppress messages
-  warning = FALSE, # Suppress warnings
-  width = 72, # Code width
-  out.width = "70%", # Default output width for figures
-  fig.align = "center", # Center-align figures
-  fig.width = 6, # Default figure width
-  fig.asp = 0.618, # Golden ratio for figure height
-  fig.show = "hold", # Show figures together
-  R.options = list(
-    digits = 4, # Number of digits for output
-    width = 76 # Console width
-  ),
-  echo = TRUE, # Show code by default
-  eval = TRUE, # Execute code by default
-  error = FALSE # Suppress error messages in chunks
+  comment = "#>",
+  collapse = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  width = 72,
+  out.width = "70%",
+  fig.align = "center",
+  fig.width = 6,
+  fig.asp = 0.618, # Rapporto aureo
+  fig.show = "hold",
+  R.options = list(digits = 4, width = 76),
+  echo = TRUE,
+  eval = TRUE,
+  error = FALSE
 )
 
-# -----------------------------------------------------------------------------
-# Global Options
-# -----------------------------------------------------------------------------
+## -- 4. Global R options ------------------------------------------------------
 
 options(
-  scipen = 1, # Favor standard notation over scientific
-  digits = 4, # Default number of digits
-  ggplot2.discrete.colour = ggokabeito::palette_okabe_ito(),
-  ggplot2.discrete.fill = ggokabeito::palette_okabe_ito(),
+  scipen = 1, # evitare notazione scientifica
+  digits = 4,
+  ggplot2.discrete.colour = okabe_ito_palette,
+  ggplot2.discrete.fill = okabe_ito_palette,
   ggplot2.continuous.colour = "viridis",
   ggplot2.continuous.fill = "viridis",
-  show.signif.stars = FALSE, # Suppress significance stars in output
-  pillar.max_footer_lines = 2, # Control console output of data frames
+  show.signif.stars = FALSE,
+  pillar.max_footer_lines = 2,
   pillar.min_chars = 15,
   pillar.bold = TRUE,
-  width = 77 # Console width (80 chars - 3 for comments)
+  width = 77
 )
 
-# -----------------------------------------------------------------------------
-# Seed for Reproducibility
-# -----------------------------------------------------------------------------
+options(pillar.subtle = FALSE, pillar.width = Inf, tibble.width = Inf)
 
-set.seed(42) # Ensure reproducibility
+## -- 5. Riproducibilità -------------------------------------------------------
+
+set.seed(42)
