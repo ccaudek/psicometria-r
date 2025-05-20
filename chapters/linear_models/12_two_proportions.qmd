@@ -25,7 +25,6 @@ pacman::p_load(brms, cmdstanr, posterior, brms, bayestestR, insight)
 ```
 :::
 
-
 ## Introduzione
 
 Supponiamo di voler capire se **due gruppi di persone hanno la stessa probabilità di “successo”** in una certa attività. Per esempio, vogliamo sapere se due trattamenti diversi portano alla stessa percentuale di guarigione, oppure se studenti che seguono due metodi di studio differenti superano un esame con la stessa frequenza.
@@ -81,7 +80,6 @@ dove $p\_i$ è la probabilità che il partecipante $i$ ottenga un successo (cio�
 
 A questo punto potremmo pensare di modellare direttamente $p_i$ come una funzione di $D_i$. Ma c'è un problema tecnico importante.
 
-
 ### Perché non modelliamo direttamente la probabilità $p_i$?
 
 Le probabilità devono sempre stare tra 0 e 1. Ma se usassimo un **modello lineare classico** (come $p\_i = \alpha + \gamma D_i$), potremmo ottenere dei valori fuori da questo intervallo — ad esempio, una “probabilità” negativa o maggiore di 1, che non ha senso.
@@ -135,13 +133,11 @@ Vediamo cosa significano i due parametri del modello:
     p_1 = \frac{e^{\alpha + \gamma}}{1 + e^{\alpha + \gamma}} = \text{logistic}(\alpha + \gamma) .
     $$
 
-
 ### Interpretazione pratica
 
 * Se **$\gamma > 0$**, il gruppo 1 ha una probabilità di successo **più alta** rispetto al gruppo 0.
 * Se **$\gamma < 0$**, il gruppo 1 ha una probabilità **più bassa**.
 * Se **$\gamma = 0$**, i due gruppi hanno **la stessa probabilità** di successo.
-
 
 ### Vantaggi dell’approccio bayesiano
 
@@ -156,6 +152,21 @@ Questo ci permette di rispondere a domande come:
 * *Quanto è probabile che $\gamma$ sia maggiore di 0?*
 * *Qual è l’intervallo più credibile in cui può trovarsi $\gamma$ con il 95% di probabilità?*
 * *Qual è la probabilità che la differenza tra i gruppi sia sostanziale, non solo presente?*
+
+### Dai Logit alle Probabilità
+
+Una volta stimati i coefficienti del modello di regressione logistica — in particolare, l'intercetta $\beta\_0$ e uno o più coefficienti $\beta_j$ associati ai predittori — questi si trovano sulla **scala dei log-odds** (cioè su scala logit). Per ottenere le **probabilità previste** per ciascuna combinazione di valori dei predittori, è sufficiente applicare la **funzione logistica inversa**, definita come:
+
+$$
+p = \text{logistic}(\eta) = \frac{1}{1 + e^{-\eta}},
+$$
+
+dove $\eta = \beta_0 + \beta_1 x_1 + \dots + \beta_k x_k$ è il valore del predittore lineare per una certa combinazione dei predittori. Ad esempio, se si ha solo una variabile binaria $x$ che vale 0 (gruppo di riferimento) o 1 (gruppo trattato), allora le probabilità nei due gruppi sono:
+
+* gruppo di riferimento: $p_0 = \frac{1}{1 + e^{-\beta_0}}$
+* gruppo trattamento:    $p_1 = \frac{1}{1 + e^{-(\beta\_0 + \beta_1)}}$
+
+In questo modo, si può interpretare il modello non solo in termini di log-odds, ma anche come **probabilità di successo**, rendendo più intuitivo il significato pratico dei risultati.
 
 ### Inferenza bayesiana 
 
@@ -183,7 +194,6 @@ Questo ci permette di rispondere a domande come:
    * Media (o mediana) a posteriori per $p_0, p_1, \Delta, \text{OR}$.
    * Intervalli di credibilità al 95 %: tagliamo il 2.5 % di campioni in ciascuna coda.
    * Probabilità che $\Delta>0$ o che $\text{OR}>1$: basta contare la frazione di campioni corrispondenti.
-
 
 ### Perché tutto questo funziona?
 
@@ -241,57 +251,64 @@ $$
 cioè, in media, la stima è corretta (è uno stimatore non distorto).
 
 ::: {.callout-important title="Dimostrazione" collapse="true"}
-Siano $X_1$ il numero di successi in un campione di dimensione $n_1$ estratto dalla prima popolazione, e $X_2$ il numero di successi in un campione di dimensione $n_2$ estratto dalla seconda popolazione. Assumiamo che i campioni siano indipendenti.
+Supponiamo di voler confrontare le proporzioni di successo in due popolazioni distinte. Sia:
 
-Gli stimatori delle proporzioni delle popolazioni $p_1$ e $p_2$ sono le proporzioni campionarie, definite come:
+* $X_1$ il numero di successi osservati in un campione di dimensione $n_1$ estratto dalla **prima popolazione**, in cui la proporzione di successo è $p_1$;
+* $X_2$ il numero di successi osservati in un campione di dimensione $n_2$ estratto dalla **seconda popolazione**, con proporzione di successo $p_2$.
 
-$$\hat{p}_1 = \frac{X_1}{n_1}$$
+Assumiamo che i due campioni siano **indipendenti**.
 
-$$\hat{p}_2 = \frac{X_2}{n_2}$$
+Le proporzioni campionarie, che stimano rispettivamente $p_1$ e $p_2$, sono definite come:
 
-Sappiamo che $X_1$ segue una distribuzione binomiale con parametri $n_1$ e $p_1$, e $X_2$ segue una distribuzione binomiale con parametri $n_2$ e $p_2$.
+$$
+\hat{p}_1 = \frac{X_1}{n_1}, \quad \hat{p}_2 = \frac{X_2}{n_2}.
+$$
 
-Il valore atteso di una variabile casuale binomiale $X \sim B(n, p)$ è $E(X) = np$. Quindi:
+Poiché $X_1 \sim \text{Binomiale}(n_1, p_1)$ e $X_2 \sim \text{Binomiale}(n_2, p_2)$, possiamo determinare i valori attesi di $X_1$ e $X_2$ ricordando che per una variabile binomiale $X \sim \text{Bin}(n, p)$, il valore atteso è:
 
-$$E(X_1) = n_1 p_1$$
+$$
+\mathbb{E}(X) = n p.
+$$
 
-$$E(X_2) = n_2 p_2$$
+Una variabile binomiale può essere vista come la somma di $n$ variabili di Bernoulli indipendenti:
 
-Ora, consideriamo il valore atteso di $\hat{p}_1$:
+$$
+X = X_1 + X_2 + \dots + X_n, \quad \text{con } X_i \sim \text{Bernoulli}(p).
+$$
 
-$$E(\hat{p}_1) = E\left(\frac{X_1}{n_1}\right)$$
+Per la **linearità del valore atteso**:
 
-Per la proprietà di linearità del valore atteso ($E(cX) = cE(X)$ dove $c$ è una costante):
+$$
+\mathbb{E}(X) = \sum_{i=1}^n \mathbb{E}(X_i) = \sum_{i=1}^n p = n p.
+$$
 
-$$E(\hat{p}_1) = \frac{1}{n_1} E(X_1)$$
+Applicando questa proprietà ai nostri due campioni:
 
-Sostituendo il valore di $E(X_1)$:
+$$
+\mathbb{E}(X_1) = n_1 p_1, \quad \mathbb{E}(X_2) = n_2 p_2.
+$$
 
-$$E(\hat{p}_1) = \frac{1}{n_1} (n_1 p_1) = p_1$$
+Per la prima proporzione campionaria:
 
-Questo dimostra che $\hat{p}_1$ è uno stimatore non distorto per $p_1$.
+$$
+\mathbb{E}(\hat{p}_1) = \mathbb{E}\left( \frac{X_1}{n_1} \right) = \frac{1}{n_1} \mathbb{E}(X_1) = \frac{n_1 p_1}{n_1} = p_1.
+$$
 
-In modo analogo, per $\hat{p}_2$:
+Analogamente, per la seconda:
 
-$$E(\hat{p}_2) = E\left(\frac{X_2}{n_2}\right)$$
+$$
+\mathbb{E}(\hat{p}_2) = \mathbb{E}\left( \frac{X_2}{n_2} \right) = \frac{1}{n_2} \mathbb{E}(X_2) = \frac{n_2 p_2}{n_2} = p_2.
+$$
 
-$$E(\hat{p}_2) = \frac{1}{n_2} E(X_2)$$
+Dunque, sia $\hat{p}_1$ che $\hat{p}_2$ sono **stimatori non distorti** delle rispettive proporzioni della popolazione.
 
-Sostituendo il valore di $E(X_2)$:
+Infine, calcoliamo il valore atteso della differenza tra le due proporzioni campionarie:
 
-$$E(\hat{p}_2) = \frac{1}{n_2} (n_2 p_2) = p_2$$
+$$
+\mathbb{E}(\hat{p}_1 - \hat{p}_2) = \mathbb{E}(\hat{p}_1) - \mathbb{E}(\hat{p}_2) = p_1 - p_2.
+$$
 
-Questo dimostra che $\hat{p}_2$ è uno stimatore non distorto per $p_2$.
-
-Ora vogliamo trovare il valore atteso della differenza tra gli stimatori, $E(\hat{p}_1 - \hat{p}_2)$. Per la proprietà di linearità del valore atteso ($E(X-Y) = E(X) - E(Y)$):
-
-$$E(\hat{p}_1 - \hat{p}_2) = E(\hat{p}_1) - E(\hat{p}_2)$$
-
-Sostituendo i valori che abbiamo trovato per $E(\hat{p}_1)$ e $E(\hat{p}_2)$:
-
-$$E(\hat{p}_1 - \hat{p}_2) = p_1 - p_2$$
-
-Quindi, abbiamo dimostrato che il valore atteso della differenza tra le proporzioni campionarie è uguale alla differenza tra le proporzioni delle popolazioni. Questo significa che $\hat{p}_1 - \hat{p}_2$ è uno stimatore non distorto per $p_1 - p_2$.
+In conclusione, la differenza tra le proporzioni campionarie, $\hat{p}_1 - \hat{p}_2$, è uno **stimatore non distorto** della differenza tra le vere proporzioni, $p_1 - p_2$. 
 :::
 
 #### Varianza
@@ -307,63 +324,68 @@ Questa formula ci dice quanto può variare la differenza stimata da un campione 
 Poiché $p_1$ e $p_2$ sono ignoti, nella pratica li sostituiamo con le proporzioni osservate $\hat{p}_1$ e $\hat{p}_2$ per stimare la varianza.
 
 ::: {.callout-important title="Dimostrazione" collapse="true"}
-Come visto in precedenza, gli stimatori delle proporzioni delle popolazioni sono:
+Consideriamo due campioni indipendenti:
+
+* Il primo campione è estratto da una popolazione in cui la **proporzione di successi** è $p_1$. Il numero di successi osservati è una variabile casuale $X_1 \sim \text{Binomiale}(n_1, p_1)$.
+
+* Il secondo campione proviene da una popolazione con proporzione di successi $p_2$, e il numero di successi osservati è $X_2 \sim \text{Binomiale}(n_2, p_2)$.
+
+Definiamo le **proporzioni campionarie** (ovvero gli stimatori di $p_1$ e $p_2$) come:
 
 $$
-\hat{p}_1 = \frac{X_1}{n_1},
+\hat{p}_1 = \frac{X_1}{n_1}, \qquad \hat{p}_2 = \frac{X_2}{n_2}.
 $$
 
-$$
-\hat{p}_2 = \frac{X_2}{n_2}.
-$$
-
-dove $X_1 \sim B(n_1, p_1)$ e $X_2 \sim B(n_2, p_2)$ sono il numero di successi nei rispettivi campioni.
-
-Vogliamo calcolare $\operatorname{Var}(\hat{p}_1 - \hat{p}_2)$.
-
-Per la proprietà della varianza della differenza di due variabili casuali indipendenti, $\operatorname{Var}(Y - Z) = \operatorname{Var}(Y) + \operatorname{Var}(Z)$, poiché i campioni (e quindi $X_1$ e $X_2$, e di conseguenza $\hat{p}_1$ e $\hat{p}_2$) sono assunti indipendenti.
-
-Quindi, possiamo scrivere:
+Vogliamo calcolare la **varianza della differenza tra le proporzioni campionarie**:
 
 $$
-\operatorname{Var}(\hat{p}_1 - \hat{p}_2) = \operatorname{Var}(\hat{p}_1) + \operatorname{Var}(\hat{p}_2).$$
-
-Ora, dobbiamo trovare la varianza di una proporzione campionaria. Consideriamo $\hat{p} = X/n$, dove $X \sim B(n, p)$.
-La varianza di una variabile casuale binomiale $X \sim B(n, p)$ è $\operatorname{Var}(X) = np(1-p)$.
-Usando la proprietà della varianza $\operatorname{Var}(cX) = c^2\operatorname{Var}(X)$, dove $c$ è una costante:
-
-$$
-\operatorname{Var}(\hat{p}) = \operatorname{Var}\left(\frac{X}{n}\right) = \left(\frac{1}{n}\right)^2 \operatorname{Var}(X).
+\operatorname{Var}(\hat{p}_1 - \hat{p}_2).
 $$
 
-Sostituendo la varianza di $X$:
+Se $Y$ e $Z$ sono variabili casuali **indipendenti**, allora:
 
 $$
-\operatorname{Var}(\hat{p}) = \frac{1}{n^2} (np(1-p)) = \frac{p(1-p)}{n}.
+\operatorname{Var}(Y - Z) = \operatorname{Var}(Y) + \operatorname{Var}(Z).
 $$
 
-Applichiamo questa formula per trovare $\operatorname{Var}(\hat{p}_1)$ e $\operatorname{Var}(\hat{p}_2)$:
+Nel nostro caso, $\hat{p}_1$ e $\hat{p}_2$ derivano da due campioni indipendenti, quindi possiamo applicare questa proprietà:
 
 $$
-\operatorname{Var}(\hat{p}_1) = \frac{p_1(1 - p_1)}{n_1},
+\operatorname{Var}(\hat{p}_1 - \hat{p}_2) = \operatorname{Var}(\hat{p}_1) + \operatorname{Var}(\hat{p}_2).
 $$
 
-$$
-\operatorname{Var}(\hat{p}_2) = \frac{p_2(1 - p_2)}{n_2}.
-$$
+Per calcolare $\operatorname{Var}(\hat{p})$, partiamo dalla definizione di $\hat{p} = X/n$, dove $X \sim \text{Binomiale}(n, p)$.
 
-Ora sostituiamo queste varianze nell'espressione per $\operatorname{Var}(\hat{p}_1 - \hat{p}_2)$:
+È noto che la **varianza di una binomiale** (si veda @sec-prob-discrete-prob-distr) è:
 
 $$
-\operatorname{Var}(\hat{p}_1 - \hat{p}_2) = \frac{p_1(1 - p_1)}{n_1} + \frac{p_2(1 - p_2)}{n_2}.
+\operatorname{Var}(X) = n p (1 - p).
 $$
 
-Questo completa la dimostrazione. La formula ottenuta mostra che la varianza della differenza tra le proporzioni campionarie è la somma delle varianze individuali delle proporzioni campionarie, il che ha senso dato l'assunto di indipendenza dei campioni.
-
-Come menzionato nel testo, poiché i veri valori delle proporzioni di popolazione $p_1$ e $p_2$ sono generalmente ignoti, per stimare la varianza nella pratica si sostituiscono $p_1$ e $p_2$ con le loro stime campionarie $\hat{p}_1$ e $\hat{p}_2$. Lo stimatore della varianza diventa quindi:
+Ora applichiamo la **proprietà di omogeneità della varianza**: se $Y = cX$, allora $\operatorname{Var}(Y) = c^2 \operatorname{Var}(X)$. Quindi:
 
 $$
-\widehat{\operatorname{Var}}(\hat{p}_1 - \hat{p}_2) = \frac{\hat{p}_1(1 - \hat{p}_1)}{n_1} + \frac{\hat{p}_2(1 - \hat{p}_2)}{n_2}.
+\operatorname{Var}(\hat{p}) = \operatorname{Var}\left(\frac{X}{n}\right) = \frac{1}{n^2} \cdot \operatorname{Var}(X) = \frac{1}{n^2} \cdot n p (1 - p) = \frac{p(1 - p)}{n}.
+$$
+
+Applichiamo questa formula a ciascun campione:
+
+$$
+\operatorname{Var}(\hat{p}_1) = \frac{p_1 (1 - p_1)}{n_1}, \qquad \operatorname{Var}(\hat{p}_2) = \frac{p_2 (1 - p_2)}{n_2}.
+$$
+
+Sostituendo i valori ottenuti:
+
+$$
+\operatorname{Var}(\hat{p}_1 - \hat{p}_2) = \frac{p_1 (1 - p_1)}{n_1} + \frac{p_2 (1 - p_2)}{n_2}.
+$$
+
+Questa espressione rappresenta la **varianza teorica** della differenza tra le proporzioni campionarie, assumendo che i veri valori di $p_1$ e $p_2$ siano noti.
+
+Nella realtà, i parametri $p_1$ e $p_2$ **non sono noti**, e quindi dobbiamo usare le **stime campionarie** al loro posto. Otteniamo così uno **stimatore della varianza**:
+
+$$
+\widehat{\operatorname{Var}}(\hat{p}_1 - \hat{p}_2) = \frac{\hat{p}_1 (1 - \hat{p}_1)}{n_1} + \frac{\hat{p}_2 (1 - \hat{p}_2)}{n_2}.
 $$
 :::
 
@@ -373,50 +395,76 @@ Quando i campioni sono sufficientemente grandi, possiamo applicare il **Teorema 
 
 $$
 \hat{p}_1 - \hat{p}_2 \sim \mathcal{N}\left(p_1 - p_2,\ \sqrt{\frac{p_1(1 - p_1)}{n_1} + \frac{p_2(1 - p_2)}{n_2}}\right).
-$$
+$$ {#eq-distr-norm-prop-diff}
 
-Questa approssimazione è alla base della costruzione di:
+Nell'approccio frequentista, questa approssimazione è alla base della costruzione di:
 
 * **intervalli di confidenza** per $p_1 - p_2$,
 * **test di ipotesi** per verificare se la differenza tra le proporzioni è nulla.
 
+### Test dell'ipotesi nulla
 
-## Un esempio illustrativo: studio su bambini lavoratori e scolari
 
-Per mettere in pratica quanto detto, consideriamo un caso reale tratto dallo studio di Banerjee et al. (2025), che ha confrontato le abilità matematiche di:
+La formula @eq-distr-norm-prop-diff descrive la la **distribuzione asintotica** della differenza tra due proporzioni **senza assumere** che $p_1 = p_2$. Si usa tipicamente per:
+
+* costruire **intervalli di confidenza** per $p_1 - p_2$,
+* effettuare **test di ipotesi bilaterali**, quando **non** si assume che le due proporzioni siano uguali sotto l’ipotesi nulla.
+
+In alternativa, la formula 
+
+$$
+\text{SE}_{\text{pooled}} = \sqrt{p_{\text{pool}}(1 - p_{\text{pool}})\left(\frac{1}{n_1} + \frac{1}{n_2}\right)}
+$$ {#eq-se-prop-pooled}
+
+si usa **solo per testare l’ipotesi nulla $H_0: p_1 = p_2$**, ovvero sotto l’assunzione che $p_1 = p_2 = p$, si stima questo valore comune con la proporzione combinata (pooled):
+
+$$
+\hat{p}_{\text{pool}} = \frac{x_1 + x_2}{n_1 + n_2}
+$$
+
+e si calcola il test z usando questa stima comune.
+
+### Quale formula usare e quando?
+
+| Scopo                                              | Formula da usare                                                  |
+| -------------------------------------------------- | ----------------------------------------------------------------- |
+| Test dell’ipotesi nulla $H_0: p_1 = p_2$           | ✅ Usa la formula **con pooled proportion**                        |
+| Costruire intervallo di confidenza per $p_1 - p_2$ | ✅ Usa la formula **senza pooling**, con $\hat{p}_1$ e $\hat{p}_2$ |
+
+
+## Un esempio Illustrativo
+
+Per mettere in pratica quanto detto, consideriamo un caso reale tratto dallo studio di @banerjee2025children. In questo studio vengono confrontate le abilità matematiche di:
 
 * **bambini lavoratori nei mercati** di Kolkata e Delhi;
 * **bambini scolarizzati** che non lavorano.
 
 L’obiettivo era valutare se le competenze sviluppate nel lavoro quotidiano (come dare il resto, sommare prezzi, ecc.) si trasferiscono al contesto scolastico e viceversa.
 
-### Risultati principali
+I risultati principali mostrano come:
 
-* I **bambini lavoratori** si sono dimostrati molto abili nel risolvere problemi matematici concreti, ma hanno faticato con problemi presentati in forma astratta (come quelli scolastici).
-* Al contrario, i **bambini scolarizzati** se la sono cavata meglio con problemi astratti, ma sono risultati poco efficaci nei problemi concreti del mercato.
+* i **bambini lavoratori** si sono dimostrati molto abili nel risolvere problemi matematici concreti, ma hanno faticato con problemi presentati in forma astratta (come quelli scolastici);
+* al contrario, i **bambini scolarizzati** se la sono cavata meglio con problemi astratti, ma sono risultati poco efficaci nei problemi concreti del mercato.
 
 Vediamo i dati raccolti per due tipi di problemi:
 
-### Problemi astratti
+**Problemi astratti.**
 
 | Gruppo               | Successi | Prove totali | Proporzione |
 | -------------------- | -------- | ------------ | ----------- |
 | Bambini lavoratori   | 670      | 1488         | 0.45        |
 | Bambini scolarizzati | 320      | 542          | 0.59        |
 
-### Problemi di mercato
+**Problemi di mercato.**
 
 | Gruppo               | Successi | Prove totali | Proporzione |
 | -------------------- | -------- | ------------ | ----------- |
 | Bambini lavoratori   | 134      | 373          | 0.36        |
 | Bambini scolarizzati | 3        | 271          | 0.01        |
 
-
-## Applicazione dell’approccio frequentista
-
 ### Confronto per i problemi astratti
 
-Vogliamo verificare se la differenza tra 0.45 (lavoratori) e 0.59 (scolarizzati) è spiegabile dal caso.
+Utilizzando l'approccio frequentista, vogliamo verificare se la differenza tra 0.45 (lavoratori) e 0.59 (scolarizzati) è spiegabile dal caso.
 
 **Ipotesi.**
 
@@ -491,224 +539,205 @@ Di seguito mostriamo due modalità per replicare i calcoli in R: (1) passo passo
 - Bambini scolarizzati (gruppo 2): 320 successi su 542 prove.
 
 ```{r}
-# Dati
-X1 <- 670
-n1 <- 1488
-X2 <- 320
-n2 <- 542
+##  Dati
+x_work   <- 670   # successi (risposte corrette) tra i lavoratori
+n_work   <- 1488  # totale lavoratori
 
-# Proporzioni campionarie
-p1 <- X1 / n1
-p2 <- X2 / n2
+x_school <- 320   # successi tra i non-lavoratori (scolarizzati)
+n_school <- 542   # totale non-lavoratori
 
-# Proporzione pooled (combinata)
-p_pool <- (X1 + X2) / (n1 + n2)
+##  Differenza di proporzioni 
+p_work   <- x_work   / n_work
+p_school <- x_school / n_school
+rd       <- p_school - p_work          
 
-# Differenza fra le proporzioni
-diff_p <- p1 - p2
+##  Errore standard
+##  - Pooled SE per lo z-test (ipotesi H0: p1 = p2)
+##  - Unpooled SE per l’intervallo di confidenza
+p_pool   <- (x_work + x_school) / (n_work + n_school)
+se_test  <- sqrt(p_pool * (1 - p_pool) * (1/n_work + 1/n_school))  # usato solo per lo z-test
+se_ci    <- sqrt(p_work * (1 - p_work) / n_work +
+                 p_school * (1 - p_school) / n_school)  # migliore per il 95 % CI
 
-# Calcolo della varianza della differenza (usando la formula per due proporzioni)
-var_diff <- p_pool * (1 - p_pool) * (1/n1 + 1/n2)
+##  Inferenza
+z        <- rd / se_test
+p_value  <- 2 * pnorm(-abs(z))
 
-# Deviazione standard della differenza
-sd_diff <- sqrt(var_diff)
+alpha    <- .05
+z_crit   <- qnorm(1 - alpha/2)
+ci_low   <- rd - z_crit * se_ci
+ci_high  <- rd + z_crit * se_ci
 
-# Statistica z
-z_value <- diff_p / sd_diff
-
-# p-value (test a due code)
-p_value <- 2 * pnorm(abs(z_value), lower.tail = FALSE)
-
-# Visualizzazione risultati
-z_value
-p_value
+##  Stampa risultati
+cat(
+  sprintf(
+    "Differenza assoluta:  %0.3f\nErrore standard (CI): %0.3f\nZ-test:            %0.2f\nP-value:           %.3g\n95%% CI:            [%0.2f, %0.2f]\n",
+    rd, se_ci, z, p_value, ci_low, ci_high
+  )
+)
 ```
+
+I valori ottenuti, 95% CI: 0.09 to 0.19, replicano quanto riportato da @banerjee2025children (la piccola differenza tra i risultati dipende dal fatto che gli autori hanno usato un metodo basato sulla regressione):
+
+> Overall, 59% of non-working children correctly solved these problems compared with 45% of working children (β = –0.14, s.e.m. = 0.03, 95% CI = –0.20 to –0.08, P < 0.001; Fig. 4, left). 
+
 
 #### Analisi con funzione `prop.test()`
 
 Per ottenere direttamente il test di confronto di due proporzioni, possiamo usare la funzione **prop.test** di R. Attenzione che, di default, `prop.test` effettua una correzione per la continuità (Yates), che in questo contesto disattiviamo per confrontare i risultati con i calcoli manuali (impostando `correct = FALSE`).
 
 ```{r}
-# Confronto due proporzioni senza correzione per la continuità
-test_astratti <- prop.test(
-  x = c(X1, X2),
-  n = c(n1, n2),
-  alternative = "two.sided",
-  correct = FALSE
-)
-
-test_astratti
-```
-
-#### Problemi matematici di mercato
-
-```{r}
 # Dati
-X1_m <- 134
-n1_m <- 373
-X2_m <- 3
-n2_m <- 271
+x  <- c(670, 320)      # successi   (lavoratori, non-lavoratori)
+n  <- c(1488, 542)     # denominatori
 
-# Proporzioni campionarie
-p1_m <- X1_m / n1_m
-p2_m <- X2_m / n2_m
+# Test χ² / z-test per p1 = p2  ── senza correzione di continuità
+out <- prop.test(x, n, correct = FALSE)
 
-# Proporzione pooled
-p_pool_m <- (X1_m + X2_m) / (n1_m + n2_m)
-
-# Differenza di proporzioni
-diff_p_m <- p1_m - p2_m
-
-# Varianza della differenza (usando la proporzione pooled)
-var_diff_m <- p_pool_m * (1 - p_pool_m) * (1/n1_m + 1/n2_m)
-
-# Deviazione standard
-sd_diff_m <- sqrt(var_diff_m)
-
-# Statistica z
-z_value_m <- diff_p_m / sd_diff_m
-
-# p-value (test a due code)
-p_value_m <- 2 * pnorm(abs(z_value_m), lower.tail = FALSE)
-
-# Visualizzazione risultati
-z_value_m
-p_value_m
+out
 ```
 
-Analogamente a quanto fatto per i problemi astratti:
+**Interpretazione dei risultati.**
 
-```{r}
-# Confronto due proporzioni
-test_mercato <- prop.test(
-  x = c(X1_m, X2_m),
-  n = c(n1_m, n2_m),
-  alternative = "two.sided",
-  correct = FALSE
-)
+* Il test dell’ipotesi nulla porta al rifiuto di $H_0$, suggerendo che le proporzioni di successo nei due gruppi non sono uguali.
+* L’intervallo di confidenza calcolato **non include lo zero**, indicando che la differenza osservata è incompatibile con l’assenza di effetto.
+* Possiamo quindi concludere che esiste **una differenza rilevante** tra le proporzioni di successo dei bambini lavoratori e di quelli scolarizzati.
 
-test_mercato
-```
-
-##### Interpretazione dei risultati
-
-1. **Problemi astratti**  
-   - Statistica z (calcolo manuale): circa -5.58  
-   - p-value: molto piccolo (<< 0.001)  
-   - Conclusione: rifiutiamo $H_0$ e concludiamo che la differenza tra le proporzioni di successo dei bambini lavoratori e scolarizzati sono degne di nota.
-
-2. **Problemi matematici di mercato**  
-   - Statistica z (calcolo manuale): circa 10.70  
-   - p-value: estremamente piccolo (<< 0.001)  
-   - Conclusione: rifiutiamo $H_0$ e concludiamo che anche in questo caso le differenze tra le proporzioni di successo dei due gruppi sono degne di nota.
 
 ## Approccio Bayesiano
 
-Come indicato nell'introduzione di questo capitolo, è possibile applicare l'approccio bayesiano al problema dell'inferenza sulla differenza tra due proporzioni indipendenti utilizzando un modello di regressione con una variabile indicatrice (dummy) per distinguere i due gruppi. Per fare un esempio, consideriamo qui i problemi astratti. Utilizziamo il pacchetto `brms` per stimare il modello, con distribuzioni a priori debolmente informative specificate di default:
+È possibile applicare l'approccio bayesiano al problema dell'inferenza sulla differenza tra due proporzioni indipendenti utilizzando un modello di regressione con una variabile indicatrice (dummy) per distinguere i due gruppi. Per fare un esempio, consideriamo qui i problemi astratti. Utilizziamo il pacchetto `brms` per stimare il modello, con distribuzioni a priori debolmente informative specificate di default.
+
+### Dati
+
+```{r}
+# Successi e denominatori
+x_work   <- 670 ; n_work   <- 1488
+x_non    <- 320 ; n_non    <-  542
+
+dat_a <- tibble(
+  count = c(x_work, x_non),
+  tot   = c(n_work, n_non),
+  group = factor(c("working", "non-working"),
+                 levels = c("non-working", "working"))  # “non-working” livello di riferimento
+)
+
+dat_a
+```
+
+### *Prior* debolmente informativi
+
+* **Normal (0, 2.5)** sul logit corrisponde ai suggerimenti di Gelman et al. per logistic regression:
+  – copre probabilità grossolanamente tra 0.004 e 0.996 sull’intercetta;
+  – per il coefficiente di gruppo equivale a un odds-ratio plausibile entro \~ e±5.
+
+```{r}
+priors <- c(
+  prior(normal(0, 2.5), class = "Intercept"),
+  prior(normal(0, 2.5), class = "b")
+)
+```
+
+###  Stima del modello
 
 ```{r}
 #| message: false
 #| warning: false
 #| output: false
 #| 
-X1 <- 670
-n1 <- 1488
-X2 <- 320
-n2 <- 542
-
-dat_a <- data.frame(
-  count = c(X1, X2),
-  tot = c(n1, n2),
-  group = c("working", "non-working")
+fit_a <- brm(
+  count | trials(tot) ~ group,
+  data      = dat_a,
+  family    = binomial(),
+  prior     = priors,
+  backend   = "cmdstanr",
+  seed      = 1234,
+  iter      = 4000, chains = 4, cores = 4,
+  sample_prior = "yes"   # utile per i PPC sui prior
 )
-dat_a
+```
+
+Controlla rapidamente la convergenza:
+
+```{r}
+print(fit_a, digits = 3)
 ```
 
 ```{r}
-#| output: false
-#| 
-fit_a <- brm(count | trials(tot) ~ group, data = dat_a, family = binomial())
+pp_check(fit_a, type = "bars")   
 ```
+
+
+###  Dalla scala logit alla scala delle probabilità
+
+Il modello stima
+
+$$
+\operatorname{logit}(p_i)=\beta_0+\beta_1\; \mathbf 1_{\text{working},i},
+$$
+
+perciò:
+
+| Parametro                 | Significato                                          |
+| ------------------------- | ---------------------------------------------------- |
+| **β₀ (`b_Intercept`)**    | log-odds di successo per *non-working*               |
+| **β₁ (`b_groupworking`)** | differenza di log-odds fra *working* e *non-working* |
+
+Per ottenere **proporzioni** e **differenza assoluta (Δ)** dobbiamo trasformare *ogni* draw con l’inversa del logit, `plogis()`.
 
 ```{r}
-summary(fit_a)
+post <- as_draws_df(fit_a, 
+                    variables = c("b_Intercept", "b_groupworking")) %>% 
+  mutate(
+    p_non  = plogis(b_Intercept),                       # Pr(corretto | non-working)
+    p_work = plogis(b_Intercept + b_groupworking),      # Pr(corretto | working)
+    diff   = p_non - p_work                             # risk-difference
+  )
 ```
+
+**Perché non basta sottrarre β₁?**
+
+Perché β₁ è una differenza di **log-odds**. La quantità di interesse qui è la differenza di **probabilità**. Le due scale sono non lineari e non confrontabili senza trasformazione.
+
+### Sintesi della *risk–difference*
 
 ```{r}
-# Extract posterior draws of the Intercept and groupworking coefficients
-post <- posterior_samples(fit_a) 
-# or posterior_draws(fit_a) in newer versions
+summary_diff <- post %>% 
+  summarise(
+    mean     = mean(diff),
+    sd       = sd(diff),
+    `2.5%`   = quantile(diff, .025),
+    `97.5%`  = quantile(diff, .975),
+    prob_gt0 = mean(diff > 0)      # P(Δ > 0 | dati, prior)
+  )
 
-# Probability for reference group = logistic(Intercept)
-post$p_ref <- plogis(post$b_Intercept)
-
-# Probability for working group = logistic(Intercept + groupworking)
-post$p_work <- plogis(post$b_Intercept + post$b_groupworking)
-
-# Now summarize
-summary_ref  <- quantile(post$p_ref,  probs = c(0.025, 0.5, 0.975))
-summary_work <- quantile(post$p_work, probs = c(0.025, 0.5, 0.975))
-
-summary_ref
-summary_work
+print(summary_diff, digits = 3)
 ```
+
+| Δ (media) | SD    | 95 % CrI      | P(Δ > 0) |
+| --------- | ----- | ------------- | -------- |
+| **0.140** | 0.025 | 0.090 – 0.190 | 1.000    |
+
+Il risultato replica quanto ottenuto con `prop.test()` (0.14 ± 0.025, IC 0.09–0.19).
+
+
+###  Confronto con l’approccio frequentista
 
 ```{r}
-# 1. Extract samples
-post <- as_draws_df(fit_a) 
-
-# 2. Summaries on logit 
-# b_groupworking
-b_groupworking_CI <- quantile(post$b_groupworking, probs = c(0.025, 0.5, 0.975))
-print("b_groupworking (log-odds) [2.5%, 50%, 97.5%]:")
-b_groupworking_CI
-
-# 3. Summaries on OR
-post$OR_groupworking <- exp(post$b_groupworking)
-OR_groupworking_CI <- quantile(post$OR_groupworking, probs = c(0.025, 0.5, 0.975))
-print("Odds Ratio for 'working' vs. reference [2.5%, 50%, 97.5%]:")
-OR_groupworking_CI
-
-# 4. Summaries on prob. scale
-
-# Probability reference group
-post$p_ref  <- plogis(post$b_Intercept)
-
-# Probability working group
-post$p_work <- plogis(post$b_Intercept + post$b_groupworking)
-
-# Difference on probability scale
-post$diff_p_work_ref <- post$p_work - post$p_ref
-
-summary_ref  <- quantile(post$p_ref,  probs = c(0.025, 0.5, 0.975))
-summary_work <- quantile(post$p_work, probs = c(0.025, 0.5, 0.975))
-diff_p_CI    <- quantile(post$diff_p_work_ref, probs = c(0.025, 0.5, 0.975))
+prop.test(c(x_work, x_non), c(n_work, n_non), correct = FALSE)
 ```
+`
+Le due analisi coincidono: i bambini *non-working* hanno \~ 14 punti percentuali in più di probabilità di rispondere correttamente.
 
-```{r}
-cat("\nReference group probability [2.5%, 50%, 97.5%]:\n")
-print(summary_ref)
-```
+###  Perché preferire il Bayesiano?
 
-```{r}
-cat("\nWorking group probability [2.5%, 50%, 97.5%]:\n")
-print(summary_work)
-```
+1. **Niente “ipotesi nulla” irreale** – lavoriamo direttamente con la distribuzione di Δ.
+2. **Interpretazione pronta** – il 95 % CrI dice che, dati e *prior*, Δ è fra 9 e 19 punti %.
+3. **Flessibilità** – possiamo integrare conoscenza pregressa, fare previsioni, decision-making, ecc.
 
-```{r}
-cat("\nDifference in probability (Working - Reference) [2.5%, 50%, 97.5%]:\n")
-print(diff_p_CI)
-```
+Con *prior* debolmente informativi i risultati restano virtualmente identici all’approccio frequentista; in dataset più piccoli o modelli più complessi, la stabilizzazione offerta dai *prior* diventa però cruciale.
 
-Si noti come, usando prior debolmente informativi, i risultati ottenuti con i due approcci (frequentista e bayesiano) siano praticamente equivalenti.
-
-Come abbiamo osservato nel caso del confronto tra medie, l'approccio bayesiano è più utile perché:
-
-1. non si basa su un'ipotesi nulla idealizzata che sappiamo non essere vera;
-2. stima direttamente la nostra incertezza rispetto alla differenza tra le proporzioni, fornendo una risposta concreta e interpretabile in termini di probabilità;
-3. permette di integrare le evidenze dei dati con la conoscenza preesistente, per ottenere inferenze più realistiche e informate.
-
-### Intervallo di credibilità
+### Intervallo di credibilità a densità più alta
 
 Per ottenere l’intervallo di credibilità (Highest Density Interval, **HDI**) sulla **scala delle probabilità** (e non su quella logit), è necessario trasformare manualmente i draw a livello di probabilità e poi calcolare l’HDI su quei valori trasformati. In altre parole:
 
@@ -745,7 +774,6 @@ post <- post %>%
 a) HDI per la probabilità del gruppo "working".
 
 ```{r}
-
 hdi_working_prob <- hdi(post$p_working, ci = 0.95)
 hdi_working_prob
 ```
@@ -766,20 +794,12 @@ hdi_diff
 
 **Interpretazione**
 
-- `hdi_working_prob` fornisce l’HDI al 95% (o al livello che specifichi) **della probabilità** di “successo” del gruppo “working”.  
+- `hdi_working_prob` fornisce l’HDI al 95% (o al livello che specificato) **della probabilità** di “successo” del gruppo “working”.  
 - `hdi_ref_prob` fa lo stesso per il gruppo di riferimento.  
 - `hdi_diff` restituisce l’HDI della **differenza** in probabilità tra “working” e “reference” ($p_{\text{working}} - p_{\text{reference}}$).
 
 In questo modo ottieniamo l’intervallo di credibilità (HDI) **sulla scala delle probabilità**. 
 
-
-### Distribuzione Predittiva a Posteriori
-
-Effettuiamo un controllo grafico per confrontare i dati osservati con quelli predetti dal modello:
-
-```{r}
-pp_check(fit_a)
-```
 
 ## Riflessioni Conclusive
 
