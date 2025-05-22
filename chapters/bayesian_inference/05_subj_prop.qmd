@@ -1,4 +1,4 @@
-# Aggiornare le credenze su una proporzione: dal prior alla posterior {#sec-bayesian-inference-proportion}
+# Aggiornare le credenze su un parametro: dal prior alla posterior {#sec-bayesian-inference-proportion}
 
 ::: callout-note
 ## In questo capitolo imparerai a
@@ -360,13 +360,169 @@ L'aggiornamento bayesiano con una distribuzione a priori continua fornisce una s
 
 In alternativa, utilizzando un prior asimmetrico come $\text{Beta}(2,5)$, la distribuzione a posteriori mostra un compromesso tra la tendenza iniziale a credere in basse probabilità di successo e l’evidenza empirica più ottimista.
 
+
+## Estensione: Il Metodo Basato su Griglia per il Modello con Verosimiglianza Gaussiana
+
+Finora abbiamo applicato il metodo basato su griglia al caso della stima di una proporzione in un modello beta-binomiale. Tuttavia, lo stesso principio si estende in modo naturale anche a modelli con *parametri continui* e verosimiglianza diversa dalla binomiale, come nel caso della distribuzione normale.
+
+In particolare, possiamo usare il metodo su griglia per stimare la media $\mu$ di una popolazione, assumendo che i dati seguano una distribuzione normale con deviazione standard nota. Anche in questo contesto, la procedura prevede di:
+
+1. definire una griglia di valori plausibili per il parametro $\mu$,
+2. calcolare la verosimiglianza dei dati per ciascun valore della griglia,
+3. specificare una distribuzione a priori per $\mu$,
+4. combinare prior e verosimiglianza punto per punto,
+5. normalizzare i risultati per ottenere una distribuzione a posteriori.
+
+L'uso della griglia permette di approssimare la distribuzione a posteriori in modo trasparente e intuitivo, anche quando il modello non ha una soluzione analitica semplice.
+
+### Esempio: Stima Bayesiana della Media del QI 
+
+Immaginiamo di condurre uno studio su bambini ad alto potenziale cognitivo. Per semplicità, ipotizziamo che il QI in questa popolazione segua una distribuzione normale con deviazione standard nota pari a 5, mentre la media $\mu$ è incognita e rappresenta il parametro di interesse.
+
+Supponiamo di osservare i seguenti 10 punteggi di QI (simulati da una normale con media 130 e sd = 5):
+
+```{r}
+set.seed(123)
+campione <- round(rnorm(10, mean = 130, sd = 5))
+```
+
+### Definizione della Griglia
+
+Per applicare il metodo bayesiano su griglia, costruiamo una sequenza di valori plausibili per $\mu$, ad esempio:
+
+```{r}
+mu_griglia <- seq(110, 150, length.out = 100)
+```
+
+### Calcolo della Verosimiglianza
+
+La verosimiglianza per ciascun valore di $\mu$ è il prodotto delle densità normali dei dati osservati, assumendo $\sigma = 5$:
+
+```{r}
+likelihood <- sapply(mu_griglia, function(mu) {
+  prod(dnorm(campione, mean = mu, sd = 5))
+})
+```
+
+### Prior Informativa
+
+Supponiamo ora di avere una convinzione iniziale secondo cui $\mu$ è centrata intorno a 140, con una deviazione standard pari a 3. Questa informazione può essere rappresentata con una distribuzione a priori gaussiana $\mathcal{N}(140, 3^2)$:
+
+```{r}
+prior <- dnorm(mu_griglia, mean = 140, sd = 3)
+```
+
+Combinando questa prior con la verosimiglianza calcolata in precedenza, otteniamo la distribuzione a posteriori:
+
+```{r}
+posterior <- likelihood * prior
+posterior <- posterior / sum(posterior)  # Normalizzazione
+```
+
+Questa posteriori riflette un compromesso tra i dati osservati e la credenza iniziale. Se i dati sono informativi (campione sufficientemente grande), l’influenza della prior si riduce; viceversa, con pochi dati, la prior può giocare un ruolo più rilevante.
+
+### Campionamento dalla Posteriori
+
+Possiamo generare un campione dalla distribuzione a posteriori discreta per calcolare quantità riassuntive e costruire intervalli di credibilità:
+
+```{r}
+set.seed(123)
+samples <- sample(mu_griglia, size = 10000, replace = TRUE, prob = posterior)
+```
+
+Quantità riassuntive:
+
+```{r}
+mean(samples)                         # media a posteriori
+quantile(samples, c(0.03, 0.97))      # intervallo di credibilità al 94%
+```
+
+### Visualizzazione congiunta: Prior, Verosimiglianza, Posteriori
+
+Per confrontare le tre distribuzioni, normalizziamo anche la verosimiglianza:
+
+```{r}
+likelihood_std <- likelihood / sum(likelihood)
+
+dat <- tibble(
+  mu = mu_griglia,
+  Prior = prior / sum(prior),
+  Verosimiglianza = likelihood_std,
+  Posteriori = posterior
+)
+
+# Riorganizzazione in formato lungo
+long_data <- dat |>
+  pivot_longer(cols = c("Prior", "Verosimiglianza", "Posteriori"),
+               names_to = "Distribuzione",
+               values_to = "Densità")
+```
+
+Grafico:
+
+```{r}
+ggplot(long_data, aes(x = mu, y = Densità, color = Distribuzione)) +
+  geom_line(size = 1.2) +
+  labs(
+    title = "Confronto tra Prior, Verosimiglianza e Posteriori",
+    x = expression(mu),
+    y = "Densità (normalizzata)",
+    color = NULL
+  ) +
+  theme(legend.position = "bottom")
+```
+
+### Interpretazione
+
+* **La prior** riflette una credenza iniziale centrata su $\mu = 140$, coerente con l’ipotesi che i bambini siano plusdotati.
+* **La verosimiglianza** riflette i dati osservati, tendendo a concentrare la densità intorno alla media campionaria.
+* **La posteriori** media tra queste due fonti di informazione, spostandosi più o meno verso la prior a seconda del numero di osservazioni e della forza dei dati.
+
+Questo esempio mostra chiaramente come l’inferenza bayesiana combini in modo coerente dati e credenze preesistenti, rendendo il processo inferenziale trasparente e aggiornabile.
+
+### Nota su Stabilità Numerica: Uso dei Logaritmi
+
+Per evitare problemi di underflow, è possibile calcolare i logaritmi delle densità:
+
+```{r}
+log_likelihood <- sapply(mu_griglia, function(mu) {
+  sum(dnorm(campione, mean = mu, sd = 5, log = TRUE))
+})
+log_prior <- dnorm(mu_griglia, mean = 140, sd = 3, log = TRUE)
+
+log_posterior <- log_likelihood + log_prior
+log_posterior <- log_posterior - max(log_posterior)  # stabilizzazione
+posterior <- exp(log_posterior) / sum(exp(log_posterior))
+```
+
+Le quantità riassuntive che otteniamo in questo modo coincidono con quelle trovate in precedenza:
+
+```{r}
+set.seed(123)
+samples <- sample(mu_griglia, size = 10000, replace = TRUE, prob = posterior)
+mean(samples)                         # media a posteriori
+quantile(samples, c(0.03, 0.97))      # intervallo di credibilità al 94%
+```
+
+### Estensione: Parametri Multipli
+
+Nel caso in cui anche $\sigma$ sia ignota, possiamo estendere la griglia a due dimensioni:
+
+* $\mu \in [110, 150]$
+* $\sigma \in [1, 10]$
+
+e calcolare la verosimiglianza e la prior su ciascuna coppia $(\mu, \sigma)$. Tuttavia, il numero di combinazioni cresce rapidamente, evidenziando la *maledizione della dimensionalità*. In tali casi, è consigliabile usare metodi di approssimazione come l’MCMC.
+
+
 ## Riflessioni conclusive 
 
 In questo capitolo abbiamo esaminato l’aggiornamento bayesiano nel caso di distribuzioni a priori discrete, con un breve accenno alle prior continue. Mentre queste ultime richiedono solitamente metodi numerici per il calcolo della distribuzione a posteriori, esistono situazioni particolari—come l’inferenza su proporzioni con prior Beta e verosimiglianza binomiale—in cui la posterior è derivabile analiticamente. Questi casi saranno approfonditi nei capitoli successivi.  
 
 L’approccio utilizzato qui si basa sul metodo basato su griglia, una tecnica numerica che approssima la posterior discretizzando lo spazio dei parametri. Il procedimento è semplice: si definisce una griglia di valori plausibili per il parametro, si valutano prior e verosimiglianza in ciascun punto, si calcola la posterior non normalizzata e infine la si normalizza per ottenere una distribuzione di probabilità valida. Questo metodo fornisce risultati esatti (a meno dell’approssimazione della griglia) e non richiede strumenti computazionali avanzati.  
 
-Tuttavia, la sua utilità è limitata dalla *maledizione della dimensionalità*: mentre per uno o due parametri il metodo rimane efficiente, all’aumentare del loro numero il costo computazionale diventa rapidamente proibitivo. Basti pensare che, con una griglia di 100 punti per parametro, un modello a 10 parametri richiederebbe la valutazione di $10^{20}$ combinazioni, rendendo l’approccio impraticabile. Per questo, nella statistica bayesiana applicata—dove i modelli spesso coinvolgono decine o centinaia di parametri—si preferiscono tecniche più efficienti, come il campionamento MCMC, che affronteremo in seguito.  
+Il metodo basato su griglia si applica anche a modelli continui con verosimiglianza gaussiana, come nel caso della stima della media. L’idea centrale resta invariata: valutare, per ciascun punto della griglia, il prodotto tra prior e verosimiglianza, e normalizzare. L’approccio mantiene una trasparenza didattica elevata, rendendolo ideale per introdurre l’inferenza bayesiana in contesti psicologici anche con variabili continue.
+
+Tuttavia, l'utilità del metodo basato su griglia è limitata dalla *maledizione della dimensionalità*: mentre per uno o due parametri il metodo rimane efficiente, all’aumentare del loro numero il costo computazionale diventa rapidamente proibitivo. Basti pensare che, con una griglia di 100 punti per parametro, un modello a 10 parametri richiederebbe la valutazione di $10^{20}$ combinazioni, rendendo l’approccio impraticabile. Per questo, nella statistica bayesiana applicata—dove i modelli spesso coinvolgono decine o centinaia di parametri—si preferiscono tecniche più efficienti, come il campionamento MCMC, che affronteremo in seguito. 
 
 In sintesi, il metodo a griglia rappresenta un’introduzione accessibile all’inferenza bayesiana, utile per comprendere i concetti fondamentali e applicabile a problemi semplici. Tuttavia, la sua scalabilità limitata ne riduce l’uso pratico, spingendo verso approcci più sofisticati quando si lavora con modelli realistici. 
 
