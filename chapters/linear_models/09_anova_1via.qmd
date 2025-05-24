@@ -29,9 +29,13 @@ pacman::p_load(cmdstanr, posterior, bayestestR, brms, emmeans)
 
 ## Introduzione
 
-Nel @sec-linear-models-two-groups abbiamo visto come rappresentare **fattori a due livelli** mediante **variabili dummy**, per includere effetti categoriali all'interno di un modello lineare. In questa sezione estendiamo tale approccio al caso in cui un singolo fattore abbia **più di due categorie**.
+Nel @sec-linear-models-two-groups ci siamo concentrati sul confronto tra due gruppi utilizzando una regressione lineare con variabili dummy. Questo approccio ci ha permesso di modellare in modo semplice l’effetto di un fattore binario e di stimare con incertezza l’ampiezza della differenza. Ora estendiamo quella logica al caso in cui il fattore abbia più di due livelli.
 
-Supponiamo, ad esempio, di voler analizzare un fattore con **tre gruppi**. In questo caso possiamo utilizzare due variabili dummy per rappresentare le prime due categorie, e assumere implicitamente la terza come **categoria di riferimento**. Il modello lineare diventa:
+Questo passaggio ci introduce al cuore dell'ANOVA a una via, che non è altro che un modello lineare con un fattore categoriale a $k$ livelli. In questo contesto, ci interessa capire quanta variabilità nei dati può essere attribuita alle differenze tra gruppi, e quanto invece rimane all'interno dei gruppi stessi. Come sempre in questo manuale, manterremo una lettura orientata all’incertezza e alla variabilità intra- e inter-individuale, trattando l’inferenza come uno strumento per quantificare la credibilità delle ipotesi.
+
+## Codifica del modello con variabili dummy
+
+Supponiamo un esperimento con tre gruppi. Per rappresentare questo fattore all’interno di un modello lineare, usiamo due variabili dummy e consideriamo il terzo gruppo come riferimento implicito. Il modello assume la forma:
 
 $$
 Y_i = \alpha + \gamma_1 D_{i1} + \gamma_2 D_{i2} + \varepsilon_i
@@ -44,7 +48,7 @@ dove:
 * $D_{i1}$ e $D_{i2}$ indicano l’appartenenza dell’osservazione $i$ ai gruppi 1 e 2, rispettivamente,
 * $\varepsilon_i$ è l’errore aleatorio.
 
-La seguente tabella mostra come codificare le dummy per ciascun gruppo:
+La codifica delle dummy è la seguente:
 
 $$
 \begin{array}{c|cc}
@@ -56,46 +60,45 @@ $$
 \end{array}
 $$ {#eq-anova1a}
 
-### Significato dei parametri
+### Interpretazione dei parametri
 
-L’obiettivo è stimare le **medie di popolazione** per ciascun gruppo, indicate con $\mu_j$ per il gruppo $j$. Poiché l’errore $\varepsilon$ ha media zero, possiamo calcolare l’aspettativa del modello per ciascun gruppo:
-
+Con questa codifica, possiamo esprimere le medie di ciascun gruppo come:
+  
 $$
 \begin{aligned}
-\text{Gruppo 1: } \mu_1 &= \mathbb{E}(Y \mid D_1 = 1, D_2 = 0) = \alpha + \gamma_1 \\
-\text{Gruppo 2: } \mu_2 &= \mathbb{E}(Y \mid D_1 = 0, D_2 = 1) = \alpha + \gamma_2 \\
-\text{Gruppo 3: } \mu_3 &= \mathbb{E}(Y \mid D_1 = 0, D_2 = 0) = \alpha
+\mu_1 &= \alpha + \gamma_1 \\
+\mu_2 &= \alpha + \gamma_2 \\
+\mu_3 &= \alpha
 \end{aligned}
-$$ {#eq-anova1b}
-
-Queste espressioni mostrano come i coefficienti del modello siano **relativi alla categoria di riferimento**, cioè il Gruppo 3. Possiamo dunque esprimere i parametri del modello in funzione delle medie di gruppo:
-
 $$
-\alpha = \mu_3, \quad \gamma_1 = \mu_1 - \mu_3, \quad \gamma_2 = \mu_2 - \mu_3 .
-$$ {#eq-anova1c}
+  
+Da cui otteniamo:
+  
+$$
+\alpha = \mu_3, \quad \gamma_1 = \mu_1 - \mu_3, \quad \gamma_2 = \mu_2 - \mu_3.
+$$
+  
+Quindi:
+  
+* $\alpha$: media del gruppo 3 (riferimento),
+* $\gamma_1$: quanto il gruppo 1 si discosta da $\mu_3$,
+* $\gamma_2$: quanto il gruppo 2 si discosta da $\mu_3$.
 
-In sintesi:
+In un'ottica bayesiana, questi coefficienti possono essere pensati come distribuzioni: esprimono *quanto crediamo che ciascuna differenza sia plausibile*, date le osservazioni. Passiamo ora a una simulazione.
 
-* $\alpha$ rappresenta la media del **gruppo di riferimento** (Gruppo 3),
-* $\gamma_1$ è la **differenza tra la media del Gruppo 1 e quella del Gruppo 3**,
-* $\gamma_2$ è la **differenza tra la media del Gruppo 2 e quella del Gruppo 3**.
-
-Questa struttura rende il modello facilmente interpretabile: i coefficienti delle dummy indicano quanto ciascun gruppo si discosta dalla categoria di riferimento, mentre l’intercetta fornisce direttamente la media di quest’ultima. Questo schema può essere esteso a fattori con un numero arbitrario di categorie.
 
 ## Simulazione
 
-Per illustrare il funzionamento di un modello con un fattore a tre livelli, simuliamo un dataset con tre condizioni sperimentali: `controllo`, `psicoterapia1` e `psicoterapia2`. Supponiamo che ogni gruppo abbia una diversa media, ma la stessa deviazione standard:
+Simuliamo un esperimento con tre condizioni: `controllo`, `psicoterapia1` e `psicoterapia2`. Ogni gruppo ha una media diversa ma la stessa deviazione standard. Ci interessa modellare la variabilità tra le condizioni e interpretare le differenze in modo probabilistico.
 
 ```{r}
 set.seed(123)
 
 n <- 30  # numero di osservazioni per gruppo
-
 # Medie di ciascun gruppo
 mean_control <- 30
 mean_psico1  <- 25
 mean_psico2  <- 20
-
 # Deviazione standard comune
 sd_value <- 5
 
@@ -113,9 +116,9 @@ df <- data.frame(
 df |> head()
 ```
 
-### Esplorazione dei dati
+### Esplorazione iniziale
 
-Visualizziamo le distribuzioni con un violin plot arricchito da un boxplot:
+Visualizziamo le distribuzioni dei punteggi:
 
 ```{r}
 ggplot(df, aes(x = condizione, y = punteggio, fill = condizione)) +
@@ -140,8 +143,7 @@ df |>
   )
 ```
 
-
-## Codifica con variabili dummy
+## Modello lineare con variabili dummy
 
 Convertiamo `condizione` in fattore e definiamo `controllo` come categoria di riferimento:
 
@@ -151,7 +153,7 @@ df$condizione <- relevel(df$condizione, ref = "controllo")
 contrasts(df$condizione)
 ```
 
-Il modello di regressione con dummy sarà:
+Il modello di regressione con le variabili dummy sarà:
 
 $$
 Y_i = \beta_0 + \beta_1 \cdot \text{psicoterapia1}_i + \beta_2 \cdot \text{psicoterapia2}_i + \varepsilon_i,
@@ -174,7 +176,7 @@ fm1 <- lm(punteggio ~ condizione, data = df)
 summary(fm1)
 ```
 
-Verifica delle medie e differenze tra gruppi:
+Verifica delle medie e differenze tra i gruppi:
 
 ```{r}
 out <- tapply(df$punteggio, df$condizione, mean)
@@ -184,12 +186,12 @@ out[3] - out[1]  # psicoterapia2 - controllo
 
 ## Contrasti personalizzati
 
-L’uso di contrasti personalizzati ci permette di testare ipotesi più specifiche. Ad esempio:
+I contrasti ci permettono di andare oltre il test globale e formulare ipotesi teoriche mirate. Ad esempio:
 
-* **contrasto 1**: controllare se la media del gruppo `controllo` differisce dalla media combinata delle due psicoterapie;
-* **contrasto 2**: confrontare direttamente `psicoterapia1` con `psicoterapia2`.
+- la media del gruppo controllo è diversa dalla media delle due psicoterapie?
+- le due psicoterapie differiscono tra loro?
 
-### Matrice dei contrasti
+A questo fine, specifichiamo la seguente matrice dei contrasti:
 
 ```{r}
 my_contrasts <- matrix(c(
@@ -204,15 +206,19 @@ rownames(my_contrasts) <- c("controllo", "psicoterapia1", "psicoterapia2")
 contrasts(df$condizione) <- my_contrasts
 ```
 
+Adattiamo il modello:
+
 ```{r}
 mod_custom <- lm(punteggio ~ condizione, data = df)
 ```
+
+Esaminiamo i coefficienti:
 
 ```{r}
 summary(mod_custom)
 ```
 
-## Interpretazione dei coefficienti
+Interpretazione dei coefficienti:
 
 * **Intercetta**: non rappresenta più una singola media, ma una combinazione lineare dei gruppi.
 * **Ctrl\_vs\_PsicoMean**: confronta la media di `controllo` con la media combinata delle due psicoterapie.
@@ -230,17 +236,12 @@ out[1] - (out[2] + out[3]) / 2
 out[2] - out[3]
 ```
 
-## Uso del pacchetto `emmeans`
+## Estensione bayesiana con `brms` e `emmeans`
 
-Il pacchetto `emmeans` consente di ottenere gli stessi risultati in modo più diretto e modulare.
-
-### Stima con `brms`
-
-Usiamo ora `emmeans` con `brms`:
+Usiamo ora il modello bayesiano:
 
 ```{r}
 #| output: false
-#| 
 mod <- brm(punteggio ~ condizione, data = df, backend = "cmdstanr")
 ```
 
@@ -248,20 +249,20 @@ mod <- brm(punteggio ~ condizione, data = df, backend = "cmdstanr")
 summary(mod)
 ```
 
-### Calcolo delle medie marginali
+Le medie marginali e i confronti possono essere ottenuti con il pacchetto `emmeans`:
 
 ```{r}
 em <- emmeans(mod, specs = "condizione")
 em
 ```
 
-### Confronti tra gruppi
+Confronti tra gruppi:
 
 ```{r}
 pairs(em)  # confronti a coppie
 ```
 
-### Contrasti personalizzati con `emmeans`
+Contrasti personalizzati:
 
 ```{r}
 my_list <- list(
@@ -285,17 +286,11 @@ plot(em)
 
 ## Riflessioni Conclusive
 
-Un’ANOVA a una via può essere vista come un caso speciale di regressione lineare, applicato a un fattore con più di due livelli. L’elemento più informativo dell’analisi non è tanto la verifica globale dell’effetto del fattore, ma l’esplorazione mirata di **contrasti specifici tra le medie**.
+L’ANOVA a una via è un esempio fondamentale di come un modello lineare possa rappresentare la variabilità tra gruppi. Tuttavia, il suo valore non sta nel test globale, ma nella possibilità di analizzare differenze mirate tra medie.
 
-La possibilità di definire **contrasti personalizzati**, come quelli che confrontano un singolo gruppo con la media degli altri, oppure due gruppi tra loro, permette di rispondere a **domande teoriche mirate**. Questo approccio si integra perfettamente con il framework bayesiano, in cui i contrasti possono essere interpretati in termini di **probabilità a posteriori**, anziché solo di significatività.
+Attraverso contrasti personalizzati, possiamo porre domande teoriche precise e ottenere risposte in termini di effetti stimati con incertezza. Questo approccio si integra naturalmente con la prospettiva bayesiana, che ci permette di esprimere la probabilità che una certa differenza superi una soglia di interesse pratico.
 
-Il pacchetto `emmeans` rende questo processo ancora più accessibile, offrendo strumenti per:
-
-* calcolare medie marginali stimate;
-* specificare contrasti personalizzati;
-* ottenere intervalli di confidenza (o credibilità) e p-value corretti.
-
-In definitiva, l’uso combinato di regressione, contrasti e strumenti come `emmeans` o `brms` fornisce un approccio potente, flessibile e interpretabile per analizzare l’effetto di fattori categoriali in modelli lineari.
+Il pacchetto `emmeans` (insieme a `brms`) consente di navigare questa complessità in modo modulare e trasparente, producendo stime interpretabili e inference compatibili con i nostri modelli teorici. L’obiettivo non è semplicemente sapere se c'è una differenza, ma capire quanto, con quale incertezza e tra chi.
 
 ## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
 
