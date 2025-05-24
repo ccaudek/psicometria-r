@@ -25,125 +25,97 @@ pacman::p_load(cmdstanr, posterior, brms, bayestestR, insight)
 ```
 :::
 
+## Introduzione
 
-# Introduzione
+Nel capitolo precedente abbiamo affrontato il problema del confronto tra due gruppi, stimando la differenza tra i punteggi di QI nei figli di madri con o senza diploma. Abbiamo visto come il paradigma bayesiano consenta di formulare inferenze probabilistiche su tale differenza, restituendo una distribuzione a posteriori che riflette l’incertezza residua dopo aver osservato i dati.
 
-Nel capitolo precedente abbiamo esaminato il confronto tra due gruppi, stimando la differenza tra le medie dei punteggi di QI in base al livello di istruzione della madre. Abbiamo visto come l’approccio bayesiano consenta di ottenere la distribuzione a posteriori della differenza tra gruppi, formulare probabilità su ipotesi e generare intervalli di credibilità.
+In questo capitolo approfondiamo un aspetto cruciale dell’inferenza psicologica: la valutazione della **rilevanza pratica** di un effetto. Non ci interessa solo se la differenza esiste, ma se è sufficientemente ampia da essere considerata sostanziale nel contesto della ricerca. È qui che entra in gioco la nozione di **grandezza dell’effetto** (*effect size*), che fornisce un’unità comparabile per esprimere l’intensità di una relazione o la magnitudine di una differenza.
 
-In questo capitolo approfondiamo un altro aspetto fondamentale dell’inferenza: la **stima della grandezza dell’effetto** (*effect size*), ovvero quanto è “grande” o “rilevante” l’effetto osservato. L’obiettivo non è soltanto sapere *se* esiste una differenza, ma valutare *quanto è importante* quella differenza in termini comparabili e interpretabili.
+## Standardizzare la differenza: Cohen’s d
 
-## Che cos’è una grandezza dell’effetto?
-
-Nel confronto tra due gruppi, una misura standard della grandezza dell’effetto è il **Cohen’s d**, che rappresenta la differenza tra le medie standardizzata rispetto alla deviazione standard complessiva:
+Nel confronto tra due gruppi, una misura diffusa della grandezza dell’effetto è **Cohen’s d**, che standardizza la differenza tra le medie rispetto alla variabilità osservata:
 
 $$
 d = \frac{\mu_1 - \mu_2}{\sigma},
 $$
 
-dove:
+dove $\mu_1$ e $\mu_2$ sono le medie dei due gruppi e $\sigma$ è una stima comune della deviazione standard. In ambito bayesiano, possiamo calcolare questa quantità *per ciascun campione a posteriori*, ottenendo così *una distribuzione intera di valori plausibili per Cohen’s d*, non un valore unico.
 
-* $\mu_1$ e $\mu_2$ sono le medie dei due gruppi,
-* $\sigma$ è la deviazione standard pooled (una stima comune della variabilità nei due gruppi).
-
-Nel contesto bayesiano, questa quantità può essere **derivata a posteriori**, a partire dai campioni MCMC della differenza tra le medie e della deviazione standard.
-
-## Calcolo di Cohen's d in `brms`
-
-Carichiamo i dati e visualizziamo le prime righe per comprenderne la struttura:
-
-```{r}
-kidiq <- rio::import(here::here("data", "kidiq.dta"))
-kidiq |> 
-  head()
-```
+## Calcolo di Cohen’s d con `brms`
 
 Partiamo dal modello già stimato nel capitolo precedente:
 
 ```{r}
 #| output: false
+kidiq <- rio::import(here::here("data", "kidiq.dta"))
+
 fit_1 <- brm(
   kid_score ~ mom_hs, 
   data = kidiq, 
-  backend = "cmdstanr", 
+  backend = "cmdstanr",
   silent = 0
 )
 ```
 
-Otteniamo i campioni posteriori per il coefficiente $\beta\_1$ (la differenza tra i gruppi) e per $\sigma$:
+Estraiamo i campioni a posteriori della differenza tra gruppi (`b_mom_hs`) e della deviazione standard residua:
 
 ```{r}
 post <- as_draws_df(fit_1)
-
-diff_samples <- post$b_mom_hs
-sigma_samples <- post$sigma
+d_samples <- post$b_mom_hs / post$sigma
 ```
 
-Calcoliamo ora la distribuzione a posteriori di Cohen’s d:
+### Visualizzazione dell’incertezza
 
 ```{r}
-d_posterior <- diff_samples / sigma_samples
-```
-
-### Visualizzazione della distribuzione di Cohen’s d
-
-```{r}
-mcmc_areas(as_draws_df(tibble(d = d_posterior)), pars = "d", prob = 0.89) +
+mcmc_areas(as_draws_df(tibble(d = d_samples)), pars = "d", prob = 0.89) +
   labs(
     title = "Distribuzione a posteriori di Cohen's d",
-    subtitle = "Differenza standardizzata tra i gruppi (QI ~ mom_hs)"
+    subtitle = "Quantifica la rilevanza standardizzata della differenza osservata"
   )
 ```
 
 ### Statistiche riassuntive
 
 ```{r}
-bayestestR::describe_posterior(d_posterior, ci = 0.89)
+bayestestR::describe_posterior(d_samples, ci = 0.89)
 ```
 
-Queste statistiche ci permettono di interpretare:
+Otteniamo così non solo la stima puntuale dell’effetto, ma anche:
 
-* la **media a posteriori di d** (la stima puntuale),
-* l’**intervallo di credibilità** (ad esempio all’89%),
-* la **probabilità a posteriori che l’effetto sia positivo e rilevante**.
+* l’ampiezza dell’intervallo di credibilità,
+* la simmetria o asimmetria della distribuzione,
+* la probabilità che l’effetto sia positivo, o superi soglie rilevanti.
 
-## Interpretazione della grandezza dell’effetto
+## Interpretare la grandezza dell’effetto
 
-Il valore di **Cohen's d** può essere interpretato secondo linee guida standard:
+Secondo convenzioni psicometriche, i valori di *d* si interpretano come segue:
 
-| Valore di *d*   | Interpretazione |
-| --------------- | --------------- |
-| 0.2             | Effetto piccolo |
-| 0.5             | Effetto medio   |
-| 0.8 o superiore | Effetto grande  |
+| Valore di *d* | Descrizione qualitativa |
+| ------------- | ----------------------- |
+| ≈ 0.2         | Effetto piccolo         |
+| ≈ 0.5         | Effetto medio           |
+| ≥ 0.8         | Effetto grande          |
 
-Tuttavia, nel contesto bayesiano **non ci limitiamo a classificare**, ma possiamo **calcolare direttamente la probabilità che d superi una soglia rilevante**, ad esempio:
+Tuttavia, l’approccio bayesiano consente di andare oltre queste soglie arbitrarie. Possiamo calcolare, ad esempio:
 
 ```{r}
-mean(d_posterior > 0.5)  # Probabilità che l'effetto sia almeno medio
+mean(d_samples > 0.5)  # Probabilità che l'effetto sia almeno medio
+mean(d_samples > 0.8)  # Probabilità che l'effetto sia grande
 ```
 
-Oppure:
+Queste quantità rispondono a domande come:
 
-```{r}
-mean(d_posterior > 0.8)  # Probabilità che l'effetto sia grande
-```
-
-Queste probabilità permettono di rispondere a domande più precise e utili del tipo:
-
-> *Quanto è probabile che l’effetto dell’istruzione materna sul QI sia almeno medio?*
+*Qual è la probabilità che la differenza osservata tra i gruppi sia sostanziale, non solo statisticamente distinguibile da zero?*
 
 ## Riflessioni conclusive
 
-La stima della **grandezza dell’effetto** è fondamentale per interpretare il significato pratico di una differenza. L’approccio bayesiano consente non solo di calcolare *Cohen’s d*, ma anche di **quantificare l’incertezza** sulla sua stima e **valutare la probabilità che l’effetto sia superiore a soglie di interesse pratico**.
+L’effetto di una variabile indipendente non va soltanto rilevato: va **quantificato**. Cohen’s d, in ambito bayesiano, diventa uno strumento potente perché viene trattato come **variabile aleatoria**. Invece di fornire un numero fisso, fornisce una gamma di valori plausibili, con le relative probabilità. Questo ci consente di:
 
-Rispetto all’approccio frequentista, che spesso riporta un unico valore puntuale di *d*, il metodo bayesiano:
+* rappresentare l’incertezza sulla grandezza dell’effetto in modo diretto e continuo,
+* formulare **ipotesi probabilistiche** (es. "c’è il 90% di probabilità che l’effetto sia almeno medio"),
+* comunicare risultati con maggiore trasparenza, evitando interpretazioni binarie.
 
-* restituisce **una distribuzione completa dell’effetto**,
-* permette di costruire **intervalli di credibilità** per *d*,
-* consente di **stimare probabilità direttamente interpretabili**, ad esempio:
-  *“C’è l’85% di probabilità che l’effetto sia almeno medio”*.
-
-Nel contesto psicologico, dove l’interesse principale è spesso legato alla rilevanza dell’effetto (e non solo alla sua esistenza), questa modalità di analisi si rivela particolarmente utile, comunicativa e rigorosa.
+In un contesto come quello psicologico, dove la variabilità è la regola e non l’eccezione, parlare in termini di **distribuzioni** anziché di **soglie fisse** significa rispettare la complessità del fenomeno studiato. E soprattutto, significa ancorare l’inferenza non solo ai dati osservati, ma alla struttura dell’incertezza che li accompagna.
 
 ## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
 

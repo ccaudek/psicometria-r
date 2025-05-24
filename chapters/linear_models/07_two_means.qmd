@@ -27,35 +27,19 @@ pacman::p_load(cmdstanr, posterior, brms, bayestestR, insight)
 
 ## Introduzione
 
-Nella ricerca psicologica è comune voler **confrontare due gruppi** per verificare se, ad esempio, uno dei due presenta una media più elevata su una certa variabile. Tuttavia, le differenze osservate nei dati non riflettono sempre differenze reali: possono derivare anche da **fluttuazioni casuali**, errori di misurazione o **variabilità intrinseca nei processi psicologici**. Per valutare in modo rigoroso se una differenza osservata è compatibile con una reale differenza tra gruppi, è necessario ricorrere a un modello statistico.
+Uno degli obiettivi fondamentali nella ricerca psicologica è comprendere se e quanto due gruppi differiscano tra loro. Ad esempio, ci chiediamo se un trattamento ha prodotto un cambiamento nel comportamento, se un gruppo clinico mostra livelli più elevati di ansia rispetto a un gruppo di controllo, o se due condizioni sperimentali generano risposte differenti. In tutti questi casi, l’interesse non riguarda soltanto la presenza di una differenza, ma anche la sua grandezza e l’incertezza con cui possiamo stimarla.
 
-Il metodo tradizionale prevede l’uso di un **test di ipotesi**, in cui si formula un’**ipotesi nulla** (ad esempio: “non c’è differenza tra i gruppi”) e si calcola una **statistica test** per verificare quanto i dati siano compatibili con essa. Se la statistica supera una soglia prestabilita (tipicamente associata a un livello di significatività), si rifiuta l’ipotesi nulla.
+L’approccio tradizionale si basa sul test d’ipotesi: si parte dall’assunzione che non vi sia alcuna differenza tra i gruppi (ipotesi nulla) e si valuta quanto i dati osservati siano compatibili con questa ipotesi. Il risultato, il p-value, indica la probabilità di ottenere dati così estremi (o più) se l’ipotesi nulla fosse vera. Ma questo tipo di inferenza, per quanto diffuso, si riduce a una decisione binaria fondata su soglie arbitrarie e spesso non aiuta a comprendere davvero la natura del fenomeno psicologico osservato.
 
-Questo approccio, però, ha alcune limitazioni. Come sottolineano @johnson1999insignificance e @goodman1999toward, la procedura è spesso influenzata da **convenzioni arbitrarie** (come il livello di significatività o la scelta del test) e produce un risultato binario (rifiuto o meno dell’ipotesi nulla), che può essere **di difficile interpretazione** e soggetto a **fraintendimenti**.
+Un’alternativa più ricca è offerta dall’approccio bayesiano, che sposta il focus dal "verificare se c’è una differenza" al "quanto è grande e quanto siamo incerti nel stimarla". Invece di produrre una risposta secca, il modello bayesiano restituisce una distribuzione di probabilità per ogni parametro, riflettendo in modo esplicito l’incertezza residua dopo aver osservato i dati. Questo è particolarmente utile in psicologia, dove l’eterogeneità inter- e intra-individuale è la norma.
 
-### Un'alternativa più informativa: la stima bayesiana
+Nel confronto tra due gruppi, il modello bayesiano distingue due fonti fondamentali di incertezza: l’**incertezza aleatoria**, legata alla variabilità naturale del comportamento umano, e l’**incertezza epistemica**, che riguarda la nostra conoscenza limitata e che possiamo ridurre attraverso l’accumulo di dati o l’integrazione di conoscenze pregresse tramite i prior.
 
-Un approccio più trasparente e informativo consiste nel **passare dal test alla stima**: invece di domandarci *“Esiste una differenza?”*, ci chiediamo *“Quanto è grande la differenza tra i gruppi?”* e *“Quanto siamo incerti su questa stima?”*.
+Nel corso di questo capitolo vedremo come modellare la differenza tra due medie utilizzando una regressione con variabile indicatrice. Questo approccio, formalmente equivalente al classico confronto tra due gruppi, permette di stimare la differenza in termini probabilistici, fornendo strumenti chiari per ragionare sull’incertezza.
 
-In questo contesto, l’approccio **bayesiano** offre un quadro concettualmente più chiaro, perché consente di quantificare esplicitamente l’**incertezza**. In particolare, distingue due tipi fondamentali di incertezza:
+## Regressione bayesiana per confrontare due gruppi
 
-* **Incertezza aleatoria** (*aleatory uncertainty*): è l’incertezza dovuta alla **variabilità intrinseca** nei dati, cioè al fatto che gli individui all’interno di ciascun gruppo sono naturalmente diversi tra loro. È una proprietà del fenomeno osservato.
-* **Incertezza epistemica** (*epistemic uncertainty*): riflette la nostra **ignoranza o mancanza di conoscenza** sul vero valore della differenza tra i gruppi. È una proprietà del nostro stato di informazione e può essere ridotta raccogliendo più dati o integrando conoscenze pregresse.
-
-Nel paradigma bayesiano, l’incertezza epistemica è modellata in modo diretto tramite la **distribuzione a posteriori**, che combina i dati osservati con eventuali **conoscenze pregresse** espresse sotto forma di prior. Questo permette di ottenere una stima probabilistica della differenza tra gruppi, assieme a un **intervallo di credibilità**, che indica dove si concentra la maggior parte della nostra incertezza residua.
-
-In questo capitolo, esploreremo come applicare questo approccio per il confronto tra due gruppi, utilizzando strumenti bayesiani che consentono di rappresentare chiaramente ciò che sappiamo — e ciò che non sappiamo — sulla differenza che ci interessa stimare.
-
-## Regressione bayesiana per il confronto tra due gruppi
-
-Dopo aver introdotto l’approccio bayesiano come un’alternativa più informativa rispetto ai test di ipotesi, vediamo ora **come modellare la differenza tra due gruppi** utilizzando un semplice modello di regressione. Anche se il termine "regressione" può sembrare tecnico, in questo contesto si tratta di un modo molto naturale per rappresentare il confronto tra due medie.
-
-Supponiamo di avere una variabile quantitativa $y$ (ad esempio, un punteggio cognitivo o un indice di stress), e di voler confrontare i valori medi di $y$ in due gruppi distinti. Per rappresentare l’appartenenza di ciascun individuo a uno dei due gruppi, introduciamo una **variabile indicatrice (dummy)** $D_i$, definita nel seguente modo:
-
-* $D_i = 0$ per gli individui del **gruppo di riferimento** (ad esempio, il gruppo di controllo),
-* $D_i = 1$ per gli individui del **gruppo di confronto** (ad esempio, il gruppo sperimentale).
-
-Il modello assume la forma:
+Il confronto tra due medie può essere espresso in modo semplice con un modello di regressione lineare:
 
 $$
 y_i = \alpha + \gamma D_i + \varepsilon_i,
@@ -63,54 +47,285 @@ $$
 
 dove:
 
-* $y_i$ è il valore osservato per l’individuo $i$,
-* $\alpha$ è la **media del gruppo di riferimento** ($D_i = 0$),
-* $\gamma$ rappresenta la **differenza tra le medie** dei due gruppi,
-* $\varepsilon_i \sim \mathcal{N}(0, \sigma^2)$ è un termine di errore casuale, che rappresenta la variabilità individuale non spiegata dal gruppo.
+* $y_i$ è il punteggio osservato per l’individuo $i$;
+* $D_i$ è una variabile dummy: 0 per il gruppo di riferimento (es. controllo), 1 per il gruppo sperimentale;
+* $\alpha$ rappresenta la media del gruppo di riferimento;
+* $\gamma$ è la differenza tra le medie;
+* $\varepsilon_i$ è un errore casuale con deviazione standard $\sigma$.
 
-In questo modello:
+Nel contesto bayesiano, trattiamo $\alpha$, $\gamma$ e $\sigma$ come variabili aleatorie, a cui associamo delle distribuzioni a priori. Una volta osservati i dati, aggiorniamo queste credenze ottenendo le distribuzioni a posteriori. La distribuzione a posteriori di \$\gamma\$ ci dice quanto è plausibile ciascun valore della differenza tra gruppi, data l’evidenza empirica e le nostre ipotesi iniziali.
 
-* Se $D_i = 0$, allora $\mu_i = \alpha$, cioè la media del gruppo di riferimento.
-* Se $D_i = 1$, allora $\mu_i = \alpha + \gamma$, cioè la media del gruppo di confronto.
+Questo ci permette di:
 
-Il parametro $\gamma$ è quindi l’elemento centrale dell’inferenza: **misura la differenza tra le due medie**, e l’obiettivo dell’analisi è stimarne il valore e la relativa incertezza.
+* calcolare direttamente la probabilità che la differenza sia positiva, negativa o maggiore di una soglia rilevante;
+* ottenere un intervallo di credibilità (es. al 95%) che racchiude i valori più plausibili;
+* confrontare il risultato con aspettative teoriche pregresse.
+
+L’approccio bayesiano offre così un linguaggio continuo e graduale per descrivere l’evidenza, evitando interpretazioni forzate e soglie arbitrarie.
+
+## L’approccio frequentista: un confronto concettuale
+
+Il frequentismo affronta lo stesso problema partendo da un’altra prospettiva: i dati sono considerati aleatori, mentre i parametri sono fissi ma sconosciuti. L’inferenza si basa sul comportamento della statistica campionaria in esperimenti ipotetici ripetuti all’infinito. L’intervallo di confidenza al 95%, ad esempio, è costruito per contenere il valore vero nel 95% dei campioni, ma non possiamo interpretarlo come un’affermazione probabilistica sul singolo caso.
+
+Nel confronto tra due gruppi, la differenza tra le medie campionarie è utilizzata per calcolare una statistica $t$, confrontata con una distribuzione teorica per valutare la compatibilità dei dati con l’ipotesi nulla ($\mu_1 = \mu_2$). Il p-value misura quanto sarebbe raro osservare una differenza pari a quella trovata (o maggiore), se l’ipotesi nulla fosse vera. Ma non ci dice nulla sulla probabilità che la differenza sia vera, né sulla sua grandezza.
+
+## Due modi diversi di trattare l’incertezza
+
+Sia il frequentismo che il bayesianesimo usano la stessa struttura del modello, ma differiscono per come concepiscono l’incertezza:
+
+| Aspetto                        | Frequentista                            | Bayesiano                               |
+| ------------------------------ | --------------------------------------- | --------------------------------------- |
+| Parametri                      | Fissi ma ignoti                         | Variabili aleatorie                     |
+| Incertezza                     | Deriva dalla procedura                  | Espressa come probabilità sui parametri |
+| Intervallo                     | Di confidenza                           | Di credibilità                          |
+| Risposta alla domanda          | “I dati sono compatibili con $H_0$?” | “Quanto è plausibile questo valore?”    |
+| Uso della conoscenza pregressa | Non previsto                            | Possibile tramite prior                 |
+
+In psicologia, dove le risposte raramente sono nette e dove la variabilità è fisiologica, la capacità dell’approccio bayesiano di rappresentare l’incertezza in modo diretto rende l’inferenza non solo più trasparente, ma anche più utile per la comprensione dei dati.
+
+## Un esempio illustrativo: il ruolo dell’istruzione materna
+
+Dopo aver discusso le differenze tra approccio frequentista e bayesiano, vediamo ora come questi due modi di inferire si comportano su un caso reale. Utilizzeremo un dataset classico in psicologia dello sviluppo, che riporta i punteggi di **quoziente intellettivo (QI)** di bambini, insieme a informazioni sul **livello di istruzione della madre**.
+
+La domanda che ci poniamo è semplice, ma rilevante: *i figli di madri diplomate (che hanno completato la scuola superiore) mostrano in media un QI diverso rispetto ai figli di madri non diplomate?*
+
+### Esplorazione iniziale dei dati
+
+Importiamo il dataset e verifichiamo la struttura delle variabili:
+
+```{r}
+kidiq <- rio::import(here::here("data", "kidiq.dta"))
+glimpse(kidiq)
+```
+
+Calcoliamo alcune statistiche descrittive per ciascun gruppo:
+
+```{r}
+kidiq |> 
+  group_by(mom_hs) |> 
+  summarise(
+    n = n(),
+    media_QI = mean(kid_score),
+    sd_QI = sd(kid_score)
+  )
+```
+
+Vediamo così che il campione include **93 bambini** con madri non diplomate e **341 con madri diplomate**, con una differenza apparente nei punteggi medi di QI. Ma questa differenza è solo un effetto casuale, o riflette una tendenza reale nella popolazione?
+
+Per rispondere, analizziamo il problema utilizzando entrambi gli approcci.
+
+## Due strade per lo stesso problema
+
+### Approccio frequentista
+
+Per valutare se la differenza osservata è compatibile con l’ipotesi che non ci sia alcuna differenza nella popolazione, applichiamo il **t-test per campioni indipendenti**:
+
+```{r}
+t.test(
+  kid_score ~ mom_hs, 
+  data = kidiq, 
+  var.equal = TRUE
+)
+```
+
+Questa funzione restituisce la stima della differenza media, l'intervallo di confidenza al 95%, e il valore del **p-value**. Il p-value rappresenta la probabilità di osservare una differenza almeno così grande *se* non ci fosse alcuna differenza reale nella popolazione (cioè sotto l’ipotesi nulla $\mu_1 = \mu_2$).
+
+È una misura indiretta dell’evidenza contro l’ipotesi nulla: più è piccolo il p-value, meno plausibile appare l’ipotesi di assenza di differenza. Ma, come abbiamo visto nei capitoli precedenti, questo tipo di inferenza è vincolato da assunzioni forti e da interpretazioni spesso controintuitive.
+
+Nel prossimo paragrafo, analizzeremo lo stesso problema con l’approccio bayesiano, per ottenere una visione più continua e informativa dell’incertezza sulla differenza tra i gruppi.
 
 
-### Formulazione bayesiana del modello
+### Approccio bayesiano
 
-Nel quadro bayesiano, il confronto tra due gruppi può essere formalizzato nel seguente modo:
+A differenza dell’approccio frequentista, che parte da un’ipotesi nulla e valuta la compatibilità dei dati con essa, il paradigma bayesiano si concentra direttamente sull’effetto che vogliamo stimare. Non ci si chiede se la differenza tra gruppi "esiste", ma quanto è plausibile e quanto è incerta.
+
+Per farlo, costruiamo un modello probabilistico che descriva la relazione tra il QI dei bambini e il livello di istruzione materna. Il modello è una semplice regressione con variabile dummy:
 
 $$
-\begin{aligned}
-y_i &\sim \mathcal{N}(\mu_i, \sigma), \\
-\mu_i &= \alpha + \gamma D_i,
-\end{aligned}
+y_i \sim \mathcal{N}(\mu_i, \sigma), \quad \mu_i = \alpha + \gamma D_i,
 $$
 
-dove ogni osservazione $y_i$ è modellata come proveniente da una distribuzione normale con media $\mu_i$ e deviazione standard $\sigma$. Il valore della media $\mu_i$ dipende dal gruppo a cui appartiene l’individuo, indicato dalla variabile dummy $D_i$.
+dove:
 
-Come visto in precedenza:
+* $y_i$ è il punteggio di QI del bambino $i$,
+* $D_i = 0$ se la madre non è diplomata, $1$ se è diplomata,
+* $\alpha$ rappresenta il QI medio per i figli di madri non diplomate,
+* $\gamma$ rappresenta la differenza tra i gruppi,
+* $\sigma$ è la deviazione standard residua.
 
-* per il gruppo di riferimento ($D_i = 0$), la media è $\mu_i = \alpha$;
-* per il gruppo di confronto ($D_i = 1$), la media è $\mu_i = \alpha + \gamma$.
+#### Stima del modello con `brms`
 
-Il parametro $\gamma$ esprime quindi la **differenza tra le due medie** e rappresenta il principale oggetto di interesse dell’analisi.
+Stimiamo il modello utilizzando il pacchetto `brms`, che permette di ottenere direttamente la distribuzione a posteriori dei parametri:
 
-La differenza rispetto all’approccio frequentista non riguarda la forma del modello, che è la stessa, ma l’**interpretazione dell’inferenza**. In ambito frequentista si ottiene una stima puntuale e un intervallo di confidenza, ma non si può attribuire una probabilità alla veridicità di una certa ipotesi sul parametro. Nel paradigma bayesiano, invece, otteniamo una **distribuzione a posteriori** per ciascun parametro, che riflette il nostro grado di incertezza **dopo aver osservato i dati**, integrando anche eventuali informazioni a priori.
+```{r}
+#| output: false
+fit_1 <- brm(
+  kid_score ~ mom_hs,
+  data = kidiq,
+  backend = "cmdstanr",
+  silent = 0
+)
+```
 
-Nel caso di $\gamma$, questa distribuzione ci permette di:
+Una volta ottenuti i campioni a posteriori, possiamo rispondere in modo diretto alla domanda: *qual è la probabilità che la differenza media tra i due gruppi superi una soglia di interesse, ad esempio 5 punti?*
 
-* individuare i valori più plausibili per la differenza tra i gruppi;
-* stimare direttamente la **probabilità che $\gamma$ sia maggiore o minore di zero**, ossia che esista una vera differenza (in un verso o nell’altro);
-* calcolare un **intervallo di credibilità** (ad esempio al 95%), che ci indica dove si concentra la maggior parte della probabilità a posteriori.
+```{r}
+posterior_samples <- as_draws_df(fit_1)
+mean(posterior_samples$b_mom_hs > 5)
+```
 
-In conclusione, la regressione bayesiana con variabile dummy fornisce una struttura semplice ma potente per confrontare due gruppi, arricchita dalla possibilità di rappresentare in modo diretto e trasparente l’incertezza sulla stima della differenza. Questo rende il modello particolarmente utile in ambito psicologico, dove è spesso cruciale ragionare in termini di **gradualità dell’evidenza** e non di risposte sì/no.
-Ecco una versione rivista e migliorata della sezione sull’approccio frequentista, con maggiore chiarezza espositiva, uno stile più didattico e una transizione più naturale verso il confronto con l’approccio bayesiano. Tutte le informazioni originali sono mantenute, ma riorganizzate per migliorarne la leggibilità e la comprensione:
+Questo valore non è un p-value, ma una vera probabilità condizionata ai dati osservati. Ad esempio, un risultato pari a 0.96 può essere interpretato come: *"dato il nostro modello e i dati disponibili, c’è una probabilità del 96% che i figli di madri diplomate abbiano in media un QI superiore di almeno 5 punti"*.
+
+### Visualizzare la variabilità nei dati
+
+Un grafico aiuta a rappresentare non solo le medie, ma anche la distribuzione dei punteggi all’interno di ciascun gruppo:
+
+```{r}
+ggplot(kidiq, aes(x = as.factor(mom_hs), y = kid_score)) +
+  geom_violin(trim = FALSE, fill = "skyblue") +
+  geom_boxplot(width = 0.1, outlier.shape = NA, fill = "white", color = "black") +
+  labs(
+    x = "Istruzione materna",
+    y = "QI del bambino",
+    title = "Distribuzione dei punteggi QI\nper livello di istruzione della madre"
+  ) +
+  scale_x_discrete(labels = c("0" = "Non diplomata", "1" = "Diplomata"))
+```
+
+Il grafico evidenzia che, pur in presenza di una differenza tra le medie, esiste una notevole sovrapposizione tra i gruppi. Questo riflette la naturale variabilità dei dati psicologici e rende evidente perché la sola media non basta: è l’intera distribuzione che ci interessa comprendere.
+
+## Cosa cambia davvero tra i due approcci?
+
+Entrambi gli approcci usano gli stessi dati e, in presenza di campioni ampi e modelli lineari semplici, spesso portano a conclusioni numericamente simili. Tuttavia, ciò che cambia profondamente è il significato dei risultati.
+
+| Aspetto                 | Frequentista                                                       | Bayesiano                                            |
+| ----------------------- | ------------------------------------------------------------------ | ---------------------------------------------------- |
+| Ipotesi di partenza     | Assume $\mu_1 = \mu_2$ (ipotesi nulla)                         | Nessuna ipotesi nulla                                |
+| Obiettivo               | Verificare se la differenza osservata è improbabile sotto $H_0$ | Stimare la probabilità della differenza tra i gruppi |
+| Interpretazione         | Il p-value è una probabilità *condizionata da $H_0$*            | La probabilità è *condizionata dai dati osservati*   |
+| Rappresentazione        | Intervallo di confidenza                                           | Intervallo di credibilità                            |
+| Uso dei dati precedenti | Non previsto                                                       | Integrabile tramite prior                            |
+
+Il bayesianesimo, in questo contesto, non è solo una tecnica alternativa, ma un modo diverso di porre le domande e interpretare le risposte. Invece di dire *"questa differenza è significativa?"*, possiamo chiedere *"quanto è plausibile, alla luce dei dati, che la differenza superi una soglia rilevante?"*
+
+Nel prossimo paragrafo, estenderemo questa analisi esplorando la sensibilità del modello bayesiano rispetto alla scelta dei prior e approfondiremo strumenti diagnostici che ci aiutano a valutare quanto il modello rifletta davvero i dati.
 
 
-## Approccio frequentista
+## Approfondimenti bayesiani: dalla flessibilità alla coerenza
 
-Nel paradigma frequentista, l’inferenza sulla differenza tra due gruppi si basa sulla **distribuzione campionaria** della differenza tra le medie. L’idea di fondo è che, se ripetessimo il campionamento molte volte, otterremmo valori diversi per la differenza tra le medie campionarie, e questa variabilità può essere descritta attraverso una distribuzione probabilistica.
+Il confronto tra i gruppi sul QI ci ha già mostrato i vantaggi dell’inferenza bayesiana: la possibilità di quantificare direttamente l’incertezza sulla differenza tra le medie e di stimare probabilità a posteriori interpretabili. In questa sezione vediamo come l’approccio bayesiano permetta di **raffinare il modello** e **verificare la coerenza delle ipotesi** con i dati, prima e dopo l’osservazione.
+
+### Intervallo di credibilità e verifica predittiva
+
+Una volta stimato il modello, possiamo calcolare un **intervallo di credibilità all’89%**, una soglia suggerita in ambito didattico per sottolineare che non si tratta di una soglia “speciale”, ma di un’espressione quantitativa dell’incertezza residua:
+
+```{r}
+bayestestR::hdi(fit_1, parameters = "mom_hs", ci = 0.89)
+```
+
+Per valutare se il modello riproduce adeguatamente i dati, possiamo utilizzare la **verifica predittiva a posteriori**:
+
+```{r}
+pp_check(fit_1)
+```
+
+Nel nostro caso, il modello riproduce bene la forma generale della distribuzione osservata, ma si notano leggere discrepanze nelle code. Questo suggerisce che la distribuzione normale, pur efficace, potrebbe essere migliorata per catturare l’asimmetria presente nei dati.
+
+
+### Flessibilità modellistica: usare una distribuzione skew-normal
+
+Per rappresentare meglio la **variabilità asimmetrica**, possiamo utilizzare una **distribuzione skew-normal**, che generalizza la normale consentendo una coda più estesa da un lato:
+
+```{r}
+#| output: false
+fit_2 <- brm(
+  kid_score ~ mom_hs, 
+  family = skew_normal(),
+  backend = "cmdstanr", 
+  data = kidiq
+)
+```
+
+Il modello skew-normal migliora l’adattamento ai dati, come evidenziato da `pp_check(fit_2)`, che mostra una maggiore sovrapposizione tra predizioni e osservazioni.
+
+```{r}
+pp_check(fit_2)
+```
+
+## Verifica predittiva a priori (Prior Predictive Check)
+
+Un passaggio fondamentale nella costruzione di modelli bayesiani consiste nel chiedersi: **quali dati ci aspetteremmo di vedere, se avessimo solo i prior e nessun dato reale?**
+
+Con il **prior predictive check**, simuliamo dati fittizi basati unicamente sulle distribuzioni a priori, per verificare se le nostre ipotesi iniziali sono **compatibili con la scala e la natura del fenomeno psicologico in esame**.
+
+Per esempio, possiamo specificare prior debolmente informativi ma plausibili:
+
+```{r}
+prior_gaussian <- 
+  prior(normal(90, 20), class = "Intercept") +
+  prior(normal(0, 15), class = "b", coef = "mom_hs") +
+  prior(cauchy(0, 20), class = "sigma")
+```
+
+Poi stimiamo un modello basato **solo su questi prior**, ignorando i dati:
+
+```{r}
+#| output: false
+fit_prior <- brm(
+  kid_score ~ mom_hs,
+  data = kidiq,
+  prior = prior_gaussian,
+  family = gaussian(),
+  backend = "cmdstanr",
+  sample_prior = "only"
+)
+```
+
+Visualizzando i dati simulati:
+
+```{r}
+pp_check(fit_prior, ndraws = 100) + xlim(10, 180)
+```
+
+possiamo verificare se i prior generano predizioni realistiche. In questo caso, vediamo che i valori simulati si distribuiscono su un intervallo ampio ma plausibile, coerente con ciò che sappiamo sul QI. Questo indica che i prior non sono né troppo restrittivi né irrealistici.
+
+## Incorporare conoscenza pregressa: prior informativi
+
+Quando disponiamo di evidenze precedenti (ad esempio, studi che indicano un effetto medio dell’istruzione materna di circa 10 punti QI), possiamo formalizzarle con un prior informativo:
+
+```{r}
+#| output: false
+fit_3 <- brm(
+  kid_score ~ mom_hs,
+  data = kidiq,
+  prior = c(set_prior("normal(10, 5)", class = "b", coef = "mom_hs")),
+  backend = "cmdstanr"
+)
+```
+
+```{r}
+summary(fit_3)
+```
+
+Se i dati confermano il pattern, la distribuzione a posteriori sarà **simile a quella ottenuta con prior deboli**. Ma in campioni piccoli o più rumorosi, questo tipo di informazione può fare una grande differenza, aiutando a stabilizzare l’inferenza.
+
+## Test di ipotesi bayesiano
+
+Infine, possiamo formulare **ipotesi probabilistiche direttamente interpretabili**, come:
+
+*Qual è la probabilità che la differenza tra i gruppi superi i 5 punti?*
+
+```{r}
+hypothesis(fit_1, "mom_hs > 5")
+```
+
+A differenza del *p*-value, il risultato fornisce una risposta diretta: ad esempio, una probabilità del 98% che l’effetto sia maggiore di 5. Questo è il tipo di affermazione che possiamo portare **nella discussione scientifica o clinica**, senza bisogno di traduzioni arbitrarie.
+
+
+::: {.callout-tip}
+## Approfondimento statistico (opzionale)
+
+Consideriamo ora le basi statistiche su cui si basa l'approccio frequentista. Nel paradigma frequentista, l’inferenza sulla differenza tra due gruppi si basa sulla **distribuzione campionaria** della differenza tra le medie. L’idea di fondo è che, se ripetessimo il campionamento molte volte, otterremmo valori diversi per la differenza tra le medie campionarie, e questa variabilità può essere descritta attraverso una distribuzione probabilistica.
 
 Supponiamo di avere due popolazioni normali e indipendenti:
 
@@ -213,452 +428,28 @@ t = \frac{(\bar{Y}_1 - \bar{Y}_2) - (\mu_1 - \mu_2)}{s_p \sqrt{ \frac{1}{n_1} + 
 $$
 
 Questa statistica segue, sotto l’ipotesi nulla $\mu_1 = \mu_2$, una distribuzione t di Student con $n_1 + n_2 - 2$ gradi di libertà.
+:::
 
+## Riflessioni conclusive: ragionare con l’incertezza
 
-## Differenze interpretative tra approccio frequentista e bayesiano
+Il confronto tra due medie è un problema classico dell’analisi statistica. Ma il modo in cui lo affrontiamo riflette due visioni profondamente diverse dell’inferenza. L’approccio frequentista interpreta i dati alla luce di una procedura ipotetica: si domanda quanto una differenza osservata sarebbe rara se, in realtà, non ci fosse alcuna differenza nella popolazione. Il risultato, spesso riassunto in un p-value, è una misura indiretta e condizionata da un’ipotesi che, nella pratica psicologica, è raramente realistica.
 
-Il confronto tra i due approcci non riguarda soltanto le formule utilizzate, ma soprattutto il **modo in cui si interpreta il risultato** dell’analisi:
+L’approccio bayesiano, invece, sposta il focus: non interroga la compatibilità dei dati con un mondo ipotetico, ma costruisce una rappresentazione probabilistica della nostra incertezza rispetto ai parametri del modello. Il punto centrale non è più la validità dell’ipotesi nulla, ma la plausibilità, l’ampiezza e la rilevanza della differenza osservata, data l’evidenza disponibile e — se dichiarate — le conoscenze pregresse.
 
-* **Approccio frequentista**: l’intervallo di confidenza al 95% indica che, se ripetessimo l’esperimento moltissime volte, il 95% degli intervalli costruiti in questo modo conterrebbero la vera differenza tra $\mu_1$ e $\mu_2$. Tuttavia, **non possiamo dire** che c’è il 95% di probabilità che un dato intervallo contenga la vera differenza — perché nel frequentismo i parametri sono fissi, e solo i dati sono considerati aleatori.
+Utilizzando `brms`, abbiamo visto come questa prospettiva si traduca operativamente in modelli che restituiscono intere distribuzioni a posteriori, anziché singole stime. Abbiamo potuto:
 
-* **Approccio bayesiano**: l’intervallo di credibilità al 95% indica che, **dato il nostro stato di conoscenza attuale**, c’è il 95% di probabilità che la differenza tra i gruppi si trovi in quell’intervallo. Qui la probabilità è attribuita al **valore stesso del parametro**, che è trattato come una variabile aleatoria soggetta a incertezza epistemica.
+* quantificare la probabilità che una differenza superi una soglia rilevante;
+* ottenere intervalli di credibilità che esprimono in modo diretto l’incertezza residua;
+* diagnosticare il comportamento del modello con controlli predittivi, sia posteriori che a priori;
+* integrare conoscenze precedenti in modo esplicito, tramite la definizione di prior informativi.
 
-Questa distinzione può sembrare sottile, ma ha importanti conseguenze pratiche. Mentre l’approccio frequentista impone un’interpretazione indiretta dell’intervallo (basata su procedure ripetute), quello bayesiano consente di **formulare affermazioni probabilistiche dirette** sui parametri, e quindi **sul fenomeno psicologico in studio**.
+In contesti come la psicologia — dove i dati sono rumorosi, la variabilità tra individui è elevata, e le ipotesi raramente sono nette — questo tipo di inferenza offre un vantaggio cruciale: non riduce la complessità empirica a una dicotomia (significativo / non significativo), ma la rappresenta in termini di gradiente, compatibilità, e margine d’incertezza.
 
+L’inferenza bayesiana, dunque, non è semplicemente un’alternativa metodologica: è una cornice epistemologica che incoraggia un uso più riflessivo dei dati. Invece di trattare l’analisi statistica come un rituale decisionale, invita a formulare domande più articolate: *quale differenza è compatibile con i dati? quanto siamo incerti? quale informazione pregressa siamo disposti a includere?*
 
-### Sintesi
+In definitiva, questo capitolo ha mostrato che ragionare in termini bayesiani significa non solo ottenere risultati più interpretabili, ma anche *modellare in modo esplicito il nostro stato di conoscenza*, rendendo visibile — e quindi discutibile e migliorabile — il grado di fiducia che attribuiamo alle nostre conclusioni. In psicologia, dove i fenomeni sono complessi e l’incertezza è inevitabile, questo rappresenta non un lusso, ma una necessità.
 
-| Aspetto                         | Approccio frequentista                          | Approccio bayesiano                        |
-| ------------------------------- | ----------------------------------------------- | ------------------------------------------ |
-| Stima della differenza          | $\bar{Y}_1 - \bar{Y}_2$                     | Distribuzione a posteriori di $\gamma$   |
-| Incertezza                      | Intervallo di confidenza                        | Intervallo di credibilità                  |
-| Interpretazione dell’intervallo | Valido in media su ripetizioni dell’esperimento | Valido condizionatamente ai dati osservati |
-| Ruolo del parametro             | Fisso ma ignoto                                 | Variabile aleatoria                        |
-| Uso di informazioni pregresse   | Non previsto                                    | Esplicito tramite prior                    |
 
-Nelle sezioni successive vedremo **come implementare entrambi gli approcci in R**, e come confrontare i risultati ottenuti.
-
-
-## Un esempio illustrativo
-
-Dopo aver introdotto i due approcci — frequentista e bayesiano — e discusso come ciascuno tratti il problema del confronto tra due gruppi, passiamo ora a un esempio concreto che li metta a confronto sullo stesso set di dati.
-
-Analizzeremo un campione di dati relativi al **quoziente intellettivo (QI)** di bambini, suddivisi in due gruppi in base al livello di istruzione delle madri:
-
-* **madri diplomate** (hanno completato la scuola superiore),
-* **madri non diplomate** (non hanno completato la scuola superiore).
-
-La **domanda centrale** è: *nella popolazione, il QI medio dei bambini varia a seconda che la madre abbia o meno un diploma?*
-
-Questo esempio ci guiderà attraverso l’implementazione pratica e il confronto tra i due approcci inferenziali.
-
-### Esplorazione iniziale dei dati
-
-Carichiamo i dati e visualizziamo le prime righe per comprenderne la struttura:
-
-```{r}
-kidiq <- rio::import(here::here("data", "kidiq.dta"))
-kidiq |> 
-  head()
-```
-
-Esploriamo poi le statistiche descrittive nei due gruppi:
-
-```{r}
-kidiq |> 
-  group_by(mom_hs) |> 
-  summarize(
-    avg = mean(kid_score),
-    std = sd(kid_score),
-    n = n()
-)
-```
-
-I risultati mostrano:
-
-* **93 bambini** con madri **non diplomate**,
-* **341 bambini** con madri **diplomate**,
-
-con QI medi e deviazioni standard diverse tra i due gruppi.
-
-La differenza osservata tra le medie può essere calcolata direttamente:
-
-```{r}
-mean(kidiq[kidiq$mom_hs == 1, ]$kid_score) - mean(kidiq[kidiq$mom_hs == 0, ]$kid_score)
-```
-
-Questa analisi preliminare suggerisce una differenza tra i gruppi. Ma è sufficiente a concludere che esiste una vera differenza nella popolazione? Per rispondere, confrontiamo i due approcci.
-
-
-## Confronto tra approccio frequentista e bayesiano
-
-### Approccio frequentista
-
-L’approccio frequentista si fonda sulla **distribuzione campionaria** della differenza tra le medie osservate:
-
-$$
-\bar{Y}_1 - \bar{Y}_2 \sim \mathcal{N}\left( \mu_1 - \mu_2,\ \sqrt{ \frac{\sigma_1^2}{n_1} + \frac{\sigma_2^2}{n_2} } \right).
-$$
-
-Se assumiamo **varianze uguali**, stimiamo la varianza comune con la **varianza pooled**:
-
-$$
-s_p^2 = \frac{ (n_1 - 1)s_1^2 + (n_2 - 1)s_2^2 }{n_1 + n_2 - 2}.
-$$
-
-#### Applicazione ai dati
-
-Usiamo i seguenti valori osservati:
-
-* **madri diplomate**: $n_1 = 341$, $\bar{Y}_1 = 89.3$, $s_1 = 19.0$,
-* **madri non diplomate**: $n_2 = 93$, $\bar{Y}_2 = 77.5$, $s_2 = 22.6$.
-
-Calcoliamo la probabilità, sotto l’ipotesi nulla ($\mu_1 = \mu_2$), di osservare una differenza di almeno 5 punti:
-
-```{r}
-mean_1 <- 89.3
-std_1 <- 19.0
-n_1 <- 341
-
-mean_2 <- 77.5
-std_2 <- 22.6
-n_2 <- 93
-
-pooled_var <- (((n_1 - 1) * std_1^2) + ((n_2 - 1) * std_2^2)) / (n_1 + n_2 - 2)
-std_diff <- sqrt(pooled_var / n_1 + pooled_var / n_2)
-
-pnorm(5, mean = 0, sd = std_diff, lower.tail = FALSE)
-```
-
-Il risultato rappresenta il **p-value**: la probabilità di osservare una differenza così grande (o più) **se la vera differenza fosse zero**.
-
-### Approccio bayesiano
-
-Nel paradigma bayesiano, non partiamo da un’ipotesi nulla. Invece, costruiamo un **modello probabilistico** che stima direttamente la distribuzione a posteriori della differenza tra i gruppi.
-
-Formuliamo un semplice modello di regressione con variabile dummy:
-
-$$
-\begin{aligned}
-y_i &\sim \mathcal{N}(\mu_i, \sigma), \\
-\mu_i &= \alpha + \gamma D_i,
-\end{aligned}
-$$
-
-dove:
-
-* $\alpha$ è la media per le madri non diplomate,
-* $\gamma$ è la **differenza tra i gruppi** (cioè, l’effetto dell’istruzione della madre),
-* $\sigma$ è la deviazione standard residua.
-
-#### Stima del modello
-
-```{r}
-#| output: false
-fit_1 <- brm(
-  kid_score ~ mom_hs, 
-  data = kidiq, 
-  backend = "cmdstanr",
-  silent = 0
-)
-```
-
-#### Probabilità che la differenza superi 5 punti
-
-```{r}
-posterior_samples <- as_draws_df(fit_1)
-mean(posterior_samples$b_mom_hs > 5)
-```
-
-Questo calcolo fornisce una **stima diretta** della probabilità che la differenza tra i gruppi ($\gamma$) superi 5 punti.
-
-
-### Visualizzazione delle distribuzioni
-
-```{r}
-ggplot(kidiq, aes(x = as.factor(mom_hs), y = kid_score)) +
-  geom_violin(trim = FALSE, fill = "skyblue") +
-  geom_boxplot(width = 0.1, outlier.shape = NA, fill = "white", color = "black") +
-  labs(
-    x = "Livello di istruzione della madre",
-    y = "QI del bambino",
-    title = "Distribuzione dei punteggi QI\nin base all'istruzione materna"
-  ) +
-  scale_x_discrete(labels = c("0" = "Non diplomata", "1" = "Diplomata"))
-```
-
-Il grafico mostra chiaramente una differenza tra i gruppi, con una maggiore concentrazione di punteggi elevati tra i figli di madri diplomate.
-
-
-### Differenze concettuali tra gli approcci
-
-| Aspetto              | Frequentista                                                         | Bayesiano                                                  |
-| -------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------- |
-| Ipotesi iniziale     | $\mu_1 = \mu_2$ (ipotesi nulla)                                  | Nessuna ipotesi nulla                                      |
-| Obiettivo            | Valutare quanto è improbabile la differenza osservata sotto $H_0$ | Stimare la probabilità della differenza tra gruppi         |
-| Interpretazione      | Il p-value è condizionato da $H_0$                                | La probabilità di $\gamma > 5$ è condizionata dai dati |
-| Incertezza           | Intervallo di confidenza                                             | Intervallo di credibilità                                  |
-| Conoscenza pregressa | Non utilizzata                                                       | Integrabile tramite prior                                  |
-
-
-### Quale approccio scegliere?
-
-L’approccio **frequentista** è utile quando si vuole valutare la compatibilità dei dati con l’ipotesi di nessuna differenza, ma questa ipotesi è spesso irrealistica: due gruppi difficilmente saranno identici in ogni contesto reale.
-
-L’approccio **bayesiano** offre vantaggi notevoli:
-
-* **non assume** che la differenza sia nulla,
-* fornisce stime probabilistiche **dirette e interpretabili**,
-* permette di incorporare conoscenze pregresse (o usare prior debolmente informativi),
-* quantifica in modo chiaro l’incertezza nella stima della differenza.
-
-
-### Approfondimenti bayesiani
-
-#### Intervallo di credibilità all’89%
-
-```{r}
-bayestestR::hdi(fit_1, parameters = "mom_hs", ci = 0.89)
-```
-
-#### Verifica predittiva
-
-```{r}
-pp_check(fit_1)
-```
-
-Il modello predice abbastanza bene la distribuzione osservata, ma si notano lievi discrepanze nelle code.
-
-
-## Una parametrizzazione alternativa: modello skew-normal
-
-Per migliorare l’adattamento, usiamo una distribuzione **skew-normal** che consente di modellare l’asimmetria:
-
-```{r}
-#| output: false
-fit_2 <- brm(
-  kid_score ~ mom_hs, 
-  family = skew_normal(),
-  backend = "cmdstanr", 
-  silent = 0,
-  data = kidiq
-)
-```
-
-### Controllo predittivo
-
-```{r}
-pp_check(fit_2)
-```
-
-Il modello skew-normal mostra un migliore adattamento alle code della distribuzione osservata.
-
-### Stime posteriori
-
-```{r}
-draws <- posterior::as_draws(fit_2, variable = "^b_", regex = TRUE)
-posterior::summarise_draws(draws, "mean", "sd", "mcse_mean", "mcse_sd")
-```
-
-### Intervallo di credibilità per la differenza
-
-```{r}
-bayestestR::hdi(fit_2, parameters = "mom_hs", ci = 0.89)
-```
-
-### Variabilità spiegata
-
-```{r}
-bayes_R2(fit_2)
-```
-
-
-### Sintesi
-
-In questo esempio, entrambi i modelli suggeriscono una differenza nei punteggi QI tra i due gruppi. Tuttavia, l’approccio bayesiano fornisce:
-
-* una **valutazione diretta della probabilità** che la differenza sia superiore a una soglia,
-* una rappresentazione **esplicita dell’incertezza**,
-* una maggiore **flessibilità modellistica** (es. skew-normal).
-
-In ambito psicologico, dove è spesso più utile stimare la grandezza di un effetto e comprendere il grado di incertezza, l’approccio bayesiano offre strumenti più adatti a una comunicazione chiara, informativa e interpretabile.
-
-
-## Prior Predictive Checks
-
-Un aspetto cruciale della modellazione bayesiana consiste nel chiedersi: **che tipo di dati ci aspettiamo di osservare sulla base dei soli prior, prima ancora di vedere i dati reali?** Questo processo prende il nome di **prior predictive check**, ovvero controllo predittivo a priori.
-
-Attraverso questo controllo, possiamo **verificare se i prior specificati producono previsioni compatibili con il fenomeno che stiamo studiando**. In pratica, simuliamo dati fittizi partendo esclusivamente dalla distribuzione a priori dei parametri, senza usare alcuna informazione osservata.
-
-In `brms`, questa operazione è analoga ai *posterior predictive checks*, con una differenza fondamentale: istruiamo il pacchetto a **campionare solo dai prior**, ignorando temporaneamente i dati. Questo richiede che **tutti i parametri abbiano prior esplicitamente definiti** e, idealmente, che tali prior siano anche **plausibili**.
-
-
-### Specifica dei prior
-
-Applichiamo questo processo a un modello gaussiano sui dati `kidiq`. Cominciamo ispezionando i **prior predefiniti** che `brms` seleziona automaticamente:
-
-```{r}
-get_prior(kid_score ~ mom_hs, data = kidiq)
-```
-
-Li sostituiamo con **prior debolmente informativi** ma più riflessivi, basati su conoscenza generale:
-
-```{r}
-prior_gaussian <- 
-  prior(normal(90, 20), class = "b", coef = "Intercept") +
-  prior(normal(0, 15), class = "b", coef = "mom_hs") +
-  prior(cauchy(0, 20), class = "sigma")
-```
-
-Questi prior riflettono ipotesi deboli ma ragionevoli:
-
-* **Intercetta (β₀)**: il QI medio della popolazione è plausibilmente intorno a 90, ma lasciamo ampia incertezza.
-* **Effetto di `mom_hs` (β₁)**: l'effetto dell’istruzione materna potrebbe essere vicino a zero, ma è libero di essere anche ampio (positivo o negativo).
-* **Deviazione standard (σ)**: ci aspettiamo variabilità sostanziale, ma sempre positiva, coerente con il QI.
-
-
-### Stima del modello con prior espliciti
-
-Fit del modello ai dati, utilizzando i prior appena definiti:
-
-```{r}
-#| output: false
-fit_3 <- brm(
-  bf(kid_score ~ 1 + mom_hs, center = FALSE), 
-  data = kidiq,
-  prior = prior_gaussian,
-  family = gaussian(),
-  backend = "cmdstanr", 
-  silent = 0
-)
-```
-
-Visualizziamo le stime posteriori dei parametri $\beta_0$ e $\beta_1$:
-
-```{r}
-draws <- posterior::as_draws(fit_3, variable = "^b_", regex = TRUE)
-posterior::summarise_draws(draws, "mean", "sd", "mcse_mean", "mcse_sd")
-```
-
-### Simulazione dalla distribuzione a priori
-
-Ora eseguiamo un vero e proprio **prior predictive check**: chiediamo a `brms` di ignorare i dati e campionare *solo* dai prior, generando simulazioni sulla base delle ipotesi a priori.
-
-```{r}
-#| output: false
-fit_4 <- brm(
-  bf(kid_score ~ 1 + mom_hs, center = FALSE), 
-  data = kidiq,
-  prior = prior_gaussian,
-  family = gaussian(),
-  backend = "cmdstanr", 
-  silent = 0,
-  sample_prior = "only"
-)
-```
-
-Poiché i dati non sono utilizzati, i parametri stimati riflettono esattamente i prior:
-
-```{r}
-summary(fit_4)
-```
-
-### Visualizzazione del prior predictive check
-
-Usiamo `pp_check()` per visualizzare le distribuzioni simulate:
-
-```{r}
-pp_check(fit_4, ndraws = 100) + xlim(10, 180)
-```
-
-Nel grafico, la distribuzione dei punteggi simulati (in blu) rappresenta le predizioni del modello **prima di vedere i dati**. L’obiettivo è verificare **se queste simulazioni sono compatibili con la scala del fenomeno osservato**.
-
-Nel nostro esempio, i dati simulati si estendono su un range ampio (in linea con la variabilità attesa del QI), ma restano entro limiti plausibili. Questo suggerisce che i prior scelti sono **sufficientemente flessibili** da coprire l’intervallo di valori attesi, senza però generare predizioni assurde (come QI negativi o superiori a 200 con alta probabilità).
-
-
-### Perché i prior predictive checks sono importanti?
-
-* Ci permettono di **verificare visivamente le implicazioni dei prior** prima di usare i dati.
-* Ci aiutano a **diagnosticare prior inadeguati**, troppo vaghi (che generano predizioni implausibili) o troppo stretti (che limitano eccessivamente le possibili inferenze).
-* Sono particolarmente utili in contesti con **campioni piccoli o informazione limitata**, in cui i prior possono influenzare fortemente i risultati.
-
-> ⚠️ Anche prior che sembrano ragionevoli “sulla carta” possono produrre risultati irrealistici una volta combinati con la struttura del modello. Per questo motivo, il controllo predittivo a priori è una **verifica fondamentale** nella costruzione di un buon modello bayesiano.
-
-
-In sintesi, i *prior predictive checks* offrono una lente critica con cui valutare **se ciò che crediamo prima di osservare i dati** è coerente con ciò che potremmo realisticamente osservare. Questa fase, spesso trascurata, rappresenta un passaggio chiave nella costruzione di modelli bayesiani robusti e trasparenti.
-
-
-## Esempio con prior informativi
-
-Un ulteriore approfondimento dell’approccio bayesiano riguarda l’uso di **prior informativi**, ossia distribuzioni a priori costruite sulla base di evidenze precedenti, conoscenza teorica o risultati di studi passati.
-
-Immaginiamo, ad esempio, che studi precedenti abbiano suggerito che i figli di madri diplomate tendano ad avere, in media, un **QI superiore di circa 10 punti** rispetto ai figli di madri non diplomate. Possiamo incorporare questa conoscenza specificando un prior normale centrato su 10 per il coefficiente associato a `mom_hs`, con una deviazione standard di 5 per rappresentare un’incertezza moderata:
-
-```{r}
-#| output: false
-fit_5 <- brm(
-  kid_score ~ mom_hs,
-  data = kidiq,
-  prior = c(set_prior("normal(10, 5)", class = "b", coef = "mom_hs")),
-  backend = "cmdstanr",
-  silent = 0
-)
-```
-
-```{r}
-summary(fit_5)
-```
-
-In questo caso, la distribuzione a posteriori per il parametro \$\beta\_1\$ rifletterà una **combinazione dell’evidenza fornita dai dati** e **della conoscenza pregressa espressa nel prior**. Quando i dati sono abbondanti e informativi (come in questo esempio), l’influenza del prior tende a ridursi, ma in campioni più piccoli può risultare sostanziale, rendendo il ruolo del prior ancora più importante.
-
-
-### Test di ipotesi bayesiano con `hypothesis()`
-
-Il pacchetto `brms` consente di eseguire test di ipotesi direttamente sulla distribuzione a posteriori tramite il comando `hypothesis()`. Questo strumento è particolarmente utile per valutare se un parametro supera (o è inferiore a) una soglia di interesse:
-
-```{r}
-hypothesis(fit_1, "mom_hs > 5")
-```
-
-Il risultato di questo test fornisce:
-
-* La **probabilità a posteriori** che il parametro sia maggiore di 5,
-* L’**intervallo di credibilità** (ad esempio, al 90%) entro cui si trova il parametro con elevata probabilità,
-* Una **valutazione sintetica dell’evidenza**, formulata in termini diretti.
-
-A differenza del *p*-value frequentista, che esprime quanto sarebbe raro ottenere un certo risultato *se* l’ipotesi nulla fosse vera, l’approccio bayesiano permette di affermare, ad esempio:
-
-> *C’è una probabilità del 98% che la differenza media tra i gruppi superi i 5 punti.*
-
-Questa modalità comunicativa è **più intuitiva e direttamente interpretabile**, ed evita l’ambiguità che spesso accompagna i *p*-value.
-
-
-## Riflessioni Conclusive
-
-In questo capitolo abbiamo esplorato il paradigma bayesiano attraverso l’uso del pacchetto **brms**, mostrando passo dopo passo come:
-
-* formulare un modello statistico flessibile,
-* specificare prior deboli o informativi,
-* eseguire inferenze interpretabili in termini probabilistici,
-* diagnosticare il comportamento del modello attraverso verifiche predittive,
-* confrontare i risultati bayesiani con l’approccio frequentista.
-
-L’approccio bayesiano si distingue non solo per la forma dei risultati, ma per il **cambio di prospettiva epistemologica** che propone: invece di chiederci se un effetto “esiste” o meno secondo un criterio arbitrario (es. $\alpha = 0.05$), ci invita a formulare e aggiornare credenze sulla base dei dati osservati, e a **quantificare direttamente la nostra incertezza**.
-
-In sintesi, l’inferenza bayesiana:
-
-* consente di ottenere **intervalli di credibilità** con interpretazioni dirette e trasparenti,
-* permette di esprimere **probabilità su parametri o ipotesi**, come la probabilità che una differenza sia maggiore di un valore rilevante,
-* integra in modo naturale e controllato **informazioni pregresse**, attraverso la scelta dei prior,
-* si adatta con grande flessibilità a **modelli più complessi** o a strutture dati non ideali (asimmetrie, varianze eterogenee, piccoli campioni).
-
-Inoltre, strumenti come `pp_check()` e i **prior predictive checks** permettono di validare le assunzioni del modello in modo visivo e intuitivo, facilitando la costruzione di modelli più robusti e coerenti.
-
-> L’approccio bayesiano non è semplicemente un’alternativa tecnica, ma una **cornice concettuale più coerente e informativa** per rispondere a domande complesse nel contesto della ricerca psicologica e sociale.
-
-In conclusione, il pacchetto **brms** rende la modellazione bayesiana accessibile e potente, offrendo un’interfaccia intuitiva per definire, stimare e interpretare modelli complessi. Più che un semplice strumento computazionale, `brms` è un **alleato metodologico** che permette di adottare un modo di ragionare più flessibile, trasparente e rigoroso.
-
-Questo capitolo ha posto le basi per utilizzare il pensiero bayesiano nella pratica, non solo per "ottenere risultati", ma per **pensare in modo più critico e profondo** all’incertezza, alla variabilità e al significato delle evidenze empiriche.
 
 ## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
 
