@@ -535,7 +535,7 @@ $$
 
 **Questa è proprio la verosimiglianza della distribuzione binomiale!** Questo mostra che il caso binomiale può essere visto come una forma compatta di verosimiglianza congiunta per prove Bernoulliane indipendenti.
 
-## Perché è Importante la Verosimiglianza Congiunta?
+### Perché è Importante la Verosimiglianza Congiunta?
 
 L'idea della **verosimiglianza congiunta** è fondamentale perché ci permette di estendere i concetti di verosimiglianza dal caso di una singola osservazione al caso di molte osservazioni indipendenti. Questo è utile in molti contesti statistici:
 
@@ -547,7 +547,7 @@ In sintesi, l’esempio binomiale mostra che la verosimiglianza congiunta di pro
 La chiave per comprendere il concetto è rendersi conto che **la verosimiglianza di un'intera sequenza di prove indipendenti è il prodotto delle singole verosimiglianze**.
 
 
-## Esempio: Osservazioni Raggruppate
+### Esempio: Osservazioni Raggruppate
 
 Per illustrare il concetto di **verosimiglianza congiunta** nel caso della distribuzione binomiale, consideriamo quattro gruppi distinti di osservazioni binomiali indipendenti:
 
@@ -580,7 +580,7 @@ $$
 
 Questa formula ci permette di calcolare **quanto è plausibile** il valore del parametro $\theta$, tenendo conto simultaneamente di tutte le osservazioni nei quattro gruppi.
 
-## Implementazione in R
+### Implementazione in R
 
 Supponiamo di avere i dati di **quattro gruppi indipendenti**, e vogliamo trovare la stima del parametro $\theta$ che **massimizza la log-verosimiglianza congiunta**. Procederemo passo dopo passo.
 
@@ -823,13 +823,502 @@ In conclusione, la **verosimiglianza marginale** è un concetto chiave nell'infe
 - è essenziale per il calcolo della distribuzione **a posteriori** e per il **confronto tra modelli**.
 
 
+## Verosimiglianza Gaussiana 
+
+La distribuzione gaussiana (o distribuzione normale) è una delle distribuzioni più utilizzate in statistica perché descrive molti fenomeni naturali e psicologici. In questo capitolo esploreremo come si calcola la verosimiglianza, ovvero la plausibilità dei parametri, nel caso della distribuzione normale.
+
+### Caso di una Singola Osservazione
+
+Immaginiamo di misurare il Quoziente Intellettivo (QI) di una persona e ottenere un valore specifico, ad esempio 114. Assumiamo che il QI segua una distribuzione normale con media $\mu$ sconosciuta e deviazione standard $\sigma$ nota (ad esempio $\sigma = 15$).
+
+La **funzione di densità di probabilità** per una distribuzione normale è:
+
+$$
+f(y \mid \mu, \sigma) = \frac{1}{\sigma\sqrt{2\pi}} \exp\left(-\frac{(y-\mu)^2}{2\sigma^2}\right) ,
+$$
+
+dove:
+
+- $y$ è il valore osservato,
+- $\mu$ è la media (il parametro che vogliamo stimare),
+- $\sigma$ è la deviazione standard (conosciuta).
+
+La **verosimiglianza** misura quanto diversi valori di $\mu$ sono plausibili, dato il valore osservato (114).
+
+**Esempio pratico in R:**
+
+```{r}
+# Dati iniziali
+y_obs <- 114
+sigma <- 15
+mu_values <- seq(70, 160, length.out = 1000)
+
+# Calcolo della verosimiglianza
+likelihood <- dnorm(y_obs, mean = mu_values, sd = sigma)
+
+# Grafico della verosimiglianza
+ggplot(data.frame(mu = mu_values, likelihood = likelihood), aes(x = mu, y = likelihood)) +
+  geom_line(color = okabe_ito_palette[2], linewidth = 1.2) +
+  labs(
+    title = "Verosimiglianza per un singolo valore di QI (114)",
+    x = "Media (μ)",
+    y = "Verosimiglianza"
+  )
+```
+
+**Qual è il valore migliore per $\mu$?**
+
+Il valore migliore di $\mu$ sarà quello che rende massima la verosimiglianza. In questo semplice caso, è esattamente il valore osservato (114):
+
+```{r}
+mu_ottimale <- mu_values[which.max(likelihood)]
+cat("Il valore ottimale di μ è:", mu_ottimale)
+```
+
+### Log-Verosimiglianza
+
+Spesso, per semplicità di calcolo, si usa la **log-verosimiglianza**, che trasforma i prodotti in somme, rendendo i calcoli più semplici e stabili:
+
+$$
+\log L(\mu \mid y, \sigma) = -\frac{1}{2}\log(2\pi) - \log(\sigma) - \frac{(y-\mu)^2}{2\sigma^2}.
+$$
+
+**Calcolo pratico con R:**
+
+```{r}
+# Funzione di log-verosimiglianza negativa usando dnorm()
+negative_log_likelihood <- function(mu, y, sigma) {
+  # Ritorniamo il valore negativo della log-verosimiglianza
+  -dnorm(y, mean = mu, sd = sigma, log = TRUE)
+}
+
+result <- optim(
+  par = 100, # Valore iniziale
+  fn = negative_log_likelihood,
+  y = y_obs,
+  sigma = sigma,
+  method = "L-BFGS-B",
+  lower = 70,
+  upper = 160
+)
+
+mu_max_loglik <- result$par
+cat("Il valore ottimale di μ dalla log-verosimiglianza è:", mu_max_loglik)
+```
+
+In questo caso, otteniamo nuovamente $\mu = 114$.
+
+
+### Campione di Osservazioni Indipendenti
+
+Supponiamo di aver raccolto i punteggi alla scala **BDI-II** per 30 persone. Ciascun punteggio è un’osservazione indipendente da una distribuzione normale con **media incognita $\mu$** e **deviazione standard nota $\sigma = 6.5$**.
+
+```{r}
+# Dati osservati (punteggi BDI-II)
+y <- c(
+  26, 35, 30, 25, 44, 30, 33, 43, 22, 43, 24, 19, 39, 31, 25, 
+  28, 35, 30, 26, 31, 41, 36, 26, 35, 33, 28, 27, 34, 27, 22
+)
+
+sigma <- 6.5
+```
+
+### Calcolo della Log-Verosimiglianza 
+
+Definiamo una funzione che calcola la **log-verosimiglianza totale**:
+
+```{r}
+log_likelihood <- function(mu, y, sigma) {
+  sum(dnorm(y, mean = mu, sd = sigma, log = TRUE))
+}
+```
+
+Esploriamo ora un intervallo di valori plausibili per $\mu$ e calcoliamo la log-verosimiglianza per ciascun valore:
+
+```{r}
+# Intervallo di valori possibili per μ
+mu_range <- seq(mean(y) - 2 * sigma, mean(y) + 2 * sigma, length.out = 1000)
+
+# Inizializza vettore dei risultati
+log_lik_values <- numeric(length(mu_range))
+
+# Ciclo esplicito per chiarezza didattica
+for (i in seq_along(mu_range)) {
+  mu_val <- mu_range[i]
+  log_lik_values[i] <- log_likelihood(mu_val, y, sigma)
+}
+```
+
+### Visualizzazione della Log-Verosimiglianza
+
+```{r}
+ggplot(
+  data.frame(mu = mu_range, log_likelihood = log_lik_values),
+  aes(x = mu, y = log_likelihood)
+) +
+  geom_line(color = okabe_ito_palette[2], linewidth = 1.2) +
+  geom_vline(xintercept = mean(y), linetype = "dashed", color = "red") +
+  labs(
+    title = "Log-verosimiglianza per punteggi BDI-II",
+    x = expression(mu),
+    y = "Log-verosimiglianza"
+  )
+```
+
+La linea tratteggiata rossa indica la **media campionaria**, che — come ci aspettiamo — è anche il valore che **massimizza la log-verosimiglianza**.
+
+### Ottimizzazione Numerica
+
+Se volessimo calcolare il valore ottimale di $\mu$ in modo automatico:
+
+```{r}
+# Funzione negativa da minimizzare
+negative_log_likelihood <- function(mu, y, sigma) {
+  -sum(dnorm(y, mean = mu, sd = sigma, log = TRUE))
+}
+
+# Ottimizzazione con limiti
+result <- optim(
+  par = mean(y),                   # Valore iniziale
+  fn = negative_log_likelihood,   # Funzione da minimizzare
+  y = y,
+  sigma = sigma,
+  method = "L-BFGS-B",
+  lower = min(mu_range),
+  upper = max(mu_range)
+)
+
+mu_optimal <- result$par
+cat("Il valore ottimale di μ è:", mu_optimal)
+```
+
+- Abbiamo utilizzato `dnorm(..., log = TRUE)` per calcolare in modo semplice e numericamente stabile la log-verosimiglianza.
+- Il valore di $\mu$ che **massimizza la log-verosimiglianza** corrisponde alla **media campionaria**.
+- Questo è un caso in cui **la stima di massima verosimiglianza ha una forma chiusa**, ma l’approccio numerico resta utile e generalizzabile.
+
+
+## Il rapporto di verosimiglianze 
+
+Quando conduciamo un’analisi statistica, spesso ci troviamo di fronte alla necessità di **confrontare due modelli** che cercano di spiegare gli stessi dati. Immaginiamo, ad esempio, di voler capire qual è la **media** di una certa variabile (come il punteggio a un test, il tempo di reazione, ecc.). Potremmo avere **due ipotesi** alternative sull’effettivo valore della media:
+
+- secondo un primo modello, la media è $\mu_1$ (ad esempio, l’ipotesi "nulla", che rappresenta uno stato di riferimento o di assenza di effetto),
+- secondo un secondo modello, la media è $\mu_2$ (ad esempio, l’ipotesi "alternativa", che rappresenta un cambiamento o un effetto).
+
+Per decidere **quale modello è più compatibile con i dati osservati**, possiamo usare la **verosimiglianza** (*likelihood*).  La verosimiglianza misura **quanto bene un certo valore del parametro spiega i dati osservati**. Più la verosimiglianza è alta, più i dati sono “coerenti” con quel valore.
+
+### Il confronto
+
+Per confrontare i due modelli, calcoliamo la verosimiglianza dei dati in ciascun caso, e ne facciamo il rapporto:
+
+$$
+\lambda = \frac{L(\mu_2 \mid \text{dati})}{L(\mu_1 \mid \text{dati})}
+$$ {#eq-prob-lr-def}
+
+dove:
+
+- $L(\mu_2 \mid \text{dati})$ è la verosimiglianza del **modello alternativo** (cioè, quanto sono compatibili i dati con $\mu_2$),
+- $L(\mu_1 \mid \text{dati})$ è la verosimiglianza del **modello nullo** (cioè, quanto sono compatibili i dati con $\mu_1$).
+
+Questa quantità si chiama **rapporto di verosimiglianze** (*likelihood ratio*, LR), e rappresenta uno strumento per quantificare quanto i dati favoriscono un modello rispetto all’altro.
+
+### Come si interpreta $\lambda$?
+
+- Se $\lambda > 1$, significa che i dati supportano **più il modello alternativo**: i dati sono più probabili sotto $\mu_2$ che sotto $\mu_1$.
+- Se $\lambda < 1$, significa che i dati supportano **più il modello nullo**: i dati sono più probabili sotto $\mu_1$ che sotto $\mu_2$.
+- Se $\lambda \approx 1$, allora i dati non permettono di distinguere chiaramente tra i due modelli.
+
+*Il rapporto di verosimiglianze ci dice quale modello rende i dati osservati più “plausibili”.*
+
+
+### Un Esempio 
+
+Immagina di aver lanciato una moneta **10 volte** e di aver ottenuto **7 teste**. Ti chiedi ora quale tra questi due modelli spiega meglio i dati:
+
+- **Modello 1 (nullo)**: la moneta è equa, quindi la probabilità di testa è $\mu_1 = 0.5$;
+- **Modello 2 (alternativo)**: la moneta è truccata a favore delle teste, e la probabilità di testa è $\mu_2 = 0.7$.
+
+### Calcolo delle verosimiglianze
+
+Useremo la **distribuzione binomiale**, che descrive il numero di successi (in questo caso, teste) in un numero fisso di prove (10 lanci), dato un certo valore di probabilità.
+
+La verosimiglianza è semplicemente la **probabilità di ottenere 7 teste su 10 lanci**, sotto ciascun modello:
+
+- sotto il **modello nullo** ($\mu_1 = 0.5$):
+
+  $$
+  L(0.5 \mid \text{7 teste}) = \binom{10}{7} (0.5)^7 (1 - 0.5)^3 = 120 \cdot (0.5)^{10} \approx 0.117
+  $$
+
+- sotto il **modello alternativo** ($\mu_2 = 0.7$):
+
+  $$
+  L(0.7 \mid \text{7 teste}) = \binom{10}{7} (0.7)^7 (0.3)^3 \approx 120 \cdot 0.0824 \cdot 0.027 = 0.267
+  $$
+
+### Calcolo del rapporto di verosimiglianze
+
+Ora possiamo calcolare il **rapporto**:
+
+$$
+\lambda = \frac{L(0.7 \mid \text{7 teste})}{L(0.5 \mid \text{7 teste})} \approx \frac{0.267}{0.117} \approx 2.28
+$$
+
+Questo significa che **i dati sono circa 2.3 volte più compatibili con l’ipotesi che la moneta sia truccata** (con $\mu = 0.7$) rispetto a quella che sia equa ($\mu = 0.5$).
+
+### Visualizzare le funzioni di verosimiglianza
+
+Possiamo visualizzare graficamente come cambia la verosimiglianza al variare della probabilità di testa ($\theta$), mantenendo fisso il numero di lanci e il numero di teste osservate.
+
+#### Codice R
+
+```{r}
+# Parametri osservati
+n <- 10        # numero totale di lanci
+x <- 7         # numero di teste osservate
+
+# Sequenza di probabilità (theta)
+theta <- seq(0, 1, length.out = 100)
+
+# Verosimiglianza per ogni theta
+likelihood <- dbinom(x, size = n, prob = theta)
+
+# Crea dataframe per ggplot
+df <- data.frame(theta = theta, likelihood = likelihood)
+
+# Verosimiglianza nei due modelli
+L_0.5 <- dbinom(x, size = n, prob = 0.5)
+L_0.7 <- dbinom(x, size = n, prob = 0.7)
+LR <- L_0.7 / L_0.5
+
+# Crea grafico
+ggplot(df, aes(x = theta, y = likelihood)) +
+  geom_line(color = okabe_ito_palette[2], linewidth = 1.2) +
+  geom_vline(xintercept = 0.5, linetype = "dashed", color = "red") +
+  geom_vline(xintercept = 0.7, linetype = "dashed", color = "darkgreen") +
+  geom_point(aes(x = 0.5, y = L_0.5), color = "red", size = 3) +
+  geom_point(aes(x = 0.7, y = L_0.7), color = "darkgreen", size = 3) +
+  labs(
+    title = "Funzione di verosimiglianza per 7 teste su 10 lanci",
+    x = expression(theta),
+    y = "Verosimiglianza"
+  ) +
+  annotate(
+    "text", x = 0.5, y = L_0.5 + 0.01, 
+    label = "mu == 0.5", 
+    parse = TRUE, hjust = -0.2, color = "red"
+  ) +
+  annotate(
+    "text", x = 0.7, y = L_0.7 + 0.01, 
+    label = "mu == 0.7", parse = TRUE, hjust = -0.2, color = "darkgreen")
+```
+```{r}
+# Stampa dei risultati numerici
+cat("L(mu = 0.5) =", round(L_0.5, 3), "\n")
+cat("L(mu = 0.7) =", round(L_0.7, 3), "\n")
+cat("Likelihood Ratio =", round(LR, 2), "\n")
+```
+
+Il grafico mostra come cambia la verosimiglianza al variare di $\theta$, e indica visivamente i valori assunti nei due modelli specifici. Si vede chiaramente che $\theta = 0.7$ è più compatibile con l’osservazione di 7 teste.
+
+**In sintesi**, il **rapporto di verosimiglianze** è uno strumento per confrontare due ipotesi. Non richiede che una delle due sia vera, ma solo di confrontare **quanto bene ciascuna spiega i dati osservati**. In questo esempio, i dati favoriscono l’ipotesi che la moneta sia truccata, ma non in modo schiacciante. Il valore di $\lambda = 2.28$ indica un’evidenza moderata a favore del modello alternativo.
+
+### Rapporti di Verosimiglianza Aggiustati e Criterio di Akaike
+
+Spesso il rapporto di verosimiglianza "grezzo" ($\lambda$) deve essere aggiustato per tenere conto della differenza nel numero di parametri tra i modelli confrontati. Infatti, quando confrontiamo due modelli, quello con più parametri tende quasi sempre a descrivere meglio i dati osservati, ma ciò può essere dovuto semplicemente alla sua maggiore complessità. Questo fenomeno è noto come **sovradattamento (overfitting)**.
+
+Per correggere questa tendenza, si usa un **rapporto di verosimiglianza aggiustato** (Adjusted Likelihood Ratio, indicato con $\lambda_{\text{adj}}$. Questo tipo di aggiustamento penalizza i modelli più complessi, rendendo il confronto tra modelli più equo e affidabile.
+
+### Relazione con il Criterio di Akaike (AIC)
+
+Una modalità comune per effettuare questa correzione è tramite il **Criterio di Akaike (AIC)**. L'AIC è definito come:
+
+$$
+\text{AIC} = 2k - 2\log(\lambda),
+$$ {#eq-aic-def}
+
+in cui:
+
+- $k$ è il numero dei parametri del modello.
+- $\lambda$ è il rapporto di verosimiglianza grezzo.
+
+Da questa equazione possiamo ricavare una formula per calcolare il rapporto di verosimiglianza aggiustato utilizzando l'AIC:
+
+$$
+\lambda_{\text{adj}} = \lambda \times e^{(k_1 - k_2)},
+$$
+
+dove:
+
+- $k_1$ è il numero di parametri del modello più semplice,
+- $k_2$ è il numero di parametri del modello più complesso,
+- $e^{(k_1 - k_2)}$ è il fattore correttivo che penalizza il modello più complesso.
+
+In breve, più parametri ha un modello, maggiore sarà la penalizzazione applicata.
+
+### Rapporto tra Likelihood Ratio e AIC
+
+Il rapporto di verosimiglianza aggiustato tramite l'AIC consente di confrontare in modo equo modelli con un numero differente di parametri. Senza questa correzione, rischieremmo di scegliere sempre modelli più complessi, indipendentemente dalla loro reale capacità esplicativa, con il rischio di sovrastimare la qualità della loro spiegazione.
+
+Utilizzare il rapporto di verosimiglianza aggiustato, quindi, permette di scegliere il modello migliore considerando sia la capacità di adattarsi ai dati, sia la semplicità del modello stesso.
+
+### Illustrazione
+
+Immaginiamo un semplice esperimento psicologico sulla **memoria visiva**. Vogliamo capire se **mostrare immagini emotivamente intense** aiuta le persone a ricordare meglio, rispetto a immagini **neutre**.
+
+Abbiamo due gruppi di partecipanti:
+
+- il **gruppo neutro** vede 30 immagini neutre e ne ricorda correttamente **14**;
+- il **gruppo emozionale** vede 30 immagini emotivamente intense e ne ricorda **22**.
+
+### Obiettivo
+
+Vogliamo confrontare due modelli alternativi:
+
+- **modello nullo (H₀)**: la probabilità di ricordare un'immagine è **uguale** nei due gruppi;
+- **modello alternativo (H₁)**: la probabilità di ricordare **è diversa** nei due gruppi.
+
+### Dati osservati
+
+```{r}
+successi_neutro <- 14
+successi_emozione <- 22
+prove <- 30
+```
+
+### 1. Calcolo della Verosimiglianza
+
+**Ipotesi nulla: probabilità comune.**
+
+Se la probabilità è la stessa in entrambi i gruppi, possiamo stimarla combinando i successi totali:
+
+```{r}
+p_null <- (successi_neutro + successi_emozione) / (2 * prove)
+```
+
+**Log-verosimiglianza sotto H₀.**
+
+Sotto l’ipotesi nulla, i dati di entrambi i gruppi devono essere spiegati da **una sola probabilità**:
+
+```{r}
+ll_null <- dbinom(successi_neutro, prove, p_null, log = TRUE) + 
+           dbinom(successi_emozione, prove, p_null, log = TRUE)
+```
+
+**Ipotesi alternativa: probabilità diversa per ogni gruppo.**
+
+Stimiamo separatamente la probabilità di ricordare in ciascun gruppo:
+
+```{r}
+p_neutro <- successi_neutro / prove
+p_emozione <- successi_emozione / prove
+```
+
+**Log-verosimiglianza sotto H₁.**
+
+Ogni gruppo ha la propria verosimiglianza:
+
+```{r}
+ll_alt <- dbinom(successi_neutro, prove, p_neutro, log = TRUE) + 
+          dbinom(successi_emozione, prove, p_emozione, log = TRUE)
+```
+
+### 2. Confronto tra Modelli
+
+**Rapporto di verosimiglianza (non penalizzato).**
+
+Calcoliamo il **rapporto tra le due verosimiglianze**:
+
+```{r}
+lr <- exp(ll_alt - ll_null)
+```
+
+Questo ci dice **quanto meglio il modello alternativo spiega i dati rispetto al modello nullo**.
+
+### 3. Penalizzazione per la Complessità
+
+I modelli più complessi tendono a spiegare meglio i dati, ma rischiano di **adattarsi troppo**. Per questo, usiamo un criterio che penalizza la complessità: l’**AIC** (Akaike Information Criterion).
+
+Numero di parametri:
+
+```{r}
+k_null <- 1  # un'unica probabilità per entrambi i gruppi
+k_alt <- 2   # probabilità distinte per ciascun gruppo
+```
+
+Calcolo dell’AIC per ciascun modello:
+
+```{r}
+AIC_null <- 2 * k_null - 2 * ll_null
+AIC_alt <- 2 * k_alt - 2 * ll_alt
+```
+
+**Rapporto di verosimiglianza aggiustato.**
+
+Usiamo l’AIC per calcolare una versione **penalizzata** del rapporto di verosimiglianze:
+
+```{r}
+lr_adj <- exp((AIC_null - AIC_alt) / 2)
+```
+
+Risultati:
+
+```{r}
+cat("Rapporto di verosimiglianza grezzo:", round(lr, 2), "\n")
+cat("Rapporto di verosimiglianza aggiustato (λ_adj):", round(lr_adj, 2), "\n")
+```
+
+**Interpretazione:**
+
+- se **λ_adj > 1**, i dati sono più compatibili con il **modello alternativo** (due probabilità distinte);
+- se **λ_adj ≈ 1**, non c’è abbastanza evidenza per preferire un modello all’altro.
+
+### 4. Test del Rapporto di Verosimiglianza
+
+Possiamo testare formalmente **se la differenza tra i modelli è rilevante** o potrebbe essere dovuta al caso.
+
+La statistica test è:
+
+$$
+-2 \cdot (\log L_{H_0} - \log L_{H_1})
+$$
+
+Questa statistica segue (approssimativamente) una **distribuzione chi-quadrato** con un numero di gradi di libertà pari alla **differenza nel numero di parametri** tra i modelli:
+
+```{r}
+LR_test <- -2 * (ll_null - ll_alt)
+df <- k_alt - k_null
+p_value <- 1 - pchisq(LR_test, df)
+
+cat("Statistica test (-2 log LR):", round(LR_test, 2), "\n")
+cat("Gradi di libertà:", df, "\n")
+cat("Valore p del test:", round(p_value, 4), "\n")
+```
+
+**In sintesi**, 
+
+- se **p < 0.05**, possiamo concludere che il **modello alternativo è da preferire**: i dati sono difficilmente compatibili con l’ipotesi di probabilità uguali nei due gruppi;
+- se **p > 0.05**, non abbiamo evidenza sufficiente per preferire il modello alternativo.
+
+Nel nostro esempio:
+
+- la statistica test è ≈ 4.48;
+- il **valore-p** è ≈ 0.0337.
+
+👉 Poiché il valore-p è inferiore a 0.05, possiamo concludere che **il gruppo emozionale ha una probabilità di ricordare credibilmente diversa da quella del gruppo neutro**.
+
+
 ## Riflessioni Conclusive
 
-La funzione di verosimiglianza rappresenta un ponte fondamentale tra i dati osservati e i parametri di un modello statistico, offrendo una misura della plausibilità dei dati rispetto a diversi valori possibili dei parametri. La sua costruzione richiede l’integrazione di tre elementi chiave: il modello statistico ipotizzato come generatore dei dati, lo spazio dei parametri associato al modello e le osservazioni empiriche disponibili.
+La funzione di verosimiglianza costituisce il fulcro dell’inferenza statistica, permettendo di quantificare la plausibilità dei parametri di un modello alla luce dei dati osservati. La sua costruzione poggia su tre elementi fondamentali: la scelta del modello generatore dei dati, lo spazio dei parametri e le evidenze empiriche.  
 
-Nell’ambito dell’inferenza statistica, la funzione di verosimiglianza svolge un ruolo centrale. Essa consente di valutare quanto bene diversi valori dei parametri siano in grado di spiegare i dati osservati, diventando così uno strumento essenziale per la stima dei parametri e la selezione del modello. La sua corretta applicazione è determinante per garantire analisi dati rigorose e interpretazioni affidabili dei risultati.
+Nel caso di modelli binomiali e gaussiani, la verosimiglianza assume forme analiticamente maneggevoli, facilitando sia la stima puntuale che la valutazione di ipotesi. In particolare:  
+- **Per la distribuzione normale**, la stima di massima verosimiglianza di \(\mu\) coincide con la media campionaria, mentre la sua rappresentazione grafica offre una chiara indicazione della precisione della stima.  
+- **L’uso della log-verosimiglianza** non solo semplifica i calcoli, ma migliora anche la stabilità numerica, specialmente in contesti con campioni di grandi dimensioni.  
+- **Il rapporto di verosimiglianza** emerge come strumento versatile, capace di coniugare bontà di adattamento e parsimonia, come dimostrato da criteri quali l’AIC.  
 
-In sintesi, padroneggiare il concetto di verosimiglianza e saperlo applicare in modo appropriato sono competenze indispensabili per chi si occupa di ricerca empirica e analisi di dati complessi. La verosimiglianza non è solo uno strumento tecnico, ma un pilastro metodologico che supporta la comprensione e l’interpretazione dei fenomeni osservati attraverso modelli statistici.
+Questi strumenti non sono meri artifici tecnici, ma rappresentano un linguaggio comune per confrontare modelli e interpretare risultati in modo rigoroso. La loro corretta applicazione richiede tuttavia una comprensione approfondita delle assunzioni sottostanti, affinché le conclusioni tratte riflettano fedelmente la realtà dei dati.  
+
+In definitiva, la verosimiglianza – nelle sue diverse forme – rimane una guida indispensabile per navigare il complesso rapporto tra teoria e osservazione, offrendo un equilibrio tra flessibilità metodologica e robustezza inferenziale.
 
 ## Esercizi {.unnumbered}
 
@@ -848,13 +1337,23 @@ Spiega ciascuno dei concetti seguenti con una frase:
 
 :::
 
-::: {.callout-important title="Problemi" collapse="true"}
-All'esame ti verrà chiesto di:
 
-- Calcolare la funzione di verosimiglianza binomiale e riportare il valore della funzione in corrispondenza di specifici valori $\theta$.
-- Calcolare la stima di massima verosimiglianza.
-- Rispondere a domande che implicano una adeguata comprensione del concetto di funzione di verosimiglianza.
+::: {.callout-important title="Problemi" collapse="true"}
+
+Supponi di aver misurato il livello di ansia (ad esempio usando una scala standardizzata) in un campione di 15 persone con i seguenti punteggi:
+
+```r
+ansia <- c(23, 27, 30, 29, 25, 28, 26, 24, 31, 29, 27, 26, 28, 30, 25)
+```
+
+Assumendo che la deviazione standard sia nota e pari a 3.5, svolgi le seguenti attività in R:
+
+1. Calcola la funzione di verosimiglianza gaussiana per diversi valori di $\mu$ nell'intervallo da 20 a 35.
+2. Trova numericamente il valore di $\mu$ che rende massima la verosimiglianza (stima di massima verosimiglianza, MLE).
+3. Disegna un grafico della funzione di verosimiglianza per visualizzare il risultato.
+
 :::
+
 
 ## Informazioni sull'Ambiente di Sviluppo {.unnumbered}
 
