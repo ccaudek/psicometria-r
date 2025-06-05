@@ -27,19 +27,21 @@ pacman::p_load(cmdstanr, posterior, brms, bayestestR, insight)
 
 ## Introduzione
 
-Uno degli obiettivi fondamentali nella ricerca psicologica è comprendere se e quanto due gruppi differiscano tra loro. Ad esempio, ci chiediamo se un trattamento ha prodotto un cambiamento nel comportamento, se un gruppo clinico mostra livelli più elevati di ansia rispetto a un gruppo di controllo, o se due condizioni sperimentali generano risposte differenti. In tutti questi casi, l’interesse non riguarda soltanto la presenza di una differenza, ma anche la sua grandezza e l’incertezza con cui possiamo stimarla.
+Uno degli obiettivi fondamentali nella ricerca psicologica è comprendere se e quanto due gruppi differiscano tra loro. Ad esempio, potremmo chiederci se un trattamento ha prodotto un cambiamento nel comportamento, se un gruppo clinico mostra livelli più elevati di ansia rispetto a un gruppo di controllo, o se due condizioni sperimentali generano risposte differenti. In tutti questi casi, l’interesse non riguarda soltanto la presenza di una differenza, ma anche la sua grandezza e l’incertezza con cui possiamo stimarla.
 
-L’approccio tradizionale si basa sul test d’ipotesi: si parte dall’assunzione che non vi sia alcuna differenza tra i gruppi (ipotesi nulla) e si valuta quanto i dati osservati siano compatibili con questa ipotesi. Il risultato, il p-value, indica la probabilità di ottenere dati così estremi (o più) se l’ipotesi nulla fosse vera. Ma questo tipo di inferenza, per quanto diffuso, si riduce a una decisione binaria fondata su soglie arbitrarie e spesso non aiuta a comprendere davvero la natura del fenomeno psicologico osservato.
+L'approccio classico a tali quesiti si fonda sul test d'ipotesi frequentista, che assume come punto di partenza l'assenza di differenze tra i gruppi – la cosiddetta ipotesi nulla. Attraverso questo metodo, si valuta quanto i dati osservati siano compatibili con tale ipotesi, ottenendo come risultato il p-value, ovvero la probabilità di osservare un effetto altrettanto estremo o più estremo sotto l'ipotesi nulla.
 
-Un’alternativa più ricca è offerta dall’approccio bayesiano, che sposta il focus dal "verificare se c’è una differenza" al "quanto è grande e quanto siamo incerti nel stimarla". Invece di produrre una risposta secca, il modello bayesiano restituisce una distribuzione di probabilità per ogni parametro, riflettendo in modo esplicito l’incertezza residua dopo aver osservato i dati. Questo è particolarmente utile in psicologia, dove l’eterogeneità inter- e intra-individuale è la norma.
+Tuttavia, questa metodologia presenta diversi problemi. Innanzitutto, riduce l'analisi a una decisione binaria – "significativo" o "non significativo" – basata su soglie arbitrarie come il convenzionale p < 0.05, senza offrire una reale comprensione della grandezza dell'effetto. Inoltre, il p-value è spesso frainteso: molti ricercatori lo interpretano erroneamente come la probabilità che l'ipotesi nulla sia vera, oppure come la probabilità che l'ipotesi alternativa sia corretta, quando in realtà esso rappresenta soltanto la probabilità dei dati osservati dato che l'ipotesi nulla sia vera [@greenland2016statistical]. Un ulteriore limite è che il p-value non fornisce una misura diretta dell'incertezza associata alla stima dell'effetto, né tiene conto in modo trasparente della variabilità intrinseca ai dati [@wasserstein2016asa].
 
-Nel confronto tra due gruppi, il modello bayesiano distingue due fonti fondamentali di incertezza: l’**incertezza aleatoria**, legata alla variabilità naturale del comportamento umano, e l’**incertezza epistemica**, che riguarda la nostra conoscenza limitata e che possiamo ridurre attraverso l’accumulo di dati o l’integrazione di conoscenze pregresse tramite i prior.
+Proprio per queste ragioni, negli ultimi anni si è diffuso un interesse crescente verso  l'inferenza bayesiana, che permette un'analisi più ricca e informativa. A differenza del metodo frequentista, che si concentra sul rifiutare o meno un'ipotesi nulla, l'approccio bayesiano sposta l'attenzione sulla stima dell'effetto e sulla quantificazione dell'incertezza. Invece di produrre un semplice verdetto binario, restituisce una distribuzione di probabilità per i parametri di interesse, mostrando in modo esplicito quanto ancora non sappiamo dopo aver osservato i dati. Questa caratteristica è particolarmente preziosa in psicologia, dove l'eterogeneità tra individui e persino all'interno dello stesso individuo nel tempo è la norma. 
 
-Nel corso di questo capitolo vedremo come modellare la differenza tra due medie utilizzando una regressione con variabile indicatrice. Questo approccio, formalmente equivalente al classico confronto tra due gruppi, permette di stimare la differenza in termini probabilistici, fornendo strumenti chiari per ragionare sull’incertezza.
+Mentre il metodo frequentista si limita a valutare la compatibilità dei dati con un'ipotesi fissa, l'approccio bayesiano offre strumenti più potenti. Consente, ad esempio, di calcolare direttamente la probabilità che un trattamento sia effettivamente migliore di un altro, di esplorare un'intera gamma di possibili effetti anziché focalizzarsi solo sul confronto con l'ipotesi nulla, e di integrare in modo rigoroso conoscenze precedenti per ottenere stime più robuste, soprattutto quando i dati disponibili sono pochi.
+
+In questo capitolo esploreremo come modellare la differenza tra due medie utilizzando un modello di regressione con variabile indicatrice, un approccio formalmente equivalente al classico t-test ma che, nell'ambito bayesiano, permette una stima più flessibile e informativa. Vedremo come l'inferenza bayesiana fornisca strumenti più intuitivi per interpretare l'incertezza e supportare decisioni fondate nella ricerca psicologica, superando molti dei limiti dell'approccio tradizionale.
 
 ## Regressione bayesiana per confrontare due gruppi
 
-Il confronto tra due medie può essere espresso in modo semplice con un modello di regressione lineare:
+Per confrontare due gruppi in un'ottica bayesiana, possiamo utilizzare un semplice modello di regressione lineare. Questo approccio, concettualmente simile al classico t-test, ci permette però di ottenere stime probabilistiche più ricche e interpretabili. Immaginiamo di voler verificare se un nuovo trattamento psicologico (gruppo sperimentale) sia più efficace di un trattamento standard (gruppo di controllo). Possiamo modellare i punteggi osservati come:
 
 $$
 y_i = \alpha + \gamma D_i + \varepsilon_i,
@@ -50,38 +52,26 @@ dove:
 * $y_i$ è il punteggio osservato per l’individuo $i$;
 * $D_i$ è una variabile dummy: 0 per il gruppo di riferimento (es. controllo), 1 per il gruppo sperimentale;
 * $\alpha$ rappresenta la media del gruppo di riferimento;
-* $\gamma$ è la differenza tra le medie;
+* $\gamma$ è la differenza tra le medie (l’effetto che ci interessa stimare);
 * $\varepsilon_i$ è un errore casuale con deviazione standard $\sigma$.
 
-Nel contesto bayesiano, trattiamo $\alpha$, $\gamma$ e $\sigma$ come variabili aleatorie, a cui associamo delle distribuzioni a priori. Una volta osservati i dati, aggiorniamo queste credenze ottenendo le distribuzioni a posteriori. La distribuzione a posteriori di \$\gamma\$ ci dice quanto è plausibile ciascun valore della differenza tra gruppi, data l’evidenza empirica e le nostre ipotesi iniziali.
+A differenza dell’approccio frequentista, che tratta $\alpha$, $\gamma$ e $\sigma$ come valori fissi da stimare, il metodo bayesiano li considera variabili aleatorie, a cui assegniamo distribuzioni iniziali (prior) basate su conoscenze pregresse o su assunzioni poco informative. Dopo aver osservato i dati, queste distribuzioni vengono aggiornate, producendo le distribuzioni a posteriori, che riflettono la nostra incertezza sui parametri alla luce dell’evidenza empirica.
 
-Questo ci permette di:
+La distribuzione a posteriori di $\gamma$ è particolarmente informativa, perché ci dice quanto sia plausibile ogni possibile valore della differenza tra i gruppi. Questo ci permette di:
 
-* calcolare direttamente la probabilità che la differenza sia positiva, negativa o maggiore di una soglia rilevante;
-* ottenere un intervallo di credibilità (es. al 95%) che racchiude i valori più plausibili;
-* confrontare il risultato con aspettative teoriche pregresse.
+- calcolare direttamente la probabilità che l’effetto sia positivo, negativo o superiore a una soglia rilevante (ad esempio, "Qual è la probabilità che il trattamento sperimentale sia almeno 5 punti migliore del controllo?");
+- ottenere intervalli di credibilità (es. 95%), che indicano un intervallo di valori in cui, con alta probabilità, cade il vero effetto;
+- confrontare i risultati con le nostre aspettative teoriche, verificando se i dati supportano, indeboliscono o ribaltano le ipotesi iniziali.
 
-L’approccio bayesiano offre così un linguaggio continuo e graduale per descrivere l’evidenza, evitando interpretazioni forzate e soglie arbitrarie.
+A differenza del p-value, che fornisce solo una misura di "quanto estremi sono i dati sotto l’ipotesi nulla", l’approccio bayesiano ci dà una misura diretta della plausibilità delle nostre ipotesi, in un linguaggio probabilistico più intuitivo e meno vincolato a soglie arbitrarie.
 
-## L’approccio frequentista: un confronto concettuale
+### L’approccio frequentista e bayesiano a confronto  
 
-Il frequentismo affronta lo stesso problema partendo da un’altra prospettiva: i dati sono considerati aleatori, mentre i parametri sono fissi ma sconosciuti. L’inferenza si basa sul comportamento della statistica campionaria in esperimenti ipotetici ripetuti all’infinito. L’intervallo di confidenza al 95%, ad esempio, è costruito per contenere il valore vero nel 95% dei campioni, ma non possiamo interpretarlo come un’affermazione probabilistica sul singolo caso.
+Mentre il metodo bayesiano tratta i parametri come variabili aleatorie e quantifica l’incertezza attraverso distribuzioni di probabilità, l’**approccio frequentista** adotta una prospettiva radicalmente diversa. In questa visione, i dati sono considerati variabili (frutto di un campionamento casuale), mentre i parametri (come la differenza tra medie) sono fissi ma sconosciuti. L’inferenza si basa sul comportamento delle statistiche in un ipotetico universo di esperimenti ripetuti all’infinito.  
 
-Nel confronto tra due gruppi, la differenza tra le medie campionarie è utilizzata per calcolare una statistica $t$, confrontata con una distribuzione teorica per valutare la compatibilità dei dati con l’ipotesi nulla ($\mu_1 = \mu_2$). Il p-value misura quanto sarebbe raro osservare una differenza pari a quella trovata (o maggiore), se l’ipotesi nulla fosse vera. Ma non ci dice nulla sulla probabilità che la differenza sia vera, né sulla sua grandezza.
+Un esempio emblematico è l’**intervallo di confidenza al 95%**: nella logica frequentista, esso non rappresenta la probabilità che il parametro vero cada in un certo range, ma indica che, se ripetessimo l’esperimento infinite volte, il 95% di tali intervalli *conterrebbe* il valore vero. Questo concetto, però, è spesso frainteso: nel singolo studio, non possiamo dire che abbiamo il 95% di fiducia nell’intervallo calcolato. Allo stesso modo, il **p-value** non è la probabilità che l’ipotesi nulla sia vera, ma solo la probabilità di osservare dati altrettanto estremi *ammesso che l’ipotesi nulla sia corretta*.  
 
-## Due modi diversi di trattare l’incertezza
-
-Sia il frequentismo che il bayesianesimo usano la stessa struttura del modello, ma differiscono per come concepiscono l’incertezza:
-
-| Aspetto                        | Frequentista                            | Bayesiano                               |
-| ------------------------------ | --------------------------------------- | --------------------------------------- |
-| Parametri                      | Fissi ma ignoti                         | Variabili aleatorie                     |
-| Incertezza                     | Deriva dalla procedura                  | Espressa come probabilità sui parametri |
-| Intervallo                     | Di confidenza                           | Di credibilità                          |
-| Risposta alla domanda          | “I dati sono compatibili con $H_0$?” | “Quanto è plausibile questo valore?”    |
-| Uso della conoscenza pregressa | Non previsto                            | Possibile tramite prior                 |
-
-In psicologia, dove le risposte raramente sono nette e dove la variabilità è fisiologica, la capacità dell’approccio bayesiano di rappresentare l’incertezza in modo diretto rende l’inferenza non solo più trasparente, ma anche più utile per la comprensione dei dati.
+Nel confronto tra due gruppi, il frequentista calcola una statistica *t* e la confronta con una distribuzione teorica, chiedendosi: *"Se non ci fosse alcun effetto, quanto sarebbero rari i dati che ho osservato?"*. La risposta, però, non ci dice nulla sulla *grandezza pratica dell’effetto* né sulla sua **plausibilità reale**.  
 
 ## Un esempio illustrativo: il ruolo dell’istruzione materna
 
