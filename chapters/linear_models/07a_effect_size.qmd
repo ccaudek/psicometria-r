@@ -1,4 +1,4 @@
-# Stima bayesiana della grandezza dell’effetto {#sec-bayesian-effect-size}
+# La grandezza dell’effetto: valutare la rilevanza pratica {#sec-bayesian-effect-size}
 
 ::: callout-note
 ## In questo capitolo imparerai a
@@ -27,23 +27,45 @@ pacman::p_load(cmdstanr, posterior, brms, bayestestR, insight)
 
 ## Introduzione
 
-Nel capitolo precedente abbiamo affrontato il problema del confronto tra due gruppi, stimando la differenza tra i punteggi di QI nei figli di madri con o senza diploma. Abbiamo visto come il paradigma bayesiano consenta di formulare inferenze probabilistiche su tale differenza, restituendo una distribuzione a posteriori che riflette l’incertezza residua dopo aver osservato i dati.
+Nel capitolo precedente abbiamo esaminato la differenza nei punteggi di QI tra bambini nati da madri con e senza diploma di scuola superiore. L’analisi bayesiana ci ha permesso di ottenere una **distribuzione a posteriori** per questa differenza, da cui derivano inferenze probabilistiche ricche e sfumate. Ma un interrogativo cruciale rimane aperto: questa differenza è *importante*?
 
-In questo capitolo approfondiamo un aspetto cruciale dell’inferenza psicologica: la valutazione della **rilevanza pratica** di un effetto. Non ci interessa solo se la differenza esiste, ma se è sufficientemente ampia da essere considerata sostanziale nel contesto della ricerca. È qui che entra in gioco la nozione di **grandezza dell’effetto** (*effect size*), che fornisce un’unità comparabile per esprimere l’intensità di una relazione o la magnitudine di una differenza.
+In psicologia, come in molte scienze applicate, non è sufficiente stabilire che un effetto **esiste**: bisogna valutare se l’effetto ha una **magnitudine sufficiente da avere rilevanza teorica, clinica o sociale**. È in questa prospettiva che si introduce il concetto di **grandezza dell’effetto** (*effect size*), una misura quantitativa dell’intensità di un risultato.
 
-## Standardizzare la differenza: Cohen’s d
+## Perché stimare la grandezza dell’effetto
 
-Nel confronto tra due gruppi, una misura diffusa della grandezza dell’effetto è **Cohen’s d**, che standardizza la differenza tra le medie rispetto alla variabilità osservata:
+La grandezza dell’effetto fornisce un ponte tra **analisi statistica** e **interpretazione sostanziale** dei dati. Essa consente di rispondere a domande come:
+
+* Quanto è marcata la differenza osservata?
+* L’effetto ha un impatto concreto nella vita reale o nelle applicazioni cliniche?
+* La variazione osservata è sufficiente a giustificare interventi, cambiamenti o nuove ipotesi teoriche?
+
+L’**American Psychological Association (APA)** raccomanda di **riportare sempre una misura di grandezza dell’effetto**, in quanto essa fornisce un’informazione critica che va oltre la mera dicotomia "effetto presente / effetto assente".
+
+## Standardizzare le differenze: il Cohen’s *d*
+
+Nel confronto tra due gruppi, una delle misure più comuni di grandezza dell’effetto è il **Cohen’s *d***, che esprime la differenza tra due medie in unità di deviazione standard:
 
 $$
 d = \frac{\mu_1 - \mu_2}{\sigma},
 $$
 
-dove $\mu_1$ e $\mu_2$ sono le medie dei due gruppi e $\sigma$ è una stima comune della deviazione standard. In ambito bayesiano, possiamo calcolare questa quantità *per ciascun campione a posteriori*, ottenendo così *una distribuzione intera di valori plausibili per Cohen’s d*, non un valore unico.
+dove:
 
-## Calcolo di Cohen’s d con `brms`
+* $\mu_1$ e $\mu_2$ sono le medie dei due gruppi,
+* $\sigma$ è una stima comune della deviazione standard.
 
-Partiamo dal modello già stimato nel capitolo precedente:
+L’interpretazione di *d* è indipendente dalle unità di misura originali, il che la rende particolarmente utile per confrontare risultati provenienti da diversi studi o contesti.
+
+## Il Cohen’s *d* in ottica bayesiana
+
+Nell’approccio bayesiano, non calcoliamo un unico valore di *d*, ma **una distribuzione a posteriori** di valori plausibili per *d*, ottenuta combinando:
+
+* i campioni posteriori della differenza tra gruppi,
+* i campioni posteriori della deviazione standard residua.
+
+### Esempio pratico con `brms`
+
+A partire dal modello stimato nel capitolo precedente:
 
 ```{r}
 #| output: false
@@ -57,22 +79,24 @@ fit_1 <- brm(
 )
 ```
 
-Estraiamo i campioni a posteriori della differenza tra gruppi (`b_mom_hs`) e della deviazione standard residua:
+Otteniamo i campioni posteriori:
 
 ```{r}
 post <- as_draws_df(fit_1)
 d_samples <- post$b_mom_hs / post$sigma
 ```
 
-### Visualizzazione dell’incertezza
+### Visualizzazione della distribuzione di *d*
 
 ```{r}
 mcmc_areas(as_draws_df(tibble(d = d_samples)), pars = "d", prob = 0.89) +
   labs(
     title = "Distribuzione a posteriori di Cohen's d",
-    subtitle = "Quantifica la rilevanza standardizzata della differenza osservata"
+    subtitle = "Stima bayesiana della grandezza dell’effetto"
   )
 ```
+
+Questa distribuzione esprime **l’incertezza residua** sulla grandezza dell’effetto, dopo aver osservato i dati, ed è il punto di partenza per una valutazione più completa.
 
 ### Statistiche riassuntive
 
@@ -80,42 +104,66 @@ mcmc_areas(as_draws_df(tibble(d = d_samples)), pars = "d", prob = 0.89) +
 bayestestR::describe_posterior(d_samples, ci = 0.89)
 ```
 
-Otteniamo così non solo la stima puntuale dell’effetto, ma anche:
+Questa funzione fornisce:
 
-* l’ampiezza dell’intervallo di credibilità,
-* la simmetria o asimmetria della distribuzione,
-* la probabilità che l’effetto sia positivo, o superi soglie rilevanti.
+* la stima centrale (media o mediana) di *d*,
+* l’intervallo di credibilità,
+* la probabilità che *d* sia maggiore o minore di soglie rilevanti.
 
-## Interpretare la grandezza dell’effetto
+## Interpretare la grandezza dell’effetto: da soglie fisse a giudizi probabilistici
 
-Secondo convenzioni psicometriche, i valori di *d* si interpretano come segue:
+In ambito frequentista, la seguente classificazione è comunemente usata:
 
-| Valore di *d* | Descrizione qualitativa |
-| ------------- | ----------------------- |
-| ≈ 0.2         | Effetto piccolo         |
-| ≈ 0.5         | Effetto medio           |
-| ≥ 0.8         | Effetto grande          |
+| Valore di *d* | Interpretazione convenzionale |
+| ------------- | ----------------------------- |
+| ≈ 0.2         | Effetto piccolo               |
+| ≈ 0.5         | Effetto medio                 |
+| ≥ 0.8         | Effetto grande                |
 
-Tuttavia, l’approccio bayesiano consente di andare oltre queste soglie arbitrarie. Possiamo calcolare, ad esempio:
+Queste soglie hanno valore euristico, ma **non vanno applicate meccanicamente**. Nell’approccio bayesiano possiamo invece porre domande più informative, del tipo:
+
+* Qual è la **probabilità** che l’effetto superi 0.5 (soglia di effetto medio)?
+* Qual è la **probabilità** che sia minore di 0.2 (effetto trascurabile)?
+* Qual è l’intervallo entro cui cade il 89% degli effetti più credibili?
+
+Queste domande trovano risposta diretta nei dati posteriori:
 
 ```{r}
 mean(d_samples > 0.5)  # Probabilità che l'effetto sia almeno medio
 mean(d_samples > 0.8)  # Probabilità che l'effetto sia grande
+mean(d_samples < 0.2)  # Probabilità che l'effetto sia trascurabile
 ```
 
-Queste quantità rispondono a domande come:
+## La soglia di rilevanza pratica
 
-*Qual è la probabilità che la differenza osservata tra i gruppi sia sostanziale, non solo statisticamente distinguibile da zero?*
+In contesti applicativi, non basta sapere che l’effetto è diverso da zero: bisogna chiedersi se supera una **soglia minima di rilevanza** (*minimum effect of interest*, o *region of practical equivalence*).
+
+Ad esempio, se uno psicologo clinico ritiene che un effetto inferiore a *d* = 0.3 sia irrilevante dal punto di vista terapeutico, può valutare:
+
+```{r}
+mean(d_samples > 0.3)
+```
+
+Questa quantità risponde alla domanda: *qual è la probabilità che l’effetto sia rilevante nella pratica clinica*?
 
 ## Riflessioni conclusive
 
-L’effetto di una variabile indipendente non va soltanto rilevato: va **quantificato**. Cohen’s d, in ambito bayesiano, diventa uno strumento potente perché viene trattato come **variabile aleatoria**. Invece di fornire un numero fisso, fornisce una gamma di valori plausibili, con le relative probabilità. Questo ci consente di:
+L'**American Psychological Association (APA)** raccomanda vivamente di riportare le **dimensioni dell'effetto (effect size)** nei lavori di ricerca, in aggiunta o in alternativa alla sola verifica di ipotesi. Questo perché l'effect size fornisce un'indicazione quantitativa della **magnitudine di un fenomeno**, offrendo una prospettiva più informativa rispetto alla sola significatività statistica. Conoscere l'esistenza di un effetto non basta: è necessario comprenderne l'**entità** per valutare se esso sia teoricamente interessante o praticamente rilevante.
 
-* rappresentare l’incertezza sulla grandezza dell’effetto in modo diretto e continuo,
-* formulare **ipotesi probabilistiche** (es. "c’è il 90% di probabilità che l’effetto sia almeno medio"),
-* comunicare risultati con maggiore trasparenza, evitando interpretazioni binarie.
+Nel contesto della statistica frequentista, l'effect size è spesso presentato come una **stima puntuale**, accompagnata da un **intervallo di confidenza** che rappresenta la variabilità campionaria attesa in ipotetiche ripetizioni dell’esperimento. Tuttavia, questa rappresentazione può indurre interpretazioni dicotomiche (ad esempio: significativo/non significativo), che rischiano di semplificare eccessivamente la complessità dei dati.
 
-In un contesto come quello psicologico, dove la variabilità è la regola e non l’eccezione, parlare in termini di **distribuzioni** anziché di **soglie fisse** significa rispettare la complessità del fenomeno studiato. E soprattutto, significa ancorare l’inferenza non solo ai dati osservati, ma alla struttura dell’incertezza che li accompagna.
+L’approccio **bayesiano**, invece, adotta una prospettiva differente e più sfumata. L'effect size è trattato come una **variabile aleatoria**, di cui si stima una **distribuzione a posteriori**: una funzione di densità che esprime quali valori dell’effetto sono più compatibili con i dati osservati, tenendo conto anche delle conoscenze pregresse (esplicitate attraverso una distribuzione a priori). Questo consente di:
+
+* formulare **affermazioni probabilistiche dirette**, del tipo: “c’è il 90% di probabilità che l’effetto sia almeno di media grandezza”;
+* **quantificare l’incertezza** in modo trasparente e continuo, evitando l’uso di soglie arbitrarie;
+* **integrare teoria e dati**: le aspettative teoriche non sono ignorate, ma formalmente incorporate nel processo inferenziale.
+
+Questa modalità di ragionamento è particolarmente adatta alle scienze psicologiche, dove la complessità dei fenomeni e la variabilità interindividuale sono elevati. L’obiettivo non è stabilire una verità assoluta, ma **descrivere in modo credibile e informato quanto plausibile sia un certo effetto**, in relazione ai dati disponibili.
+
+In questo senso, la dimensione dell’effetto diventa **uno strumento inferenziale a pieno titolo**, non soltanto un valore da riportare a margine. Essa permette di esprimere con maggiore **chiarezza comunicativa** quanto i risultati ottenuti siano compatibili con ipotesi teoriche, cliniche o applicative, stimolando riflessioni più ricche e meno soggette a distorsioni interpretative.
+
+In conclusione, adottare una prospettiva bayesiana sull’analisi della dimensione dell’effetto significa **spostarsi da un paradigma decisionale rigido a uno probabilistico e argomentativo**, in cui i risultati vengono valutati alla luce della loro plausibilità, coerenza teorica e rilevanza pratica. Questo approccio non solo migliora la qualità dell’inferenza, ma contribuisce a una scienza psicologica più trasparente, riflessiva e orientata al significato.
+
 
 ## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
 
