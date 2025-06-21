@@ -24,7 +24,7 @@ here::here("code", "_common.R") |>
 
 # Load packages
 if (!requireNamespace("pacman")) install.packages("pacman")
-pacman::p_load(ggbeeswarm, dslabs, gridExtra)
+pacman::p_load(ggbeeswarm, dslabs, gridExtra, ggpubr, cowplot, viridis)
 ```
 :::
 
@@ -533,17 +533,11 @@ Un risultato migliore si ottiene utilizzando un grafico a violino (*violin plot*
 
 ### Grafico a Violino
 
-I grafici a violino combinano le caratteristiche dei box plot e dei grafici di densità di kernel (KDE plot) per offrire una rappresentazione più dettagliata dei dati. A questi grafici vengono sovrapposti i dati grezzi, fornendo una visione completa della distribuzione e delle caratteristiche dei dati.
+I grafici a violino combinano le caratteristiche dei box plot e dei grafici di densità di kernel (KDE plot) per offrire una rappresentazione più dettagliata dei dati. 
 
 ```{r}
 ggplot(df, aes(x = group, y = bdi, fill = group)) +
   geom_violin() +
-  geom_dotplot(
-    binaxis = "y",
-    stackdir = "center",
-    dotsize = 0.5,
-    fill = 1
-  ) +
   labs(
     title = "Violin plot con overlay dei punti grezzi",
     x = "Gruppo",
@@ -553,20 +547,95 @@ ggplot(df, aes(x = group, y = bdi, fill = group)) +
 
 ### Grafico Beeswarm
 
-Il pacchetto *{ggbeeswarm}* include una funzione chiamata `geom_beeswarm`, che può essere utilizzata per creare un grafico beeswarm in ggplot2.
-
-Un grafico beeswarm è una variazione del grafico a punti che disperde i dati in modo che non si sovrappongano, rendendo visibili tutti i singoli punti dati. Questo tipo di visualizzazione è particolarmente utile quando si desidera esaminare la distribuzione e la densità di un set di dati, senza ricorrere all'uso di barre d'errore o di scatole e baffi (boxplot), mantenendo un'alta leggibilità anche quando i set di dati sono densi.
+Il pacchetto *{ggbeeswarm}* include una funzione chiamata `geom_beeswarm`, che può essere utilizzata per creare un grafico beeswarm in ggplot2. Un grafico beeswarm è una variazione del grafico a punti che disperde i dati in modo che non si sovrappongano, rendendo visibili tutti i singoli punti dati. Questo tipo di visualizzazione è particolarmente utile quando si desidera esaminare la distribuzione e la densità di un set di dati, senza ricorrere all'uso di barre d'errore o di scatole e baffi (boxplot), mantenendo un'alta leggibilità anche quando i set di dati sono densi.
 
 ```{r}
 ggplot(df, aes(x = group, y = bdi, color = group)) +
   geom_beeswarm(cex = 2) +
   labs(
-    title = "Violin plot con overlay dei punti grezzi",
+    title = "Grafico Beeswarm",
     x = "Gruppo",
     y = "BDI-II"
   ) 
 ```
 
+### Raincloud Plot
+
+I grafici tradizionali, come i semplici istogrammi o i bar plot con barre d’errore, spesso non riescono a comunicare la vera natura dei dati. Queste rappresentazioni, sebbene intuitive, nascondono informazioni cruciali come la dispersione, la presenza di outlier o la forma della distribuzione. Per questo motivo, negli ultimi anni si è diffuso l’uso di visualizzazioni più ricche, tra cui il raincloud plot, che combina in un unico grafico i vantaggi di boxplot, violin plot e la rappresentazione dei dati grezzi [@spitzer2014boxplotr].
+
+La figura seguente (creata usando il codice fornito da @schubert2025improving) mostra un confronto tra quattro approcci diversi per rappresentare gli stessi dati. Il classico bar plot (A) si limita a mostrare media e intervallo di confidenza, risultando spesso fuorviante perché non rivela asimmetrie, bimodalità o valori anomali. Il boxplot (B) rappresenta un passo avanti, mostrando mediana, quartili e outliers, ma resta comunque una sintesi parziale della distribuzione. Il violin plot (C) aggiunge una curva di densità, che aiuta a cogliere la forma della distribuzione, ma omette i singoli punti.
+
+```{r}
+#| fig-width: 7  
+#| out-width: 100%  
+#| 
+# Extract colors from the Viridis palette
+full_palette <- viridis(9)  # Generate a larger set of colors
+viridis_colors <- full_palette[c(6, 9)] # Select middle colors
+
+# Create the plots
+bar_plot <- ggplot(df, aes(x = group, y = bdi)) +
+  stat_summary(
+    fun = mean,
+    geom = "bar",
+    aes(fill = group),
+    width = 0.7
+  ) +
+  stat_summary(
+    fun.data  = mean_sdl,
+    fun.args  = list(mult = 1),
+    geom      = "errorbar",
+    width     = 0.2,
+    color     = "black",
+    linewidth      = 0.7
+  ) + 
+  scale_fill_manual(values = viridis_colors) +
+  theme_minimal_grid() +
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5)) +
+  labs(x = "Group", y = "") +
+  # ylim(c(0, 12)) +
+  ggtitle("(A) Barplot")
+
+box_plot <- ggplot(df, aes(x = group, y = bdi, fill = group)) +
+  geom_boxplot() +
+  scale_fill_manual(values = viridis_colors) +
+  theme_minimal_grid() + 
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5)) +
+  labs(x = "Group", y = "") + 
+  ggtitle("(B) Boxplot")
+
+violin_plot <- ggplot(df, aes(x = group, y = bdi, fill = group)) +
+  geom_violin() +
+  scale_fill_manual(values = viridis_colors) +
+  theme_minimal_grid() + 
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5)) +
+  labs(x = "Group", y = "") + 
+  ggtitle("(C) Violin Plot")
+
+raincloud_plot <- ggplot(df, aes(x = group, y = bdi, fill = group)) +
+  ggdist::stat_halfeye(
+    adjust = 0.5, 
+    justification = -0.3,
+    .width = 0,
+    point_color = NA
+  ) + 
+  geom_jitter(aes(color = group), width = 0.1, size = 1, alpha = 0.6)  +
+  #geom_point(aes(x = as.numeric(as.factor(group)) + 0.1), position = position_jitter(width = 0.1), size = 1) +
+  geom_boxplot(aes(x = as.numeric(as.factor(group)) + 0.2, fill = group), width = 0.15, outlier.size =  1) +
+  scale_fill_manual(values = viridis_colors) +
+  scale_color_manual(values = viridis_colors) +
+  theme_minimal_grid() + 
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5)) +
+  labs(x = "Group", y = "") + 
+  ggtitle("(D) Raincloud Plot")
+
+# Arrange and display the plots
+plot_grid(bar_plot, box_plot, violin_plot, raincloud_plot, ncol = 2)
+```
+
+Il raincloud plot (D) supera queste limitazioni integrando tre elementi chiave: una "nuvola" che rappresenta la densità dei dati (simile a un violin plot), una "pioggia" di punti che mostra i valori osservati, e un boxplot orizzontale ("suolo") che riassume le statistiche principali. Questa combinazione lo rende particolarmente utile nell’analisi esplorativa, poiché permette di identificare a colpo d’occhio skewness, cluster e outliers, soprattutto quando si confrontano diversi gruppi.
+
+Il raincloud plot è uno strumento prezioso perché incoraggia gli studenti a pensare criticamente alla distribuzione dei dati, evitando la trappola delle semplificazioni eccessive. Diversi studi, tra cui @weissgerber2015beyond e @weissgerber2019reveal, hanno dimostrato che visualizzazioni più ricche riducono il rischio di interpretazioni errate, specialmente in campi come le scienze biomediche.
 
 ## Riflessioni Conclusive
 
