@@ -1,0 +1,245 @@
+# Controllo predittivo a priori (Prior Predictive Check) {#sec-prior-predictive-check}
+
+::: callout-note
+## In questo capitolo imparerai a:
+
+* comprendere che cos'è la distribuzione predittiva a priori e perché è importante nell'inferenza bayesiana;
+* simulare dati prima di osservare quelli reali, per valutare la coerenza tra il modello e ciò che ci aspettiamo dal fenomeno studiato;
+* applicare il controllo predittivo a priori nel caso beta-binomiale, con esempi in R.
+:::
+
+::: callout-tip
+## Prerequisiti
+
+* Aver letto il capitolo sulla distribuzione a priori e sulla distribuzione a posteriori.
+* Comprendere il concetto di verosimiglianza in un modello statistico.
+:::
+
+::: callout-important
+## Preparazione del Notebook
+
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+
+library(bayesplot)
+library(brms)
+```
+:::
+
+
+## Introduzione
+
+Quando costruiamo un modello bayesiano, uno dei passaggi più delicati riguarda la scelta della *distribuzione a priori* sui parametri. Ma come possiamo sapere se la nostra scelta è sensata?
+
+Una strategia efficace è usare il *Prior Predictive Check* (controllo predittivo a priori). L’idea è semplice ma potente: ci chiediamo che tipo di dati il nostro modello genererebbe *prima ancora* di osservare i dati reali.
+
+
+### Esempio Intuitivo
+
+Supponiamo di voler modellare la probabilità che una persona risponda correttamente a una domanda di un test. Se scegliamo una distribuzione a priori che assegna molta probabilità a valori estremi (es., 0.01 o 0.99), stiamo implicitamente assumendo che quasi tutte le persone sbagliano o indovinano, ancora prima di aver visto i dati. Il controllo predittivo a priori ci permette di renderci conto di queste assunzioni e correggerle, se risultano irrealistiche.
+
+
+## Cos’è la Distribuzione Predittiva a Priori?
+
+In termini formali, la *distribuzione predittiva a priori* descrive quali valori dei dati potremmo aspettarci, *prima* di averli osservati, sulla base del modello e della distribuzione a priori sui parametri.
+
+Matematicamente:
+
+$$
+p(\tilde{y}) = \int p(\tilde{y} \mid \theta) \, p(\theta) \, d\theta ,
+$$
+
+dove
+
+* $\theta$ è il parametro del modello (es. la probabilità di successo),
+* $p(\theta)$ è la distribuzione a priori,
+* $p(\tilde{y} \mid \theta)$ è la probabilità di osservare $\tilde{y}$ dato $\theta$.
+
+
+## Procedura del Prior Predictive Check
+
+1. *Scegliamo una distribuzione a priori sui parametri.*
+2. *Simuliamo valori dei parametri* dalla distribuzione a priori.
+3. *Generiamo dati simulati*, usando la verosimiglianza, per ciascun valore simulato dei parametri.
+4. *Osserviamo la distribuzione dei dati simulati*: sono plausibili? Riflettono ciò che ci aspettiamo dal fenomeno psicologico in esame?
+
+Se i dati simulati sono *irrealistici*, probabilmente la nostra distribuzione a priori è mal specificata.
+
+
+## Caso Beta-Binomiale
+
+Supponiamo di voler modellare il numero di risposte corrette date da uno studente a un test con 10 domande. Usiamo:
+
+* un *modello binomiale* per i dati: $y \sim \text{Binomiale}(n = 10, p)$,
+* una *prior Beta* sulla probabilità $p$ di risposta corretta.
+
+
+### Scelta della Distribuzione a Priori
+
+Scegliamo una prior debolmente informativa:
+
+```{r}
+alpha_prior <- 2
+beta_prior <- 2
+```
+
+Questa distribuzione Beta(2, 2) assegna più probabilità a valori intermedi (p ≈ 0.5), ma permette anche valori estremi.
+
+### Simulazione della Distribuzione Predittiva a Priori
+
+```{r}
+set.seed(123)
+
+# Numero di simulazioni
+n_sim <- 10000
+
+# Simula 10000 valori di p dalla prior
+p_sim <- rbeta(n_sim, alpha_prior, beta_prior)
+
+# Simula per ciascun p un dato y da Binomiale(n = 10, p)
+y_sim <- rbinom(n_sim, size = 10, prob = p_sim)
+```
+
+### Visualizzazione
+
+
+```{r}
+hist(y_sim, col = "lightblue", freq = FALSE,
+     main = "Distribuzione predittiva a priori",
+     xlab = "Numero di risposte corrette su 10",
+     breaks = seq(-0.5, 10.5, by = 1),
+     xlim = c(0, 10),
+     xaxp = c(0, 10, 10))
+```
+
+
+## Interpretazione
+
+Cosa osserviamo?
+
+* I valori simulati di $y$ (risposte corrette) spaziano da 0 a 10.
+* La forma della distribuzione mostra che ci aspettiamo, *prima di osservare i dati*, che lo studente risponda correttamente in media a circa 5 domande.
+* Tuttavia, c'è anche una certa probabilità di osservare casi estremi (0 o 10 corrette).
+
+
+## Modificare la Prior per Riflettere Altri Scenari
+
+Supponiamo di credere, prima di vedere i dati, che lo studente medio tenda a rispondere bene (es. 7-8 su 10).
+
+Possiamo usare una prior che rifletta questa convinzione:
+
+```{r}
+p_sim_buono <- rbeta(n_sim, shape1 = 10, shape2 = 3)
+y_sim_buono <- rbinom(n_sim, size = 10, prob = p_sim_buono)
+
+hist(y_sim_buono, col = "lightblue", freq = FALSE,
+     main = "Distribuzione predittiva a priori (studente bravo)",
+     xlab = "Numero di risposte corrette su 10",
+     breaks = seq(-0.5, 10.5, by = 1),
+     xlim = c(0, 10),
+     xaxp = c(0, 10, 10))
+```
+
+* In questo caso, stiamo assumendo a priori che gli studenti abbiano buone probabilità di rispondere correttamente.
+* È una scelta legittima, ma deve essere giustificata: è coerente con il contesto educativo? Con esperienze precedenti?
+
+
+## Esempio con `brms`
+
+In questa sezione mostriamo come implementare un controllo predittivo a priori (*prior predictive check*) usando il pacchetto `brms`. Nuovamente, supponiamo di voler modellare la prestazione di studenti a un test, dove l'esito è il numero di risposte corrette su 10.
+
+
+## Simulazione del dataset
+
+```{r}
+n_students <- 50
+n_items <- 10
+
+# Valori fittizi validi, ma inutili perché ignorati con sample_prior = "only"
+dummy_data <- tibble(
+  correct = rep(0, n_students),  # attenzione: NON NA!
+  n_trials = rep(n_items, n_students)
+)
+```
+
+
+## Specifica della prior e del modello
+
+```{r}
+#| output: false
+priors <- c(
+  prior(normal(0, 1.5), class = "Intercept")
+)
+
+# Modello prior predictive
+model_prior <- brm(
+  bf(correct | trials(n_trials) ~ 1),
+  data = dummy_data,
+  family = binomial(),
+  prior = priors,
+  sample_prior = "only",
+  cores = 4,
+  seed = 123,
+  backend = "cmdstanr"
+)
+```
+
+
+### Estrazione delle simulazioni dalla prior
+
+```{r}
+y_prior_sim <- posterior_predict(model_prior)
+dim(y_prior_sim)  # 4000 simulazioni per 50 studenti
+```
+
+```{r}
+# Simula dati dalla distribuzione predittiva a priori
+y_prior_sim <- posterior_predict(model_prior)
+
+# Visualizza
+hist(
+  rowMeans(y_prior_sim), 
+  breaks = 20,
+  col = "skyblue",
+  main = "Media di risposte corrette (simulazione da prior)",
+  xlab = "Media su 10 item"
+)
+```
+
+Visualizzazione con `bayesplot`
+
+```{r}
+ppc_bars(y = rep(0, 50), yrep = y_prior_sim[1:100, ]) +
+  ggtitle("Distribuzione delle risposte simulate su 10 item (Prior Predictive)")
+```
+
+
+```{r}
+color_scheme_set("blue")
+
+ppc_dens_overlay(
+  y = rep(0, n_students),  # i dati reali non servono
+  yrep = y_prior_sim[1:200, ]
+  ) +
+  ggtitle("Prior Predictive Check: distribuzione simulata delle risposte")
+```
+
+
+## Riflessioni conclusive  
+
+La simulazione predittiva a priori (*prior predictive check*) rappresenta un passo essenziale nella modellazione bayesiana, poiché permette di valutare se le nostre assunzioni iniziali sono plausibili prima di osservare i dati reali. Nel caso presentato, una prior Beta(2,2) implica un’ampia incertezza, con valori attesi distribuiti attorno a 5, mentre una prior Beta(10,2) riflette invece una forte aspettativa di risposte elevate.  
+
+``` r
+prior_strong <- c(  
+  prior(beta(10, 2), class = "prob")  
+)  
+```  
+
+Questo approccio è particolarmente utile in contesti in cui le assunzioni teoriche non sono immediatamente ovvie, come nello studio del comportamento umano. A differenza dei metodi frequentisti, che iniziano l’analisi solo dopo la raccolta dei dati, la prospettiva bayesiana incoraggia una riflessione preliminare sulle ipotesi del modello.  
+
+Il *prior predictive check* funge quindi da strumento diagnostico, aiutando a identificare distribuzioni a priori inadeguate e a chiarire le implicazioni delle nostre scelte modellistiche. Se i dati simulati risultano incoerenti con le aspettative teoriche, è possibile rivedere le assunzioni prima di procedere con l’inferenza, migliorando così la robustezza e la trasparenza dell’analisi.  
+
+In sintesi, questo metodo non solo rafforza la coerenza tra modello e teoria, ma promuove anche una pratica di ricerca più consapevole, in cui la fase di specificazione del modello riceve la stessa attenzione critica riservata all’interpretazione dei risultati.
+
+

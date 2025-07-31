@@ -1,0 +1,956 @@
+# Modelli dinamici: estensioni
+
+
+```{r}
+#| output: false
+
+library(tidyverse)
+library(cmdstanr)
+library(bayesplot)
+library(tidybayes)
+color_scheme_set("brightblue")
+library(posterior)
+library(loo)
+library(patchwork)
+```
+
+Seguendo la discussione di @knight2023tutorial, in questo capitolo estenderemo il modello a livello di gruppo esaminato nel capitolo precedente in modo da esaminare:
+
+1. il *Modello a livello individuale*, nel quale si stima un $\alpha$ e un $\beta$ per ogni partecipante; 
+2. il *Modello gerarchico (multilevel)*, nel quale i parametri individuali sono estratti da una distribuzione comune (es. una distribuzione normale);
+3. il *Modello per gruppi noti*, in cui si confrontano i parametri tra condizioni sperimentali (es. gruppo "approach" vs. gruppo "avoidance").
+
+
+## Person-Level Model
+
+Il Sample-Level Model descrive il processo di aggiornamento degli obiettivi a livello di gruppo, senza tenere in considerazione le differenze individuali. Tuttavia, è facile estendere il modello descritto nel @sec-dynamic-models-goal-updating in modo tale da stimare i parametri $\alpha$ e $\beta$ per ciascun partecipante.
+
+
+### Preparazione dei dati
+
+```{r}
+# Caricamento del dataset
+dat <- rio::import("data/goal_data.csv")
+
+# Ordina i dati per soggetto e per trial
+dat <- dat |> 
+  arrange(subject, trial)
+
+# (Opzionale) Verifica che l'ordinamento sia corretto
+str(dat)
+```
+
+```{r}
+table(dat$subject)  # restituisce il numero di trial per soggetto
+```
+
+```{r}
+stan_data = list(
+  subject=dat$subject,
+  condition=as.numeric(as.factor(dat$condition)), #1 = approach, #2 = avoidance
+  observed_goal=dat$goal,
+  trial=dat$trial,
+  performance=dat$performance,
+  Nsubj=length(unique(dat$subject)),
+  Ntotal=length(dat$subject)
+)
+
+# Verifica struttura
+str(stan_data)
+```
+
+
+### Definizione del modello Stan
+
+```{r}
+stancode <- "
+data {
+  int<lower=1> Ntotal;                  // Numero totale di trial nel dataset (es. 600)
+  array[Ntotal] real trial;             // Numero del trial (es. da 1 a 30 per ogni soggetto)
+  array[Ntotal] real observed_goal;     // Valore dell'obiettivo osservato per ciascun trial
+  array[Ntotal] real performance;       // Prestazione osservata per ciascun trial
+  int<lower=1> Nsubj;                   // Numero di soggetti
+  array[Ntotal] int<lower=1> subject;   // Indice soggetto per ciascun trial
+}
+
+parameters {
+  vector[Nsubj] alpha;                  // Parametro alpha per ciascun soggetto
+  vector[Nsubj] beta;                   // Parametro beta per ciascun soggetto
+  real<lower=0> sigma;                  // Deviazione standard residua (comune a tutti)
+}
+
+transformed parameters {
+  vector[Ntotal] predicted_goal;        // Obiettivo predetto per ciascun trial
+
+  for (i in 1:Ntotal) {
+    if (trial[i] == 1) {
+      // Primo trial per il soggetto → valore osservato iniziale
+      predicted_goal[i] = observed_goal[i];
+    } else {
+      // Trial successivo: aggiornamento secondo l'equazione dinamica
+      predicted_goal[i] = predicted_goal[i - 1] +
+                          alpha[subject[i]] * (performance[i - 1] - predicted_goal[i - 1]) +
+                          beta[subject[i]];
+    }
+  }
+}
+
+model {
+  // PRIORS DEBOLMENTE-INFORMATIVI 
+  alpha ~ normal(0, 1);
+  beta ~ normal(0, 1);
+  sigma ~ normal(0, 1);
+
+  // LIKELIHOOD
+  observed_goal ~ normal(predicted_goal, sigma);
+}
+
+generated quantities {
+  // Replica predittiva per ciascun trial, da usare per check predittivi posteriori
+  vector[Ntotal] predicted_goal_rep;
+  vector[Ntotal] log_lik;
+
+  for (i in 1:Ntotal) {
+    predicted_goal_rep[i] = normal_rng(predicted_goal[i], sigma);
+    log_lik[i] = normal_lpdf(observed_goal[i] | predicted_goal[i], sigma);
+  }
+}
+"
+```
+
+Questo modello presuppone che i dati siano *ordinati per soggetto e per trial*, altrimenti la dinamica `i - 1` non corrisponde al trial precedente dello stesso soggetto. 
+
+Esaminiamo in dettaglio cosa significano `alpha[subject[i]]` e `beta[subject[i]]`. Nel modello Stan, ogni trial `i` è associato a un certo soggetto. Questa informazione è contenuta nel vettore:
+
+```stan
+array[Ntotal] int<lower=1> subject;
+```
+
+```{r}
+stan_data$subject
+```
+
+Ogni elemento `subject[i]` ci dice *a quale soggetto appartiene il trial `i`*, usando un numero intero da `1` a `Nsubj`. Quindi se `subject[137] == 24`, significa che il 137-esimo trial è del soggetto 24.
+
+Ora, se abbiamo un vettore di parametri specifici per ogni soggetto:
+
+```stan
+vector[Nsubj] alpha;
+vector[Nsubj] beta;
+```
+
+allora:
+
+* `alpha[subject[i]]` significa: **prendi il valore del parametro `alpha` associato al soggetto a cui appartiene il trial `i`**.
+* Lo stesso vale per `beta[subject[i]]`.
+
+Per esempio, supponiamo:
+
+```stan
+subject = [1, 1, 1, 2, 2, 3, 3]
+alpha = [0.5, 0.8, 1.1]  // Tre soggetti: 1, 2, 3
+```
+
+Allora:
+
+* `alpha[subject[4]] = alpha[2] = 0.8`, perché il 4° trial è del soggetto 2.
+* `beta[subject[6]] = beta[3] = ...`, perché il 6° trial è del soggetto 3.
+
+In sintesi, la sintassi `alpha[subject[i]]` (e `beta[subject[i]]`) indica: “Nel trial `i`, usa il valore del parametro `alpha` (o `beta`) del soggetto indicato da `subject[i]`”. È un modo compatto per associare ogni osservazione ai parametri della persona corrispondente.
+
+
+### Compilazione ed esecuzione del modello  
+
+```{r}
+stanmod <- cmdstan_model(
+  write_stan_file(stancode),
+  compile = TRUE
+)
+```
+
+```{r}
+#| output: false
+
+fit1 <- stanmod$sample(
+  data = stan_data,
+  iter_warmup = 1000,
+  iter_sampling = 10000,
+  chains = 4,
+  parallel_chains = 4,
+  refresh = 1000,
+  seed = 4790
+)
+```
+
+
+### Analisi dei risultati
+
+Questo modello genera un insieme di campioni posteriori per i parametri $\alpha$ e $\beta$, uno per ciascun partecipante. I primi due grafici mostrano gli intervalli credibili al 95% per $\alpha$ e $\beta$ relativi a ogni partecipante. Come si può osservare, emerge un'eterogeneità tra i partecipanti sia per il parametro $\alpha$ che per $\beta$. Il pannello di destra mostra i parametri $\alpha$ e $\beta$ di ciascun partecipante tracciati l'uno contro l'altro (con le croci che rappresentano gli intervalli credibili per ciascun parametro).
+
+
+```{r}
+# Estrazione dei campioni
+standraws <- fit1$draws(format = "draws_matrix")
+```
+
+```{r}
+# Statistiche descrittive
+standraws |> 
+  subset_draws(variable = c("alpha", "beta", "sigma")) |> 
+  summarise_draws(
+    mean,
+    ~ quantile(.x, probs = c(0.025, 0.5, 0.975))
+  ) |> 
+  print()
+```
+
+```{r}
+#extract posterior samples for person-level parameters
+posteriors_person = spread_draws(fit, alpha[subject], beta[subject])
+```
+
+```{r}
+# Calcolo media e intervallo credibile al 95% per ciascun soggetto
+CIs_person <- posteriors_person %>%
+  group_by(subject) %>%
+  summarise(
+    across(c(alpha, beta), list(
+      lower = ~quantile(.x, 0.025),
+      mean  = ~mean(.x),
+      upper = ~quantile(.x, 0.975)
+    ), .names = "{.col}_{.fn}")
+  ) %>%
+  arrange(alpha_mean) %>%
+  mutate(alpha_order = row_number()) %>%
+  arrange(beta_mean) %>%
+  mutate(beta_order = row_number())
+```
+
+
+```{r}
+plot_person_alpha = ggplot(data=CIs_person) +
+  geom_point(aes(y=alpha_order,x=alpha_mean)) +
+  geom_errorbarh(aes(y=alpha_order,xmin=alpha_lower,xmax=alpha_upper),color="red") +
+  labs(x= expression(alpha) ,y="Subject") +
+  theme_minimal()
+
+plot_person_beta <- ggplot(data = CIs_person) +
+  geom_point(aes(y = beta_order, x = beta_mean)) +
+  geom_errorbarh(aes(y = beta_order, xmin = beta_lower, xmax = beta_upper), color = "red") +
+  # geom_density(data = posteriors_person, aes(x = beta), fill = "blue", alpha = 0.15, inherit.aes = FALSE) +
+  labs(x = expression(beta), y = "Subject") +
+  theme_minimal()
+
+plot_person_alphabeta = ggplot(data=CIs_person) +
+  geom_point(aes(x=alpha_mean,y=beta_mean)) +
+  geom_errorbar(aes(x=alpha_mean,ymin=beta_lower,ymax=beta_upper),color="red",alpha=0.25) +
+  geom_errorbarh(aes(y=beta_mean,xmin=alpha_lower,xmax=alpha_upper),color="red",alpha=0.25) +
+  labs(x= expression(alpha) ,y=expression(beta)) +
+  theme_minimal()
+```
+
+```{r}
+plot_person_alpha + plot_person_beta + plot_person_alphabeta
+```
+
+
+## Modello gerarchico
+
+Anche se stimare i parametri per ogni partecipante separatamente può offrire vantaggi rispetto ai modelli che aggregano tutti i dati, questo approccio ha un limite importante: rende difficile trarre conclusioni sulla popolazione da cui provengono i soggetti.
+
+Analizzare i dati “persona per persona” equivale infatti a eseguire tante analisi indipendenti quanti sono i partecipanti. Questo comporta una perdita di potere statistico, perché ogni stima utilizza solo i dati di un singolo individuo, ignorando tutte le informazioni presenti nel resto del campione. Inoltre, non consente di sfruttare le somiglianze tra individui, che potrebbero riflettere caratteristiche comuni della popolazione di riferimento.
+
+In molti casi, però, i ricercatori sono interessati sia a comprendere le differenze individuali, sia a descrivere tendenze generali valide per l’intera popolazione. Per questo, i modelli gerarchici bayesiani (o modelli multilevel) offrono una soluzione particolarmente efficace (Turner et al., 2013; Vincent, 2016; Kruschke & Vanpaemel, 2015).
+
+Questi modelli permettono di stimare simultaneamente due livelli di parametri: quelli specifici per ogni partecipante e quelli che descrivono la distribuzione dei parametri a livello di popolazione (Lewandowsky & Farrell, 2011). In pratica, le stime individuali vengono “informate” sia dai dati del singolo partecipante, sia dalla tendenza generale osservata nel gruppo. Questo processo riduce il rischio che stime instabili o influenzate da rumore abbiano troppo peso, producendo risultati più robusti e interpretabili (Boehm et al., 2018; Rouder & Lu, 2005).
+
+
+### Definizione del modello Stan
+
+```{r}
+stancode <- "
+// Modello gerarchico bayesiano 
+
+// --- BLOCCO DATI ---
+data {
+  int<lower=1> Ntotal;
+  array[Ntotal] real trial;
+  array[Ntotal] real observed_goal;
+  array[Ntotal] real performance;
+  int<lower=1> Nsubj;
+  array[Ntotal] int<lower=1> subject;
+}
+
+// --- PARAMETRI ---
+parameters {
+  vector[Nsubj] alpha;
+  vector[Nsubj] beta;
+  real<lower=0> sigma;
+
+  real alpha_mean;
+  real<lower=0> alpha_sd;
+  real beta_mean;
+  real<lower=0> beta_sd;
+}
+
+// --- MODELLO ---
+model {
+  real predicted_goal;
+
+  alpha ~ normal(alpha_mean, alpha_sd);
+  beta ~ normal(beta_mean, beta_sd);
+
+  alpha_mean ~ normal(0, 1);
+  alpha_sd   ~ normal(0, 1);
+  beta_mean  ~ normal(0, 1);
+  beta_sd    ~ normal(0, 1);
+  sigma      ~ normal(0, 1);
+
+  for (i in 1:Ntotal) {
+    if (trial[i] == 1) {
+      predicted_goal = observed_goal[i];
+    } else {
+      predicted_goal += alpha[subject[i]] * (performance[i - 1] - predicted_goal) +
+                        beta[subject[i]];
+    }
+    observed_goal[i] ~ normal(predicted_goal, sigma);
+  }
+}
+
+// --- QUANTITÀ DERIVATE ---
+generated quantities {
+  array[Ntotal] real predicted_goal_rep;
+  array[Ntotal] real log_lik;
+  real predicted_goal;
+
+  for (i in 1:Ntotal) {
+    if (trial[i] == 1) {
+      predicted_goal = observed_goal[i];
+    } else {
+      predicted_goal += alpha[subject[i]] * (performance[i - 1] - predicted_goal) +
+                        beta[subject[i]];
+    }
+    predicted_goal_rep[i] = normal_rng(predicted_goal, sigma);
+    log_lik[i] = normal_lpdf(observed_goal[i] | predicted_goal, sigma);
+  }
+}
+"
+```
+
+
+Si noti che, a livello di codice, il modello gerarchico si distingue dal modello a livello individuale (Person-Level Model) principalmente per la seguente porzione:
+
+```stan
+// Priori gerarchici sui parametri individuali
+alpha ~ normal(alpha_mean, alpha_sd);
+beta  ~ normal(beta_mean, beta_sd);
+```
+
+In altre parole, nel modello gerarchico i parametri individuali `alpha` e `beta` non sono trattati come parametri indipendenti, ma come variabili casuali estratte da distribuzioni normali. Si assume cioè che:
+
+* ciascun valore di `alpha[i]` sia estratto da una distribuzione normale con media `alpha_mean` e deviazione standard `alpha_sd`;
+* ciascun valore di `beta[i]` sia estratto da una distribuzione normale con media `beta_mean` e deviazione standard `beta_sd`.
+
+Questa struttura introduce un livello gerarchico nel modello, perché i parametri individuali sono vincolati da iper-parametri di popolazione. Il vantaggio principale è che le stime individuali vengono regolarizzate: non dipendono soltanto dai dati del singolo partecipante, ma anche dalla distribuzione complessiva nella popolazione. Questo meccanismo consente di ottenere inferenze più robuste, soprattutto in presenza di dati rumorosi o scarsi per alcuni individui.
+
+
+### Compilazione ed esecuzione del modello  
+
+```{r}
+stanmod <- cmdstan_model(
+  write_stan_file(stancode),
+  compile = TRUE
+)
+```
+
+```{r}
+#| output: false
+
+fit2 <- stanmod$sample(
+  data = stan_data,
+  iter_warmup = 1000,
+  iter_sampling = 10000,
+  chains = 4,
+  parallel_chains = 4,
+  refresh = 1000,
+  seed = 4790
+)
+```
+
+
+### Analisi dei risultati
+
+Eseguiamo l'analisi dei risultati seguendo lo schema usato sopra.
+
+```{r}
+# Estrazione dei campioni posteriori come matrice (opzionale)
+standraws <- fit2$draws(format = "draws_matrix")
+```
+
+```{r}
+# Statistiche descrittive aggregate
+standraws |> 
+  subset_draws(variable = c("alpha", "beta", "sigma", "alpha_mean", "beta_mean", "alpha_sd", "beta_sd")) |> 
+  summarise_draws(
+    mean,
+    ~ quantile(.x, probs = c(0.025, 0.5, 0.975))
+  )
+```
+
+```{r}
+# Estrai le draw per i parametri individuali (alpha e beta per ciascun soggetto)
+posteriors_person <- spread_draws(fit, alpha[subject], beta[subject])
+```
+
+```{r}
+# Calcolo degli intervalli credibili per ciascun soggetto
+CIs_person <- posteriors_person %>%
+  group_by(subject) %>%
+  summarise(
+    across(c(alpha, beta), list(
+      lower = ~quantile(.x, 0.025),
+      mean  = ~mean(.x),
+      upper = ~quantile(.x, 0.975)
+    ), .names = "{.col}_{.fn}")
+  ) %>%
+  arrange(alpha_mean) %>%
+  mutate(alpha_order = row_number()) %>%
+  arrange(beta_mean) %>%
+  mutate(beta_order = row_number())
+```
+
+
+```{r}
+# Grafico: intervalli credibili per alpha
+plot_person_alpha <- ggplot(CIs_person) +
+  geom_point(aes(y = alpha_order, x = alpha_mean)) +
+  geom_errorbarh(aes(y = alpha_order, xmin = alpha_lower, xmax = alpha_upper), color = "red") +
+  labs(x = expression(alpha), y = "Soggetto") +
+  theme_minimal()
+
+# Grafico: intervalli credibili per beta
+plot_person_beta <- ggplot(CIs_person) +
+  geom_point(aes(y = beta_order, x = beta_mean)) +
+  geom_errorbarh(aes(y = beta_order, xmin = beta_lower, xmax = beta_upper), color = "red") +
+  labs(x = expression(beta), y = "Soggetto") +
+  theme_minimal()
+
+# Grafico: relazione tra alpha e beta per ciascun soggetto
+plot_person_alphabeta <- ggplot(CIs_person) +
+  geom_point(aes(x = alpha_mean, y = beta_mean)) +
+  geom_errorbar(aes(x = alpha_mean, ymin = beta_lower, ymax = beta_upper), color = "red", alpha = 0.25) +
+  geom_errorbarh(aes(y = beta_mean, xmin = alpha_lower, xmax = alpha_upper), color = "red", alpha = 0.25) +
+  labs(x = expression(alpha), y = expression(beta)) +
+  theme_minimal()
+```
+
+```{r}
+plot_person_alpha + plot_person_beta + plot_person_alphabeta
+```
+
+Infine, calcoliamo le stime a posteriori degli iper-parametri:
+
+```{r}
+# Riassunto per alpha_mean e beta_mean con intervallo al 95%
+standraws |>
+  subset_draws(variable = c("alpha_mean", "beta_mean")) |>
+  summarise_draws(
+    mean,
+    ~quantile(.x, probs = c(0.025, 0.975))
+  )
+```
+
+Il modello gerarchico bayesiano fornisce inferenze su due livelli: da un lato, stima separatamente i parametri $\alpha$ e $\beta$ per ciascun partecipante; dall’altro, restituisce le distribuzioni a livello di popolazione per questi parametri, ovvero gli *iper-parametri* `alpha_mean`, `alpha_sd`, `beta_mean`, `beta_sd`, oltre al parametro di errore residuo `sigma`.
+
+Nei pannelli di sinistra e centrale della figura precedente si osservano le distribuzioni complete delle stime individuali di $\alpha$ e $\beta$. Le linee rosse rappresentano gli intervalli credibili al 95% per ciascun partecipante, mostrando l’eterogeneità interindividuale.
+
+Il confronto con un modello aggregato — cioè un modello in cui si stima un solo valore di $\alpha$ e $\beta$ per l’intero campione — mostra che le medie a livello di popolazione del modello gerarchico si collocano in una regione simile dello spazio dei parametri. Tuttavia, rispetto a un modello puramente individuale (in cui ogni partecipante è trattato separatamente), il modello gerarchico presenta un'importante differenza: gli intervalli credibili dei parametri individuali risultano meno dispersi e più regolari.
+
+Questo fenomeno, noto come *shrinkage* (restringimento), deriva dal fatto che le stime individuali sono influenzate non solo dai dati del singolo partecipante, ma anche dalla distribuzione dei parametri a livello di popolazione. In pratica, le stime estreme vengono attenuate e “attirate” verso la media del gruppo. Questo effetto è chiaramente visibile nel grafico bivariato, dove le stime dei singoli soggetti si distribuiscono attorno al centro della distribuzione collettiva.
+
+Lo shrinkage ha un importante vantaggio: riduce l’impatto del rumore nei dati e rende le stime più robuste. Come mostrato da Boehm et al. (2018), questo approccio penalizza implicitamente i valori altamente improbabili, migliorando la stabilità delle inferenze e aumentando la capacità del modello di generalizzare a nuovi dati.
+
+
+## Differenze tra gruppi
+
+
+### Definizione del modello Stan
+
+```{r}
+stancode <- "
+// Modello gerarchico con iper-parametri specifici per condizione. 
+// Versione con parametrizzazione non centrata per evitare transizioni divergenti.
+
+data {
+  int<lower=1> Ntotal;
+  array[Ntotal] real trial;
+  array[Ntotal] real observed_goal;
+  array[Ntotal] real performance;
+  int<lower=1> Nsubj;
+  array[Ntotal] int<lower=1> subject;
+  array[Nsubj] int<lower=1, upper=2> cond_by_subj;
+}
+
+parameters {
+  // Parametri non centrati
+  vector[Nsubj] alpha_raw;
+  vector[Nsubj] beta_raw;
+
+  real<lower=0> sigma;
+
+  array[2] real alpha_mean;
+  array[2] real<lower=0> alpha_sd;
+  array[2] real beta_mean;
+  array[2] real<lower=0> beta_sd;
+}
+
+transformed parameters {
+  vector[Nsubj] alpha;
+  vector[Nsubj] beta;
+
+  for (s in 1:Nsubj) {
+    int k = cond_by_subj[s];
+    alpha[s] = alpha_mean[k] + alpha_sd[k] * alpha_raw[s];
+    beta[s] = beta_mean[k] + beta_sd[k] * beta_raw[s];
+  }
+}
+
+model {
+  real predicted_goal;
+
+  // Priori debolmente-informativi
+  for (k in 1:2) {
+    alpha_mean[k] ~ normal(0, 1);
+    alpha_sd[k] ~ normal(0, 1);
+    beta_mean[k] ~ normal(0, 1);
+    beta_sd[k] ~ normal(0, 1);
+  }
+
+  // Priori standardizzati sui raw
+  alpha_raw ~ normal(0, 1);
+  beta_raw ~ normal(0, 1);
+
+  sigma ~ normal(0, 1);
+
+  for (i in 1:Ntotal) {
+    if (trial[i] == 1) {
+      predicted_goal = observed_goal[i];
+    } else {
+      predicted_goal += alpha[subject[i]] * (performance[i - 1] - predicted_goal) +
+                         beta[subject[i]];
+    }
+    observed_goal[i] ~ normal(predicted_goal, sigma);
+  }
+}
+
+generated quantities {
+  array[Ntotal] real predicted_goal_rep;
+  array[Ntotal] real log_lik;
+  real predicted_goal;
+
+  for (i in 1:Ntotal) {
+    if (trial[i] == 1) {
+      predicted_goal = observed_goal[i];
+    } else {
+      predicted_goal += alpha[subject[i]] * (performance[i - 1] - predicted_goal) +
+                         beta[subject[i]];
+    }
+    predicted_goal_rep[i] = normal_rng(predicted_goal, sigma);
+    log_lik[i] = normal_lpdf(observed_goal[i] | predicted_goal, sigma);
+  }
+}
+"
+```
+
+Nel modello Stan, la differenza tra i due gruppi (ad es. *approach* vs *avoidance*) è stata implementata a livello dei *parametri gerarchici* `alpha` (tasso di apprendimento) e `beta` (decision noise inversa). Vediamo come funziona, passo per passo.
+
+#### Dati di input
+
+Nel blocco `data` ci sono due elementi chiave:
+
+```stan
+array[Nsubj] int<lower=1, upper=2> cond_by_subj;
+```
+
+Questa è una variabile che assegna a ciascun soggetto il **numero della condizione** a cui appartiene (1 o 2). Viene derivata in R con:
+
+```r
+cond_by_subj <- dat |>
+  distinct(subject, condition_num) |>
+  arrange(subject) |>
+  pull(condition_num)
+```
+
+Ogni soggetto appartiene a una sola condizione, quindi possiamo usare `cond_by_subj[s]` per sapere a quale gruppo appartiene il soggetto `s`.
+
+
+#### Parametri di gruppo (iper-parametri)
+
+```stan
+array[2] real alpha_mean;
+array[2] real<lower=0> alpha_sd;
+array[2] real beta_mean;
+array[2] real<lower=0> beta_sd;
+```
+
+Ci sono **due medie e due deviazioni standard** per ciascun parametro (`alpha`, `beta`), una per **ogni condizione**. Quindi:
+
+* `alpha_mean[1]` è la media di `alpha` per i soggetti in condizione 1,
+* `alpha_mean[2]` è la media di `alpha` per i soggetti in condizione 2,
+* stesso discorso per `beta`.
+
+
+#### Costruzione dei parametri individuali in `transformed parameters`
+
+Questa è la parte centrale in cui la differenza tra gruppi entra nel modello:
+
+```stan
+vector[Nsubj] alpha;
+vector[Nsubj] beta;
+
+for (s in 1:Nsubj) {
+  int k = cond_by_subj[s];
+  alpha[s] = alpha_mean[k] + alpha_sd[k] * alpha_raw[s];
+  beta[s]  = beta_mean[k]  + beta_sd[k]  * beta_raw[s];
+}
+```
+
+Cosa succede qui?
+
+* Per ogni soggetto `s`, si identifica a quale condizione `k` (`1` o `2`) appartiene.
+* Il valore del parametro `alpha[s]` è costruito a partire dalla **media e deviazione standard della condizione `k`**, più un termine casuale `alpha_raw[s]` (spiegato sotto).
+* Lo stesso vale per `beta[s]`.
+
+Questo approccio consente di *stabilire una distribuzione diversa dei parametri per ciascun gruppo*. In pratica, stiamo dicendo che i parametri individuali provengono da due distribuzioni differenti — una per ciascun gruppo sperimentale — e possiamo stimare separatamente le medie e le varianze di queste distribuzioni.
+
+
+#### Parametrizzazione non centrata
+
+Un altro aspetto specifico di questo modello è l'uso della *parametrizzazione non centrata*.
+
+Quando usiamo *parametrizzazioni gerarchiche centrate*, cioè:
+
+```stan
+alpha[s] ~ normal(alpha_mean[k], alpha_sd[k])
+```
+
+si può verificare un problema noto nei modelli Bayesiani, ovvero le *transizioni divergenti* durante l’Hamiltonian Monte Carlo (HMC). Questo accade soprattutto quando:
+
+* la deviazione standard (`alpha_sd[k]`) è molto piccola o incerta,
+* le osservazioni per soggetto sono poche.
+
+In questi casi, l’HMC fatica a esplorare lo spazio dei parametri, portando a campionamenti inefficienti e bias.
+
+In tali circostanze si ricorre alla parametrizzazione non centrata. La *parametrizzazione non centrata* riformula la distribuzione gerarchica come segue. Invece di:
+
+```stan
+alpha[s] ~ normal(alpha_mean[k], alpha_sd[k])
+```
+
+Si scrive:
+
+```stan
+alpha[s] = alpha_mean[k] + alpha_sd[k] * alpha_raw[s];
+alpha_raw[s] ~ normal(0, 1);
+```
+
+Questa riscrittura:
+
+* separa il "rumore" (`alpha_raw[s]`) dalla scala e dal centro della distribuzione;
+* rende il campionamento molto più stabile;
+* migliora l’esplorazione dello spazio dei parametri;
+* è particolarmente utile nei modelli con gerarchie complesse o gruppi con pochi dati.
+
+**Nota**: la distribuzione implicita di `alpha[s]` resta comunque normale con media `alpha_mean[k]` e deviazione `alpha_sd[k]`. L’unica cosa che cambia è la *parametrizzazione*, non il significato.
+
+In conclusione, le differenze tra gruppi vengono inserite tramite iper-parametri di gruppo (`alpha_mean[k]`, `beta_mean[k]`), con assegnazione a livello di soggetto (`cond_by_subj[s]`), per costruire `alpha[s]` e `beta[s]` specifici per ciascun soggetto e condizione.
+
+La parametrizzazione non centrata viene utilizzata per definire i parametri individuali (`alpha`, `beta`) attraverso trasformazioni di variabili latenti standardizzate (`alpha_raw`, `beta_raw`). Questo migliora la convergenza e riduce il rischio di transizioni divergenti nei modelli gerarchici complessi.
+
+
+### Compilazione ed esecuzione del modello  
+
+```{r}
+stanmod <- cmdstan_model(
+  write_stan_file(stancode),
+  compile = TRUE
+)
+```
+
+```{r}
+# Crea una mappatura numerica coerente
+dat <- dat |>
+  mutate(condition_num = as.integer(as.factor(condition)))  # 1 = approach, 2 = avoidance
+
+# Ricava condizione per ciascun soggetto (assumendo una condizione per soggetto)
+cond_by_subj <- dat |>
+  distinct(subject, condition_num) |>
+  arrange(subject) |>
+  pull(condition_num)
+
+# Ricrea lo stan_data completo con condizione coerente
+stan_data <- list(
+  Ntotal = nrow(dat),
+  Nsubj = length(unique(dat$subject)),
+  subject = dat$subject,
+  trial = dat$trial,
+  observed_goal = dat$goal,
+  performance = dat$performance,
+  condition = dat$condition_num,         # vettore per trial
+  cond_by_subj = cond_by_subj            # vettore per soggetto
+)
+```
+
+
+```{r}
+#| output: false
+
+fit3 <- stanmod$sample(
+  data = stan_data,
+  iter_warmup = 1000,
+  iter_sampling = 10000,
+  chains = 4,
+  parallel_chains = 4,
+  refresh = 1000,
+  seed = 123, 
+  adapt_delta = 0.999,  # aumenta l'adattamento per ridurre le divergenze
+  max_treedepth = 15  # aumenta la profondità dell'albero per esplorare meglio lo spazio
+)
+```
+
+
+```{r}
+# Converti l'oggetto fit in draws_df (o draws_array, se preferisci)
+draws_df <- as_draws_df(fit)
+
+# Visualizza i nomi delle variabili
+variables <- colnames(draws_df)
+
+# Stampa solo quelle che contengono "alpha_mean"
+print(variables[grepl("alpha_mean", variables)])
+
+# Se vuoi verificare anche altri parametri (ad es. "alpha[" o "beta["), puoi usare
+# print(variables[grepl("alpha\\[", variables)])
+```
+
+```{r}
+# Estrai solo le colonne desiderate e calcola la differenza
+draws_df |> 
+  select(`alpha_mean[1]`, `alpha_mean[2]`) |> 
+  rename(alpha_mean_1 = `alpha_mean[1]`,
+         alpha_mean_2 = `alpha_mean[2]`) |> 
+  mutate(delta_alpha_mean = alpha_mean_2 - alpha_mean_1) |> 
+  summarise(
+    delta_alpha_mean_mean = mean(delta_alpha_mean),
+    delta_alpha_mean_low95 = quantile(delta_alpha_mean, 0.025),
+    delta_alpha_mean_upp95 = quantile(delta_alpha_mean, 0.975)
+  )
+```
+
+```{r}
+# Estrai i draw posteriori per beta_mean
+draws_df |> 
+  select(`beta_mean[1]`, `beta_mean[2]`) |> 
+  rename(beta_mean_1 = `beta_mean[1]`,
+         beta_mean_2 = `beta_mean[2]`) |> 
+  mutate(delta_beta_mean = beta_mean_2 - beta_mean_1) |> 
+  summarise(
+    delta_beta_mean_mean = mean(delta_beta_mean),
+    delta_beta_mean_low95 = quantile(delta_beta_mean, 0.025),
+    delta_beta_mean_upp95 = quantile(delta_beta_mean, 0.975)
+  )
+```
+
+
+```{r}
+# Estrai draw posteriori
+posterior_alpha <- fit |>
+  spread_draws(alpha_mean[cond]) |>
+  mutate(parameter = "alpha_mean",
+         condition = if_else(cond == 1, "Condition 1", "Condition 2")) |>
+  rename(value = alpha_mean)
+
+posterior_beta <- fit |>
+  spread_draws(beta_mean[cond]) |>
+  mutate(parameter = "beta_mean",
+         condition = if_else(cond == 1, "Condition 1", "Condition 2")) |>
+  rename(value = beta_mean)
+```
+
+```{r}
+# Unisci per plotting
+posterior_both <- bind_rows(posterior_alpha, posterior_beta)
+
+# Grafico
+ggplot(posterior_both, aes(x = value, fill = condition)) +
+  geom_density(alpha = 0.6) +
+  facet_wrap(~parameter, scales = "free") +
+  labs(
+    x = "Posterior Mean Value",
+    y = "Density",
+    fill = "Condition",
+    title = "Posterior Distributions for alpha_mean and beta_mean"
+  ) +
+  theme_minimal()
+```
+
+Per entrambi i parametri (`alpha_mean` e `beta_mean`), le stime delle differenze tra le due condizioni (che possiamo definire ad esempio come "approach" e "avoidance") mostrano valori medi negativi:
+
+* **Delta alpha_mean**: -0.122
+
+  * Intervallo di credibilità al 95%: [-0.248, 0.004]
+
+* **Delta beta_mean**: -0.248
+
+  * Intervallo di credibilità al 95%: [-0.514, 0.017]
+
+In entrambi i casi, l'intervallo di credibilità include lo zero. Questo significa che, *alla luce dei dati e del modello specificato, non possiamo affermare con una soglia di credibilità del 95% che vi sia una differenza sistematica tra le due condizioni* per i parametri `alpha` e `beta`.
+
+Detto in altri termini, nonostante il valore medio delle differenze sia negativo (suggerendo che, in media, `alpha_mean` e `beta_mean` potrebbero essere più bassi nella condizione 2 rispetto alla condizione 1), l'incertezza intorno a queste stime è troppo ampia per escludere con ragionevole sicurezza che la vera differenza possa essere nulla o addirittura positiva.
+
+### Considerazioni:
+
+* Non si tratta di una "mancanza di effetto", ma piuttosto di una *mancanza di evidenza per una differenza* abbastanza marcata da emergere con l'attuale numero di soggetti e struttura del modello.
+* Può essere utile controllare anche la *probabilità a posteriori* che la differenza sia minore di 0 (ad es., `mean(delta_alpha_mean < 0)`), per una stima più continua del supporto.
+* Si potrebbe anche esplorare la *dimensione dell'effetto* e valutare se l'effetto stimato ha una qualche rilevanza pratica o teorica, anche se non supera la soglia convenzionale dell'intervallo credibile.
+
+```{r}
+# Calcola probabilità a posteriori per delta_alpha_mean < 0 e delta_beta_mean < 0
+# (supponiamo che draws_df contenga le colonne `alpha_mean[1]`, `alpha_mean[2]`, ecc.)
+
+# Calcola e stampa probabilità a posteriori
+prob_delta_alpha_neg <- mean(draws_df$`alpha_mean[2]` - draws_df$`alpha_mean[1]` < 0)
+prob_delta_beta_neg  <- mean(draws_df$`beta_mean[2]` - draws_df$`beta_mean[1]` < 0)
+
+cat("P(delta_alpha_mean < 0):", round(prob_delta_alpha_neg, 3), "\n")
+cat("P(delta_beta_mean < 0):", round(prob_delta_beta_neg, 3), "\n")
+```
+
+```{r}
+# Costruisci una tabella riassuntiva con la dimensione dell'effetto
+summary_df <- tibble(
+  parameter = c("alpha_mean", "beta_mean"),
+  delta_mean = c(
+    mean(draws_df$`alpha_mean[2]` - draws_df$`alpha_mean[1]`),
+    mean(draws_df$`beta_mean[2]` - draws_df$`beta_mean[1]`)
+  ),
+  lower_95 = c(
+    quantile(draws_df$`alpha_mean[2]` - draws_df$`alpha_mean[1]`, 0.025),
+    quantile(draws_df$`beta_mean[2]` - draws_df$`beta_mean[1]`, 0.025)
+  ),
+  upper_95 = c(
+    quantile(draws_df$`alpha_mean[2]` - draws_df$`alpha_mean[1]`, 0.975),
+    quantile(draws_df$`beta_mean[2]` - draws_df$`beta_mean[1]`, 0.975)
+  ),
+  prob_below_0 = c(
+    prob_delta_alpha_neg,
+    prob_delta_beta_neg
+  )
+)
+
+print(summary_df)
+```
+
+
+```{r}
+# Grafico a barre con intervallo credibile
+
+summary_df |> 
+  ggplot(aes(x = parameter, y = delta_mean)) +
+  geom_bar(stat = "identity", fill = "steelblue", width = 0.5) +
+  geom_errorbar(aes(ymin = lower_95, ymax = upper_95), width = 0.2) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(
+    title = "Differenze posteriori tra le condizioni",
+    x = "Parametro",
+    y = "Differenza media (cond2 - cond1)"
+  ) +
+  theme_minimal()
+```
+
+Sulla base dell'analisi bayesiana condotta, possiamo trarre le seguenti conclusioni in merito al confronto tra le due condizioni per i parametri `alpha_mean` e `beta_mean`, che rappresentano rispettivamente il tasso di apprendimento e la coerenza nelle scelte (inverse decision noise):
+
+1. **Parametro alpha (tasso di apprendimento)**
+
+* **Differenza media stimata tra condizioni**: -0.122
+
+  * Questo indica che, in media, la condizione 2 mostra un tasso di apprendimento più basso rispetto alla condizione 1.
+* **Intervallo di credibilità al 95%**: da -0.248 a 0.004
+
+  * L'intervallo include valori positivi prossimi allo zero, suggerendo che non possiamo escludere con certezza che le condizioni abbiano valori simili, ma gran parte della massa a posteriori è sotto zero.
+* **Probabilità a posteriori che la differenza sia < 0**: 97.1%
+
+  * Questo indica un forte supporto a favore dell'ipotesi che la condizione 2 abbia un tasso di apprendimento inferiore alla condizione 1.
+
+2. **Parametro beta (coerenza nelle scelte)**
+
+* **Differenza media stimata tra condizioni**: -0.248
+
+  * Ciò suggerisce che la condizione 2 mostra una tendenza a scelte più rumorose (cioè meno coerenti) rispetto alla condizione 1.
+* **Intervallo di credibilità al 95%**: da -0.514 a 0.017
+
+  * Anche qui l'intervallo include valori vicini a zero, ma la gran parte della distribuzione è sotto lo zero.
+* **Probabilità a posteriori che la differenza sia < 0**: 96.7%
+
+  * Questo fornisce un forte supporto per l'ipotesi che nella condizione 2 le scelte siano meno coerenti (ovvero beta più bassa).
+
+3. **Conclusione**
+
+Pur non superando la soglia convenzionale dell'intervallo credibile al 95% (entrambi gli intervalli includono zero), la *probabilità a posteriori che la differenza sia negativa è elevata (>96%)* per entrambi i parametri.
+
+Questi risultati indicano che:
+
+* c'è una chiara tendenza verso un *tasso di apprendimento più basso* e una *maggiore rumore decisionale* nella *condizione 2* rispetto alla *condizione 1*;
+* la forza del supporto dipende dalla soglia soggettiva che si intende adottare (es. un ricercatore potrebbe considerare 97% sufficiente, altri potrebbero richiedere >99%).
+
+Infine, si suggerisce di considerare la *rilevanza pratica o teorica* dell'effetto: anche se piccolo, un `delta_beta_mean` = -0.25 potrebbe indicare un cambiamento sostanziale nel comportamento decisionale a seconda del contesto sperimentale.
+
+
+## Confronto tra modelli
+
+
+```{r}
+log_lik1 <- fit1$draws(variables = "log_lik", format = "matrix")
+log_lik2 <- fit2$draws(variables = "log_lik", format = "matrix")
+log_lik3 <- fit3$draws(variables = "log_lik", format = "matrix")
+```
+
+```{r}
+# Calcola LOO per ciascun modello
+loo1 <- loo(log_lik1)
+loo2 <- loo(log_lik2)
+loo3 <- loo(log_lik3)
+```
+
+```{r}
+# Confronto tra i modelli
+model_comparison <- loo_compare(loo1, loo2, loo3)
+print(model_comparison)
+```
+
+Il confronto tra modelli si basa sull'ELPD (Expected Log Predictive Density), una misura della bontà predittiva del modello, calcolata tramite Leave-One-Out cross-validation (LOO). Valori più alti di ELPD indicano che il modello predice meglio i dati osservati.
+
+Nel caso presente, i risultati sono:
+
+```
+       elpd_diff  se_diff
+model3     0.0       0.0
+model2    -1.8       3.4
+model1   -78.9      43.1
+```
+
+Queste differenze sono calcolate rispetto al modello con il miglior ELPD, cioè il modello 3 (quello gerarchico con differenze tra gruppi). L'interpretazione è la seguente.
+
+Il Modello 3 (modello gerarchico con differenze tra gruppi) ha il miglior valore di ELPD e funge da riferimento per le differenze. Introduce iper-parametri differenti per ciascun gruppo (condizione), migliorando la capacità predittiva.
+
+Il Modello 2 (modello gerarchico senza differenze tra gruppi) ha un ELPD inferiore di 1.8 punti rispetto al modello 3, con una deviazione standard della differenza pari a 3.4. Questa differenza è piccola rispetto alla sua incertezza (±3.4), per cui **non si può concludere con certezza che il modello 3 sia migliore del 2**. Tuttavia, la leggera superiorità in termini predittivi del modello 3 suggerisce che *potrebbe* esserci un valore aggiunto nel modellare separatamente i gruppi.
+
+Il Modello 1 (modello senza struttura gerarchica) ha un ELPD molto più basso (-78.9), con un errore standard di 43.1. Nonostante l'incertezza ampia, la differenza è sostanziale: **c'è un chiaro vantaggio predittivo nel passare a un modello gerarchico**. Questo risultato è coerente con l'idea che modelli gerarchici riescono a "condividere forza" tra soggetti, migliorando le stime individuali soprattutto quando i dati per soggetto sono limitati.
+
+In conclusione,
+
+* il *modello 1 è nettamente inferiore* rispetto agli altri due;
+* il *modello 3 mostra una leggera superiorità rispetto al 2*, ma la differenza non è statisticamente robusta (dato l'errore standard);
+* *in assenza di altri criteri (come semplicità o interpretabilità)*, si potrebbe preferire il modello 3 per la sua migliore performance predittiva, pur riconoscendo che il guadagno è modesto.
+
+
