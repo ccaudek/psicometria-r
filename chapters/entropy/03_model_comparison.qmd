@@ -45,8 +45,8 @@ $$
 q(\tilde{y} \mid y) = \int p(\tilde{y} \mid \theta) \, p(\theta \mid y) \, d\theta.
 $$
 
-::: {.callout-note collapse=true title="Spiegazione intuitiva"}
 
+::: {.callout-note collapse=true title="Spiegazione intuitiva"}
 Immagina di voler fare una previsione su un evento futuro, $\tilde{y}$ (i tuoi nuovi dati), dopo aver osservato dei dati passati, $y$. Nel mondo bayesiano, non ci accontentiamo di un unico "miglior" valore per i parametri del nostro modello (come faresti con una stima puntuale classica), perché sappiamo che c'è sempre una certa incertezza su quali siano i "veri" parametri che governano il fenomeno.
 
 Ecco come funziona la *distribuzione predittiva posteriore* $q(\tilde{y} \mid y)$ in modo più intuitivo:
@@ -266,6 +266,7 @@ $$
 $$
 \text{Log-score} = \sum_{i=1}^n \log \left( \sum_{s=1}^3 p(y_i \mid \theta^{(s)}) \cdot p(\theta^{(s)} \mid y) \right).
 $$
+
 Intuizione finale:
 
 * il *log-score* misura *quanto il modello (in media sulla posteriore) “si aspettava” i dati osservati*;
@@ -375,7 +376,7 @@ LPPD tende a premiare modelli più complessi (rischio di overfitting). L’ELPD,
 
 ## Legame con la Divergenza KL
 
-Sebbene *non possiamo calcolare $D\_{\text{KL}}(p \parallel q)$ direttamente*, differenze in LPPD o ELPD *approssimano la differenza tra divergenze KL* dei modelli. Se il modello $A$ ha un ELPD più alto di quello di $B$, possiamo concludere che $A$ è "più vicino" alla distribuzione vera dei dati.
+Sebbene *non possiamo calcolare $D_{\text{KL}}(p \parallel q)$ direttamente*, differenze in LPPD o ELPD *approssimano la differenza tra divergenze KL* dei modelli. Se il modello $A$ ha un ELPD più alto di quello di $B$, possiamo concludere che $A$ è "più vicino" alla distribuzione vera dei dati.
 
 In altre parole:
 
@@ -453,7 +454,7 @@ $$
 \text{ELPD}_{\text{LOO}} = \sum_{i=1}^{n} \log p(y_i \mid y_{-i})
 $$
 
-dove $y\_{-i}$ indica il dataset senza l'osservazione $i$.
+dove $y_{-i}$ indica il dataset senza l'osservazione $i$.
 
 
 ### Perché la LOO-CV è importante
@@ -467,17 +468,114 @@ A differenza del semplice log-score o della LPPD, che valutano il modello sugli 
 * Premia modelli che *generalizzano meglio*.
 
 
-### LOO-CV e Divergenza KL
+### LOO-CV e Divergenza di Kullback-Leibler
 
-Sebbene non possiamo calcolare direttamente la divergenza di Kullback-Leibler $D\_{\text{KL}}(p \parallel q)$ perché $p$ è ignota, la *LOO-CV offre un’approssimazione empirica della bontà predittiva* del modello. In particolare:
+Nel confronto tra modelli, il nostro obiettivo è scegliere quello che si avvicina di più alla distribuzione vera dei dati, che indichiamo con $p(\tilde{y})$. Tuttavia, questa distribuzione *è sconosciuta* nella pratica.
+
+Una misura naturale della distanza tra il modello predittivo $q(\tilde{y} \mid y)$ e la distribuzione vera $p(\tilde{y})$ è la divergenza di Kullback-Leibler (KL):
 
 $$
-\text{ELPD}_{\text{LOO}} \approx \mathbb{E}_{p}[\log q(\tilde{y} \mid y)]
+D_{\text{KL}}(p \parallel q) = \mathbb{E}_{p} \left[ \log \frac{p(\tilde{y})}{q(\tilde{y} \mid y)} \right]
+= \mathbb{E}_{p}[\log p(\tilde{y})] - \mathbb{E}_{p}[\log q(\tilde{y} \mid y)].
 $$
 
-cioè una stima dell’accuratezza predittiva su dati nuovi, mediata rispetto alla vera distribuzione dei dati.
+Poiché $\mathbb{E}_{p}[\log p(\tilde{y})]$ *non dipende dal modello*, minimizzare la KL-divergence equivale a *massimizzare* il secondo termine:
 
-Pertanto, *massimizzare l’ELPD_LOO equivale, in pratica, a minimizzare la divergenza KL*, almeno rispetto alla parte del modello che è influenzata dai dati.
+$$
+\mathbb{E}_{p}[\log q(\tilde{y} \mid y)].
+$$
+
+Questa quantità rappresenta l’*accuratezza predittiva del modello*, valutata in media rispetto alla distribuzione vera dei dati. Ma, ancora una volta, $p(\tilde{y})$ è ignota.
+
+
+::: {.callout-note collapse=true title="Approfondimento: perché l’ELPD è legato alla divergenza KL"}
+Per capire il senso dell’ELPD, ricordiamo come è definita la divergenza di Kullback-Leibler tra la distribuzione vera dei dati, $p(\tilde{y})$, e il modello predittivo $q(\tilde{y} \mid y)$:
+
+$$
+D_{\text{KL}}(p \parallel q) = \mathbb{E}_{p}[\log p(\tilde{y})] - \mathbb{E}_{p}[\log q(\tilde{y} \mid y)].
+$$
+
+Questa formula confronta *quanto bene il modello $q$ approssima la distribuzione vera*. I due termini hanno significati diversi:
+
+- $\mathbb{E}_{p}[\log p(\tilde{y})]$ è l’*entropia* della distribuzione vera dei dati: dipende solo da $p$, non dal modello.
+- $\mathbb{E}_{p}[\log q(\tilde{y} \mid y)]$ valuta *quanto bene il modello predice nuovi dati*, in media, se i dati futuri fossero generati da $p$.
+
+
+**Perché possiamo ignorare il primo termine?**
+
+Supponiamo di confrontare due modelli, $q_1$ e $q_2$. Vogliamo sapere quale ha una KL-divergence più bassa rispetto alla distribuzione vera. Consideriamo la *differenza* tra le due:
+
+$$
+\begin{align}
+\Delta &= D_{\text{KL}}(p \parallel q_1) - D_{\text{KL}}(p \parallel q_2) \notag\\
+&= \left[ \mathbb{E}_{p}[\log p(\tilde{y})] - \mathbb{E}_{p}[\log q_1(\tilde{y} \mid y)] \right] 
+  - \left[ \mathbb{E}_{p}[\log p(\tilde{y})] - \mathbb{E}_{p}[\log q_2(\tilde{y} \mid y)] \right] .
+\end{align}
+$$
+
+Il primo termine si elide:
+
+$$
+\Delta = \mathbb{E}_{p}[\log q_2(\tilde{y} \mid y)] - \mathbb{E}_{p}[\log q_1(\tilde{y} \mid y)] .
+$$
+
+**Conclusione**: per confrontare i modelli, ci basta guardare a $\mathbb{E}_{p}[\log q(\tilde{y} \mid y)]$, perché l’altro termine è uguale per tutti i modelli ed è quindi irrilevante nel confronto.
+
+
+**Ma come stimare questa quantità?**
+
+Purtroppo, non conosciamo la distribuzione vera $p(\tilde{y})$, quindi non possiamo calcolare direttamente il valore atteso $\mathbb{E}_{p}[\log q(\tilde{y} \mid y)]$. Ma possiamo usare una *strategia empirica*:
+
+- se assumiamo che le osservazioni nel nostro dataset siano state generate da $p(\tilde{y})$,
+- allora possiamo *approssimare il valore atteso* come una *media sui dati osservati*.
+
+Questa idea è alla base della *Leave-One-Out Cross-Validation* (LOO-CV):
+
+$$
+\text{ELPD}_{\text{LOO}} = \sum_{i=1}^n \log p(y_i \mid \mathbf{y}_{-i}) \approx \mathbb{E}_{p}[\log q(\tilde{y} \mid y)].
+$$
+
+Cioè:
+
+> Ogni osservazione $y_i$ è trattata come se fosse “nuova”, e il modello è valutato sulla sua capacità di predire $y_i$ *senza averla vista durante l’adattamento*.
+
+
+**Perché l’ELPD riflette la KL-divergence?**
+
+- L’ELPD-LOO è una *stima empirica* di $\mathbb{E}_{p}[\log q(\tilde{y} \mid y)]$.
+- E questo è esattamente il *termine che ci interessa minimizzare* per ridurre la divergenza KL.
+
+> *Massimizzare l’ELPD è equivalente a minimizzare la distanza KL* tra il modello e la distribuzione vera, almeno nella parte che possiamo stimare dai dati.
+
+In sintesi,
+
+- non possiamo calcolare direttamente la divergenza KL, ma possiamo stimarne una parte (quella che dipende dal modello);
+- confrontare i modelli sulla base dell’ELPD equivale a scegliere *quello più vicino alla distribuzione vera*, in termini di capacità predittiva.
+:::
+
+
+#### Entra in gioco LOO-CV
+
+La *Leave-One-Out Cross-Validation* (LOO-CV) ci fornisce una *stima empirica* di questa aspettativa. In pratica, stimiamo:
+
+$$
+\text{ELPD}_{\text{LOO}} = \sum_{i=1}^n \log p(y_i \mid \mathbf{y}_{-i})
+\approx \mathbb{E}_{p}[\log q(\tilde{y} \mid y)] ,
+$$
+
+dove:
+
+* $y_i$ è una delle osservazioni effettivamente raccolte,
+* $\mathbf{y}_{-i}$ sono tutti i dati tranne $y_i$,
+* $p(y_i \mid \mathbf{y}_{-i})$ è la densità predittiva lasciando fuori $y_i$ durante l’addestramento.
+
+In questo modo, *LOO-CV simula la previsione su dati nuovi*, permettendoci di stimare quanto bene il modello generalizza.
+
+In conclusione, anche se non possiamo calcolare direttamente la KL-divergence (perché $p$ è ignota), possiamo *stimare il secondo termine dell’espressione* tramite LOO-CV. In altre parole:
+
+> *Massimizzare $\text{ELPD}_{\text{LOO}}$ equivale, in pratica, a minimizzare la KL-divergence tra la distribuzione vera e la predizione del modello.*
+
+Questo spiega perché *ELPD-LOO è una metrica centrale nel confronto tra modelli bayesiani*: ci avvicina, il più possibile, al comportamento che avremmo se conoscessimo la distribuzione vera dei dati.
 
 
 ### Intuizione: Come riduce l’overfitting
