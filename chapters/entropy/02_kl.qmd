@@ -1,0 +1,350 @@
+# La divergenza di Kullback-Leibler {#sec-kullback-leibler-divergence}
+
+::: callout-important
+## Obiettivi di apprendimento
+
+Alla fine di questo capitolo, sarai in grado di:
+
+- spiegare cos'è la divergenza di Kullback-Leibler (KL) e da dove deriva;
+- calcolare la divergenza KL tra due distribuzioni discrete usando R;
+- interpretare la divergenza KL come differenza tra entropia incrociata ed entropia vera;
+- comprendere il ruolo della divergenza KL nella selezione dei modelli bayesiani;
+- applicare questi concetti a problemi di modellazione predittiva.
+:::
+
+::: callout-tip
+## Prerequisiti
+
+- Per comprendere appieno questo capitolo, dovresti aver già appreso i concetti di *entropia e informazione di Shannon* ([@sec-entropy-shannon-information]).
+:::
+
+
+::: callout-caution
+## Preparazione del Notebook
+
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+
+# Funzione per il calcolo dei termini della divergenza KL
+kl_terms <- function(p, q) {
+  stopifnot(length(p) == length(q))
+  non_zero <- p > 0 & q > 0
+  p <- p[non_zero]
+  q <- q[non_zero]
+  term <- p * log2(p / q)
+  data.frame(x = seq_along(p), p = p, q = q, term = term)
+}
+
+# Funzione compatta per il valore totale
+kl_divergence <- function(p, q) {
+  sum(kl_terms(p, q)$term)
+}
+
+# Entropia vera (in bit)
+entropy <- function(p) {
+  p <- p[p > 0]
+  -sum(p * log2(p))
+}
+
+# Entropia incrociata (in bit)
+cross_entropy <- function(p, q) {
+  non_zero <- p > 0 & q > 0
+  p <- p[non_zero]
+  q <- q[non_zero]
+  -sum(p * log2(q))
+}
+```
+:::
+
+
+Nel campo della statistica bayesiana, confrontare modelli significa chiedersi quale rappresentazione teorica descriva meglio i dati osservati. Uno strumento cruciale per rispondere a questa domanda è la divergenza di Kullback-Leibler [@kullback1951information], spesso abbreviata come divergenza KL ($D_{\text{KL}}$). Essa misura quanto si perde in precisione o efficienza se si utilizza un modello errato per descrivere la realtà.
+
+In questo capitolo vedremo:
+
+- cos’è la divergenza KL e da dove nasce;
+- come si collega al concetto di entropia;
+- perché è utile nella scelta tra modelli statistici;
+- come calcolarla e interpretarla, anche con esempi in R.
+
+
+## La Generalizzabilità dei Modelli e il Metodo Scientifico
+
+Uno degli obiettivi fondamentali della scienza è la generalizzabilità: un buon modello non deve spiegare solo i dati che abbiamo già, ma anche prevedere nuovi dati che potremmo raccogliere. Un modello troppo semplice rischia di sotto-adattarsi ai dati (*underfitting*), mentre uno troppo complesso rischia di sovra-adattarsi (*overfitting*), cioè di confondere il rumore con il segnale.
+
+Il problema della generalizzabilità è quindi il cuore del metodo scientifico: vogliamo modelli che siano sufficientemente flessibili da cogliere i pattern reali, ma non così flessibili da adattarsi anche al caso o al rumore.
+
+In ambito bayesiano, come spiega @McElreath_rethinking, il processo di selezione dei modelli si fonda su un equilibrio: massimizzare l’accuratezza delle previsioni mantenendo la complessità sotto controllo. Questo approccio è coerente con il *rasoio di Occam*, ma lo rafforza con una base teorica più solida: l’entropia e la divergenza KL.
+
+
+## L'Entropia Relativa
+
+Nel @sec-entropy-shannon-information abbiamo introdotto il concetto di entropia come la lunghezza media del codice più efficiente per descrivere una distribuzione. Ora estendiamo questo concetto al confronto tra due distribuzioni: la distribuzione vera dei dati ($P$) e quella che ci fornisce il nostro modello ($Q$).
+
+La *divergenza di Kullback-Leibler* ($D_{\text{KL}}(P \parallel Q)$) misura quanto più lungo sarebbe, in media, il codice se usassimo $Q$ invece di $P$ per descrivere i dati. In altre parole, misura la perdita di informazione dovuta all’uso di un modello impreciso.
+
+
+### Definizione formale
+
+Per una variabile discreta $X$, la divergenza KL si definisce come:
+
+$$
+D_{\text{KL}}(P \parallel Q) = \sum_{x} p(x) \log_2 \left( \frac{p(x)}{q(x)} \right),
+$$ {#eq-kl-def}
+
+dove:
+
+- $p(x)$ è la probabilità osservata (distribuzione reale);
+- $q(x)$ è la probabilità stimata dal modello.
+
+Questa quantità è sempre maggiore o uguale a zero, e vale zero solo quando $P = Q$ per ogni valore $x$.
+
+
+::: {#exm-kl-div-1}
+Supponiamo di avere una variabile casuale $X$ che può assumere tre valori: `x = 1, 2, 3`. Definiamo:
+
+* una distribuzione *vera* $P = [0.1, 0.6, 0.3]$
+* una distribuzione *approssimata* (cioè quella ipotizzata dal modello) $Q = [0.2, 0.5, 0.3]$
+
+Vogliamo calcolare la divergenza KL secondo la formula @eq-kl-def. Svolgiamo i calcoli in R.
+
+```{r}
+# Definiamo le due distribuzioni
+P <- c(0.1, 0.6, 0.3)  # distribuzione vera
+Q <- c(0.2, 0.5, 0.3)  # distribuzione approssimata dal modello
+```
+
+```{r}
+# Applichiamo la funzione e visualizziamo la tabella dei contributi
+df_kl <- kl_divergence(P, Q)
+df_kl
+```
+
+Questa tabella mostra il contributo di ciascun esito alla divergenza complessiva:
+
+```{r}
+# Tabella dei termini
+df_kl_terms <- kl_terms(P, Q)
+print(df_kl_terms)
+```
+
+
+```{r}
+ggplot(df_kl_terms, aes(x = factor(x), y = term)) +
+  geom_col(fill = "steelblue") +
+  geom_hline(yintercept = 0, color = "black", linewidth = 0.3) +
+  labs(
+    x = "Valori possibili di X",
+    y = "Contributo alla Divergenza KL",
+    title = "Contributo di ciascun esito alla Divergenza KL"
+  )
+```
+
+Infine, sommiamo i contributi per ottenere il valore della divergenza KL:
+
+```{r}
+# Calcolo della divergenza totale
+KL_total <- sum(df_kl_terms$term)
+cat(sprintf("Divergenza KL da P a Q: %.4f bit\n", KL_total))
+```
+
+Interpretazione
+
+- Il primo termine è *negativo*: il modello *sovrastima* l’esito raro (q1 = 0.2 > p1 = 0.1), ma l’impatto è basso perché $p(1)$ è piccolo.
+- Il secondo termine è *positivo e maggiore*: il modello *sottostima* l’esito più probabile (p2 = 0.6 > q2 = 0.5), quindi il "costo informativo" è maggiore.
+- Il terzo contributo è nullo: quando $p(x) = q(x)$ non vi è alcuna perdita di efficienza.
+
+Questo esempio mostra *come ogni esito contribuisce alla divergenza KL*, evidenziando che la misura finale rappresenta una *perdita media di informazione*, ovvero quanta *sorpresa aggiuntiva* si verifica quando si usa un modello $Q$ inadeguato per descrivere la realtà $P$.
+:::
+
+
+### Legame con l’entropia e l’entropia incrociata
+
+Possiamo anche scrivere:
+   
+$$
+D_{\text{KL}}(P \parallel Q) = H(P, Q) - H(P),
+$$ {#eq-kl-difference}
+
+dove 
+
+- $H(P)$ è l’entropia della distribuzione reale $P$; 
+- $H(P, Q)$ è l'entropia incrociata, cioè la lunghezza media del codice se usiamo $Q$ per descrivere dati che seguono $P$:
+   
+$$
+H(P, Q) = -\sum_x p(x) \log_2(q(x)).
+$$ {#eq-cross-entropy}
+
+La divergenza KL rappresenta quindi l’eccesso di sorpresa causato dall’uso di un modello scorretto.
+
+::: {.callout-note title = "Dimostrazione" collapse="true"}
+Sostituendo le espressioni per $H(P)$ e $H(P, Q)$ nella definizione della divergenza di Kullback-Leibler, otteniamo:
+
+$$
+D_{\text{KL}}(P \parallel Q) = \left(- \sum_x p(x) \log_2 q(x)\right) - \left(- \sum_x p(x) \log_2 p(x)\right).
+$$
+
+Notiamo che i segni negativi possono essere eliminati, portando a:
+
+$$
+D_{\text{KL}}(P \parallel Q) = \sum_x p(x) \log_2 p(x) - \sum_x p(x) \log_2 q(x).
+$$
+
+Ora possiamo raccogliere i due termini in una singola somma:
+
+$$
+D_{\text{KL}}(P \parallel Q) = \sum_x p(x) \left( \log_2 p(x) - \log_2 q(x) \right).
+$$
+
+Utilizziamo la proprietà dei logaritmi $\log_2 \left(\frac{a}{b}\right) = \log_2 a - \log_2 b$ per combinare i termini all'interno del logaritmo e otteniamo la formula esplicita della divergenza di Kullback-Leibler:
+
+$$
+D_{\text{KL}}(P \parallel Q) = \sum_x p(x) \log_2 \left( \frac{p(x)}{q(x)} \right).
+$$
+
+Questa espressione quantifica la differenza tra le distribuzioni $P$ e $Q$, misurando l'inefficienza nell'uso di $Q$ per rappresentare $P$.
+:::
+
+
+::: {#exm-kl-div-2}
+Riprendiamo l'@exm-kl-div-1 con:
+
+* distribuzione vera $P = [0.1, 0.6, 0.3]$,
+* modello approssimato $Q = [0.2, 0.5, 0.3]$.
+
+Vogliamo ora calcolare la divergenza KL come:
+
+$$
+D_{\text{KL}}(P \parallel Q) = H(P, Q) - H(P)
+$$
+
+dove:
+
+* $H(P)$ è l’entropia della distribuzione vera;
+* $H(P, Q)$ è l’entropia incrociata.
+
+```{r}
+# Calcolo su esempio
+P <- c(0.1, 0.6, 0.3)
+Q <- c(0.2, 0.5, 0.3)
+
+H_P <- entropy(P)
+H_PQ <- cross_entropy(P, Q)
+KL_diff <- H_PQ - H_P
+
+cat(sprintf("Entropia H(P):     %.4f bit\n", H_P))
+cat(sprintf("Entropia incrociata H(P,Q): %.4f bit\n", H_PQ))
+cat(sprintf("Divergenza KL (da differenza): %.4f bit\n", KL_diff))
+```
+
+Il risultato della differenza $H(P, Q) - H(P)$ *deve coincidere* con quello ottenuto nel calcolo diretto della divergenza KL.
+:::
+
+
+::: {#exm-kl-div-3}
+In altri due esempi, rendiamo via via $Q$ più diverso da $P$. Notiamo come la divergenza $D_{\text{KL}}$ aumenta.
+
+```{r}
+# Primo esempio
+P1 <- c(0.1, 0.6, 0.3)
+Q1 <- c(0.35, 0.3, 0.35)
+
+KL1 <- kl_divergence(P1, Q1)
+cat(sprintf("Divergenza KL da P1 a Q1: %.4f bit\n", KL1))
+
+# Secondo esempio
+P2 <- c(0.1, 0.6, 0.3)
+Q2 <- c(0.6, 0.3, 0.1)
+
+KL2 <- kl_divergence(P2, Q2)
+cat(sprintf("Divergenza KL da P2 a Q2: %.4f bit\n", KL2))
+```
+:::
+
+
+### Interpretazione della Divergenza KL
+
+La divergenza $D_{\text{KL}}(P \parallel Q)$ rappresenta il "costo" aggiuntivo di sorpresa o inefficienza quando si utilizza la distribuzione $Q$ per modellare i dati che in realtà seguono la distribuzione $P$. Questo "costo" è espresso in bit e rappresenta l'informazione che viene "persa" quando $Q$ è usata al posto di $P$.
+
+È importante notare che la divergenza di Kullback-Leibler è asimmetrica, il che significa che $D(P \parallel Q)$ non è uguale a $D(Q \parallel P)$, e non può essere interpretata come una vera e propria "distanza" tra le distribuzioni, ma piuttosto come una misura dell'informazione persa, ovvero di inefficienza di codifica.
+
+
+## Proprietà della Divergenza KL
+
+- **Non-negatività:** KL è sempre $\geq$ 0. Il minimo è raggiunto quando $P = Q$.
+- **Asimmetria:** $D_{\text{KL}}(P \parallel Q) \neq D_{\text{KL}}(Q \parallel P)$. Quindi non può essere interpretata come una vera e propria "distanza" tra le distribuzioni, ma piuttosto come una misura dell'informazione persa, ovvero di inefficienza di codifica.
+- **Unità di misura:** la divergenza KL si esprime in bit se si usa il logaritmo in base 2, oppure in nat se si usa il logaritmo naturale.
+
+
+## Uso della Divergenza $D_{\text{KL}}$ nella Selezione di Modelli
+
+L’obiettivo della selezione del modello è trovare il modello $Q$ che minimizza la divergenza da $P$, cioè:
+
+$$
+\text{modello ottimale} = \arg\min_Q D_{\text{KL}}(P \parallel Q) .
+$$
+
+Ma *nella pratica non conosciamo $P$*, cioè la distribuzione vera dei dati. Quindi non possiamo calcolare direttamente $D\_{\text{KL}}$. Cosa dunque si può fare?
+
+
+### Soluzione: stimare indirettamente $D_{\text{KL}}$
+
+Nel prossimo capitolo, vedremo come stimare indirettamente la divergenza KL usando strumenti bayesiani come:
+
+* *Leave-One-Out Cross-Validation (LOO-CV)*;
+* *Expected Log Predictive Density (ELPD)*.
+
+Questi metodi permettono di valutare quanto bene un modello generalizza, stimando *quanto si discosta da $P$ senza conoscerla direttamente*.
+
+::: {#exm-kl-div-4}
+Supponiamo di voler prevedere il punteggio di ansia settimanale di uno studente. Il *Modello A* utilizza solo il punteggio di coping, mentre il *Modello B* utilizza coping + supporto sociale. Entrambi producono buone previsioni, ma il Modello B ha una leggera divergenza KL inferiore.
+
+- Se la differenza nella divergenza KL è piccola, potremmo comunque preferire il modello più semplice per ragioni di interpretabilità o parsimonia — coerentemente con il principio di Occam.
+:::
+
+## Riflessioni Conclusive
+
+In questo capitolo abbiamo introdotto uno strumento chiave della teoria dell’informazione: la divergenza di Kullback-Leibler, che fornisce una misura precisa di quanto un modello probabilistico si discosti dalla realtà. Questo concetto, nato dalla codifica ottimale dei messaggi, ha oggi un ruolo centrale nella selezione dei modelli statistici, in particolare nell’approccio bayesiano.
+
+Nel prossimo capitolo vedremo come stimare in modo empirico la divergenza KL, approfondendo l’uso della validazione incrociata Leave-One-Out e del criterio ELPD, per valutare la qualità predittiva dei modelli e scegliere quello più adatto.
+
+
+::: {.callout-note}
+## Sintesi finale
+
+- La divergenza KL misura quanta informazione viene persa usando una distribuzione approssimata;
+- Può essere vista sia come una formula diretta, $\sum p \log(p/q)$, sia come differenza tra entropia incrociata ed entropia vera;
+- È fondamentale nella selezione dei modelli perché ci dice *quanto bene* un modello rappresenta la realtà;
+- In ambito bayesiano, può essere stimata tramite tecniche come la Leave-One-Out Cross-Validation.
+:::
+
+
+## Esercizi
+
+::: {#exr-entropy-1}
+Cosideriamo due distribuzioni di probabilità discrete, $p$ e $q$:
+
+```
+p <- c(0.2, 0.5, 0.3)
+q <- c(0.1, 0.2, 0.7)
+```
+
+Si calcoli l'entropia di $p$, l'entropia incrociata tra $p$ e $q$, la divergenza di Kullback-Leibler da $p$ a $q$.
+
+Si consideri `q = c(0.2, 0.55, 0.25)` e si calcoli di nuovo a divergenza di Kullback-Leibler da $p$ a $q$. Si confronti con il risultato precedente e si interpreti.
+:::
+
+
+::: {#exr-entropy-2}
+Sia $p$ una distribuzione binomiale di parametri $\theta = 0.2$ e $n = 5$. Sia $q_1$ una approssimazione a $p$: `q1 = c(0.46, 0.42, 0.10, 0.01, 0.01)`. Sia $q_2$ una distribuzione uniforme: `q2 <- rep(0.2, 5)`. Si calcoli la divergenza $\mathbb{KL}$ di $q_1$ da $p$ e da $q_2$ da $p$ e si interpretino i risultati.
+:::
+
+
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
+
+```{r}
+sessionInfo()
+```
+
+## Bibliografia {.unnumbered}
+
