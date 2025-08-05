@@ -1,4 +1,4 @@
-# Modelli dinamici: estensioni
+# Estensioni
 
 
 ::: callout-caution
@@ -28,7 +28,7 @@ Seguendo la discussione di @knight2023tutorial, in questo capitolo estenderemo i
 
 ## Person-Level Model
 
-Il Sample-Level Model descrive il processo di aggiornamento degli obiettivi a livello di gruppo, senza tenere in considerazione le differenze individuali. Tuttavia, è possibile estendere il modello descritto nel @sec-dynamic-models-goal-updating in modo tale da stimare i parametri $\alpha$ e $\beta$ per ciascun partecipante.
+Il *Sample-Level Model* descrive il processo di aggiornamento degli obiettivi a livello di gruppo, senza tenere in considerazione le differenze individuali. Tuttavia, è possibile estendere il modello descritto nel @sec-dynamic-models-goal-updating in modo tale da stimare i parametri $\alpha$ e $\beta$ per ciascun partecipante.
 
 
 ### Preparazione dei dati
@@ -136,26 +136,26 @@ stan_data$subject
 
 Ogni elemento `subject[i]` ci dice *a quale soggetto appartiene il trial `i`*, usando un numero intero da `1` a `Nsubj`. Quindi se `subject[137] == 24`, significa che il 137-esimo trial è del soggetto 24.
 
-Ora, se abbiamo un vettore di parametri specifici per ogni soggetto:
+Ora, se abbiamo un vettore di parametri specifici per ogni soggetto
 
 ```stan
 vector[Nsubj] alpha;
 vector[Nsubj] beta;
 ```
 
-allora:
+allora
 
-* `alpha[subject[i]]` significa: **prendi il valore del parametro `alpha` associato al soggetto a cui appartiene il trial `i`**.
-* Lo stesso vale per `beta[subject[i]]`.
+* `alpha[subject[i]]` significa: prendi il valore del parametro `alpha` associato al soggetto a cui appartiene il trial `i`;
+* lo stesso vale per `beta[subject[i]]`.
 
-Per esempio, supponiamo:
+Per esempio, supponiamo
 
 ```stan
 subject = [1, 1, 1, 2, 2, 3, 3]
 alpha = [0.5, 0.8, 1.1]  // Tre soggetti: 1, 2, 3
 ```
 
-Allora:
+allora
 
 * `alpha[subject[4]] = alpha[2] = 0.8`, perché il 4° trial è del soggetto 2.
 * `beta[subject[6]] = beta[3] = ...`, perché il 6° trial è del soggetto 3.
@@ -175,7 +175,6 @@ stanmod <- cmdstan_model(
 
 ```{r}
 #| output: false
-
 fit1 <- stanmod$sample(
   data = stan_data,
   iter_warmup = 1000,
@@ -369,7 +368,6 @@ stanmod <- cmdstan_model(
 
 ```{r}
 #| output: false
-
 fit2 <- stanmod$sample(
   data = stan_data,
   iter_warmup = 1000,
@@ -574,7 +572,7 @@ Nel blocco `data` ci sono due elementi chiave:
 array[Nsubj] int<lower=1, upper=2> cond_by_subj;
 ```
 
-Questa è una variabile che assegna a ciascun soggetto il **numero della condizione** a cui appartiene (1 o 2). Viene derivata in R con:
+Questa è una variabile che assegna a ciascun soggetto il numero della condizione a cui appartiene (1 o 2). Viene derivata in R con:
 
 ```r
 cond_by_subj <- dat |>
@@ -595,7 +593,7 @@ array[2] real beta_mean;
 array[2] real<lower=0> beta_sd;
 ```
 
-Ci sono **due medie e due deviazioni standard** per ciascun parametro (`alpha`, `beta`), una per **ogni condizione**. Quindi:
+Ci sono due medie e due deviazioni standard per ciascun parametro (`alpha`, `beta`), una per ogni condizione. Quindi:
 
 * `alpha_mean[1]` è la media di `alpha` per i soggetti in condizione 1,
 * `alpha_mean[2]` è la media di `alpha` per i soggetti in condizione 2,
@@ -620,7 +618,7 @@ for (s in 1:Nsubj) {
 Cosa succede qui?
 
 * Per ogni soggetto `s`, si identifica a quale condizione `k` (`1` o `2`) appartiene.
-* Il valore del parametro `alpha[s]` è costruito a partire dalla **media e deviazione standard della condizione `k`**, più un termine casuale `alpha_raw[s]` (spiegato sotto).
+* Il valore del parametro `alpha[s]` è costruito a partire dalla media e deviazione standard della condizione `k`, più un termine casuale `alpha_raw[s]` (spiegato sotto).
 * Lo stesso vale per `beta[s]`.
 
 Questo approccio consente di *stabilire una distribuzione diversa dei parametri per ciascun gruppo*. In pratica, stiamo dicendo che i parametri individuali provengono da due distribuzioni differenti — una per ciascun gruppo sperimentale — e possiamo stimare separatamente le medie e le varianze di queste distribuzioni.
@@ -708,7 +706,6 @@ stan_data <- list(
 
 ```{r}
 #| output: false
-
 fit3 <- stanmod$sample(
   data = stan_data,
   iter_warmup = 1000,
@@ -799,13 +796,9 @@ ggplot(posterior_both, aes(x = value, fill = condition)) +
 
 Per entrambi i parametri (`alpha_mean` e `beta_mean`), le stime delle differenze tra le due condizioni (che possiamo definire ad esempio come "approach" e "avoidance") mostrano valori medi negativi:
 
-* **Delta alpha_mean**: -0.122
+* *Delta alpha_mean*: -0.122. Intervallo di credibilità al 95%: [-0.248, 0.004].
 
-  * Intervallo di credibilità al 95%: [-0.248, 0.004]
-
-* **Delta beta_mean**: -0.248
-
-  * Intervallo di credibilità al 95%: [-0.514, 0.017]
+* *Delta beta_mean**: -0.248. Intervallo di credibilità al 95%: [-0.514, 0.017].
 
 In entrambi i casi, l'intervallo di credibilità include lo zero. Questo significa che, *alla luce dei dati e del modello specificato, non possiamo affermare con una soglia di credibilità del 95% che vi sia una differenza sistematica tra le due condizioni* per i parametri `alpha` e `beta`.
 
@@ -873,35 +866,11 @@ summary_df |>
 
 Sulla base dell'analisi bayesiana condotta, possiamo trarre le seguenti conclusioni in merito al confronto tra le due condizioni per i parametri `alpha_mean` e `beta_mean`, che rappresentano rispettivamente il tasso di apprendimento e la coerenza nelle scelte (inverse decision noise):
 
-1. **Parametro alpha (tasso di apprendimento)**
+1. *Parametro alpha (tasso di apprendimento).* Differenza media stimata tra condizioni:  -0.122.  Questo indica che, in media, la condizione 2 mostra un tasso di apprendimento più basso rispetto alla condizione 1. Intervallo di credibilità al 95%: da -0.248 a 0.004. L'intervallo include valori positivi prossimi allo zero, suggerendo che non possiamo escludere con certezza che le condizioni abbiano valori simili, ma gran parte della massa a posteriori è sotto zero. Infatti, la probabilità a posteriori che la differenza sia < 0 è 0.971. Questo indica un forte supporto a favore dell'ipotesi che la condizione 2 abbia un tasso di apprendimento inferiore alla condizione 1.
 
-* **Differenza media stimata tra condizioni**: -0.122
+2. *Parametro beta (coerenza nelle scelte).* Differenza media stimata tra condizioni: -0.248. Ciò suggerisce che la condizione 2 mostra una tendenza a scelte più rumorose (cioè meno coerenti) rispetto alla condizione 1. Intervallo di credibilità al 95%: da -0.514 a 0.017. Anche qui l'intervallo include valori vicini a zero, ma la gran parte della distribuzione è sotto lo zero. Infatti, la probabilità a posteriori che la differenza sia < 0 è 0.967. Questo fornisce un forte supporto per l'ipotesi che nella condizione 2 le scelte siano meno coerenti (ovvero beta più bassa).
 
-  * Questo indica che, in media, la condizione 2 mostra un tasso di apprendimento più basso rispetto alla condizione 1.
-* **Intervallo di credibilità al 95%**: da -0.248 a 0.004
-
-  * L'intervallo include valori positivi prossimi allo zero, suggerendo che non possiamo escludere con certezza che le condizioni abbiano valori simili, ma gran parte della massa a posteriori è sotto zero.
-* **Probabilità a posteriori che la differenza sia < 0**: 97.1%
-
-  * Questo indica un forte supporto a favore dell'ipotesi che la condizione 2 abbia un tasso di apprendimento inferiore alla condizione 1.
-
-2. **Parametro beta (coerenza nelle scelte)**
-
-* **Differenza media stimata tra condizioni**: -0.248
-
-  * Ciò suggerisce che la condizione 2 mostra una tendenza a scelte più rumorose (cioè meno coerenti) rispetto alla condizione 1.
-* **Intervallo di credibilità al 95%**: da -0.514 a 0.017
-
-  * Anche qui l'intervallo include valori vicini a zero, ma la gran parte della distribuzione è sotto lo zero.
-* **Probabilità a posteriori che la differenza sia < 0**: 96.7%
-
-  * Questo fornisce un forte supporto per l'ipotesi che nella condizione 2 le scelte siano meno coerenti (ovvero beta più bassa).
-
-3. **Conclusione**
-
-Pur non superando la soglia convenzionale dell'intervallo credibile al 95% (entrambi gli intervalli includono zero), la *probabilità a posteriori che la differenza sia negativa è elevata (>96%)* per entrambi i parametri.
-
-Questi risultati indicano che:
+3. *Conclusione.* Pur non superando la soglia convenzionale dell'intervallo credibile al 95% (entrambi gli intervalli includono zero), la *probabilità a posteriori che la differenza sia negativa è elevata (> 0.96)* per entrambi i parametri. Questi risultati indicano che:
 
 * c'è una chiara tendenza verso un *tasso di apprendimento più basso* e una *maggiore rumore decisionale* nella *condizione 2* rispetto alla *condizione 1*;
 * la forza del supporto dipende dalla soglia soggettiva che si intende adottare (es. un ricercatore potrebbe considerare 97% sufficiente, altri potrebbero richiedere >99%).
@@ -910,7 +879,6 @@ Infine, si suggerisce di considerare la *rilevanza pratica o teorica* dell'effet
 
 
 ## Confronto tra modelli
-
 
 ```{r}
 log_lik1 <- fit1$draws(variables = "log_lik", format = "matrix")
@@ -943,26 +911,27 @@ Il Modello 1 (modello senza struttura gerarchica) ha un ELPD molto più basso (-
 
 In conclusione,
 
-* il *modello 1 è nettamente inferiore* rispetto agli altri due;
-* il *modello 3 mostra una leggera superiorità rispetto al 2*, ma la differenza non è statisticamente robusta (dato l'errore standard);
-* *in assenza di altri criteri (come semplicità o interpretabilità)*, si potrebbe preferire il modello 3 per la sua migliore performance predittiva, pur riconoscendo che il guadagno è modesto.
+* il modello 1 è nettamente inferiore rispetto agli altri due;
+* il modello 3 mostra una leggera superiorità rispetto al 2, ma la differenza non è statisticamente robusta (dato l'errore standard);
+* in assenza di altri criteri (come semplicità o interpretabilità), si potrebbe preferire il modello 3 per la sua migliore performance predittiva, pur riconoscendo che il guadagno è modesto.
 
 
 ## Riflessioni Conclusive
 
-In questo capitolo abbiamo introdotto e confrontato tre modelli bayesiani progressivamente più complessi per descrivere il processo di aggiornamento degli obiettivi nel tempo.
+In questo capitolo, abbiamo presentato un'evoluzione progressiva di tre approcci bayesiani per modellare l'aggiornamento degli obiettivi, dimostrando come la complessità strutturale possa migliorare l'analisi psicologica. Si è partiti da un modello individuale semplice per arrivare a un framework gerarchico che sfrutta le similarità tra i partecipanti e, infine, a un modello che incorpora le differenze tra le condizioni sperimentali.
 
-1) un modello a livello individuale, in cui ogni partecipante ha i propri parametri stimati separatamente;
-2) un modello gerarchico (multilevel), in cui i parametri individuali sono vincolati da distribuzioni di gruppo, favorendo stime più stabili attraverso lo shrinkage;
-3) un modello gerarchico con gruppi noti, in cui le distribuzioni dei parametri variano a seconda della condizione sperimentale (es. "approach" vs. "avoidance"), che permette di testare le differenze tra i gruppi a livello dei parametri latenti.
+L'analisi comparativa ha mostrato che la struttura gerarchica offre vantaggi sostanziali in termini di capacità predittiva, come dimostrato dai valori ELPD. Questo approccio implementa efficacemente il principio dello shrinkage, stabilizzando le stime, soprattutto quando i dati per singolo soggetto sono limitati, situazione comune nella ricerca psicologica.
 
-L’analisi ha chiaramente mostrato come l’introduzione di una struttura gerarchica migliori sensibilmente la qualità predittiva del modello (come indicato dai valori di ELPD), rispetto all’approccio che stima i parametri separatamente per ciascun individuo. Il modello gerarchico sfrutta la somiglianza tra i soggetti per regolarizzare le stime e ottenere parametri più affidabili, soprattutto in presenza di pochi dati per soggetto, condizione tipica di molti studi psicologici.
+Particolarmente illuminante è stato il modello con gruppi sperimentali che ha permesso di valutare le differenze sistematiche nei parametri cognitivi tra le varie condizioni. Sebbene gli effetti non raggiungano la significatività tradizionale, le probabilità a posteriori superiori al 96% forniscono un supporto quantificabile alle ipotesi direzionali, dimostrando la potenza dell'inferenza bayesiana nel cogliere sfumature spesso trascurate dai metodi convenzionali.
 
-Il modello con gruppi noti ha permesso di esplorare l'ipotesi che ci siano differenze tra le condizioni nel tasso di apprendimento (`alpha`) e nella coerenza decisionale (`beta`). Sebbene gli intervalli di credibilità al 95% includano lo zero, le probabilità a posteriori superiori al 96% indicano un supporto consistente a favore di un effetto negativo delle condizioni sulla media dei parametri. Questo esempio illustra il vantaggio della prospettiva bayesiana: anche in assenza di una "significatività convenzionale", è possibile quantificare il grado di supporto per ipotesi direzionali e valutare la rilevanza pratica delle stime ottenute.
+Dal punto di vista metodologico, questo percorso dimostra l'importanza di:
 
-Dal punto di vista modellistico, il confronto tra i tre approcci evidenzia l'importanza di una modellazione gerarchica e l'utilità di includere informazioni sperimentali (come l'appartenenza a gruppi) nel livello degli iperparametri. In molti contesti psicologici, infatti, i partecipanti non sono perfettamente indipendenti, ma condividono caratteristiche biologiche, cognitive e contestuali che giustificano una struttura a più livelli nei modelli inferenziali.
+- strutturare adeguatamente i modelli per riflettere le dipendenze naturali tra le osservazioni;
+- incorporare sistematicamente le informazioni sperimentali nei livelli iperparametrici.
+- bilanciare complessità e generalizzazione attraverso confronti model-based.
 
-In sintesi, l'approccio bayesiano multilevel offre un quadro flessibile e potente per modellare processi dinamici caratterizzati da variabilità interindividuale e tra gruppi. Le tecniche presentate in questo capitolo forniscono una solida base per affrontare scenari più complessi, come quelli che coinvolgono i modelli di miscela, relativi a classificazioni non note, che saranno esplorati nei capitoli successivi.
+In sintesi, il modello presentato, autoregressivo non lineare a tempo discreto e formulato in un framework bayesiano multilivello, offre una cornice flessibile per rappresentare processi dinamici che variano nel tempo, tra individui e tra gruppi definiti a priori. Le tecniche presentate in questo capitolo forniscono una solida base per affrontare scenari più complessi, come quelli relativi ai modelli di miscela per classificazioni non note [per un approfondimento, si veda il tutorial di @knight2023tutorial].
+
 
 ## Bibliografia {.unnumbered}
 
