@@ -1,0 +1,414 @@
+# Il modello di Rescorla–Wagner {#sec-dynamic-models-rescorla-wagner}
+
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+# Setup comune del manuale
+here::here("code", "_common.R") |> source()
+library(cmdstanr)
+
+# Salvagente nel caso la palette non sia definita
+if (!exists("palette_set1")) {
+  palette_set1 <- RColorBrewer::brewer.pal(3, "Set1")
+  names(palette_set1) <- c("uno", "due", "tre")
+}
+col1 <- unname(palette_set1[[1]])
+col2 <- unname(palette_set1[[2]])
+col3 <- unname(palette_set1[[3]])
+```
+
+
+Questo capitolo introduce il modello di *Rescorla–Wagner (RW)* con regola di scelta *Softmax*. Si tratta di un’estensione naturale del modello di revisione degli obiettivi discusso nel capitolo precedente. In quel modello, l’aggiornamento dell’obiettivo era un semplice *termine additivo*: ad ogni trial, la stima veniva spostata un po’ più vicino al valore osservato, con un ritmo determinato dal parametro di apprendimento.
+
+Nel modello di Rescorla–Wagner, invece, l’aggiornamento è guidato dall’*errore di predizione del rinforzo* (*reward prediction error*, RPE): la differenza tra il rinforzo ottenuto e quello atteso. Questo rende il modello più psicologicamente plausibile, perché riflette il meccanismo di apprendimento osservato in molti studi di psicologia e neuroscienze, dove le nuove informazioni vengono integrate in proporzione a quanto il risultato differisce dalle aspettative.
+
+A questa componente di apprendimento si aggiunge un *livello decisionale*: le scelte non sono deterministiche, ma seguono un compromesso tra *esplorazione* (provare alternative meno note) e *sfruttamento* (scegliere l’opzione che sembra migliore sulla base dell’esperienza). Questo equilibrio è regolato dalla *funzione Softmax*, che traduce i valori appresi ($Q$) in *probabilità di scelta*.
+
+In questo modo, il modello collega in maniera esplicita due livelli fondamentali:
+
+1. **Livello dell’apprendimento** – come i valori associati agli stimoli vengono aggiornati in base all’esperienza.
+2. **Livello decisionale** – come questi valori vengono trasformati in scelte effettive.
+
+
+## Il modello RW: formulazione
+
+Nel paradigma a due alternative (A/B), il modello mantiene una stima di valore $Q_t(s)$ per ciascuno stimolo $s \in \{A,B\}$. Dopo la scelta al tempo $t$ e l’osservazione di un esito $R_t \in \{0,1\}$, il valore si aggiorna secondo
+
+$$
+Q_{t+1}(s) = Q_t(s) + \alpha \, \delta_t, \qquad \delta_t = R_t - Q_t(s),
+$$ {#eq-rescorla-wagner-learning-rule}
+
+dove $\alpha \in (0,1)$ è la *learning rate*. È spesso utile usare due learning rate: $\alpha^+$ per gli errori positivi ($\delta_t>0$) e $\alpha^-$ per quelli negativi ($\delta_t<0$), così da rappresentare asimmetrie nell’apprendimento da ricompense e punizioni.
+
+La generazione della scelta richiede di trasformare i valori in probabilità. Con la *Softmax* si assume
+
+$$
+P(\text{scegli A} \mid Q_t) = \frac{\exp(\beta \, Q_t(A))}{\exp(\beta \, Q_t(A)) + \exp(\beta \, Q_t(B))},
+$$ {#eq-rescorla-wagner-softmax-rule}
+
+dove $\beta>0$ è il parametro di *inverse temperature*: con valori alti le scelte sono più deterministiche (sfruttamento), con valori bassi più stocastiche (esplorazione).
+
+
+::: {.callout-note title="Approfondimento: esplorazione vs. sfruttamento nella Softmax"}
+La funzione *Softmax* trasforma le stime di valore $Q$ in **probabilità di scelta**. Il parametro di *inverse temperature* $\beta$ regola quanto fortemente le differenze di valore influenzano la decisione:
+
+- **$\beta$ basso** → alta esplorazione: anche opzioni con valore inferiore vengono scelte con probabilità non trascurabile.  
+- **$\beta$ alto** → alto sfruttamento: si tende quasi sempre a scegliere l’opzione con valore maggiore.
+
+Nel grafico seguente, per due diversi valori di $\beta$, vediamo come cambia la relazione tra la differenza di valore $Q_A - Q_B$ e la probabilità di scegliere A.
+
+```{r}
+# Differenze di valore
+dq <- seq(-2, 2, length.out = 200)
+
+# Funzione Softmax per due opzioni
+softmax_prob <- function(dq, beta) {
+  exp(beta * dq) / (1 + exp(beta * dq))
+}
+
+df <- data.frame(
+  dq = rep(dq, 2),
+  prob_A = c(softmax_prob(dq, beta = 0.5),
+             softmax_prob(dq, beta = 5)),
+  beta = factor(rep(c("β = 0.5 (alta esplorazione)",
+                      "β = 5 (alto sfruttamento)"),
+                    each = length(dq)))
+)
+
+ggplot(df, aes(x = dq, y = prob_A, color = beta)) +
+  geom_line(size = 1.2) +
+  scale_color_brewer(palette = "Set1") +
+  labs(
+    x = expression(Delta*Q[A-B]),
+    y = "Probabilità di scegliere A",
+    title = "Effetto di β sul compromesso\nesplorazione/sfruttamento"
+  ) 
+```
+
+**Interpretazione del grafico:**
+
+* Se $\Delta Q = 0.5$ (l’opzione A vale leggermente più di B):
+
+  * con $\beta = 0.5$ la probabilità di scegliere A è circa **0.56**, quindi il comportamento resta molto esplorativo;
+  * con $\beta = 5$ la probabilità sale a circa **0.92**, segnalando un comportamento quasi del tutto rivolto allo sfruttamento.
+* Se $\Delta Q = 1$ (A è chiaramente migliore di B):
+
+  * con $\beta = 0.5$ la probabilità di scegliere A è circa **0.62** — ancora lontana da una scelta deterministica;
+  * con $\beta = 5$ la probabilità supera **0.99**, quindi si sceglie quasi sempre A.
+
+Questo mostra chiaramente come $\beta$ regoli il compromesso tra *esplorare* alternative e *sfruttare* la scelta più redditizia nota.
+:::
+
+
+### Identificabilità e scaling
+
+Poiché una traslazione comune $Q_t(s)+c$ non cambia le probabilità Softmax, conviene inizializzare i valori in modo simmetrico (ad es., $Q_0(A)=Q_0(B)=0.5$) e mantenere i rinforzi in $\{0,1\}$. In alternativa, si può fissare uno dei due valori iniziali o imporre vincoli su $\beta$.
+
+
+## Simulazione di dati (PRL semplificato)
+
+Simuliamo un compito *Probabilistic Reversal Learning* (PRL)^[Nel compito di *Probabilistic Reversal Learning*, al partecipante vengono presentati due o più stimoli con probabilità diverse di ottenere un rinforzo (ad esempio una ricompensa monetaria o un feedback positivo). L’obiettivo è apprendere, attraverso il feedback, quale stimolo sia più vantaggioso. A intervalli predefiniti, ma non annunciati, le probabilità di ricompensa vengono invertite (*reversal*), richiedendo al partecipante di aggiornare le proprie scelte e adattarsi alla nuova contingenza. Questo compito è ampiamente utilizzato in neuropsicologia e psichiatria per valutare la flessibilità cognitiva e la sensibilità al feedback.], con due stimoli: uno *ricco* (probabilità di ricompensa $p=0.7$) e uno *povero* (probabilità $1-p$), con una singola inversione a metà dei trial.
+
+
+```{r}
+# Simulatore RW + Softmax per compito 2AFC con una reversa
+simulate_prl_rw <- function(n_trials = 160,
+                            p_reward_rich = 0.7,
+                            reversal_trial = 80,
+                            alpha_pos = 0.15,
+                            alpha_neg = 0.10,
+                            beta = 4,
+                            Q0 = c(A = 0.5, B = 0.5),
+                            seed = 123) {
+  set.seed(seed)
+  Q <- Q0
+  choice <- integer(n_trials)
+  reward <- integer(n_trials)
+  rich_is_A <- rep(TRUE, n_trials)
+  if (!is.null(reversal_trial) && reversal_trial > 0 && reversal_trial < n_trials) {
+    rich_is_A[(reversal_trial+1):n_trials] <- FALSE
+  }
+  for (t in seq_len(n_trials)) {
+    # Probabilità di scegliere A con softmax
+    pA <- exp(beta * Q["A"]) / (exp(beta * Q["A"]) + exp(beta * Q["B"]))
+    choice[t] <- rbinom(1, 1, pA) # 1=A, 0=B
+    chosen <- if (choice[t] == 1) "A" else "B"
+    # Probabilità di ricompensa per lo stimolo scelto
+    chosen_is_rich <- (chosen == "A" && rich_is_A[t]) || (chosen == "B" && !rich_is_A[t])
+    pr <- if (chosen_is_rich) p_reward_rich else (1 - p_reward_rich)
+    reward[t] <- rbinom(1, 1, pr)
+    # Prediction error e aggiornamento
+    pe <- reward[t] - Q[chosen]
+    if (pe >= 0) {
+      Q[chosen] <- Q[chosen] + alpha_pos * pe
+    } else {
+      Q[chosen] <- Q[chosen] + alpha_neg * pe
+    }
+  }
+  tibble::tibble(
+    trial = seq_len(n_trials),
+    choice = factor(ifelse(choice == 1, "A", "B"), levels = c("A","B")),
+    reward = reward,
+    rich_is_A = rich_is_A
+  )
+}
+
+sim <- simulate_prl_rw()
+dplyr::glimpse(sim)
+```
+
+Rappresentiamo l’andamento cumulativo delle scelte *ricche* (corrette), evidenziando la reversa.
+
+```{r}
+sim_plot <- sim |>
+  dplyr::mutate(
+    rich_choice = dplyr::case_when(
+      choice == "A" & rich_is_A ~ 1L,
+      choice == "B" & !rich_is_A ~ 1L,
+      TRUE ~ 0L
+    )
+  ) |>
+  dplyr::mutate(cum_rich = cumsum(rich_choice) / dplyr::row_number())
+
+ggplot(sim_plot, aes(trial, cum_rich)) +
+  geom_line(color = col1, linewidth = 1) +
+  geom_vline(xintercept = 80, linetype = 2, linewidth = 0.6, color = col2) +
+  labs(x = "Trial", y = "Proporzione cumulativa scelte ricche",
+       title = "Andamento cumulativo e prova di reversa") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+## Stima per un singolo soggetto (MLE)
+
+Per una prima stima accessibile, usiamo la *Massima Verosimiglianza* (MLE) su $(\alpha^+,\alpha^-,\beta)$, con vincoli $\alpha^\pm \in (0,1)$, $\beta>0$ tramite trasformazioni logistiche/esponenziali.
+
+```{r}
+# Log-verosimiglianza del modello RW + Softmax (un soggetto)
+ll_rw_softmax <- function(par, data, Q0 = c(A = 0.5, B = 0.5)) {
+  a_pos <- plogis(par[1])
+  a_neg <- plogis(par[2])
+  beta  <- exp(par[3])
+  Q <- Q0
+  ll <- 0
+  for (t in seq_len(nrow(data))) {
+    pA <- exp(beta * Q["A"]) / (exp(beta * Q["A"]) + exp(beta * Q["B"]))
+    # Prob. della scelta osservata
+    p_choice <- if (data$choice[t] == "A") pA else (1 - pA)
+    p_choice <- max(p_choice, 1e-12) # stabilità numerica
+    ll <- ll + log(p_choice)
+    # Aggiornamento sullo stimolo scelto
+    chosen <- if (data$choice[t] == "A") "A" else "B"
+    pe <- data$reward[t] - Q[chosen]
+    if (pe >= 0) {
+      Q[chosen] <- Q[chosen] + a_pos * pe
+    } else {
+      Q[chosen] <- Q[chosen] + a_neg * pe
+    }
+  }
+  return(-ll) # minimizziamo
+}
+
+fit_rw_mle <- function(data, init = c(qlogis(0.2), qlogis(0.2), log(3))) {
+  opt <- optim(par = init, fn = ll_rw_softmax, data = data, method = "BFGS",
+               control = list(maxit = 500, reltol = 1e-8))
+  a_pos <- plogis(opt$par[1])
+  a_neg <- plogis(opt$par[2])
+  beta  <- exp(opt$par[3])
+  list(par = c(alpha_pos = a_pos, alpha_neg = a_neg, beta = beta),
+       value = opt$value, convergence = opt$convergence, opt = opt)
+}
+
+# Stima MLE su dati simulati
+fit_mle <- fit_rw_mle(sim)
+fit_mle$par
+```
+
+Confrontiamo i dati osservati con una simulazione *replicata* dal modello parametrizzato con le stime MLE. 
+
+```{r}
+# Simulazione "replicata" dal modello stimato (posterior predictive in chiave MLE)
+sim_rep <- simulate_prl_rw(
+  n_trials = nrow(sim),
+  p_reward_rich = 0.7,
+  reversal_trial = 80,
+  alpha_pos = fit_mle$par["alpha_pos"],
+  alpha_neg = fit_mle$par["alpha_neg"],
+  beta = fit_mle$par["beta"]
+)
+
+compare_df <- dplyr::bind_rows(
+  sim |> dplyr::mutate(source = "Osservato"),
+  sim_rep |> dplyr::mutate(source = "Replicato MLE")
+)
+
+colori_confronto <- c("Osservato" = col1, "Replicato MLE" = col2)
+
+ggplot(compare_df, aes(trial, as.numeric(choice == "A"), color = source)) +
+  stat_smooth(method = "loess", se = FALSE, linewidth = 1) +
+  geom_vline(xintercept = 80, linetype = 2, linewidth = 0.6, color = col3) +
+  scale_color_manual(values = colori_confronto, breaks = names(colori_confronto)) +
+  labs(y = "Probabilità (stimata) di scegliere A", color = NULL,
+       title = "Dati osservati vs. simulazione dal modello stimato") +
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "top")
+```
+
+## Stima Bayesiana (singolo soggetto, Stan)
+
+Per coerenza con il resto del manuale, includiamo una versione Bayesiana per singolo soggetto in Stan con prior deboli su $\alpha^\pm$ (scala logit) e $\beta$ (scala log).
+
+```{r}
+# Codice Stan per RW + Softmax a due learning rate (singolo soggetto)
+stancode_rw_single <- "
+data{
+  int<lower=1> T;                                  // numero di trial
+  array[T] int<lower=1, upper=2> choice;           // 1 = A, 2 = B
+  array[T] int<lower=0, upper=1> reward;           // 0/1 esito
+  vector[2] Q0;                                    // valori iniziali
+}
+parameters{
+  real a_pos_logit;
+  real a_neg_logit;
+  real log_beta;
+}
+transformed parameters{
+  real<lower=0, upper=1> a_pos = inv_logit(a_pos_logit);
+  real<lower=0, upper=1> a_neg = inv_logit(a_neg_logit);
+  real<lower=0> beta = exp(log_beta);
+}
+model{
+  vector[2] Q = Q0;
+
+  // prior debolmente informativi
+  a_pos_logit ~ normal(0, 1.5);
+  a_neg_logit ~ normal(0, 1.5);
+  log_beta    ~ normal(1, 1.0);
+
+  for (t in 1:T){
+    // Per due alternative, la softmax si riduce a una logistica del differenziale di valore
+    // logit(pA) = beta * (Q_A - Q_B)
+    target += bernoulli_logit_lpmf( choice[t] == 1 | beta * (Q[1] - Q[2]) );
+
+    // Aggiornamento RW sullo stimolo scelto
+    int c = choice[t];                 // 1 = A, 2 = B
+    real pe = reward[t] - Q[c];        // prediction error
+    if (pe >= 0) Q[c] += a_pos * pe;
+    else         Q[c] += a_neg * pe;
+  }
+}
+"
+```
+
+```{r}
+#| output: false
+# Preparazione dati Stan e fit
+stan_data <- list(
+  T = nrow(sim),
+  choice = ifelse(sim$choice=="A", 1L, 2L),
+  reward = sim$reward,
+  Q0 = c(0.5, 0.5)
+)
+
+mod_rw <- cmdstanr::cmdstan_model(write_stan_file(stancode_rw_single))
+fit_rw  <- mod_rw$sample(data = stan_data, chains = 4, parallel_chains = 4,
+                         iter_warmup = 1000, iter_sampling = 1000, seed = 42)
+
+```
+
+```{r}
+# Estrazione dei campioni a posteriori (solo parametri di interesse)
+draws_df <- fit_rw$draws(c("a_pos", "a_neg", "beta")) |>
+  posterior::as_draws_df() |>
+  tibble::as_tibble()
+```
+
+
+```{r}
+# helper per riuso
+plot_posterior <- function(draws, param, true, col_hex) {
+  ggplot(draws, aes(x = .data[[param]])) +
+    geom_histogram(aes(y = after_stat(density)), bins = 40,
+                   fill = col_hex, color = "black", alpha = 0.6) +
+    geom_density(color = col_hex, linewidth = 1) +
+    geom_vline(xintercept = true, color = "black", linetype = "dotted", linewidth = 1) +
+    annotate("text", x = true, y = 0, label = format(true, digits = 3),
+             vjust = -1, hjust = -0.1, size = 3) +
+    labs(x = "Valore del parametro", y = "Densità",
+         title = param) +
+    theme(plot.title = element_text(hjust = 0.5))
+}
+
+# colori dalla palette_set1
+cols <- c(
+  a_pos = unname(palette_set1[["uno"]]),
+  a_neg = unname(palette_set1[["due"]]),
+  beta  = unname(palette_set1[["tre"]])
+)
+
+# valori veri (adatta se hai simulato diversamente)
+true_vals <- c(a_pos = 0.15, a_neg = 0.10, beta = 4.0)
+
+# tre figure separate (il chunk può avere fig.height=3.5, out.width="70%")
+p_a_neg <- plot_posterior(draws_df, "a_neg", true_vals["a_neg"], cols["a_neg"])
+p_a_pos <- plot_posterior(draws_df, "a_pos", true_vals["a_pos"], cols["a_pos"])
+p_beta  <- plot_posterior(draws_df, "beta",  true_vals["beta"],  cols["beta"])
+```
+
+```{r}
+p_a_neg
+```
+
+```{r}
+p_a_pos
+```
+
+```{r}
+p_beta
+```
+
+L’ispezione delle distribuzioni a posteriori fornisce una misura intuitiva di quanto bene il modello è riuscito a recuperare i parametri generati nella simulazione.
+Nel grafico, le *linee tratteggiate verticali* rappresentano i valori veri usati per simulare i dati, mentre gli *istogrammi* mostrano la densità della distribuzione a posteriori stimata.
+
+Se la distribuzione a posteriori è *centrata* attorno al valore vero e presenta una *variabilità ridotta*, significa che il modello ha recuperato il parametro con buona precisione. Piccoli scostamenti possono derivare dalla variabilità stocastica del processo di simulazione o da *trade-off* tra parametri (ad esempio, tra `a_pos` e `beta`).
+
+In un contesto applicato, questo confronto ha una doppia utilità didattica:
+
+1. *Verifica del modello* — Permette di capire se il modello, con la struttura e i dati disponibili, può realmente identificare i parametri di interesse.
+2. *Sensibilità ai dati* — Evidenzia se alcuni parametri richiedono più dati o condizioni sperimentali specifiche per essere stimati in modo affidabile.
+
+
+## Contextual Bandits e compiti food vs. neutral
+
+La famiglia dei *banditi contestuali* estende il modello RW introducendo variabili di *contesto* che modulano le probabilità di ricompensa (o l’interpretazione degli esiti). In pratica, si stima lo stesso impianto RW + Softmax, ma consentendo a $\alpha^+,\alpha^-$ e $\beta$ di variare *per contesto* (ad es., cue alimentari vs. neutri) e, quando rilevante, *per gruppo*.
+
+Nel nostro lavoro applicativo su *decision-making specifico per il cibo nell’anoressia nervosa* — in cui due compiti PRL identici si differenziavano unicamente per il contenuto degli stimoli (blocco *neutral-only* vs. *food–neutral*) — l’approccio RW consente di verificare se i parametri di apprendimento e scelta differiscono selettivamente nel contesto alimentare [@colpizzi2025food]. In particolare, i risultati indicano che deficit di apprendimento (riduzione delle learning rate) emergono *solo* in presenza di stimoli legati al cibo, mentre le stesse persone mostrano parametri nella norma in contesti neutrali; ciò suggerisce una *specificità di contesto* e supporta interpretazioni in termini di fattori di mantenimento.
+
+
+::: {.callout-tip title="Collegamento didattico"}
+Il passaggio dal modello di revisione degli obiettivi al RW + Softmax consente di separare chiaramente *apprendimento* (come si aggiornano i valori) e *politica di scelta* (come i valori aggiornati guidano la selezione). Questa scomposizione è utile quando le differenze tra condizioni sperimentali si manifestano solo in uno dei due livelli.
+:::
+
+
+## Riflessioni conclusive {.unnumbered .unlisted}
+
+Il modello di Rescorla–Wagner con regola di scelta Softmax estende il modello di revisione degli obiettivi introducendo un *livello decisionale* che traduce i valori appresi (*Q-values*) in probabilità di scelta. Questo passaggio è cruciale perché separa due componenti fondamentali del comportamento:
+
+1. **Apprendimento dagli esiti** (*learning*), rappresentato dai parametri di aggiornamento $a_{\text{pos}}$ e $a_{\text{neg}}$, che indicano la velocità con cui il soggetto integra feedback positivi e negativi.
+2. **Selezione dell’azione** (*decision policy*), rappresentata dal parametro $\beta$, che riflette la coerenza o la “determinazione” delle scelte sulla base dei valori appresi.
+
+Questa distinzione è particolarmente rilevante negli studi clinici. Nel nostro lavoro sull’anoressia nervosa e il *probabilistic reversal learning* (PRL), abbiamo osservato che le pazienti mostrano un apprendimento ridotto solo in condizioni *food-specific*, mentre la prestazione in condizioni neutrali è simile a quella di controlli sani. Questo suggerisce che il deficit non è globale, ma legato al contenuto emotivamente saliente dello stimolo [@colpizzi2025food].
+
+Il modello RW + Softmax ci ha permesso di individuare non solo *quanto* velocemente i valori venivano aggiornati in ciascuna condizione, ma anche *come* tali valori venivano tradotti in scelte. Ad esempio, una $\beta$ elevata indica scelte più coerenti con il valore appreso, mentre una $\beta$ bassa suggerisce un comportamento più esplorativo o incoerente. Nei nostri dati, le differenze in $a_{\text{pos}}$ e $a_{\text{neg}}$ tra condizioni fornivano un quadro preciso delle difficoltà di apprendimento, mentre $\beta$ rivelava se tali difficoltà si accompagnavano a un cambiamento nello stile decisionale.
+
+Per uno psicologo, questo approccio offre due vantaggi didattici e clinici:
+
+* **Precisione teorica:** possiamo formulare ipotesi separate su meccanismi di apprendimento e politiche decisionali, anziché inferire tutto dalla sola prestazione media.
+* **Applicabilità clinica:** la scomposizione dei processi aiuta a capire se un deficit deriva da un problema nell’aggiornamento delle informazioni o da una strategia decisionale subottimale, con implicazioni per interventi mirati.
+
+In sintesi, il modello RW + Softmax non è solo un esercizio statistico: è uno strumento che consente di tradurre il comportamento osservato in indicatori psicologicamente e clinicamente interpretabili, capaci di distinguere tra deficit specifici di contesto e strategie generali di scelta.
+
+
+
+## Bibliografia {.unnumbered}
+

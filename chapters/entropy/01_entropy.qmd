@@ -20,8 +20,7 @@ Al termine di questo capitolo, sarai in grado di:
 ## Preparazione del Notebook
 
 ```{r}
-#| echo: false
-
+#| output: false
 here::here("code", "_common.R") |> 
   source()
 
@@ -76,21 +75,28 @@ huffman_encoding <- function(probabilities) {
 :::
 
 
-## Introduzione  
+## Introduzione {.unnumbered .unlisted}
 
-In questo capitolo, descriveremo il concetto di entropia, una misura fondamentale sviluppata nell'ambito della teoria dell'informazione. L'entropia ci permette di quantificare l'incertezza associata a una distribuzione di probabilità e, di conseguenza, la quantità di informazione che un evento ci fornisce.
+In questo capitolo descriveremo il concetto di **entropia**, una misura fondamentale della teoria dell'informazione. L'entropia ci permette di **quantificare l'incertezza** associata a una distribuzione di probabilità e, di conseguenza, la **quantità di informazione** che un evento ci fornisce. Prima di addentrarci nei calcoli, iniziamo con un’idea intuitiva: più un evento è imprevedibile, maggiore è l’entropia.
 
-L'entropia è legata alla nostra capacità di prevedere l'esito di un evento: più un risultato è imprevedibile, maggiore sarà l'entropia. In termini più generali, l'entropia di una variabile casuale misura quanto il valore che essa assumerà in media sia incerto o "sorprendente". Se ogni possibile esito ha la stessa probabilità di verificarsi, l'entropia sarà massima. Se invece alcuni esiti sono molto più probabili di altri, l'entropia diminuisce, poiché l'incertezza complessiva si riduce.
+::: {.callout-note title="Idea chiave"}
+L’entropia è una misura dell’**incertezza media** di un sistema:
 
-Un'intuizione sull'entropia può essere ottenuta considerando il seguente esempio. Immaginiamo un sacchetto di palline colorate. Se il sacchetto contiene solo palline di un unico colore, possiamo essere sicuri di quale pallina estrarremo ogni volta. Non c'è alcuna incertezza o sorpresa, quindi l'entropia è pari a zero. Tuttavia, se nel sacchetto ci sono palline di diversi colori in numero uguale, ogni estrazione è un'incognita: l'incertezza è massima e, di conseguenza, lo è anche l'entropia.
+* eventi **tutti ugualmente probabili** → entropia massima.
+* eventi **molto sbilanciati** nelle probabilità → entropia minore.
+:::
 
-Il concetto di entropia va ben oltre questo semplice esempio. Si applica a qualunque situazione in cui vi sia un insieme di risultati possibili con probabilità diverse. In questo capitolo ci concentreremo sul significato matematico dell'entropia, esplorando come può essere calcolata per diverse distribuzioni di probabilità e come essa sia correlata alla quantità di informazione che un sistema può fornire. Inizieremo con esempi semplici, come l'entropia di una moneta equa o di un dado, per poi passare a situazioni più complesse.
+**Esempio intuitivo**:
+
+* Sacchetto con palline tutte dello stesso colore → sappiamo già l’esito → **entropia = 0**.
+* Sacchetto con palline di più colori in pari quantità → ogni estrazione è incerta → **entropia massima**.
 
 
 ## Che cos'è l'informazione?
 
-L'informazione è solitamente misurata in bit e un bit di informazione permette di scegliere tra due alternative ugualmente probabili. Il termine bit deriva da "binary digit", ovvero "cifra binaria", che può assumere il valore 0 o 1.
+Un **bit** è la quantità di informazione necessaria per distinguere tra **due alternative ugualmente probabili**. Ogni nuova decisione binaria raddoppia le possibilità. Il logaritmo in base 2 ($\log_2$) ci dice quante decisioni binarie servono per distinguere un certo numero di alternative.
 
+::: {.callout-note title="Esempio visivo: incrocio stradale binario"}
 Per capire come l'informazione possa essere misurata in bit, consideriamo il seguente esempio. Immaginiamo di trovarci a un incrocio e di dover scegliere una strada tra due possibilità. Ogni volta che ci troviamo di fronte a un incrocio, dobbiamo prendere una decisione: andare a destra o a sinistra. Ogni decisione può essere rappresentata da un bit di informazione: 0 per la sinistra e 1 per la destra.
 
 Consideriamo il percorso con più incroci rappresentato nell'immagine seguente. Ogni percorso completo può essere codificato da una sequenza di bit, dove ogni bit corrisponde a una decisione (binaria) presa a un incrocio. Ad esempio, per raggiungere il punto D011, la sequenza di bit corretta è 011.
@@ -127,14 +133,16 @@ ggraph(graph, layout = "manual", x = positions$x, y = positions$y) +
 
 **Quanti bit sono necessari per identificare una destinazione specifica?**
  
-Ogni bit raddoppia il numero di possibili percorsi. Quindi, se abbiamo $n$ bit, possiamo identificare $2^n$ destinazioni distinte. Viceversa, se conosciamo il numero di destinazioni $m$, possiamo calcolare il numero di bit necessari utilizzando la formula:
+Ogni decisione aggiunge un bit alla sequenza che descrive il percorso.  
+Se ci sono $m$ destinazioni possibili, servono  
 
 $$
-n = \log_2 m.
-$$
+n = \log_2 m
+$$ 
+
+bit per identificarne una in modo univoco.
 
 Nel nostro esempio, abbiamo otto destinazioni finali. Pertanto, sono necessari 3 bit (3 decisioni binarie) per identificarne una in modo univoco.
-
 
 **Cosa rappresenta un bit in questo contesto?**
 
@@ -151,37 +159,40 @@ Per riassumere:
 - per rispondere alla domanda "Come si va da A a D011?", abbiamo dunque bisogno di 3 bit di informazione.
 
 In sintesi, esiste una relazione diretta tra il numero di bit di informazione e il numero di possibili destinazioni in un percorso decisionale binario. Ogni bit ci permette di scegliere tra due alternative, raddoppiando così il numero di possibili percorsi.
+:::
 
 
 ## La Sorpresa e l'Informazione di Shannon
 
-Nel primo esempio abbiamo visto che l'informazione può essere misurata in bit, dove ogni bit corrisponde a una scelta binaria che ci aiuta a raggiungere una destinazione specifica lungo un percorso. Tuttavia, la quantità di informazione può variare anche in base alla probabilità con cui si verificano determinati eventi o si fanno determinate scelte. È qui che entra in gioco il concetto di "informazione di Shannon", che prende in considerazione la sorpresa associata a un risultato.
+Ora introduciamo un ingrediente in più: **la probabilità dell’evento**. Se due eventi non sono ugualmente probabili, la “quantità di informazione” che trasmettono cambia:
 
-Immaginiamo, ad esempio, di avere una moneta che cade "testa" nel 90% dei casi. Poiché il risultato "testa" è molto probabile, non ci sorprenderemmo molto se lo ottenessimo. Al contrario, il risultato "croce", che si verifica solo nel 10% dei casi, ci sorprenderà di più. Più un risultato è improbabile, maggiore sarà la sorpresa nel vederlo.
+* evento molto probabile → poca sorpresa → poca informazione;
+* evento raro → molta sorpresa → più informazione.
 
-In termini di informazione, i risultati meno probabili forniscono più informazione perché ci sorprendono di più. Una prima idea per misurare questa sorpresa è definirla come inversamente proporzionale alla probabilità del risultato, ovvero $1/p(x)$. Tuttavia, Shannon ha dimostrato che è più utile esprimere la sorpresa come il logaritmo di $1/p(x)$. Ciò ci porta alla definizione dell'informazione di Shannon, che si misura in bit (se si utilizza il logaritmo in base 2, lo stesso utilizzato per misurare i percorsi nel primo esempio). L'informazione di Shannon per un risultato $x$ è quindi:
+Shannon definì l’**informazione** (o sorpresa) di un evento $x$ come:
 
 $$
-h(x) = \log_2 \frac{1}{p(x)} = -\log_2 p(x) \text{ bit}.
+h(x) = \log_2 \frac{1}{p(x)} = -\log_2 p(x) \text{bit}.
 $$ {#eq-surprise-shannon}
 
 In questo modo, vediamo che l'informazione associata a un evento dipende dalla sua probabilità: eventi meno probabili portano più informazione, e viceversa.
 
+Consideriamo il seguente esempio:
 
-## Sorpresa e Probabilità
+| Probabilità $p(x)$ | Sorpresa $h(x)$ [bit] |
+|----------------------|------------------------|
+| 0.5                  | 1.00                   |
+| 0.25                 | 2.00                   |
+| 0.10                 | 3.32                   |
 
-Per comprendere pienamente la sorpresa, dobbiamo conoscere le probabilità dei diversi risultati. Questo significa che l'informazione di Shannon dipende dalla distribuzione di probabilità $p(X)$ della variabile casuale $X$. In altre parole, per misurare quanta informazione otteniamo da un risultato, dobbiamo sapere quanto è probabile ciascun possibile esito.
-
-Un modo per stimare queste probabilità è osservare i risultati di un esperimento ripetuto nel tempo. Utilizzando le osservazioni, possiamo stimare la probabilità di ciascun risultato e quindi calcolare l'informazione di Shannon associata. Questo approccio ci permette di collegare il concetto di informazione misurata in bit (come nel primo esempio sugli incroci) con la sorpresa generata da eventi più o meno probabili.
+Più l’evento è raro, più alto è il numero di bit.
 
 
 ## Entropia come Media dell'Informazione di Shannon
 
-Quando si lavora con fenomeni casuali, non ci interessa solo la sorpresa associata a un singolo risultato, ma piuttosto la sorpresa media che si può ottenere considerando tutti i possibili risultati di una variabile. Questa sorpresa media è chiamata "entropia" e si indica con $H(X)$. L'entropia fornisce una misura della quantità di incertezza (o informazione potenziale) contenuta in una variabile casuale $X$ la cui distribuzione di probabilità è data da $p(X)$.
+Finora abbiamo parlato di sorpresa di un singolo evento. Ma in un sistema, vogliamo misurare la **sorpresa media** considerando *tutti* i possibili esiti → **questa è l’entropia**.
 
-L'entropia rappresenta quindi la quantità media di informazione che si ottiene osservando i risultati della variabile $X$. Se, per esempio, lanciamo una moneta molte volte, l'entropia della distribuzione dei risultati riflette la media delle informazioni di Shannon ottenute da ciascun lancio. In altre parole, ci dice quanto ci si può aspettare di "imparare" in media da ogni lancio.
-
-Matematicamente, l'entropia può essere approssimata dalla media delle informazioni di Shannon associate a ciascun possibile risultato  $x_i$:
+Matematicamente, l’**entropia** è la **media pesata** della sorpresa di tutti i possibili esiti di una variabile casuale $X$:
 
 $$
 H(X) \approx \frac{1}{n} \sum_{i=1}^{n} h(x_i).
@@ -189,83 +200,130 @@ $$ {#eq-surprise-shannon}
 
 In questa formula, $h(x_i)$ rappresenta l'informazione di Shannon di un singolo risultato $x_i$, come discusso in precedenza. L'entropia, quindi, non si riferisce a un evento specifico, ma alla sorpresa media che ci si aspetta quando si osserva ripetutamente una variabile casuale. Più la distribuzione delle probabilità dei risultati è equilibrata (per esempio, se tutti i risultati sono ugualmente probabili), maggiore sarà l'entropia, perché ciascun risultato fornirà una quantità simile di informazione. Al contrario, se alcuni risultati sono molto più probabili di altri (per esempio, una moneta truccata che dà quasi sempre "testa"), l'entropia sarà minore, perché si otterrà meno informazione da ogni osservazione.
 
+- **Entropia alta** → distribuzione uniforme → alta imprevedibilità.  
+- **Entropia bassa** → distribuzione sbilanciata → prevedibilità maggiore.
 
-::: {#exm-entropy-balanced-coin}
-Se una moneta è equa, allora $p(x_h) = 0.5$ e la sorpresa di osservare una testa è
 
-$$
-\begin{align}
-h(x_h) &= \log_2 \frac{1}{p(x_h)} \notag\\ 
-       &= \log_2(1/0.5) = 1 \text{ bit}.\notag
-\end{align}
-$$
+```{r}
+p_vals <- seq(0.001, 1, by = 0.001)
+surprise <- -log2(p_vals)
 
-Dato che $p(x_t) = 0.5$, la sorpresa di osservare una testa (o una croce) è di un bit.
+ggplot(data.frame(p = p_vals, h = surprise), aes(x = p, y = h)) +
+  geom_line(color = "blue", size = 1) +
+  labs(
+    title = "Sorpresa di Shannon in funzione della probabilità",
+    x = "Probabilità dell'evento p(x)",
+    y = "Sorpresa h(x) [bit]"
+  ) 
+```
 
-Possiamo trovare la sorpresa media lanciando la moneta, diciamo, 100 volte, misurando la sorpresa di ogni risultato e poi calcolando la media dei 100 risultati. Se lanciamo una moneta 100 volte, ci aspettiamo di osservare testa circa 50 volte e croce circa 50 volte. Se osserviamo esattamente 50 teste e 50 croci, la quantità media di sorpresa diventa
-
-$$
-\begin{align}
-H(X) &= \frac{1}{100} \left( \sum_{i=1}^{50} \log_2 \frac{1}{p(x_h)} + \sum_{i=1}^{50} \log_2 \frac{1}{p(x_t)} \right)\notag\\ 
-&=1 \text{ bit per lancio della moneta}\notag.
-\end{align}
-$$
-
-In sintesi, poiché la quantità di sorpresa o informazione di Shannon fornita dall'osservazione del risultato di ogni lancio di questa moneta equa è di un bit, ne segue che l'informazione media $H(X)$ di ogni lancio è anch'essa di un bit.
+::: callout-note
+**Interpretazione rapida:** l’entropia è il numero medio di bit necessari per descrivere un’osservazione di $X$.
 :::
 
 
-## Interpretazione dell'entropia (1)
+## Interpretazione dell'entropia
 
-Se consideriamo una distribuzione di probabilità uniforme, una variabile con entropia $H(X)$ espressa in bit fornisce un'informazione sufficiente (nel senso della teoria dell'informazione di Shannon) per distinguere tra $m = 2^(H(X))$ alternative ugualmente probabili. In altre parole, l'entropia misura la quantità di informazione contenuta in una variabile, esprimendola in termini del numero di scelte ugualmente probabili possibili per quella variabile.
+Ora diamo significato al numero che otteniamo. L’entropia espressa in bit è la quantità di informazione che serve per distinguere tra $m = 2^{H(X)}$ alternative ugualmente probabili.
+
+Se consideriamo una distribuzione di probabilità uniforme, una variabile con entropia $H(X)$ espressa in bit fornisce un'informazione sufficiente (nel senso della teoria dell'informazione di Shannon) per distinguere tra $m = 2^{(H(X))}$ alternative ugualmente probabili. In altre parole, l'entropia misura la quantità di informazione contenuta in una variabile, esprimendola in termini del numero di scelte ugualmente probabili possibili per quella variabile.
 
 
-::: {#exm-entropy-unbalanced-coin}
-Una moneta sbilanciata ha una quantità media di informazione (o incertezza) inferiore rispetto a una moneta equa. 
+::: {#exercise-entropy-interpretation .callout .exercise collapse="true" collapsed="true"}
+#### Esercizio — Interpretazione dell'entropia.
 
-La sorpresa associata a testa è:
+**1. Caso di riferimento: moneta equa.**
+
+Se una variabile casuale può assumere due valori **ugualmente probabili**, come una moneta equa con
+$p(\text{testa}) = p(\text{croce}) = 0.5$, la sua entropia è:
 
 $$
-h(\text{testa}) = \log\left(\frac{1}{0.9}\right) = 0.15 \text{ bit},
+H(X) = 0.5 \log_2\frac{1}{0.5} + 0.5 \log_2\frac{1}{0.5}
+      = 0.5 \times 1 + 0.5 \times 1
+      = 1 \ \text{bit}.
 $$
 
-mentre la sorpresa associata a croce è maggiore:
+Questo è il **valore massimo** di entropia per una variabile con due soli esiti: 1 bit è l’informazione necessaria per distinguere tra due alternative equiprobabili.
+
+
+**2. Moneta sbilanciata: singolo lancio.**
+
+Quando la moneta è sbilanciata, l’informazione media diminuisce.
+Supponiamo $p(\text{testa}) = 0.9$ e $p(\text{croce}) = 0.1$.
+
+La **sorpresa** associata a ciascun esito è:
 
 $$
-h(\text{croce}) = \log\left(\frac{1}{0.1}\right) = 3.32 \text{ bit}.
+h(\text{testa}) = \log_2\frac{1}{0.9} \approx 0.15 \ \text{bit},
 $$
+
+$$
+h(\text{croce}) = \log_2\frac{1}{0.1} \approx 3.32 \ \text{bit}.
+$$
+
+Pesando queste sorprese con le rispettive probabilità otteniamo l’entropia media:
+
+$$
+H(X) = 0.9 \times 0.15 + 0.1 \times 3.32 \approx 0.469 \ \text{bit}.
+$$
+
+Questa entropia è **inferiore a 1 bit**, nonostante l’esito raro (“croce”) sia molto più sorprendente di quello di una moneta equa.
+In generale, **nessuna moneta sbilanciata** può avere un’entropia media superiore a quella di una moneta equa.
+
+
+**3. Più lanci: interpretazione pratica.**
+
+Se lanciamo questa moneta 1000 volte, l’informazione totale prodotta sarà:
+
+$$
+1000 \times 0.469 \approx 469 \ \text{bit}.
+$$
+
+Quindi, rispetto alla moneta equa (1000 bit), otteniamo meno della metà dell’informazione.
+
+
+**4. Numero equivalente di alternative equiprobabili.**
+
+L’entropia può essere anche interpretata come il **numero equivalente di alternative tutte equiprobabili**:
+
+$$
+m = 2^{H(X)} = 2^{0.469} \approx 1.38.
+$$
+
+Questo **non significa** che esista un dado fisico con 1.38 facce: è solo un modo per dire che la quantità di incertezza media di questa moneta è la stessa di una variabile che può assumere circa 1.38 valori tutti con la stessa probabilità.
+
+
+```{r}
+# Funzione per calcolare l'entropia di una moneta
+entropy_coin <- function(p) {
+  ifelse(p == 0 | p == 1, 0,
+         -p * log2(p) - (1 - p) * log2(1 - p))
+}
+
+# Sequenza di probabilità
+p_values <- seq(0, 1, by = 0.01)
+H_values <- entropy_coin(p_values)
+
+# Dati per i punti di esempio
+points_df <- data.frame(
+  p = c(0.5, 0.9),
+  H = entropy_coin(c(0.5, 0.9)),
+  label = c("Moneta equa\nH=1 bit", "Moneta sbilanciata\nH=0.469 bit")
+)
+
+# Grafico
+ggplot(data.frame(p = p_values, H = H_values), aes(x = p, y = H)) +
+  geom_line(color = "blue", size = 1) +
+  geom_point(data = points_df, aes(x = p, y = H), color = "red", size = 3) +
+  geom_text(data = points_df, aes(label = label), vjust = -1, hjust = 0.5) +
+  labs(
+    title = "Entropia di una moneta in funzione di p(testa)",
+    x = expression(paste("Probabilità di testa, ", p)),
+    y = "Entropia H(X) [bit]"
+  )
+```
+
 :::
-
-
-## Interpretazione dell'Entropia (2)
-
-Se immaginiamo di lanciare la moneta molte volte, la sorpresa media o entropia di questa moneta, considerando $p(\text{testa}) = 0,9$ e $p(\text{croce}) = 0,1$, è:
-
-$$H(X) = 0.9 \log_2 \frac{1}{0.9} + 0.1 \log_2 \frac{1}{0.1} = 0.469 \text{ bit per lancio}.$$
-
-L'incertezza media di questa moneta sbilanciata è dunque inferiore a quella di una moneta equa (che ha un'entropia di 1 bit), anche se l'incertezza associata all'esito meno probabile (croce) è maggiore (3.32 bit) rispetto a quella di una moneta equa (1 bit). In generale, nessuna moneta sbilanciata può avere un'entropia media maggiore di quella di una moneta equa.
-
-Poiché $p(\text{testa}) = 0.9$ e $p(\text{croce}) = 0.1$, la formula dell'entropia può essere scritta come:
-
-$$
-H(X) = p(\text{testa}) \log\left(\frac{1}{p(\text{testa})}\right) + p(\text{croce}) \log\left(\frac{1}{p(\text{croce})}\right) = 0.469 \text{ bit per lancio}.
-$$
-
-Per semplificare ulteriormente, possiamo rappresentare l'entropia sommando i due possibili esiti (testa e croce):
-
-$$
-H(X) = \sum_{i=1}^{2} p(x_i) \log\left(\frac{1}{p(x_i)}\right) = 0.469 \text{ bit per lancio}.
-$$
-
-Questa entropia di 0.469 bit implica che l'informazione contenuta in 1000 lanci di questa moneta potrebbe essere rappresentata utilizzando solo 469 bit binari, ovvero $1000 \times 0.469$. 
-
-Possiamo interpretare questo risultato considerando l'entropia in termini di numero di alternative ugualmente probabili. La variabile $X$, che rappresenta il lancio della moneta, può essere vista come equivalente a una variabile che può assumere i valori:
-
-$$
-m = 2^{H(X)} = 2^{0.469} \approx 1.38 \text{ valori equiprobabili}.
-$$
-
-A prima vista, questo risultato può sembrare strano, dato che stiamo considerando una moneta che ha solo due esiti possibili. Tuttavia, interpretare l'entropia in termini di un numero equivalente di valori ugualmente probabili ci fornisce un'intuizione sull'informazione rappresentata da una variabile. Un modo per comprendere questo concetto è immaginare che una moneta con entropia $H(X) = 0.469$ bit abbia la stessa quantità di incertezza di un ipotetico dado con 1.38 facce.
 
 
 ## Caratteristiche dell'entropia
@@ -274,13 +332,12 @@ A prima vista, questo risultato può sembrare strano, dato che stiamo consideran
 
 - *Entropia minima:* l'entropia è minima quando l'esito di un evento è completamente certo (con probabilità pari a 1) o impossibile (con probabilità pari a 0). In questi casi, non c'è incertezza né sorpresa, quindi non c'è alcuna informazione aggiuntiva da ottenere osservando il risultato.
 
-
-### Additività dell'entropia per eventi indipendenti
-
-L'entropia è additiva nel caso di eventi indipendenti. Ciò significa che, se si verificano due o più eventi indipendenti, l'entropia totale della loro combinazione è pari alla somma delle entropie di ciascun evento considerato singolarmente. Questa proprietà deriva dall'additività dei logaritmi che permette di sommare le entropie individuali per ottenere l'entropia complessiva.
+- *Additività dell'entropia per eventi indipendenti:* l'entropia è additiva nel caso di eventi indipendenti. Ciò significa che, se si verificano due o più eventi indipendenti, l'entropia totale della loro combinazione è pari alla somma delle entropie di ciascun evento considerato singolarmente. Questa proprietà deriva dall'additività dei logaritmi che permette di sommare le entropie individuali per ottenere l'entropia complessiva.
 
 
-## Stimare l'Entropia da una Distribuzione di Probabilità
+## Stimare l'entropia 
+
+### Stimare l'entropia da una distribuzione di probabilità
 
 Consideriamo una variabile casuale discreta $X$, che rappresenta una serie di eventi distinti, ciascuno con una probabilità associata. Per una variabile discreta $X$ con possibili valori $x_1, x_2, \dots, x_n$ e una funzione di massa di probabilità $p(x) = \Pr\{X = x\}$, l'entropia $H(X)$ misura l'incertezza complessiva associata a questa distribuzione di probabilità e si calcola con la formula:
 
@@ -297,7 +354,9 @@ Ogni termine della somma, $-p(x) \log_2 p(x)$, esprime la quantità di informazi
 In sintesi, l'entropia $H(X)$ misura l'incertezza complessiva associata alla distribuzione di probabilità di una variabile casuale discreta $X$. Essa quantifica la sorpresa media che ci si può aspettare quando si osserva un evento estratto casualmente da questa collezione.
 
 
-::: {#exm-}
+::: {#exercise-entropyunbalanced-coin .callout .exercise collapse="true" collapsed="true"}
+#### Esercizio — Entropia di un dado con otto facce.
+
 Supponiamo di avere un dado con otto facce. Ci sono $m = 8$ esiti possibili:
 
 $$
@@ -327,7 +386,9 @@ $$
 esiti equiprobabili.
 ::: 
 
-::: {#exm-}
+::: {#exercise-entropy-discrete-rv .callout .exercise collapse="true" collapsed="true"}
+#### Esercizio — Entropia di un variabile casuale discreta.
+
 Sia $X$ una variabile casuale discreta che può assumere i valori $a, b, c,$ e $d$ con una distribuzione di probabilità di massa $p(a) = \frac{1}{2}$, $p(b) = \frac{1}{4}$, $p(c) = \frac{1}{8}$, e $p(d) = \frac{1}{8}$, rispettivamente. L'entropia di $X$, che misura l'incertezza associata alla distribuzione di probabilità, è calcolata come:
 
 $$
@@ -344,11 +405,13 @@ $$
 :::
 
 
-## Stimare l'Entropia in un Campione di Osservazioni
+### Stimare l'entropia in un campione di osservazioni
 
 L'entropia può essere calcolata non solo per distribuzioni teoriche, ma anche per campioni di dati osservati. In questo caso, l'entropia fornisce una misura di quanto la distribuzione dei valori all'interno del campione sia incerta o imprevedibile.
 
-::: {#exm-}
+::: {#exercise-entropy-sample-obs .callout .exercise collapse="true" collapsed="true"}
+#### Esercizio — Entropia di un campione di osservazioni.
+
 Per comprendere meglio questo concetto, possiamo calcolare l'entropia associata a insiemi di osservazioni. Consideriamo i due vettori seguenti: 
 
 $$
@@ -391,7 +454,7 @@ Entrambi i vettori hanno la stessa entropia di 1.8776 bit.
 :::
 
 
-## Entropia di una Variabile Casuale Continua
+## Entropia di una variabile casuale continua
 
 Nel caso delle variabili casuali continue, il concetto di entropia viene generalizzato sostituendo la somma con un integrale. Questo è necessario perché le variabili continue possono assumere un numero infinito di valori all'interno di un intervallo.
 
@@ -407,8 +470,6 @@ dove:
 L'entropia di una variabile casuale continua fornisce una misura dell'incertezza o della sorpresa associata alla distribuzione della variabile. Come nel caso discreto, l'entropia continua quantifica l'incertezza associata a $X$. Una PDF molto concentrata (ad esempio, una distribuzione con picchi stretti) implica bassa entropia, poiché l'evento è più prevedibile. Una PDF distribuita uniformemente implica alta entropia, poiché l'evento è meno prevedibile.
 
 Il segno negativo assicura che l'entropia sia una quantità positiva, in quanto $\log_2(p(x))$ è negativo per $p(x)$ compreso tra 0 e 1.
-
-Esempi relativi al calcolo dell'entropia nel caso di variabili continue sono fornite nel @sec-entropy-rv-cont.
 
 
 ## La codifica di Huffman
@@ -482,12 +543,14 @@ Notiamo che:
 * È una *codifica prefissa*: nessun codice è l’inizio di un altro. Questo rende la decodifica univoca e automatica.
 
 
-## L'entropia come lunghezza media del codice binario
+### L'entropia come lunghezza media del codice binario
 
 L'entropia può essere interpretarla come *la quantità media di informazione* che riceviamo quando osserviamo il valore di una variabile casuale. In pratica, rappresenta *la lunghezza media più breve* (in bit) che possiamo usare per codificare gli esiti di quella variabile, tenendo conto delle loro probabilità.
 
 
-::: {#exm-}
+::: {#exercise-entropy-huffman .callout .exercise collapse="true" collapsed="true"}
+#### Esercizio — Entropia e codifica di Huffman.
+
 Supponiamo di avere una variabile casuale $X$ che può assumere quattro valori: $A$, $B$, $C$, e $D$, con le seguenti probabilità:
 
 * $p(A) = 0.4$
@@ -588,12 +651,13 @@ In sintesi:
 * in questo modo, l'entropia ci offre un criterio per valutare *quanto efficiente* è una codifica: *più la lunghezza media si avvicina all'entropia, più è efficiente*.
 :::
 
-## Applicazioni Psicologiche
+
+## Applicazioni psicologiche
 
 Un esempio di applicazione dell'entropia dell'informazione in psicologia riguarda l'effetto della sorpresa nello studio dell'umore. La sorpresa, o entropia, è stata documentata sia in laboratorio che in contesti naturali come un fattore in grado di influenzare le emozioni. Ad esempio, @spector1956expectations ha osservato l'effetto della probabilità a priori sulla soddisfazione dei soggetti in risposta a una promozione lavorativa. I risultati indicano che gli esiti meno probabili a priori (e quindi più sorprendenti quando si verificano) hanno un impatto maggiore sull'umore. In altre parole, quando un evento inatteso e sorprendente si verifica, tende a influenzare l'umore in modo più forte rispetto agli eventi previsti e probabili.
 
 
-## Riflessioni Conclusive
+## Riflessioni conclusive {.unnumbered .unlisted} 
 
 In questo capitolo abbiamo introdotto il concetto di *entropia* come misura dell’incertezza associata a una variabile casuale. Attraverso esempi concreti – dalla moneta al dado, fino alla codifica di Huffman – abbiamo visto come l’entropia permetta di quantificare la *sorpresa media* di un sistema, e come questa sorpresa sia strettamente legata alla *quantità media di informazione* necessaria per rappresentare un evento.
 
@@ -614,11 +678,11 @@ Concludiamo con una nota filosofica. La celebre osservazione di @eckhardt2012par
 Questa immagine della *risonanza* come effetto dell’informazione sul ricevente ci invita a *non ridurre l’informazione al solo contenuto numerico o simbolico*. Nei modelli psicologici – specialmente in quelli predittivi – è fondamentale ricordare che *l’interpretabilità e il significato dell’informazione* dipendono anche dal contesto umano e cognitivo in cui essa è ricevuta. Nel valutare i modelli, dunque, dovremo considerare non solo quanto bene il modello predice, ma anche *cosa ci dice sul fenomeno*, quanto è interpretabile, e in che misura *risuona* con le domande psicologiche che ci poniamo.
 
 
-## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered .unlisted} 
 
 ```{r}
 sessionInfo()
 ```
 
-## Bibliografia {.unnumbered}
+## Bibliografia {.unnumbered .unlisted}
 

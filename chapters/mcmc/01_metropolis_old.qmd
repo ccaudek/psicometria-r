@@ -3,11 +3,11 @@
 ::: callout-note  
 ## In questo capitolo imparerai a 
 
-- utilizzare metodi Monte Carlo per stimare valori attesi e probabilità, evitando calcoli integrali complessi;
-- comprendere il ruolo delle catene di Markov nel campionamento dalla distribuzione a posteriori;
-- implementare l'algoritmo di Metropolis per il campionamento a posteriori;
-- valutare la convergenza delle catene con strumenti diagnostici come trace plot e autocorrelazione;
-- gestire la fase di burn-in e utilizzare più catene per garantire stazionarietà e ridurre l'autocorrelazione.
+- utilizzare metodi Monte Carlo per stimare valori attesi e probabilità, evitando calcoli integrali complessi
+- comprendere il ruolo delle catene di Markov nel campionamento dalla distribuzione a posteriori
+- implementare l'algoritmo di Metropolis per il campionamento a posteriori.  
+- valutare la convergenza delle catene con strumenti diagnostici come trace plot e autocorrelazione 
+- gestire la fase di burn-in e utilizzare più catene per garantire stazionarietà e ridurre l'autocorrelazione  
 :::  
 
 ::: callout-tip
@@ -20,13 +20,12 @@
 ## Preparazione del Notebook
 
 ```{r}
-#| output: false
 here::here("code", "_common.R") |> 
   source()
 
 # Load packages
 if (!requireNamespace("pacman")) install.packages("pacman")
-pacman::p_load(cmdstanr, reshape2)
+pacman::p_load(cmdstanr)
 ```
 :::
 
@@ -40,7 +39,7 @@ Nelle lezioni precedenti abbiamo esaminato diversi esempi di inferenza bayesiana
 
 Questi approcci risultano efficaci per modelli elementari, ma diventano rapidamente impraticabili al crescere della complessità del modello o del numero di parametri. In tali situazioni, è necessario adottare metodi più flessibili ed efficienti.
 
-In questo capitolo introdurremo una tecnica fondamentale per l'inferenza bayesiana moderna: il *Metodo Monte Carlo a Catena di Markov (MCMC)*.
+In questo capitolo introdurremo una tecnica fondamentale per l'inferenza bayesiana moderna: il **Metodo Monte Carlo a Catena di Markov (MCMC)**.
 
 
 ## L'obiettivo del metodo MCMC
@@ -56,7 +55,7 @@ L'idea di base è la seguente:
 
 ## Una differenza importante rispetto ai metodi precedenti
 
-A differenza dei metodi visti finora, i campioni prodotti da MCMC *non sono indipendenti*: ciascun campione dipende dal campione precedente. In altre parole, il processo di campionamento segue una **catena di Markov**, in cui la generazione del valore successivo si basa unicamente sul valore corrente, senza dipendere dall'intera storia precedente.
+A differenza dei metodi visti finora, i campioni prodotti da MCMC **non sono indipendenti**: ciascun campione dipende dal campione precedente. In altre parole, il processo di campionamento segue una **catena di Markov**, in cui la generazione del valore successivo si basa unicamente sul valore corrente, senza dipendere dall'intera storia precedente.
 
 Questa dipendenza introduce una **correlazione** tra i campioni successivi:
 
@@ -203,64 +202,47 @@ Sfruttando le proprietà delle distribuzioni coniugate, possiamo calcolare esatt
 Nella figura seguente, è rappresentata la distribuzione a posteriori del parametro $\theta$, insieme alla distribuzione a priori specificata.
 
 ```{r}
-# Sequenza per θ
+# Generiamo la sequenza dei valori per θ
 x <- seq(0, 1, length.out = 1000)
 
-# Densità prior e posterior
-prior_density     <- dbeta(x, 4, 6)
+# Calcoliamo le densità della prior e della posterior
+prior_density <- dbeta(x, 4, 6)
 posterior_density <- dbeta(x, 18, 92)
 
-# Dati per il grafico
+# Creare un dataframe contenente i dati per il grafico
 df <- data.frame(
   x = x,
   prior = prior_density,
   posterior = posterior_density
 )
 
-# Lungo
-df_long <- reshape2::melt(
-  df,
-  id.vars = "x",
-  measure.vars = c("prior", "posterior"),
-  variable.name = "distribuzione",
-  value.name = "densita"
-)
+# Convertiamo i dati in formato "lungo" per facilitare la visualizzazione con ggplot2
+df_long <- reshape2::melt(df, id.vars = "x", 
+                          measure.vars = c("prior", "posterior"),
+                          variable.name = "distribuzione", value.name = "densita")
 
-# Fattorizziamo con levels e labels espliciti
-df_long <- dplyr::mutate(
-  df_long,
-  distribuzione = factor(
-    distribuzione,
-    levels = c("prior", "posterior"),
+# Creare il grafico con ggplot2
+ggplot(df_long, aes(x = x, y = densita, fill = distribuzione)) +
+  geom_line(aes(color = distribuzione), size = 1) +  # Aggiungere le linee per le distribuzioni
+  geom_area(aes(fill = distribuzione), alpha = 0.5, position = "identity") +  # Aggiungere le aree sotto le curve
+  scale_fill_manual(
+    values = c("prior" = adjustcolor(okabe_ito_palette[1], alpha.f = 0.5), 
+               "posterior" = adjustcolor(okabe_ito_palette[2], alpha.f = 0.5)),
     labels = c("Prior: Beta(4, 6)", "Posterior: Beta(18, 92)")
-  )
-)
-
-if (!exists("palette_set1")) {
-  palette_set1 <- RColorBrewer::brewer.pal(3, "Set1")
-  names(palette_set1) <- c("uno","due","tre")
-}
-
-cols <- c(
-  "Prior: Beta(4, 6)"       = unname(palette_set1[[1]]),
-  "Posterior: Beta(18, 92)" = unname(palette_set1[[2]])
-)
-
-# Grafico
-ggplot(df_long, aes(x = x, y = densita)) +
-  geom_line(aes(color = distribuzione), linewidth = 1) +
-  geom_area(aes(fill = distribuzione), alpha = 0.35, position = "identity") +
-  scale_color_manual(values = cols, breaks = names(cols), labels = names(cols)) +
-  scale_fill_manual(values = cols,  breaks = names(cols), labels = names(cols)) +
+  ) +
+  scale_color_manual(
+    values = c("prior" = okabe_ito_palette[1], "posterior" = okabe_ito_palette[2]),
+    labels = c("Prior: Beta(4, 6)", "Posterior: Beta(18, 92)")
+  ) +
   labs(
-    title = "Densità a priori e a posteriori",
-    x = "Valore del parametro",
+    title = "Densità a Priori e a Posteriori",
+    x = "Valore del Parametro",
     y = "Densità",
-    color = NULL, fill = NULL
+    fill = NULL, color = NULL
   ) +
   theme(
-    plot.title = element_text(hjust = 0.5),
-    legend.position = "top"
+    plot.title = element_text(hjust = 0.5),  # Centrare il titolo
+    legend.position = "top"  # Posizionare la legenda in alto
   )
 ```
 
@@ -540,45 +522,23 @@ tibble(
 Sovrapponiamo la distribuzione analitica $\text{Beta}(18, 92)$ all'istogramma dei campioni post-burn-in:
 
 ```{r}
-# Se per qualche motivo non è stato caricato _common.R:
-if (!exists("palette_set1")) {
-  palette_set1 <- RColorBrewer::brewer.pal(3, "Set1")
-  names(palette_set1) <- c("uno", "due", "tre")
-}
-
-# Mappa colori coerente con la figura precedente
-colori_grafico <- c(
-  "Istogramma MCMC" = unname(palette_set1[[1]]),
-  "Beta(18, 92)"    = unname(palette_set1[[2]])
-)
-
 tibble(Theta = post_burnin_samples) |> 
-  ggplot(aes(x = Theta)) +
-  geom_histogram(
-    aes(y = after_stat(density), fill = "Istogramma MCMC"),
-    bins = 30, 
-    color = "black", 
-    alpha = 0.7
-  ) + 
-  stat_function(
-    aes(color = "Beta(18, 92)"),
-    fun = dbeta,
-    args = list(shape1 = 18, shape2 = 92), 
-    linewidth = 1.2
-  ) + 
-  labs(
-    title = "Istogramma e distribuzione a posteriori",
-    x = expression(theta),
-    y = "Densità",
-    fill = "Distribuzione", 
-    color = "Distribuzione"
-  ) +
-  scale_fill_manual(values = colori_grafico, breaks = names(colori_grafico)) +
-  scale_color_manual(values = colori_grafico, breaks = names(colori_grafico)) +
-  theme(
-    plot.title = element_text(hjust = 0.5),
-    legend.position = "top"
-  )
+ggplot(aes(x = Theta)) +
+  geom_histogram(aes(y = after_stat(density), fill = "Istogramma MCMC"),
+                 bins = 30, 
+                 color = "black", 
+                 alpha = 0.7) + 
+  stat_function(aes(color = "Beta(18, 92)"),
+                fun = dbeta, # Specifica la funzione da disegnare (densità Beta)
+                args = list(shape1 = 18, shape2 = 92), 
+                linewidth = 1.2) + 
+  labs(title = "Istogramma e Distribuzione Posteriori",
+       x = expression(theta),
+       y = "Densità",
+       fill = "Distribuzione", 
+       color = "Distribuzione") +
+  scale_fill_manual(values = c("Istogramma MCMC" = okabe_ito_palette[1])) +
+  scale_color_manual(values = c("Beta(18, 92)" = okabe_ito_palette[2]))
 ```
 
 Calcoliamo l'intervallo di credibilità al 94%:
@@ -904,14 +864,14 @@ for (i in seq_len(nsamp)) { ... }
 - Dopo un po’, **i valori salvati** formeranno un disegno della distribuzione plausibile di $\mu$.
 
 
-** Riassunto in 3 frasi:**
+**🎯 Riassunto in 3 frasi:**
 
 - 1. Partiamo da un valore sospettato di $\mu$.
 - 2. Facciamo piccoli passi casuali e decidiamo se accettarli in base a quanto sono "buoni" rispetto ai dati + prior.
 - 3. Dopo molti passi, la sequenza dei punti disegna la distribuzione a posteriori di $\mu$.
 
 
-** Dopo il sampling:**
+**📈 Dopo il sampling:**
 
 - possiamo **calcolare la media** dei campioni = stima puntuale di $\mu$;
 - possiamo **costruire un intervallo di credibilità** = incertezza su $\mu$;
@@ -999,12 +959,6 @@ std_post
 Visualizziamo i risultati con un istogramma dei campioni MCMC e la curva della distribuzione analitica:
 
 ```{r}
-# Assicuriamoci che palette_set1 sia disponibile
-if (!exists("palette_set1")) {
-  palette_set1 <- RColorBrewer::brewer.pal(3, "Set1")
-  names(palette_set1) <- c("uno", "due", "tre")
-}
-
 # Campioni post burn-in
 burnin <- floor(length(samples) * 0.5)
 post_samples <- samples[-seq_len(burnin)]
@@ -1013,32 +967,12 @@ post_samples <- samples[-seq_len(burnin)]
 x <- seq(mu_post - 4 * std_post, mu_post + 4 * std_post, length.out = 1000)
 analytical_posterior <- dnorm(x, mean = mu_post, sd = std_post)
 
-# Colori coerenti con la palette
-colore_hist <- unname(palette_set1[[1]])  # es. blu Set1
-colore_line <- unname(palette_set1[[2]])  # es. rosso Set1
-
 # Creazione del grafico
 ggplot() +
-  geom_histogram(
-    aes(x = post_samples, y = after_stat(density)),
-    bins = 30,
-    fill = colore_hist,
-    alpha = 0.4
-  ) +
-  geom_line(
-    aes(x = x, y = analytical_posterior),
-    color = colore_line,
-    linewidth = 1
-  ) +
-  labs(
-    title = "Distribuzione a posteriori: MCMC vs analitico",
-    x = expression(mu),
-    y = "Densità"
-  ) +
-  theme(
-    plot.title = element_text(hjust = 0.5),
-    legend.position = "top"
-  )
+  geom_histogram(aes(x = post_samples, y = after_stat(density)), bins = 30, fill = "blue", alpha = 0.4) +
+  geom_line(aes(x = x, y = analytical_posterior), color = "red", size = 1) +
+  labs(title = "Distribuzione Posterior: MCMC vs Analitico",
+       x = expression(mu), y = "Densità") 
 ```
 
 Troviamo le proprietà del Posterior derivato con MCMC:
@@ -1052,7 +986,6 @@ sd(samples)
 ```
 
 In conclusione, questo esempio illustra l'applicazione dell'algoritmo di Metropolis per la stima di una distribuzione a posteriori nel caso Normale-Normale e dimostra come confrontare i risultati del campionamento con la soluzione analitica, confermando così la coerenza tra le due approcci.
-
 
 ## Riflessioni Conclusive
 
