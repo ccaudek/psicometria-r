@@ -35,7 +35,7 @@ Nei capitoli precedenti abbiamo visto due concetti fondamentali: l’*entropia*,
 
 Il punto di partenza è una domanda cruciale: *quanto bene il modello riesce a prevedere nuovi dati?* Un buon modello non deve solo adattarsi bene ai dati già osservati, ma anche saper *generalizzare* a situazioni future o a campioni mai visti. Questa distinzione — adattamento vs. generalizzazione — è il cuore della valutazione predittiva.
 
-Per rendere concreta questa idea, immaginiamo di aver sviluppato un test psicologico per prevedere il livello di ansia degli studenti alla vigilia di un esame. Non basta sapere che il modello descrive bene i dati del campione che abbiamo usato per costruirlo: vogliamo anche essere ragionevolmente sicuri che le stesse previsioni funzionino per studenti che non hanno partecipato allo studio.
+Per rendere concreta questa idea, immaginiamo di aver sviluppato un test psicologico per prevedere il livello di ansia degli studenti alla vigilia di un esame. Non basta sapere che il modello descrive bene i dati del campione che abbiamo usato per costruirlo: vogliamo anche essere ragionevolmente sicuri che le stesse previsioni funzionino per studenti che non hanno partecipato allo studio. In psicologia, scegliere tra due modelli non è diverso dal decidere quale test usare per prevedere un disturbo: entrambi mirano a capire quale strumento fornisce previsioni più affidabili sui dati futuri.
 
 In questo capitolo introdurremo:
 
@@ -49,6 +49,8 @@ L’obiettivo è fornire un quadro chiaro e operativo di come, in Bayes, si poss
 
 
 ## Distribuzione Predittiva Posteriore
+
+Nel capitolo precedente abbiamo visto come la divergenza di Kullback–Leibler fornisca una misura teorica della distanza tra la realtà e il modello. In questo capitolo ci chiediamo: come possiamo stimare questa distanza quando non conosciamo la “vera” distribuzione generatrice?
 
 Nel capitolo sul modello *beta–binomiale* abbiamo già incontrato il concetto di *distribuzione predittiva posteriore*: è lo strumento che, in Bayes, consente di fare previsioni su nuovi dati incorporando sia il modello che la nostra incertezza sui parametri. Qui riprendiamo quell’idea per applicarla al problema più generale della *valutazione e confronto tra modelli*.
 
@@ -92,26 +94,60 @@ Qui incontriamo subito un ostacolo: *non conosciamo $p(\tilde{y})$*. È come vol
 :::
 
 
-### Il log-score: accuratezza predittiva punto per punto
+## Il log-score: accuratezza predittiva punto per punto {#sec-logscore}
 
-Una volta definita la *distribuzione predittiva posteriore*, possiamo chiederci: *quanto bene il modello “aveva previsto” ciascun dato osservato?* Il *log-score* risponde a questa domanda, misurando per ogni osservazione $y_i$ il logaritmo della probabilità che il modello le assegna:
-
+Una volta definita la *distribuzione predittiva posteriore*, possiamo chiederci: *quanto bene il modello “aveva previsto” ciascun dato osservato?*  
+Il *log-score* risponde a questa domanda, misurando per ogni osservazione $y_i$ il logaritmo della probabilità predittiva che il modello le assegna:
+  
 $$
-\log p(y_i \mid y) = \log \int p(y_i \mid \theta) \, p(\theta \mid y) \, d\theta .
+\log p(y_i \mid y) = \log \int p(y_i \mid \theta)\, p(\theta \mid y)\, d\theta .
 $$ {#eq-log-score-def}
-
+  
+Questa quantità assegna un punteggio alto (meno negativo) se l’osservazione era plausibile per il modello, e basso se era improbabile.
+  
 Il *log-score totale* è la somma su tutte le osservazioni:
-
+    
 $$
 S = \sum_{i=1}^n \log p(y_i \mid y).
 $$ {#eq-log-score-sum-def}
 
-Un log-score *più alto* (cioè meno negativo) indica che il modello attribuisce maggiore probabilità ai dati effettivamente osservati. È, in pratica, un *voto di fiducia* del modello per ogni osservazione: se ciò che accade era plausibile per il modello, il punteggio sarà alto.
+Un log-score più alto (meno negativo) indica che il modello attribuisce maggiore probabilità ai dati effettivamente osservati. È, in pratica, un *voto di fiducia* del modello per ogni osservazione: se ciò che accade era plausibile per il modello, il punteggio sarà alto.
+    
 
+### Versione frequentista vs. versione bayesiana
+    
+L'approccio frequentista valuta $p(y_i \mid \hat{\theta})$ usando una *stima puntuale* dei parametri (es. MLE o MAP), senza rappresentare l’incertezza parametrica:
+
+$$
+\log p(y_i \mid \hat{\theta}).
+$$
+      
+L'approccio bayesiano usa la *densità predittiva puntuale* integrata sulla posteriore dei parametri:
+
+$$
+p(y_i \mid y)= \int p(y_i \mid \theta)\, p(\theta \mid y)\, d\theta ,
+$$ {#eq-lppd-def}
+
+dove $\theta^{(s)}$ sono campioni MCMC dalla distribuzione a posteriori.
+
+      
+### La LPPD: il log score “bayesiano” {#sec-lppd}
+      
+Quando calcoliamo il log-score *nella modalità bayesiana* e lo sommiamo su tutte le osservazioni, otteniamo la *Log Pointwise Predictive Density (LPPD)*:
+
+$$
+\text{LPPD} = \sum_{i=1}^n \log \left[\frac{1}{S}\sum_{s=1}^S p(y_i \mid \theta^{(s)})\right].
+$$ {#eq-lppd-def}
+        
+**In sintesi:**
+          
+- *Log score totale (frequentista)* → usa una sola stima dei parametri.  
+- *LPPD (bayesiana)* → stessa logica, ma integra l’incertezza parametrica usando la distribuzione a posteriori.
+        
 
 #### Come si calcola in pratica con MCMC
 
-Nella formula teorica, $p(y_i \mid y)$ è una *media predittiva* calcolata integrando:
+Nella formula teorica dell'@eq-lppd-def, $p(y_i \mid y)$ è una *media predittiva* calcolata integrando:
 
 * $p(y_i \mid \theta)$: la distribuzione dei dati futuri se i parametri fossero $\theta$ (cioè la verosimiglianza condizionata);
 * $p(\theta \mid y)$: la distribuzione posteriore dei parametri, che rappresenta l’incertezza residua dopo aver osservato i dati.
@@ -127,6 +163,10 @@ e quindi:
 $$
 \text{Log-score} \approx \sum_{i=1}^n \log \left[ \frac{1}{S} \sum_{s=1}^S p(y_i \mid \theta^{(s)}) \right].
 $$ {#eq-mcmc-log-score}
+
+Con il log-score otteniamo dunque *una misura complessiva* di quanto bene il modello assegna una probabilità alta probabilità ai dati osservati. Questo è un indice *in-sample*.
+
+**Limite:** proprio perché valuta l’adattamento in-sample, tende a favorire modelli più complessi e può sovrastimare la capacità di generalizzare (*overfitting*).
 
 
 ::: {.callout-note collapse=true title="Esempio."}
@@ -145,33 +185,6 @@ Il log-score è circa -1.29. Un valore meno negativo indica una previsione migli
 :::
 
 
-Con il log-score $S = \sum_{i=1}^n \log p(y_i \mid y)$ otteniamo *una misura complessiva* di quanto bene il modello assegna alta probabilità ai dati osservati (*in-sample*). L’idea alla base — calcolare il logaritmo della probabilità predittiva per ciascun dato e poi sommare — sarà la stessa anche per gli indici che introdurremo subito dopo:
-
-* la *LPPD* (*Log Pointwise Predictive Density*) usa esattamente questa struttura, ma la formalizza come misura bayesiana di adattamento ai dati osservati, tenendo conto dell’incertezza sui parametri;
-* l’*ELPD* (*Expected Log Predictive Density*) applica lo stesso principio *fuori campione*, stimando quanto bene il modello predirebbe dati nuovi non utilizzati nell’adattamento.
-
-In altre parole, la LPPD e l’ELPD sono estensioni del log-score: la prima ne è la versione “in-sample” formalizzata, la seconda ne è l’analogo “out-of-sample” pensato per valutare la generalizzazione.
-
-
-### Dalla LPPD all’ELPD: in-sample vs. out-of-sample
-
-Come abbiamo visto, il log-score complessivo
-
-$$
-S = \sum_{i=1}^n \log p(y_i \mid y)
-$$
-
-ci dice quanto bene il modello assegna alta probabilità ai dati *che ha già visto* (*in-sample*). La *LPPD* (*Log Pointwise Predictive Density*) è sostanzialmente questa stessa quantità, calcolata in modo coerente con il framework bayesiano e con la media predittiva su tutta la posteriore:
-
-$$
-\text{LPPD} = \sum_{i=1}^n \log \left[ \frac{1}{S} \sum_{s=1}^S p(y_i \mid \theta^{(s)}) \right].
-$$ {#eq-lppd-def}
-
-La LPPD è quindi un’estensione diretta del log-score: misura la bontà predittiva sui dati osservati, incorporando l’incertezza sui parametri.
-
-**Limite:** proprio perché valuta l’adattamento in-sample, tende a favorire modelli più complessi e può sovrastimare la capacità di generalizzare (*overfitting*).
-
-
 ### Expected Log Predictive Density (ELPD): guardare oltre i dati osservati
 
 Per valutare la *generalizzazione* dobbiamo chiederci: *quanto bene il modello predirebbe dati che non ha mai visto?* Questo porta all’*ELPD* (*Expected Log Predictive Density*), che ha la stessa struttura della LPPD, ma con una differenza cruciale: la predizione di $y_i$ è fatta *escludendo $y_i$ dall’adattamento* (*Leave-One-Out*):
@@ -183,6 +196,8 @@ $$ {#eq-elpd-def}
 dove $y_{-i}$ indica il dataset privato dell’osservazione $i$.
 
 Tornando all’esempio del test per l’ansia: la LPPD valuta quanto bene il modello predice i punteggi di ansia degli studenti del campione già osservato; l’ELPD valuta quanto bene predirebbe il punteggio di un nuovo studente usando solo i dati degli altri.
+
+L’ELPD è, in sostanza, una stima empirica (con segno cambiato) della KL divergence: ci dice quanto bene le previsioni del modello si avvicinano ai dati futuri, senza dover conoscere la distribuzione vera.
 
 
 ::: callout-note
@@ -299,8 +314,16 @@ $$
 In questo esempio abbiamo potuto calcolare l’ELPD *vero* perché conoscevamo l’intera distribuzione generatrice $p(y)$ e potevamo integrare esattamente. Nella realtà, $p(y)$ è sconosciuta: disponiamo solo di un campione osservato. In questi casi stimiamo l’ELPD *empiricamente*, ad esempio con la *Leave-One-Out Cross-Validation* (LOO-CV), che sostituisce l’aspettativa rispetto a $p$ con una media sui dati raccolti, lasciando fuori una osservazione alla volta. Questa procedura ci consente di avvicinarci al calcolo ideale della KL, anche senza conoscere $p(y)$.
 :::
 
+::: {.callout-tip}
+**Collegamento chiave**  
+L’ELPD è una stima empirica (con segno cambiato) della divergenza di Kullback–Leibler.  
+Più alto è l’ELPD, migliore è la capacità predittiva del modello.
+:::
+
 
 ## Leave-One-Out Cross-Validation (LOO-CV): stimare l’ELPD nella pratica
+
+Poiché la distribuzione vera dei dati futuri è inaccessibile, dobbiamo usare strategie indirette per stimare quanto bene il nostro modello prevede nuove osservazioni. La validazione incrociata Leave-One-Out (LOO-CV) è una di queste strategie.
 
 Abbiamo visto che l’*ELPD* è la misura ideale della capacità predittiva di un modello su dati futuri e non osservati. Il problema è che, per definizione, richiede di calcolare un’aspettativa rispetto alla *vera* distribuzione generatrice $p(\tilde{y})$, che non conosciamo.
 
@@ -327,6 +350,8 @@ $$ {#eq-loo-def}
 dove $y_{-i}$ indica il dataset senza l’osservazione $i$.
 
 La struttura è identica a quella dell’ELPD “ideale”, ma ogni termine è calcolato *fuori campione*, escludendo l’osservazione corrispondente.
+
+È come escludere uno studente dal gruppo di allenamento e verificare se il modello riesce a predire correttamente il suo punteggio: ripetendo questo processo per ogni studente otteniamo una misura di quanto il modello generalizza a nuovi dati.
 
 
 ### Perché LOO-CV funziona
@@ -516,18 +541,39 @@ Qui:
 * i valori di *Pareto k* aiutano a capire se la stima PSIS è affidabile.
 :::
 
-::: {.callout-tip}
-**In pratica**
 
-1. **Capire il concetto:** L’ELPD misura la capacità predittiva attesa su nuovi dati; LOO-CV fornisce una stima “fuori campione”.
-2. **Usare PSIS-LOO:** evita di riadattare il modello $n$ volte, mantenendo buona accuratezza.
-3. **Workflow tipico in R:**
 
-   * Adattare il modello (`brm()` o `stan_glm()`);
-   * Estrarre le log-likelihood per osservazione (`log_lik()`);
-   * Calcolare `loo()` → ELPD-LOO, SE, e diagnostici Pareto k;
-   * Confrontare modelli con `loo_compare()`.
-4. **Decisione:** preferire il modello con ELPD-LOO più alto (differenza ≥ 2×SE è una soglia indicativa).
+### ELPD-LOO e il problema dell'overfitting
+
+Valutare un modello sugli stessi dati con cui è stato addestrato tende a *sovrastimare* la sua capacità predittiva, soprattutto se il modello è molto flessibile. È come giudicare le capacità di uno studente facendogli ripetere esattamente gli stessi esercizi che ha già svolto durante lo studio: otterrà sicuramente un buon punteggio, ma questo non ci dice nulla su quanto bene saprà risolvere problemi *nuovi*.
+
+La *Leave-One-Out Cross-Validation (LOO-CV)* risolve questo problema:
+
+* per ciascuna osservazione $i$, il modello viene valutato su $y_i$ usando *solo dati che non includono $y_i$*;
+* il risultato è una misura *out-of-sample* della bontà predittiva, molto meno sensibile all’overfitting.
+
+Grazie a metodi efficienti come il *Pareto-smoothed importance sampling (PSIS)*, oggi è possibile stimare l’ELPD-LOO *senza dover riadattare il modello $n$ volte*. In R, questo è implementato nella funzione `loo()` (pacchetto {**loo**}), compatibile con `brms` e `rstanarm`.
+
+
+::: {.callout-note collapse=true title="In pratica: stimare e confrontare l'ELPD-LOO"}
+**1. Capire il concetto**  
+- L’ELPD misura la capacità predittiva attesa su nuovi dati.  
+- La LOO-CV fornisce una stima “fuori campione” di questa capacità, riducendo il rischio di overfitting.
+
+**2. Usare PSIS-LOO**  
+- Evita di riadattare il modello $n$ volte, mantenendo buona accuratezza.  
+- È implementato in R nella funzione `loo()` (pacchetto **loo**), compatibile con `brms` e `rstanarm`.
+
+**3. Workflow tipico in R**  
+1. Adatta ciascun modello (`brm()` o `stan_glm()`);  
+2. Estrai le log-likelihood per osservazione (`log_lik()`);  
+3. Calcola `loo()` → ottieni ELPD-LOO, SE, e diagnostici Pareto *k*;  
+4. Confronta i modelli con `loo_compare()`.
+
+**4. Decisione**  
+- Preferisci il modello con ELPD-LOO più alto.  
+- Una differenza ≥ 2×SE è un’indicazione che la differenza è sostanziale.  
+- Considera anche semplicità e interpretabilità.
 :::
 
 
@@ -683,12 +729,12 @@ Poiché $p_{\text{vera}}(y)$ è sconosciuta, l’ELPD va stimato. Le principali 
 
 Nel confronto tra modelli, la *differenza di ELPD* (stimata con LOO-CV o WAIC) andrebbe interpretata insieme al relativo *errore standard*: una regola pratica è considerare rilevante una differenza almeno doppia rispetto all’errore standard.
 
-**In sintesi**
+**In sintesi:**
 
-* La buona statistica non si limita a spiegare il passato: sa *anticipare il futuro*.
-* La *divergenza KL* fornisce la misura teorica della distanza tra modello e realtà.
-* L’*ELPD*, stimato via LOO-CV o WAIC, traduce questa misura in una valutazione pratica della capacità predittiva.
-* La scelta del modello ottimale richiede un equilibrio tra accuratezza, generalizzazione e parsimonia.
+* la buona statistica non si limita a spiegare il passato: sa *anticipare il futuro*;
+* la *divergenza KL* fornisce la misura teorica della distanza tra modello e realtà;
+* l’*ELPD*, stimato via LOO-CV o WAIC, traduce questa misura in una valutazione pratica della capacità predittiva;
+* la scelta del modello ottimale richiede un equilibrio tra accuratezza, generalizzazione e parsimonia.
 
 Con questi strumenti possiamo individuare modelli che colgono i veri pattern nei dati, evitando di farsi ingannare dal rumore e garantendo previsioni solide anche in contesti complessi.
 
