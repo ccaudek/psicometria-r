@@ -1019,8 +1019,9 @@ window.Quarto = {
    
   <ul class="collapse">
 <li><a href="#distribuzione-predittiva-posteriore" id="toc-distribuzione-predittiva-posteriore" class="nav-link active" data-scroll-target="#distribuzione-predittiva-posteriore"><span class="header-section-number">74.1</span> Distribuzione Predittiva Posteriore</a></li>
-  <li><a href="#leave-one-out-cross-validation-loo-cv-stimare-lelpd-nella-pratica" id="toc-leave-one-out-cross-validation-loo-cv-stimare-lelpd-nella-pratica" class="nav-link" data-scroll-target="#leave-one-out-cross-validation-loo-cv-stimare-lelpd-nella-pratica"><span class="header-section-number">74.2</span> Leave-One-Out Cross-Validation (LOO-CV): stimare l’ELPD nella pratica</a></li>
-  <li><a href="#criteri-di-informazione-come-approssimazioni-della-divergenza-d_textkl" id="toc-criteri-di-informazione-come-approssimazioni-della-divergenza-d_textkl" class="nav-link" data-scroll-target="#criteri-di-informazione-come-approssimazioni-della-divergenza-d_textkl"><span class="header-section-number">74.3</span> Criteri di informazione come approssimazioni della divergenza <span class="math inline">\(D_{\text{KL}}\)</span></a></li>
+  <li><a href="#sec-logscore" id="toc-sec-logscore" class="nav-link" data-scroll-target="#sec-logscore"><span class="header-section-number">74.2</span> Il log-score: accuratezza predittiva punto per punto</a></li>
+  <li><a href="#leave-one-out-cross-validation-loo-cv-stimare-lelpd-nella-pratica" id="toc-leave-one-out-cross-validation-loo-cv-stimare-lelpd-nella-pratica" class="nav-link" data-scroll-target="#leave-one-out-cross-validation-loo-cv-stimare-lelpd-nella-pratica"><span class="header-section-number">74.3</span> Leave-One-Out Cross-Validation (LOO-CV): stimare l’ELPD nella pratica</a></li>
+  <li><a href="#criteri-di-informazione-come-approssimazioni-della-divergenza-d_textkl" id="toc-criteri-di-informazione-come-approssimazioni-della-divergenza-d_textkl" class="nav-link" data-scroll-target="#criteri-di-informazione-come-approssimazioni-della-divergenza-d_textkl"><span class="header-section-number">74.4</span> Criteri di informazione come approssimazioni della divergenza <span class="math inline">\(D_{\text{KL}}\)</span></a></li>
   </ul><div class="toc-actions"><ul class="collapse"><li><a href="https://github.com/ccaudek/psicometria-r/blob/main/chapters/entropy/03_model_comparison.qmd" class="toc-action"><i class="bi bi-github"></i>Mostra il codice</a></li><li><a href="https://github.com/ccaudek/psicometria-r/issues/new" class="toc-action"><i class="bi empty"></i>Segnala un problema</a></li></ul></div></nav>
     </div>
 <!-- main -->
@@ -1093,7 +1094,7 @@ Preparazione del Notebook
 <section id="introduzione" class="level2 unnumbered unlisted"><h2 class="unnumbered unlisted anchored" data-anchor-id="introduzione">Introduzione</h2>
 <p>Nei capitoli precedenti abbiamo visto due concetti fondamentali: l’<em>entropia</em>, che misura l’incertezza insita in una distribuzione, e la <em>divergenza di Kullback–Leibler</em> (<span class="math inline">\(D_{\text{KL}}\)</span>), che quantifica la distanza tra due distribuzioni di probabilità. Ora possiamo fare un passo ulteriore: usare queste idee per <em>valutare e confrontare modelli statistici</em> nel contesto bayesiano.</p>
 <p>Il punto di partenza è una domanda cruciale: <em>quanto bene il modello riesce a prevedere nuovi dati?</em> Un buon modello non deve solo adattarsi bene ai dati già osservati, ma anche saper <em>generalizzare</em> a situazioni future o a campioni mai visti. Questa distinzione — adattamento vs.&nbsp;generalizzazione — è il cuore della valutazione predittiva.</p>
-<p>Per rendere concreta questa idea, immaginiamo di aver sviluppato un test psicologico per prevedere il livello di ansia degli studenti alla vigilia di un esame. Non basta sapere che il modello descrive bene i dati del campione che abbiamo usato per costruirlo: vogliamo anche essere ragionevolmente sicuri che le stesse previsioni funzionino per studenti che non hanno partecipato allo studio.</p>
+<p>Per rendere concreta questa idea, immaginiamo di aver sviluppato un test psicologico per prevedere il livello di ansia degli studenti alla vigilia di un esame. Non basta sapere che il modello descrive bene i dati del campione che abbiamo usato per costruirlo: vogliamo anche essere ragionevolmente sicuri che le stesse previsioni funzionino per studenti che non hanno partecipato allo studio. In psicologia, scegliere tra due modelli non è diverso dal decidere quale test usare per prevedere un disturbo: entrambi mirano a capire quale strumento fornisce previsioni più affidabili sui dati futuri.</p>
 <p>In questo capitolo introdurremo:</p>
 <ul>
 <li>la <em>distribuzione predittiva posteriore</em>, che integra l’incertezza sui parametri e ci permette di fare previsioni coerenti con il nostro stato di conoscenza;</li>
@@ -1105,6 +1106,7 @@ Preparazione del Notebook
 <p>L’obiettivo è fornire un quadro chiaro e operativo di come, in Bayes, si possa passare dai principi teorici dell’informazione a strumenti concreti per scegliere, in modo razionale, il modello più adatto.</p>
 </section><section id="distribuzione-predittiva-posteriore" class="level2" data-number="74.1"><h2 data-number="74.1" class="anchored" data-anchor-id="distribuzione-predittiva-posteriore">
 <span class="header-section-number">74.1</span> Distribuzione Predittiva Posteriore</h2>
+<p>Nel capitolo precedente abbiamo visto come la divergenza di Kullback–Leibler fornisca una misura teorica della distanza tra la realtà e il modello. In questo capitolo ci chiediamo: come possiamo stimare questa distanza quando non conosciamo la “vera” distribuzione generatrice?</p>
 <p>Nel capitolo sul modello <em>beta–binomiale</em> abbiamo già incontrato il concetto di <em>distribuzione predittiva posteriore</em>: è lo strumento che, in Bayes, consente di fare previsioni su nuovi dati incorporando sia il modello che la nostra incertezza sui parametri. Qui riprendiamo quell’idea per applicarla al problema più generale della <em>valutazione e confronto tra modelli</em>.</p>
 <p>In ambito bayesiano, dopo aver osservato i dati <span class="math inline">\(y\)</span> non otteniamo un singolo valore “migliore” dei parametri, ma una <em>distribuzione posteriore</em> <span class="math inline">\(p(\theta \mid y)\)</span>, che descrive tutti i valori plausibili di <span class="math inline">\(\theta\)</span> e la nostra incertezza su di essi.</p>
 <p>Per esempio, uno psicologo che voglia stimare il livello medio di ansia in una popolazione, dopo aver raccolto un campione, non dirà semplicemente “la media è 4.7”, ma piuttosto “il valore più plausibile è 4.7, ma potrebbe ragionevolmente essere compreso tra 4.2 e 5.1”.</p>
@@ -1187,20 +1189,47 @@ Mappa concettuale
 </table>
 </div>
 </div>
-</section><section id="il-log-score-accuratezza-predittiva-punto-per-punto" class="level3" data-number="74.1.2"><h3 data-number="74.1.2" class="anchored" data-anchor-id="il-log-score-accuratezza-predittiva-punto-per-punto">
-<span class="header-section-number">74.1.2</span> Il log-score: accuratezza predittiva punto per punto</h3>
-<p>Una volta definita la <em>distribuzione predittiva posteriore</em>, possiamo chiederci: <em>quanto bene il modello “aveva previsto” ciascun dato osservato?</em> Il <em>log-score</em> risponde a questa domanda, misurando per ogni osservazione <span class="math inline">\(y_i\)</span> il logaritmo della probabilità che il modello le assegna:</p>
+</section></section><section id="sec-logscore" class="level2" data-number="74.2"><h2 data-number="74.2" class="anchored" data-anchor-id="sec-logscore">
+<span class="header-section-number">74.2</span> Il log-score: accuratezza predittiva punto per punto</h2>
+<p>Una volta definita la <em>distribuzione predittiva posteriore</em>, possiamo chiederci: <em>quanto bene il modello “aveva previsto” ciascun dato osservato?</em><br>
+Il <em>log-score</em> risponde a questa domanda, misurando per ogni osservazione <span class="math inline">\(y_i\)</span> il logaritmo della probabilità predittiva che il modello le assegna:</p>
 <p><span id="eq-log-score-def"><span class="math display">\[
-\log p(y_i \mid y) = \log \int p(y_i \mid \theta) \, p(\theta \mid y) \, d\theta .
+\log p(y_i \mid y) = \log \int p(y_i \mid \theta)\, p(\theta \mid y)\, d\theta .
 \tag{74.1}\]</span></span></p>
+<p>Questa quantità assegna un punteggio alto (meno negativo) se l’osservazione era plausibile per il modello, e basso se era improbabile.</p>
 <p>Il <em>log-score totale</em> è la somma su tutte le osservazioni:</p>
 <p><span id="eq-log-score-sum-def"><span class="math display">\[
 S = \sum_{i=1}^n \log p(y_i \mid y).
 \tag{74.2}\]</span></span></p>
-<p>Un log-score <em>più alto</em> (cioè meno negativo) indica che il modello attribuisce maggiore probabilità ai dati effettivamente osservati. È, in pratica, un <em>voto di fiducia</em> del modello per ogni osservazione: se ciò che accade era plausibile per il modello, il punteggio sarà alto.</p>
-<section id="come-si-calcola-in-pratica-con-mcmc" class="level4" data-number="74.1.2.1"><h4 data-number="74.1.2.1" class="anchored" data-anchor-id="come-si-calcola-in-pratica-con-mcmc">
-<span class="header-section-number">74.1.2.1</span> Come si calcola in pratica con MCMC</h4>
-<p>Nella formula teorica, <span class="math inline">\(p(y_i \mid y)\)</span> è una <em>media predittiva</em> calcolata integrando:</p>
+<p>Un log-score più alto (meno negativo) indica che il modello attribuisce maggiore probabilità ai dati effettivamente osservati. È, in pratica, un <em>voto di fiducia</em> del modello per ogni osservazione: se ciò che accade era plausibile per il modello, il punteggio sarà alto.</p>
+<section id="versione-frequentista-vs.-versione-bayesiana" class="level3" data-number="74.2.1"><h3 data-number="74.2.1" class="anchored" data-anchor-id="versione-frequentista-vs.-versione-bayesiana">
+<span class="header-section-number">74.2.1</span> Versione frequentista vs.&nbsp;versione bayesiana</h3>
+<p>L’approccio frequentista valuta <span class="math inline">\(p(y_i \mid \hat{\theta})\)</span> usando una <em>stima puntuale</em> dei parametri (es. MLE o MAP), senza rappresentare l’incertezza parametrica:</p>
+<p><span class="math display">\[
+\log p(y_i \mid \hat{\theta}).
+\]</span></p>
+<p>L’approccio bayesiano usa la <em>densità predittiva puntuale</em> integrata sulla posteriore dei parametri:</p>
+<p><span id="eq-lppd-def"><span class="math display">\[
+p(y_i \mid y)= \int p(y_i \mid \theta)\, p(\theta \mid y)\, d\theta ,
+\tag{74.3}\]</span></span></p>
+<p>dove <span class="math inline">\(\theta^{(s)}\)</span> sono campioni MCMC dalla distribuzione a posteriori.</p>
+</section><section id="sec-lppd" class="level3" data-number="74.2.2"><h3 data-number="74.2.2" class="anchored" data-anchor-id="sec-lppd">
+<span class="header-section-number">74.2.2</span> La LPPD: il log score “bayesiano”</h3>
+<p>Quando calcoliamo il log-score <em>nella modalità bayesiana</em> e lo sommiamo su tutte le osservazioni, otteniamo la <em>Log Pointwise Predictive Density (LPPD)</em>:</p>
+<p><span id="eq-lppd-def"><span class="math display">\[
+\text{LPPD} = \sum_{i=1}^n \log \left[\frac{1}{S}\sum_{s=1}^S p(y_i \mid \theta^{(s)})\right].
+\tag{74.4}\]</span></span></p>
+<p><strong>In sintesi:</strong></p>
+<ul>
+<li>
+<em>Log score totale (frequentista)</em> → usa una sola stima dei parametri.<br>
+</li>
+<li>
+<em>LPPD (bayesiana)</em> → stessa logica, ma integra l’incertezza parametrica usando la distribuzione a posteriori.</li>
+</ul>
+<section id="come-si-calcola-in-pratica-con-mcmc" class="level4" data-number="74.2.2.1"><h4 data-number="74.2.2.1" class="anchored" data-anchor-id="come-si-calcola-in-pratica-con-mcmc">
+<span class="header-section-number">74.2.2.1</span> Come si calcola in pratica con MCMC</h4>
+<p>Nella formula teorica dell’<a href="#eq-lppd-def" class="quarto-xref">Equazione&nbsp;<span>74.4</span></a>, <span class="math inline">\(p(y_i \mid y)\)</span> è una <em>media predittiva</em> calcolata integrando:</p>
 <ul>
 <li>
 <span class="math inline">\(p(y_i \mid \theta)\)</span>: la distribuzione dei dati futuri se i parametri fossero <span class="math inline">\(\theta\)</span> (cioè la verosimiglianza condizionata);</li>
@@ -1210,11 +1239,13 @@ S = \sum_{i=1}^n \log p(y_i \mid y).
 <p>Poiché l’integrale non ha quasi mai una soluzione analitica, in pratica lo <em>approssimiamo con i campioni MCMC</em> dalla posteriore:</p>
 <p><span id="eq-mcmc-posterior-parameter-distr"><span class="math display">\[
 p(y_i \mid y) \approx \frac{1}{S} \sum_{s=1}^S p(y_i \mid \theta^{(s)}),
-\tag{74.3}\]</span></span></p>
+\tag{74.5}\]</span></span></p>
 <p>e quindi:</p>
 <p><span id="eq-mcmc-log-score"><span class="math display">\[
 \text{Log-score} \approx \sum_{i=1}^n \log \left[ \frac{1}{S} \sum_{s=1}^S p(y_i \mid \theta^{(s)}) \right].
-\tag{74.4}\]</span></span></p>
+\tag{74.6}\]</span></span></p>
+<p>Con il log-score otteniamo dunque <em>una misura complessiva</em> di quanto bene il modello assegna una probabilità alta probabilità ai dati osservati. Questo è un indice <em>in-sample</em>.</p>
+<p><strong>Limite:</strong> proprio perché valuta l’adattamento in-sample, tende a favorire modelli più complessi e può sovrastimare la capacità di generalizzare (<em>overfitting</em>).</p>
 <div class="callout callout-style-simple callout-note no-icon callout-titled" title="Esempio.">
 <div class="callout-header d-flex align-content-center" data-bs-toggle="collapse" data-bs-target=".callout-6-contents" aria-controls="callout-6" aria-expanded="false" aria-label="Toggle callout">
 <div class="callout-icon-container">
@@ -1241,32 +1272,15 @@ Esempio.
 </div>
 </div>
 </div>
-<p>Con il log-score <span class="math inline">\(S = \sum_{i=1}^n \log p(y_i \mid y)\)</span> otteniamo <em>una misura complessiva</em> di quanto bene il modello assegna alta probabilità ai dati osservati (<em>in-sample</em>). L’idea alla base — calcolare il logaritmo della probabilità predittiva per ciascun dato e poi sommare — sarà la stessa anche per gli indici che introdurremo subito dopo:</p>
-<ul>
-<li>la <em>LPPD</em> (<em>Log Pointwise Predictive Density</em>) usa esattamente questa struttura, ma la formalizza come misura bayesiana di adattamento ai dati osservati, tenendo conto dell’incertezza sui parametri;</li>
-<li>l’<em>ELPD</em> (<em>Expected Log Predictive Density</em>) applica lo stesso principio <em>fuori campione</em>, stimando quanto bene il modello predirebbe dati nuovi non utilizzati nell’adattamento.</li>
-</ul>
-<p>In altre parole, la LPPD e l’ELPD sono estensioni del log-score: la prima ne è la versione “in-sample” formalizzata, la seconda ne è l’analogo “out-of-sample” pensato per valutare la generalizzazione.</p>
-</section></section><section id="dalla-lppd-allelpd-in-sample-vs.-out-of-sample" class="level3" data-number="74.1.3"><h3 data-number="74.1.3" class="anchored" data-anchor-id="dalla-lppd-allelpd-in-sample-vs.-out-of-sample">
-<span class="header-section-number">74.1.3</span> Dalla LPPD all’ELPD: in-sample vs.&nbsp;out-of-sample</h3>
-<p>Come abbiamo visto, il log-score complessivo</p>
-<p><span class="math display">\[
-S = \sum_{i=1}^n \log p(y_i \mid y)
-\]</span></p>
-<p>ci dice quanto bene il modello assegna alta probabilità ai dati <em>che ha già visto</em> (<em>in-sample</em>). La <em>LPPD</em> (<em>Log Pointwise Predictive Density</em>) è sostanzialmente questa stessa quantità, calcolata in modo coerente con il framework bayesiano e con la media predittiva su tutta la posteriore:</p>
-<p><span id="eq-lppd-def"><span class="math display">\[
-\text{LPPD} = \sum_{i=1}^n \log \left[ \frac{1}{S} \sum_{s=1}^S p(y_i \mid \theta^{(s)}) \right].
-\tag{74.5}\]</span></span></p>
-<p>La LPPD è quindi un’estensione diretta del log-score: misura la bontà predittiva sui dati osservati, incorporando l’incertezza sui parametri.</p>
-<p><strong>Limite:</strong> proprio perché valuta l’adattamento in-sample, tende a favorire modelli più complessi e può sovrastimare la capacità di generalizzare (<em>overfitting</em>).</p>
-</section><section id="expected-log-predictive-density-elpd-guardare-oltre-i-dati-osservati" class="level3" data-number="74.1.4"><h3 data-number="74.1.4" class="anchored" data-anchor-id="expected-log-predictive-density-elpd-guardare-oltre-i-dati-osservati">
-<span class="header-section-number">74.1.4</span> Expected Log Predictive Density (ELPD): guardare oltre i dati osservati</h3>
+</section></section><section id="expected-log-predictive-density-elpd-guardare-oltre-i-dati-osservati" class="level3" data-number="74.2.3"><h3 data-number="74.2.3" class="anchored" data-anchor-id="expected-log-predictive-density-elpd-guardare-oltre-i-dati-osservati">
+<span class="header-section-number">74.2.3</span> Expected Log Predictive Density (ELPD): guardare oltre i dati osservati</h3>
 <p>Per valutare la <em>generalizzazione</em> dobbiamo chiederci: <em>quanto bene il modello predirebbe dati che non ha mai visto?</em> Questo porta all’<em>ELPD</em> (<em>Expected Log Predictive Density</em>), che ha la stessa struttura della LPPD, ma con una differenza cruciale: la predizione di <span class="math inline">\(y_i\)</span> è fatta <em>escludendo <span class="math inline">\(y_i\)</span> dall’adattamento</em> (<em>Leave-One-Out</em>):</p>
 <p><span id="eq-elpd-def"><span class="math display">\[
 \text{ELPD} = \sum_{i=1}^n \log p(y_i \mid y_{-i}),
-\tag{74.6}\]</span></span></p>
+\tag{74.7}\]</span></span></p>
 <p>dove <span class="math inline">\(y_{-i}\)</span> indica il dataset privato dell’osservazione <span class="math inline">\(i\)</span>.</p>
 <p>Tornando all’esempio del test per l’ansia: la LPPD valuta quanto bene il modello predice i punteggi di ansia degli studenti del campione già osservato; l’ELPD valuta quanto bene predirebbe il punteggio di un nuovo studente usando solo i dati degli altri.</p>
+<p>L’ELPD è, in sostanza, una stima empirica (con segno cambiato) della KL divergence: ci dice quanto bene le previsioni del modello si avvicinano ai dati futuri, senza dover conoscere la distribuzione vera.</p>
 <div class="callout callout-style-simple callout-note no-icon">
 <div class="callout-body d-flex">
 <div class="callout-icon-container">
@@ -1301,8 +1315,8 @@ p(y_1 \mid y_2,y_3)=0.6,\quad p(y_2 \mid y_1,y_3)=0.7,\quad p(y_3 \mid y_1,y_2)=
 </div>
 </div>
 </div>
-</section><section id="lppd-vs.-elpd-in-sintesi" class="level3" data-number="74.1.5"><h3 data-number="74.1.5" class="anchored" data-anchor-id="lppd-vs.-elpd-in-sintesi">
-<span class="header-section-number">74.1.5</span> LPPD vs.&nbsp;ELPD in sintesi</h3>
+</section><section id="lppd-vs.-elpd-in-sintesi" class="level3" data-number="74.2.4"><h3 data-number="74.2.4" class="anchored" data-anchor-id="lppd-vs.-elpd-in-sintesi">
+<span class="header-section-number">74.2.4</span> LPPD vs.&nbsp;ELPD in sintesi</h3>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 9%">
@@ -1341,8 +1355,8 @@ p(y_1 \mid y_2,y_3)=0.6,\quad p(y_2 \mid y_1,y_3)=0.7,\quad p(y_3 \mid y_1,y_2)=
 <em>ELPD</em> misura quanto bene riconosce <em>nuove foto di persone già viste o di volti mai incontrati prima</em>, cioè immagini non incluse nell’allenamento (<em>out-of-sample</em>).</li>
 </ul>
 <p>Se il punteggio LPPD è alto ma l’ELPD è basso, significa che il partecipante — o il modello — ha semplicemente <em>memorizzato</em> le foto specifiche, senza aver appreso le caratteristiche generali dei volti che permettono di riconoscerne di nuovi.</p>
-</section><section id="il-collegamento-con-la-divergenza-kl" class="level3" data-number="74.1.6"><h3 data-number="74.1.6" class="anchored" data-anchor-id="il-collegamento-con-la-divergenza-kl">
-<span class="header-section-number">74.1.6</span> Il collegamento con la divergenza KL</h3>
+</section><section id="il-collegamento-con-la-divergenza-kl" class="level3" data-number="74.2.5"><h3 data-number="74.2.5" class="anchored" data-anchor-id="il-collegamento-con-la-divergenza-kl">
+<span class="header-section-number">74.2.5</span> Il collegamento con la divergenza KL</h3>
 <p>La <em>divergenza di Kullback–Leibler</em> (<span class="math inline">\(D_{\text{KL}}\)</span>) è la misura teoricamente ideale della distanza tra la distribuzione vera dei dati, <span class="math inline">\(p(\tilde{y})\)</span>, e la distribuzione predittiva posteriore di un modello, <span class="math inline">\(q(\tilde{y} \mid y)\)</span>. Nel confronto tra due modelli <span class="math inline">\(A\)</span> e <span class="math inline">\(B\)</span>, la differenza tra le rispettive <span class="math inline">\(D_{\text{KL}}\)</span> equivale alla differenza tra le loro <em>accuratezze predittive medie</em> rispetto a <span class="math inline">\(p(\tilde{y})\)</span>.</p>
 <p>Poiché <span class="math inline">\(p(\tilde{y})\)</span> è sconosciuta, non possiamo calcolare direttamente la KL. Ma possiamo <em>stimarla indirettamente</em> con l’<em>ELPD</em> (<em>Expected Log Predictive Density</em>): un ELPD più alto significa che il modello è più “vicino” alla distribuzione vera.</p>
 <p>In sintesi:</p>
@@ -1422,12 +1436,25 @@ Esempio.
 </div>
 </div>
 </div>
-</section></section><section id="leave-one-out-cross-validation-loo-cv-stimare-lelpd-nella-pratica" class="level2" data-number="74.2"><h2 data-number="74.2" class="anchored" data-anchor-id="leave-one-out-cross-validation-loo-cv-stimare-lelpd-nella-pratica">
-<span class="header-section-number">74.2</span> Leave-One-Out Cross-Validation (LOO-CV): stimare l’ELPD nella pratica</h2>
+<div class="callout callout-style-simple callout-tip no-icon">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon no-icon"></i>
+</div>
+<div class="callout-body-container">
+<p><strong>Collegamento chiave</strong><br>
+L’ELPD è una stima empirica (con segno cambiato) della divergenza di Kullback–Leibler.<br>
+Più alto è l’ELPD, migliore è la capacità predittiva del modello.</p>
+</div>
+</div>
+</div>
+</section></section><section id="leave-one-out-cross-validation-loo-cv-stimare-lelpd-nella-pratica" class="level2" data-number="74.3"><h2 data-number="74.3" class="anchored" data-anchor-id="leave-one-out-cross-validation-loo-cv-stimare-lelpd-nella-pratica">
+<span class="header-section-number">74.3</span> Leave-One-Out Cross-Validation (LOO-CV): stimare l’ELPD nella pratica</h2>
+<p>Poiché la distribuzione vera dei dati futuri è inaccessibile, dobbiamo usare strategie indirette per stimare quanto bene il nostro modello prevede nuove osservazioni. La validazione incrociata Leave-One-Out (LOO-CV) è una di queste strategie.</p>
 <p>Abbiamo visto che l’<em>ELPD</em> è la misura ideale della capacità predittiva di un modello su dati futuri e non osservati. Il problema è che, per definizione, richiede di calcolare un’aspettativa rispetto alla <em>vera</em> distribuzione generatrice <span class="math inline">\(p(\tilde{y})\)</span>, che non conosciamo.</p>
 <p><strong>Come possiamo stimarlo in pratica?</strong> La risposta è la <em>Leave-One-Out Cross-Validation</em> (LOO-CV), che simula la previsione di nuovi dati usando soltanto i dati osservati.</p>
-<section id="cosè-la-loo-cv" class="level3" data-number="74.2.1"><h3 data-number="74.2.1" class="anchored" data-anchor-id="cosè-la-loo-cv">
-<span class="header-section-number">74.2.1</span> Cos’è la LOO-CV</h3>
+<section id="cosè-la-loo-cv" class="level3" data-number="74.3.1"><h3 data-number="74.3.1" class="anchored" data-anchor-id="cosè-la-loo-cv">
+<span class="header-section-number">74.3.1</span> Cos’è la LOO-CV</h3>
 <p>La LOO-CV è un esperimento concettuale molto semplice:</p>
 <ol type="1">
 <li>Scegli un’osservazione <span class="math inline">\(y_i\)</span> dal dataset.</li>
@@ -1440,22 +1467,23 @@ Esempio.
 <p>La formula è:</p>
 <p><span id="eq-loo-def"><span class="math display">\[
 \text{ELPD}_{\text{LOO}} = \sum_{i=1}^{n} \log p(y_i \mid y_{-i}),
-\tag{74.7}\]</span></span></p>
+\tag{74.8}\]</span></span></p>
 <p>dove <span class="math inline">\(y_{-i}\)</span> indica il dataset senza l’osservazione <span class="math inline">\(i\)</span>.</p>
 <p>La struttura è identica a quella dell’ELPD “ideale”, ma ogni termine è calcolato <em>fuori campione</em>, escludendo l’osservazione corrispondente.</p>
-</section><section id="perché-loo-cv-funziona" class="level3" data-number="74.2.2"><h3 data-number="74.2.2" class="anchored" data-anchor-id="perché-loo-cv-funziona">
-<span class="header-section-number">74.2.2</span> Perché LOO-CV funziona</h3>
+<p>È come escludere uno studente dal gruppo di allenamento e verificare se il modello riesce a predire correttamente il suo punteggio: ripetendo questo processo per ogni studente otteniamo una misura di quanto il modello generalizza a nuovi dati.</p>
+</section><section id="perché-loo-cv-funziona" class="level3" data-number="74.3.2"><h3 data-number="74.3.2" class="anchored" data-anchor-id="perché-loo-cv-funziona">
+<span class="header-section-number">74.3.2</span> Perché LOO-CV funziona</h3>
 <p>L’ELPD può essere scritto come:</p>
 <p><span id="eq-loo-def2"><span class="math display">\[
 \mathbb{E}_p[\log q(\tilde{y} \mid y)],
-\tag{74.8}\]</span></span></p>
+\tag{74.9}\]</span></span></p>
 <p>dove <span class="math inline">\(q(\tilde{y} \mid y)\)</span> è la distribuzione predittiva del modello. Non possiamo calcolare l’aspettativa rispetto a <span class="math inline">\(p(\tilde{y})\)</span>, ma se trattiamo ogni osservazione <span class="math inline">\(y_i\)</span> come “nuovo dato” generato da <span class="math inline">\(p\)</span>, la <em>media sui dati osservati</em> approssima bene l’aspettativa:</p>
 <p><span class="math display">\[
 \text{ELPD}_{\text{LOO}} \approx \mathbb{E}_p[\log q(\tilde{y} \mid y)].
 \]</span></p>
 <p>In altre parole, LOO-CV ci dice <em>quanto bene il modello predirebbe ciascun punto senza averlo mai visto</em>.</p>
-</section><section id="legame-teorico-con-la-divergenza-kl" class="level3" data-number="74.2.3"><h3 data-number="74.2.3" class="anchored" data-anchor-id="legame-teorico-con-la-divergenza-kl">
-<span class="header-section-number">74.2.3</span> Legame teorico con la divergenza KL</h3>
+</section><section id="legame-teorico-con-la-divergenza-kl" class="level3" data-number="74.3.3"><h3 data-number="74.3.3" class="anchored" data-anchor-id="legame-teorico-con-la-divergenza-kl">
+<span class="header-section-number">74.3.3</span> Legame teorico con la divergenza KL</h3>
 <p>La divergenza di Kullback–Leibler misura la distanza tra la distribuzione vera <span class="math inline">\(p(\tilde{y})\)</span> e la distribuzione predittiva del modello <span class="math inline">\(q(\tilde{y} \mid y)\)</span>:</p>
 <p><span class="math display">\[
 D_{\text{KL}}(p \parallel q) = \mathbb{E}_p[\log p(\tilde{y})] - \mathbb{E}_p[\log q(\tilde{y} \mid y)].
@@ -1466,15 +1494,15 @@ D_{\text{KL}}(p \parallel q_1) - D_{\text{KL}}(p \parallel q_2) =
 \mathbb{E}_p[\log q_2(\tilde{y} \mid y)] - \mathbb{E}_p[\log q_1(\tilde{y} \mid y)].
 \]</span></p>
 <p>Quindi <em>vince il modello con ELPD più alto</em>.</p>
-</section><section id="confronto-tra-modelli" class="level3" data-number="74.2.4"><h3 data-number="74.2.4" class="anchored" data-anchor-id="confronto-tra-modelli">
-<span class="header-section-number">74.2.4</span> Confronto tra modelli</h3>
+</section><section id="confronto-tra-modelli" class="level3" data-number="74.3.4"><h3 data-number="74.3.4" class="anchored" data-anchor-id="confronto-tra-modelli">
+<span class="header-section-number">74.3.4</span> Confronto tra modelli</h3>
 <p>Poiché <span class="math inline">\(p(\tilde{y})\)</span> è sconosciuta, sostituiamo l’aspettativa con la stima empirica LOO-CV:</p>
 <p><span id="eq-delta-elpd-def"><span class="math display">\[
 \Delta\text{ELPD} = \text{ELPD}_{\text{LOO}}(M_1) - \text{ELPD}_{\text{LOO}}(M_2)
-\tag{74.9}\]</span></span></p>
+\tag{74.10}\]</span></span></p>
 <p><span class="math inline">\(\Delta\text{ELPD}\)</span> approssima la differenza tra le divergenze KL dei modelli rispetto alla distribuzione vera. Oltre alla differenza, possiamo calcolare un <em>errore standard</em> per valutare se la superiorità di un modello è statisticamente convincente.</p>
-</section><section id="sintesi" class="level3" data-number="74.2.5"><h3 data-number="74.2.5" class="anchored" data-anchor-id="sintesi">
-<span class="header-section-number">74.2.5</span> Sintesi</h3>
+</section><section id="sintesi" class="level3" data-number="74.3.5"><h3 data-number="74.3.5" class="anchored" data-anchor-id="sintesi">
+<span class="header-section-number">74.3.5</span> Sintesi</h3>
 <ul>
 <li>
 <strong>Problema:</strong> L’ELPD ideale richiede <span class="math inline">\(p(\tilde{y})\)</span>, che è sconosciuta.</li>
@@ -1573,8 +1601,8 @@ Esempio.
 </div>
 </div>
 </div>
-</section><section id="elpd-loo-e-il-problema-delloverfitting" class="level3" data-number="74.2.6"><h3 data-number="74.2.6" class="anchored" data-anchor-id="elpd-loo-e-il-problema-delloverfitting">
-<span class="header-section-number">74.2.6</span> ELPD-LOO e il problema dell’overfitting</h3>
+</section><section id="elpd-loo-e-il-problema-delloverfitting" class="level3" data-number="74.3.6"><h3 data-number="74.3.6" class="anchored" data-anchor-id="elpd-loo-e-il-problema-delloverfitting">
+<span class="header-section-number">74.3.6</span> ELPD-LOO e il problema dell’overfitting</h3>
 <p>Valutare un modello sugli stessi dati con cui è stato addestrato tende a <em>sovrastimare</em> la sua capacità predittiva, soprattutto se il modello è molto flessibile. È come giudicare le capacità di uno studente facendogli ripetere esattamente gli stessi esercizi che ha già svolto durante lo studio: otterrà sicuramente un buon punteggio, ma questo non ci dice nulla su quanto bene saprà risolvere problemi <em>nuovi</em>.</p>
 <p>La <em>Leave-One-Out Cross-Validation (LOO-CV)</em> risolve questo problema:</p>
 <ul>
@@ -1710,32 +1738,47 @@ Esempio: ELPD atteso vs LOO stimato
 </div>
 </div>
 </div>
-<div class="callout callout-style-simple callout-tip no-icon">
-<div class="callout-body d-flex">
+</section><section id="elpd-loo-e-il-problema-delloverfitting-1" class="level3" data-number="74.3.7"><h3 data-number="74.3.7" class="anchored" data-anchor-id="elpd-loo-e-il-problema-delloverfitting-1">
+<span class="header-section-number">74.3.7</span> ELPD-LOO e il problema dell’overfitting</h3>
+<p>Valutare un modello sugli stessi dati con cui è stato addestrato tende a <em>sovrastimare</em> la sua capacità predittiva, soprattutto se il modello è molto flessibile. È come giudicare le capacità di uno studente facendogli ripetere esattamente gli stessi esercizi che ha già svolto durante lo studio: otterrà sicuramente un buon punteggio, ma questo non ci dice nulla su quanto bene saprà risolvere problemi <em>nuovi</em>.</p>
+<p>La <em>Leave-One-Out Cross-Validation (LOO-CV)</em> risolve questo problema:</p>
+<ul>
+<li>per ciascuna osservazione <span class="math inline">\(i\)</span>, il modello viene valutato su <span class="math inline">\(y_i\)</span> usando <em>solo dati che non includono <span class="math inline">\(y_i\)</span></em>;</li>
+<li>il risultato è una misura <em>out-of-sample</em> della bontà predittiva, molto meno sensibile all’overfitting.</li>
+</ul>
+<p>Grazie a metodi efficienti come il <em>Pareto-smoothed importance sampling (PSIS)</em>, oggi è possibile stimare l’ELPD-LOO <em>senza dover riadattare il modello <span class="math inline">\(n\)</span> volte</em>. In R, questo è implementato nella funzione <code><a href="https://mc-stan.org/loo/reference/loo.html">loo()</a></code> (pacchetto {<strong>loo</strong>}), compatibile con <code>brms</code> e <code>rstanarm</code>.</p>
+<div class="callout callout-style-simple callout-note no-icon callout-titled" title="In pratica: stimare e confrontare l'ELPD-LOO">
+<div class="callout-header d-flex align-content-center" data-bs-toggle="collapse" data-bs-target=".callout-11-contents" aria-controls="callout-11" aria-expanded="false" aria-label="Toggle callout">
 <div class="callout-icon-container">
 <i class="callout-icon no-icon"></i>
 </div>
-<div class="callout-body-container">
-<p><strong>In pratica</strong></p>
-<ol type="1">
-<li><p><strong>Capire il concetto:</strong> L’ELPD misura la capacità predittiva attesa su nuovi dati; LOO-CV fornisce una stima “fuori campione”.</p></li>
-<li><p><strong>Usare PSIS-LOO:</strong> evita di riadattare il modello <span class="math inline">\(n\)</span> volte, mantenendo buona accuratezza.</p></li>
-<li>
-<p><strong>Workflow tipico in R:</strong></p>
-<ul>
-<li>Adattare il modello (<code><a href="https://paulbuerkner.com/brms/reference/brm.html">brm()</a></code> o <code>stan_glm()</code>);</li>
-<li>Estrarre le log-likelihood per osservazione (<code><a href="https://mc-stan.org/rstantools/reference/log_lik.html">log_lik()</a></code>);</li>
-<li>Calcolare <code><a href="https://mc-stan.org/loo/reference/loo.html">loo()</a></code> → ELPD-LOO, SE, e diagnostici Pareto k;</li>
-<li>Confrontare modelli con <code><a href="https://mc-stan.org/loo/reference/loo_compare.html">loo_compare()</a></code>.</li>
-</ul>
-</li>
-<li><p><strong>Decisione:</strong> preferire il modello con ELPD-LOO più alto (differenza ≥ 2×SE è una soglia indicativa).</p></li>
-</ol>
+<div class="callout-title-container flex-fill">
+In pratica: stimare e confrontare l’ELPD-LOO
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-11" class="callout-11-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<p><strong>1. Capire il concetto</strong><br>
+- L’ELPD misura la capacità predittiva attesa su nuovi dati.<br>
+- La LOO-CV fornisce una stima “fuori campione” di questa capacità, riducendo il rischio di overfitting.</p>
+<p><strong>2. Usare PSIS-LOO</strong><br>
+- Evita di riadattare il modello <span class="math inline">\(n\)</span> volte, mantenendo buona accuratezza.<br>
+- È implementato in R nella funzione <code><a href="https://mc-stan.org/loo/reference/loo.html">loo()</a></code> (pacchetto <strong>loo</strong>), compatibile con <code>brms</code> e <code>rstanarm</code>.</p>
+<p><strong>3. Workflow tipico in R</strong><br>
+1. Adatta ciascun modello (<code><a href="https://paulbuerkner.com/brms/reference/brm.html">brm()</a></code> o <code>stan_glm()</code>);<br>
+2. Estrai le log-likelihood per osservazione (<code><a href="https://mc-stan.org/rstantools/reference/log_lik.html">log_lik()</a></code>);<br>
+3. Calcola <code><a href="https://mc-stan.org/loo/reference/loo.html">loo()</a></code> → ottieni ELPD-LOO, SE, e diagnostici Pareto <em>k</em>;<br>
+4. Confronta i modelli con <code><a href="https://mc-stan.org/loo/reference/loo_compare.html">loo_compare()</a></code>.</p>
+<p><strong>4. Decisione</strong><br>
+- Preferisci il modello con ELPD-LOO più alto.<br>
+- Una differenza ≥ 2×SE è un’indicazione che la differenza è sostanziale.<br>
+- Considera anche semplicità e interpretabilità.</p>
 </div>
 </div>
 </div>
-</section></section><section id="criteri-di-informazione-come-approssimazioni-della-divergenza-d_textkl" class="level2" data-number="74.3"><h2 data-number="74.3" class="anchored" data-anchor-id="criteri-di-informazione-come-approssimazioni-della-divergenza-d_textkl">
-<span class="header-section-number">74.3</span> Criteri di informazione come approssimazioni della divergenza <span class="math inline">\(D_{\text{KL}}\)</span>
+</section></section><section id="criteri-di-informazione-come-approssimazioni-della-divergenza-d_textkl" class="level2" data-number="74.4"><h2 data-number="74.4" class="anchored" data-anchor-id="criteri-di-informazione-come-approssimazioni-della-divergenza-d_textkl">
+<span class="header-section-number">74.4</span> Criteri di informazione come approssimazioni della divergenza <span class="math inline">\(D_{\text{KL}}\)</span>
 </h2>
 <p>Oltre alla <em>Leave-One-Out Cross-Validation</em>, esistono altri strumenti per stimare la qualità predittiva di un modello senza dover conoscere la distribuzione vera dei dati. Molti di questi metodi derivano, in modo più o meno diretto, dalla <em>divergenza di Kullback–Leibler</em> <span class="math inline">\(D_{\text{KL}}\)</span>, che — come visto — misura la distanza tra la distribuzione reale e quella stimata dal modello.</p>
 <p>L’idea di base è sempre la stessa:</p>
@@ -1762,23 +1805,23 @@ Esempio: ELPD atteso vs LOO stimato
 <strong>WAIC</strong> (Widely Applicable Information Criterion) – versione pienamente bayesiana, basata sulle previsioni del modello integrate sull’intera distribuzione a posteriori.</li>
 </ul>
 <p>Nelle sezioni seguenti vedremo come ciascun criterio si calcola, quali assunzioni richiede e in quali situazioni è preferibile rispetto agli altri.</p>
-<section id="errore-quadratico-medio-mse" class="level3" data-number="74.3.1"><h3 data-number="74.3.1" class="anchored" data-anchor-id="errore-quadratico-medio-mse">
-<span class="header-section-number">74.3.1</span> Errore Quadratico Medio (MSE)</h3>
+<section id="errore-quadratico-medio-mse" class="level3" data-number="74.4.1"><h3 data-number="74.4.1" class="anchored" data-anchor-id="errore-quadratico-medio-mse">
+<span class="header-section-number">74.4.1</span> Errore Quadratico Medio (MSE)</h3>
 <p>L’<em>Errore Quadratico Medio</em> misura la media delle differenze al quadrato tra valori osservati e previsti:</p>
 <p><span id="eq-mse-def"><span class="math display">\[
 MSE = \frac{1}{n} \sum_{i=1}^{n} (y_i - \hat{y}_i)^2.
-\tag{74.10}\]</span></span></p>
+\tag{74.11}\]</span></span></p>
 <ul>
 <li>Valori più bassi indicano previsioni più vicine ai dati osservati.</li>
 <li>Non tiene conto della complessità del modello, quindi può favorire modelli eccessivamente flessibili (<em>overfitting</em>).</li>
 </ul>
 <p>Utile per valutare l’accuratezza, ma da solo non è adatto a scegliere tra modelli con diversa complessità.</p>
-</section><section id="akaike-information-criterion-aic" class="level3" data-number="74.3.2"><h3 data-number="74.3.2" class="anchored" data-anchor-id="akaike-information-criterion-aic">
-<span class="header-section-number">74.3.2</span> Akaike Information Criterion (AIC)</h3>
+</section><section id="akaike-information-criterion-aic" class="level3" data-number="74.4.2"><h3 data-number="74.4.2" class="anchored" data-anchor-id="akaike-information-criterion-aic">
+<span class="header-section-number">74.4.2</span> Akaike Information Criterion (AIC)</h3>
 <p>L’<em>AIC</em> è un’approssimazione della divergenza <span class="math inline">\(D_{\text{KL}}\)</span> e stima quanta informazione si perde usando un modello per descrivere i dati:</p>
 <p><span id="eq-aic-def"><span class="math display">\[
 AIC = -2 \sum_{i=1}^{n} \log p(y_i \mid \hat{\theta}_{\text{MLE}}) + 2k,
-\tag{74.11}\]</span></span></p>
+\tag{74.12}\]</span></span></p>
 <p>dove:</p>
 <ul>
 <li>
@@ -1797,12 +1840,12 @@ AIC = -2 \sum_{i=1}^{n} \log p(y_i \mid \hat{\theta}_{\text{MLE}}) + 2k,
 <li>Basato su assunzioni asintotiche (funziona meglio con campioni grandi).</li>
 <li>Usa solo stime puntuali, ignorando l’incertezza dei parametri.</li>
 <li>Non è pienamente coerente con l’approccio bayesiano.</li>
-</ul></section><section id="bayesian-information-criterion-bic" class="level3" data-number="74.3.3"><h3 data-number="74.3.3" class="anchored" data-anchor-id="bayesian-information-criterion-bic">
-<span class="header-section-number">74.3.3</span> Bayesian Information Criterion (BIC)</h3>
+</ul></section><section id="bayesian-information-criterion-bic" class="level3" data-number="74.4.3"><h3 data-number="74.4.3" class="anchored" data-anchor-id="bayesian-information-criterion-bic">
+<span class="header-section-number">74.4.3</span> Bayesian Information Criterion (BIC)</h3>
 <p>Il <em>BIC</em> valuta il compromesso tra <em>adattamento ai dati</em> e <em>complessità del modello</em>, applicando una penalizzazione più severa rispetto all’AIC — soprattutto quando il numero di osservazioni <span class="math inline">\(n\)</span> è grande.</p>
 <p><span id="eq-bic-def"><span class="math display">\[
 BIC = -2 \log p(y \mid \hat{\theta}) + \log(n) \cdot k,
-\tag{74.12}\]</span></span></p>
+\tag{74.13}\]</span></span></p>
 <p>dove:</p>
 <ul>
 <li>
@@ -1827,8 +1870,8 @@ BIC = -2 \log p(y \mid \hat{\theta}) + \log(n) \cdot k,
 <ul>
 <li>Si basa su assunzioni forti (indipendenza, modelli regolari, prior deboli).</li>
 <li>Può sottoselezionare modelli utili con campioni piccoli o strutture complesse.</li>
-</ul></section><section id="widely-applicable-information-criterion-waic" class="level3" data-number="74.3.4"><h3 data-number="74.3.4" class="anchored" data-anchor-id="widely-applicable-information-criterion-waic">
-<span class="header-section-number">74.3.4</span> Widely Applicable Information Criterion (WAIC)</h3>
+</ul></section><section id="widely-applicable-information-criterion-waic" class="level3" data-number="74.4.4"><h3 data-number="74.4.4" class="anchored" data-anchor-id="widely-applicable-information-criterion-waic">
+<span class="header-section-number">74.4.4</span> Widely Applicable Information Criterion (WAIC)</h3>
 <p>Il <em>WAIC</em> è una versione <em>pienamente bayesiana</em> dell’AIC:</p>
 <ul>
 <li>utilizza <em>tutta la distribuzione a posteriori</em> dei parametri;</li>
@@ -1839,7 +1882,7 @@ WAIC = -2 \left[
 \sum_{i=1}^{n} \log \left( \frac{1}{S} \sum_{s=1}^{S} p(y_i \mid \theta^{(s)}) \right) -
 \sum_{i=1}^{n} \mathrm{Var}_{\theta^{(s)}} \big( \log p(y_i \mid \theta^{(s)}) \big)
 \right],
-\tag{74.13}\]</span></span></p>
+\tag{74.14}\]</span></span></p>
 <p>dove:</p>
 <ul>
 <li>
@@ -1923,12 +1966,12 @@ WAIC = -2 \left[
 <strong>MSE</strong>: misura l’accuratezza sulle osservazioni note, ma non penalizza la complessità e quindi non è adatto alla selezione del modello.</li>
 </ul>
 <p>Nel confronto tra modelli, la <em>differenza di ELPD</em> (stimata con LOO-CV o WAIC) andrebbe interpretata insieme al relativo <em>errore standard</em>: una regola pratica è considerare rilevante una differenza almeno doppia rispetto all’errore standard.</p>
-<p><strong>In sintesi</strong></p>
+<p><strong>In sintesi:</strong></p>
 <ul>
-<li>La buona statistica non si limita a spiegare il passato: sa <em>anticipare il futuro</em>.</li>
-<li>La <em>divergenza KL</em> fornisce la misura teorica della distanza tra modello e realtà.</li>
-<li>L’<em>ELPD</em>, stimato via LOO-CV o WAIC, traduce questa misura in una valutazione pratica della capacità predittiva.</li>
-<li>La scelta del modello ottimale richiede un equilibrio tra accuratezza, generalizzazione e parsimonia.</li>
+<li>la buona statistica non si limita a spiegare il passato: sa <em>anticipare il futuro</em>;</li>
+<li>la <em>divergenza KL</em> fornisce la misura teorica della distanza tra modello e realtà;</li>
+<li>l’<em>ELPD</em>, stimato via LOO-CV o WAIC, traduce questa misura in una valutazione pratica della capacità predittiva;</li>
+<li>la scelta del modello ottimale richiede un equilibrio tra accuratezza, generalizzazione e parsimonia.</li>
 </ul>
 <p>Con questi strumenti possiamo individuare modelli che colgono i veri pattern nei dati, evitando di farsi ingannare dal rumore e garantendo previsioni solide anche in contesti complessi.</p>
 </section><section id="informazioni-sullambiente-di-sviluppo" class="level2 unnumbered unlisted"><h2 class="unnumbered unlisted anchored" data-anchor-id="informazioni-sullambiente-di-sviluppo">Informazioni sull’Ambiente di Sviluppo</h2>
