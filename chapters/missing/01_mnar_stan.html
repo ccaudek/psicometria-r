@@ -1,0 +1,2409 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="it" xml:lang="it"><head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.7.32">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<meta name="author" content="Corrado Caudek">
+<title>79&nbsp; Dati mancanti in psicologia: identificare e modellare i casi MNAR con un approccio Bayesiano in Stan – Psicometria</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+<script src="../../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../../">
+<link href="../../chapters/frequentist_inference/introduction_frequentist_inference.html" rel="next">
+<link href="../../chapters/decision_analysis/01_study_method.html" rel="prev">
+<link href="../../style/gauss.png" rel="icon" type="image/png">
+<script src="../../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../../site_libs/quarto-html/popper.min.js"></script>
+<script src="../../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-52ea30a691a390814f50c81eb384824c.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../../site_libs/bootstrap/bootstrap-c7577f55b6f21603494813e131390297.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script src="../../site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
+<link href="../../site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
+<link href="../../site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet"><script id="quarto-search-options" type="application/json">{
+  "location": "sidebar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "start",
+  "type": "textbox",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "Nessun risultato",
+    "search-matching-documents-text": "documenti trovati",
+    "search-copy-link-title": "Copiare il link nella ricerca",
+    "search-hide-matches-text": "Nascondere i risultati aggiuntivi",
+    "search-more-match-text": "ci sono altri risultati in questo documento",
+    "search-more-matches-text": "ulteriori risultati in questo documento",
+    "search-clear-button-title": "Pulire",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancellare",
+    "search-submit-button-title": "Inviare",
+    "search-label": "Ricerca"
+  }
+}</script><script async="" src="https://www.googletagmanager.com/gtag/js?id=G-QT5S3P9D31"></script><script type="text/javascript">
+
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', 'G-QT5S3P9D31', { 'anonymize_ip': true});
+</script><script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script><script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+</head>
+<body class="nav-sidebar floating quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top"><nav class="quarto-secondary-nav"><div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Attiva/disattiva la barra laterale" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../../chapters/missing/01_mnar_stan.html">Missing</a></li><li class="breadcrumb-item"><a href="../../chapters/missing/01_mnar_stan.html"><span class="chapter-number">79</span>&nbsp; <span class="chapter-title">Dati mancanti in psicologia: identificare e modellare i casi MNAR con un approccio Bayesiano in Stan</span></a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Attiva/disattiva la barra laterale" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+      <button type="button" class="btn quarto-search-button" aria-label="Ricerca" onclick="window.quartoOpenSearch();">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+  </nav></header><!-- content --><div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto"><div class="pt-lg-2 mt-2 text-left sidebar-header">
+    <div class="sidebar-title mb-0 py-0">
+      <a href="../../">Psicometria</a> 
+        <div class="sidebar-tools-main">
+    <a href="https://github.com/ccaudek/psicometria-r/" title="Eseguire il codice" class="quarto-navigation-tool px-1" aria-label="Eseguire il codice"><i class="bi bi-github"></i></a>
+  <a href="" class="quarto-reader-toggle quarto-navigation-tool px-1" onclick="window.quartoToggleReader(); return false;" title="Attiva/disattiva la modalità lettore">
+  <div class="quarto-reader-toggle-btn">
+  <i class="bi"></i>
+  </div>
+</a>
+</div>
+    </div>
+      </div>
+        <div class="mt-2 flex-shrink-0 align-items-center">
+        <div class="sidebar-search">
+        <div id="quarto-search" class="" title="Ricerca"></div>
+        </div>
+        </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Informazioni Generali</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../prefazione.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Prefazione</span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../../chapters/key_notions/introduction_key_notions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Fondamenti</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/key_notions/01_data_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">1</span>&nbsp; <span class="chapter-title">La crisi di replicazione e la riforma metodologica in psicologia</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/key_notions/02_key_notions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">2</span>&nbsp; <span class="chapter-title">Concetti chiave</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/key_notions/03_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">3</span>&nbsp; <span class="chapter-title">Campionamento, metodologia sperimentale e studi osservazionali</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/key_notions/04_measurement.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">4</span>&nbsp; <span class="chapter-title">La misurazione in psicologia</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/key_notions/05_cognitive_models.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">5</span>&nbsp; <span class="chapter-title">Dalla descrizione alla spiegazione: modelli meccanicistici e computazionali in psicologia</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../../chapters/R/introduction_r_lang.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">R</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/R/01_r_syntax.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">6</span>&nbsp; <span class="chapter-title">Un approccio moderno all’analisi dei dati</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/R/02_utility_functions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">7</span>&nbsp; <span class="chapter-title">Utility functions</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/R/03_r_programming.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">8</span>&nbsp; <span class="chapter-title">Programmazione</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/R/04_r_packages.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">9</span>&nbsp; <span class="chapter-title">Pacchetti</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/R/05_dplyr.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">10</span>&nbsp; <span class="chapter-title">Introduzione a <code>dplyr</code></span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/R/06_quarto.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">11</span>&nbsp; <span class="chapter-title">Quarto</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/R/07_environment.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">12</span>&nbsp; <span class="chapter-title">L’ambiente di programmazione</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/R/08_ai.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">13</span>&nbsp; <span class="chapter-title">Utilizzo di strumenti AI</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../../chapters/eda/introduction_eda.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EDA</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/eda/01_project_structure.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">14</span>&nbsp; <span class="chapter-title">Le fasi del progetto di analisi dei dati</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/eda/02_data_cleaning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">15</span>&nbsp; <span class="chapter-title">Flusso di lavoro per la pulizia dei dati</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/eda/04_exploring_qualitative_data.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">16</span>&nbsp; <span class="chapter-title">Esplorare i dati qualitativi</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/eda/05_exploring_numeric_data.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">17</span>&nbsp; <span class="chapter-title">Esplorare i dati numerici</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/eda/06_data_visualization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">18</span>&nbsp; <span class="chapter-title">Principi della visualizzazione dei dati</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/eda/07_loc_scale.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">19</span>&nbsp; <span class="chapter-title">Indicatori di tendenza centrale e variabilità</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/eda/07a_introduction_normal_distribution.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">20</span>&nbsp; <span class="chapter-title">Introduzione alla distribuzione normale</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/eda/08_correlation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">21</span>&nbsp; <span class="chapter-title">Relazioni tra variabili</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/eda/09_causality.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">22</span>&nbsp; <span class="chapter-title">Causalità dai dati osservazionali</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/eda/10_estimand.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">23</span>&nbsp; <span class="chapter-title">Estimandi teorici e estimandi empirici</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/eda/11_outlier.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">24</span>&nbsp; <span class="chapter-title">Outlier</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../../chapters/probability/introduction_probability.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Probabilità</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/01_intro_prob.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">25</span>&nbsp; <span class="chapter-title">Interpretazione della probabilità</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/02_probability_models.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">26</span>&nbsp; <span class="chapter-title">Modelli probabilistici</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/03_prob_spaces.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">27</span>&nbsp; <span class="chapter-title">La Probabilità come misura della certezza razionale: un’interpretazione Bayesiana</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/04_sigma-algebra.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">28</span>&nbsp; <span class="chapter-title">Dal Discreto al Continuo: la <span class="math inline">\(\sigma\)</span>-algebra</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/05_conditional_prob.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">29</span>&nbsp; <span class="chapter-title">Probabilità condizionata</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/06_bayes_theorem.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">30</span>&nbsp; <span class="chapter-title">Il teorema di Bayes</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/07_random_var.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">31</span>&nbsp; <span class="chapter-title">Variabili casuali</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/08_prob_distributions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">32</span>&nbsp; <span class="chapter-title">Distribuzioni di massa e di densità</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/09_expval_var.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">33</span>&nbsp; <span class="chapter-title">Proprietà delle variabili casuali</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/10_sampling_distr.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">34</span>&nbsp; <span class="chapter-title">Stime, stimatori e parametri</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/11a_joint_prob.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">35</span>&nbsp; <span class="chapter-title">Probabilità congiunta</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/11b_cov_cor.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">36</span>&nbsp; <span class="chapter-title">Covarianza e correlazione</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/11c_joint_prob_cont.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">37</span>&nbsp; <span class="chapter-title">Caso continuo</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/12a_intro_distributions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">38</span>&nbsp; <span class="chapter-title">Introduzione alle distribuzioni di probabilità</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/12_discr_rv_distr.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">39</span>&nbsp; <span class="chapter-title">Distribuzioni di v.c. discrete</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/13_cont_rv_distr.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">40</span>&nbsp; <span class="chapter-title">Distribuzioni di v.c. continue</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/14_gauss.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">41</span>&nbsp; <span class="chapter-title">Assunzione di gaussianità e trasformazioni dei dati</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/15_likelihood.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">42</span>&nbsp; <span class="chapter-title">La verosimiglianza</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false">
+ <span class="menu-text">Inferenza</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/bayesian_inference/introduction_bayes_inference.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Introduzione</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/bayesian_inference/01_uncertainty.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">43</span>&nbsp; <span class="chapter-title">Abbracciare l’incertezza</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/bayesian_inference/02_intro_bayes.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">44</span>&nbsp; <span class="chapter-title">La quantificazione dell’incertezza</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/bayesian_inference/03_statistical_models.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">45</span>&nbsp; <span class="chapter-title">Modelli statistici</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/bayesian_inference/04_bayesian_inference.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">46</span>&nbsp; <span class="chapter-title">Inferenza bayesiana</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/bayesian_inference/05_subj_prop.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">47</span>&nbsp; <span class="chapter-title">Aggiornare le credenze su un parametro: dal prior alla posterior</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/bayesian_inference/07_conjugate_families_1.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">48</span>&nbsp; <span class="chapter-title">Distribuzioni coniugate (1)</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/bayesian_inference/08_conjugate_families_2.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">49</span>&nbsp; <span class="chapter-title">Distribuzioni coniugate (2)</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/bayesian_inference/09_summary_posterior.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">50</span>&nbsp; <span class="chapter-title">Sintesi a posteriori</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/bayesian_inference/10_balance_prior_post.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">51</span>&nbsp; <span class="chapter-title">L’influenza della distribuzione a priori</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/bayesian_inference/11_gamma_poisson_model.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">52</span>&nbsp; <span class="chapter-title">Modello coniugato Gamma-Poisson</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/bayesian_inference/12_gamma_exponential_model.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">53</span>&nbsp; <span class="chapter-title">Modello gamma-esponenziale</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/bayesian_inference/13_prior_pred_check.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">54</span>&nbsp; <span class="chapter-title">Controllo predittivo a priori (Prior Predictive Check)</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/bayesian_inference/14_post_pred_distr.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">55</span>&nbsp; <span class="chapter-title">Distribuzione predittiva a posteriori</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false">
+ <span class="menu-text">MCMC</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/mcmc/introduction_mcmc.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Introduzione</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/mcmc/01_metropolis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">56</span>&nbsp; <span class="chapter-title">L’algoritmo di Metropolis-Hastings</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/mcmc/02_ppl.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">57</span>&nbsp; <span class="chapter-title">Linguaggi di programmazione probabilistici</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/mcmc/07_bayesian_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">58</span>&nbsp; <span class="chapter-title">Flusso di lavoro bayesiano</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false">
+ <span class="menu-text">Regressione</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/linear_models/introduction_linear_models.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Introduzione</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/linear_models/01_reglin_frequentist.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">59</span>&nbsp; <span class="chapter-title">La regressione lineare bivariata</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/linear_models/02_regr_toward_mean.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">60</span>&nbsp; <span class="chapter-title">La regressione verso la media</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/linear_models/03_reglin_bayes.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">61</span>&nbsp; <span class="chapter-title">Modello bayesiano di regressione lineare bivariata</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/linear_models/04_synt_sugar.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">62</span>&nbsp; <span class="chapter-title">Zucchero sintattico</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/linear_models/05_one_mean.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">63</span>&nbsp; <span class="chapter-title">Inferenza bayesiana su una media</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/linear_models/07_two_means.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">64</span>&nbsp; <span class="chapter-title">Confronto tra le medie di due gruppi</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/linear_models/07a_effect_size.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">65</span>&nbsp; <span class="chapter-title">La grandezza dell’effetto: valutare la rilevanza pratica</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/linear_models/08_sample_size.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">66</span>&nbsp; <span class="chapter-title">Pianificazione della dimensione campionaria</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/linear_models/09_anova_1via.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">67</span>&nbsp; <span class="chapter-title">ANOVA ad una via</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/linear_models/10_anova_2vie.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">68</span>&nbsp; <span class="chapter-title">ANOVA ad due vie</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/linear_models/11_one_proportion.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">69</span>&nbsp; <span class="chapter-title">Inferenza sulle proporzioni</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/linear_models/12_two_proportions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">70</span>&nbsp; <span class="chapter-title">Confronto tra due proporzioni indipendenti</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/linear_models/13_poisson_model.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">71</span>&nbsp; <span class="chapter-title">Modello di Poisson</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false">
+ <span class="menu-text">Entropia</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/entropy/01_entropy.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">72</span>&nbsp; <span class="chapter-title">Entropia e informazione di Shannon</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/entropy/02_kl.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">73</span>&nbsp; <span class="chapter-title">La divergenza di Kullback-Leibler</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/entropy/03_model_comparison.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">74</span>&nbsp; <span class="chapter-title">Valutare i modelli bayesiani: Log-Score, LPPD, ELPD e LOO-CV</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="false">
+ <span class="menu-text">Modelli</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="false" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-9" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/formal_models/introduction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Introduzione</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/formal_models/01_dynamic_models.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">75</span>&nbsp; <span class="chapter-title">Il modello di revisione degli obiettivi</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/formal_models/02_dynamic_models.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">76</span>&nbsp; <span class="chapter-title">Estensioni</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/formal_models/03_rescorla_wagner.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">77</span>&nbsp; <span class="chapter-title">Il modello di Rescorla–Wagner</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="false">
+ <span class="menu-text">Decisioni</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="false" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/decision_analysis/01_study_method.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">78</span>&nbsp; <span class="chapter-title">Analisi delle decisioni</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="true">
+ <span class="menu-text">Missing</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="true" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-11" class="collapse list-unstyled sidebar-section depth1 show">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/missing/01_mnar_stan.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text"><span class="chapter-number">79</span>&nbsp; <span class="chapter-title">Dati mancanti in psicologia: identificare e modellare i casi MNAR con un approccio Bayesiano in Stan</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false">
+ <span class="menu-text">Frequentismo</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-12" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/frequentist_inference/introduction_frequentist_inference.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Introduzione</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/frequentist_inference/01_intro_frequentist.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">80</span>&nbsp; <span class="chapter-title">Inferenza frequentista</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/frequentist_inference/01a_stime_parametri.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">81</span>&nbsp; <span class="chapter-title">Stime, stimatori e parametri</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/frequentist_inference/02_conf_interv.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">82</span>&nbsp; <span class="chapter-title">Intervalli di fiducia</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/frequentist_inference/03_sample_size.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">83</span>&nbsp; <span class="chapter-title">La grandezza del campione</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/frequentist_inference/04_test_ipotesi.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">84</span>&nbsp; <span class="chapter-title">Significatività statistica</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/frequentist_inference/05_two_ind_samples.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">85</span>&nbsp; <span class="chapter-title">Test t di Student per campioni indipendenti</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false">
+ <span class="menu-text">Crisi</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-13" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/replication_crisis/introduction_replication_crisis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Introduzione</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/replication_crisis/01_crisis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">86</span>&nbsp; <span class="chapter-title">La crisi della replicazione</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/replication_crisis/02_limits_stat_freq.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">87</span>&nbsp; <span class="chapter-title">Limiti dell’inferenza frequentista</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/replication_crisis/03_effect_size.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">88</span>&nbsp; <span class="chapter-title">La grandezza dell’effetto</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/replication_crisis/04_s_m_errors.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">89</span>&nbsp; <span class="chapter-title">Errori di segno e errori di grandezza</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/replication_crisis/05_p_values.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">90</span>&nbsp; <span class="chapter-title">La fragilità del <em>p</em>-valore</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/replication_crisis/06_changes.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">91</span>&nbsp; <span class="chapter-title">Riforma</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/replication_crisis/07_piranha.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">92</span>&nbsp; <span class="chapter-title">Il Problema del priming: sfide e paradossi nella psicologia sociale</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/replication_crisis/08_degrees_of_freedom.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">93</span>&nbsp; <span class="chapter-title">I gradi di libertà del ricercatore</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/replication_crisis/09_integrity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">94</span>&nbsp; <span class="chapter-title">Integrità della ricerca</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="false">
+ <span class="menu-text">Epilogo</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="false" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-14" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/epiloque/epiloque.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Considerazioni Conclusive</span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false">
+ <span class="menu-text">Appendici</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/appendix/a01_shell.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">A</span>&nbsp; <span class="chapter-title">La Shell</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/appendix/a01a_files.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">B</span>&nbsp; <span class="chapter-title">Cartelle e documenti</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/appendix/a02_math_symbols.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">C</span>&nbsp; <span class="chapter-title">Simbologia di base</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/appendix/a03_latex.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">D</span>&nbsp; <span class="chapter-title">Equazioni Matematiche in LaTeX</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/appendix/a11_numbers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">E</span>&nbsp; <span class="chapter-title">Numeri e intervalli</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/appendix/a12_sum_notation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">F</span>&nbsp; <span class="chapter-title">Sommatorie</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/appendix/a13_sets.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">G</span>&nbsp; <span class="chapter-title">Insiemi</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/appendix/a14_combinatorics.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">H</span>&nbsp; <span class="chapter-title">Calcolo combinatorio</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/appendix/a15_calculus.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">I</span>&nbsp; <span class="chapter-title">Per liberarvi dai terrori preliminari</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/appendix/a47_first_order_markov.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">J</span>&nbsp; <span class="chapter-title">Catene di Markov</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/appendix/a50_lin_fun.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">K</span>&nbsp; <span class="chapter-title">La funzione lineare</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/appendix/a71_install_cmdstan.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">L</span>&nbsp; <span class="chapter-title">Come installare CmdStan</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+    </ul>
+</div>
+</nav><div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active"><h2 id="toc-title">Indice</h2>
+   
+  <ul class="collapse">
+<li><a href="#simulazione-di-dati-con-meccanismo-mnar" id="toc-simulazione-di-dati-con-meccanismo-mnar" class="nav-link active" data-scroll-target="#simulazione-di-dati-con-meccanismo-mnar"><span class="header-section-number">79.1</span> Simulazione di dati con meccanismo MNAR</a></li>
+  <li><a href="#modello-1-outcome-only-ignora-il-meccanismo" id="toc-modello-1-outcome-only-ignora-il-meccanismo" class="nav-link" data-scroll-target="#modello-1-outcome-only-ignora-il-meccanismo"><span class="header-section-number">79.2</span> Modello 1 — Outcome-only (ignora il meccanismo)</a></li>
+  <li><a href="#modello-2-selection-model-mnar-esplicito" id="toc-modello-2-selection-model-mnar-esplicito" class="nav-link" data-scroll-target="#modello-2-selection-model-mnar-esplicito"><span class="header-section-number">79.3</span> Modello 2 — Selection model (MNAR esplicito)</a></li>
+  <li><a href="#scelte-dei-prior-e-loro-razionale" id="toc-scelte-dei-prior-e-loro-razionale" class="nav-link" data-scroll-target="#scelte-dei-prior-e-loro-razionale"><span class="header-section-number">79.4</span> Scelte dei prior e loro razionale</a></li>
+  <li><a href="#identificabilit%C3%A0-scaling-e-scelte-di-prior" id="toc-identificabilità-scaling-e-scelte-di-prior" class="nav-link" data-scroll-target="#identificabilit%C3%A0-scaling-e-scelte-di-prior"><span class="header-section-number">79.5</span> Identificabilità, scaling e scelte di prior</a></li>
+  <li><a href="#interpretazione-dei-risultati-alla-luce-della-teoria-mnar" id="toc-interpretazione-dei-risultati-alla-luce-della-teoria-mnar" class="nav-link" data-scroll-target="#interpretazione-dei-risultati-alla-luce-della-teoria-mnar"><span class="header-section-number">79.6</span> Interpretazione dei risultati alla luce della teoria MNAR</a></li>
+  <li><a href="#varianti-utili-oltre-al-selection-model" id="toc-varianti-utili-oltre-al-selection-model" class="nav-link" data-scroll-target="#varianti-utili-oltre-al-selection-model"><span class="header-section-number">79.7</span> Varianti utili oltre al selection model</a></li>
+  <li><a href="#linee-guida-sintetiche" id="toc-linee-guida-sintetiche" class="nav-link" data-scroll-target="#linee-guida-sintetiche"><span class="header-section-number">79.8</span> Linee guida sintetiche</a></li>
+  </ul><div class="toc-actions"><ul class="collapse"><li><a href="https://github.com/ccaudek/psicometria-r/blob/main/chapters/missing/01_mnar_stan.qmd" class="toc-action"><i class="bi bi-github"></i>Mostra il codice</a></li><li><a href="https://github.com/ccaudek/psicometria-r/issues/new" class="toc-action"><i class="bi empty"></i>Segnala un problema</a></li></ul></div></nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../../chapters/missing/01_mnar_stan.html">Missing</a></li><li class="breadcrumb-item"><a href="../../chapters/missing/01_mnar_stan.html"><span class="chapter-number">79</span>&nbsp; <span class="chapter-title">Dati mancanti in psicologia: identificare e modellare i casi MNAR con un approccio Bayesiano in Stan</span></a></li></ol></nav><div class="quarto-title">
+<h1 class="title"><span id="sec-missing-data" class="quarto-section-identifier"><span class="chapter-number">79</span>&nbsp; <span class="chapter-title">Dati mancanti in psicologia: identificare e modellare i casi MNAR con un approccio Bayesiano in Stan</span></span></h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header><div class="callout callout-style-simple callout-important no-icon callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon no-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Obiettivi di apprendimento
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Al termine di questo capitolo, sarai in grado di:</p>
+<ul>
+<li>Distinguere tra MCAR, MAR e MNAR e comprendere le implicazioni in psicologia.</li>
+<li>Riconoscere situazioni in cui i dati mancanti non sono casuali (MNAR).</li>
+<li>Formulare un modello Bayesiano per gestire dati MNAR.</li>
+<li>Implementare il modello in Stan e interpretarne i risultati.</li>
+</ul>
+</div>
+</div>
+<div class="callout callout-style-simple callout-tip no-icon callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon no-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Prerequisiti
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<ul>
+<li>Conoscenza di base della probabilità e dell’inferenza Bayesiana.</li>
+<li>Familiarità con R e pacchetti <code>brms</code> e <code>cmdstanr</code>.</li>
+<li>Concetti fondamentali sui dati mancanti (MCAR, MAR, MNAR).</li>
+</ul>
+</div>
+</div>
+<div class="callout callout-style-simple callout-caution no-icon callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon no-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Preparazione del Notebook
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<div class="cell">
+<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html">here</a></span><span class="op">(</span><span class="st">"code"</span>, <span class="st">"_common.R"</span><span class="op">)</span> <span class="op">|&gt;</span> </span>
+<span>  <span class="kw"><a href="https://rdrr.io/r/base/source.html">source</a></span><span class="op">(</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Additional packages</span></span>
+<span><span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/ns-load.html">requireNamespace</a></span><span class="op">(</span><span class="st">"pacman"</span><span class="op">)</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html">install.packages</a></span><span class="op">(</span><span class="st">"pacman"</span><span class="op">)</span></span>
+<span><span class="fu">pacman</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/pacman/man/p_load.html">p_load</a></span><span class="op">(</span><span class="va">brms</span>, <span class="va">posterior</span>, <span class="va">loo</span>, <span class="va">cmdstanr</span>, <span class="va">stringr</span>, <span class="va">tidyr</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</div>
+</div>
+<section id="introduzione" class="level2 unnumbered unlisted"><h2 class="unnumbered unlisted anchored" data-anchor-id="introduzione">Introduzione</h2>
+<p>In molte ricerche psicologiche, i dati mancanti non sono semplicemente “buchi” da riempire, ma possono essere la conseguenza diretta del fenomeno che vogliamo studiare. Questo significa che l’assenza di una risposta è essa stessa un dato psicologico. Ad esempio:</p>
+<ul>
+<li>nei questionari su temi sensibili (come ansia sociale, uso di sostanze, esperienze traumatiche) le persone con punteggi più elevati possono saltare più facilmente alcune domande per evitare disagio emotivo;</li>
+<li>negli studi EMA (<em>Ecological Momentary Assessment</em>), i partecipanti possono rispondere meno quando sono di cattivo umore, sotto stress o in situazioni socialmente impegnative.</li>
+</ul>
+<p>In questi casi, la probabilità che un dato sia osservato dipende dal valore vero non osservato. Questa situazione è definita MNAR – <em>Missing Not At Random</em> e, se ignorata, può produrre stime distorte dei parametri (ad esempio medie più basse del reale, effetti di regressione sottostimati). In pratica: si può concludere che un trattamento funziona quando in realtà non è così, o viceversa.</p>
+<p>In questo capitolo:</p>
+<ol type="1">
+<li>rivedremo le principali tipologie di dati mancanti (MCAR, MAR, MNAR);</li>
+<li>vedremo come riconoscere un caso MNAR nella ricerca psicologica;</li>
+<li>impareremo a costruire e stimare un modello Bayesiano in Stan per gestire dati MNAR.</li>
+</ol>
+<div class="callout callout-style-simple callout-note no-icon callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon no-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+MCAR, MAR, MNAR: i tre meccanismi chiave
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Quando analizzi dati mancanti, è fondamentale capire <em>perché</em> mancano. Le principali categorie sono:</p>
+<ul>
+<li>
+<strong>MCAR</strong> (<em>Missing Completely At Random</em>): la probabilità che un dato manchi è indipendente sia dalle variabili osservate sia dal valore mancante.
+<ul>
+<li>
+<em>Esempio</em>: in un questionario online, alcune risposte mancano a causa di un problema tecnico che interrompe la connessione.</li>
+</ul>
+</li>
+<li>
+<strong>MAR</strong> (<em>Missing At Random</em>): la probabilità di mancanza dipende solo da variabili osservate (non dal valore mancante), una volta controllato per queste.
+<ul>
+<li>
+<em>Esempio</em>: in un test di ansia, i partecipanti più anziani saltano alcune domande, ma conosciamo l’età di tutti.</li>
+</ul>
+</li>
+<li>
+<strong>MNAR</strong> (<em>Missing Not At Random</em>): la probabilità di mancanza dipende dal valore vero mancante, anche dopo aver considerato le variabili osservate.
+<ul>
+<li>
+<em>Esempio</em>: in un questionario su sintomi depressivi, chi è più depresso tende a non rispondere a domande su pensieri negativi.</li>
+</ul>
+</li>
+</ul>
+<p><strong>Nota operativa</strong>: Ignorare un meccanismo MNAR può portare a stime distorte e a conclusioni errate, specialmente in studi clinici o longitudinali.</p>
+</div>
+</div>
+</section><section id="simulazione-di-dati-con-meccanismo-mnar" class="level2" data-number="79.1"><h2 data-number="79.1" class="anchored" data-anchor-id="simulazione-di-dati-con-meccanismo-mnar">
+<span class="header-section-number">79.1</span> Simulazione di dati con meccanismo MNAR</h2>
+<p>Supponiamo di voler misurare il punteggio di <em>ansia sociale</em> (<span class="math inline">\(y\)</span>) in un campione di partecipanti. Nella popolazione, ipotizziamo che <span class="math inline">\(y\)</span> segua una distribuzione normale con media <span class="math inline">\(\mu = 50\)</span> e deviazione standard <span class="math inline">\(\sigma = 10\)</span>.<br>
+Per semplificare i calcoli, standardizziamo la variabile:</p>
+<p><span class="math display">\[
+y_z = \frac{y - 50}{10} \quad \Rightarrow \quad y_z \sim \mathcal{N}(0, 1)
+\]</span></p>
+<p>Ora modelliamo una situazione comune nella ricerca psicologica: le persone con ansia sociale più elevata tendono a evitare a rispondere al questionario, lasciando più risposte mancanti.</p>
+<p>Questo comportamento di evitamento è descritto da un <em>modello di selezione</em> (<em>selection model</em>):</p>
+<p><span id="eq-selection-model"><span class="math display">\[
+\Pr(R_i = 1 \mid y_i) = \text{logit}^{-1}(\alpha + \beta\, y_i)
+\tag{79.1}\]</span></span></p>
+<p>dove:</p>
+<ul>
+<li>
+<span class="math inline">\(R_i\)</span> è la <em>variabile indicatrice di osservazione</em> per l’unità <span class="math inline">\(i\)</span>;</li>
+<li>
+<span class="math inline">\(R_i = 1\)</span> significa che il dato <span class="math inline">\(y_i\)</span> è stato <em>osservato</em> (il partecipante ha risposto);</li>
+<li>
+<span class="math inline">\(R_i = 0\)</span> significa che il dato <span class="math inline">\(y_i\)</span> è <em>mancante</em> (il partecipante non ha risposto);</li>
+<li>
+<span class="math inline">\(\beta &lt; 0\)</span> implica che, all’aumentare di <span class="math inline">\(y_i\)</span>, la probabilità di risposta diminuisce (es. punteggi più alti sono associati a una maggiore probabilità di mancare la risposta);</li>
+<li>
+<span class="math inline">\(\beta &gt; 0\)</span> implicherebbe l’opposto: punteggi più alti aumentano la probabilità di risposta;</li>
+<li>
+<span class="math inline">\(\beta = 0\)</span> indica che la probabilità di risposta non dipende da <span class="math inline">\(y_i\)</span> (condizionatamente alle altre variabili del modello).</li>
+</ul>
+<p><strong>Nota didattica</strong>: questo esempio riflette un tipico caso MNAR, in cui la probabilità di osservare il dato dipende direttamente dal valore vero della variabile di interesse.</p>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html">set.seed</a></span><span class="op">(</span><span class="fl">1234</span><span class="op">)</span>   </span>
+<span></span>
+<span><span class="va">N</span>          <span class="op">&lt;-</span> <span class="fl">1000</span></span>
+<span><span class="va">alpha_true</span> <span class="op">&lt;-</span> <span class="fl">0</span></span>
+<span><span class="va">beta_true</span>  <span class="op">&lt;-</span> <span class="op">-</span><span class="fl">2.0</span></span>
+<span></span>
+<span><span class="va">y_true</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html">rnorm</a></span><span class="op">(</span><span class="va">N</span>, <span class="fl">0</span>, <span class="fl">1</span><span class="op">)</span></span>
+<span><span class="va">p_obs</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Logistic.html">plogis</a></span><span class="op">(</span><span class="va">alpha_true</span> <span class="op">+</span> <span class="va">beta_true</span> <span class="op">*</span> <span class="va">y_true</span><span class="op">)</span></span>
+<span><span class="va">R</span>      <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Binomial.html">rbinom</a></span><span class="op">(</span><span class="va">N</span>, <span class="fl">1</span>, <span class="va">p_obs</span><span class="op">)</span></span>
+<span><span class="va">y_obs</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html">ifelse</a></span><span class="op">(</span><span class="va">R</span> <span class="op">==</span> <span class="fl">1</span>, <span class="va">y_true</span>, <span class="cn">NA_real_</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">tbl</span> <span class="op">&lt;-</span> <span class="fu">tibble</span><span class="op">(</span><span class="va">y_true</span>, <span class="va">R</span>, <span class="va">y_obs</span>, <span class="va">p_obs</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/mean.html">mean</a></span><span class="op">(</span><span class="va">R</span><span class="op">)</span>; <span class="fu"><a href="https://rdrr.io/r/base/mean.html">mean</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html">is.na</a></span><span class="op">(</span><span class="va">y_obs</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] 0.501</span></span>
+<span><span class="co">#&gt; [1] 0.499</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Consideriamo un riassunto numerico, utile per far emergere subito il bias:</p>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">summ</span> <span class="op">&lt;-</span> <span class="fu">tibble</span><span class="op">(</span></span>
+<span>  grandezza <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="st">"Media"</span>, <span class="st">"Varianza"</span><span class="op">)</span>,</span>
+<span>  vero      <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/mean.html">mean</a></span><span class="op">(</span><span class="va">tbl</span><span class="op">$</span><span class="va">y_true</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/stats/cor.html">var</a></span><span class="op">(</span><span class="va">tbl</span><span class="op">$</span><span class="va">y_true</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  osservato <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/mean.html">mean</a></span><span class="op">(</span><span class="va">tbl</span><span class="op">$</span><span class="va">y_obs</span>, na.rm <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/stats/cor.html">var</a></span><span class="op">(</span><span class="va">tbl</span><span class="op">$</span><span class="va">y_obs</span>, na.rm <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html">print</a></span><span class="op">(</span><span class="va">summ</span><span class="op">)</span></span>
+<span><span class="co">#&gt; # A tibble: 2 × 3</span></span>
+<span><span class="co">#&gt;   grandezza    vero osservato</span></span>
+<span><span class="co">#&gt;   &lt;chr&gt;       &lt;dbl&gt;     &lt;dbl&gt;</span></span>
+<span><span class="co">#&gt; 1 Media     -0.0266    -0.594</span></span>
+<span><span class="co">#&gt; 2 Varianza   0.995      0.663</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Visualizziamo ora la <em>probabilità di osservazione</em> in funzione del valore vero e confrontiamo la <em>distribuzione dei veri</em> con quella dei <em>solo osservati</em>.</p>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># 1) Probabilità di osservazione in funzione del valore vero</span></span>
+<span><span class="va">p1</span> <span class="op">&lt;-</span> <span class="fu">ggplot</span><span class="op">(</span><span class="va">tbl</span>, <span class="fu">aes</span><span class="op">(</span>x <span class="op">=</span> <span class="va">y_true</span>, y <span class="op">=</span> <span class="va">p_obs</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">geom_point</span><span class="op">(</span>alpha <span class="op">=</span> <span class="fl">0.20</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">geom_smooth</span><span class="op">(</span>method <span class="op">=</span> <span class="st">"loess"</span>, se <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">labs</span><span class="op">(</span></span>
+<span>    title <span class="op">=</span> <span class="st">"MNAR: Pr(R=1 | y)"</span>,</span>
+<span>    subtitle <span class="op">=</span> <span class="st">"All'aumentare di y, la probabilità di risposta diminuisce (beta_true &lt; 0)"</span>,</span>
+<span>    x <span class="op">=</span> <span class="st">"y (vero, scala z)"</span>, y <span class="op">=</span> <span class="st">"Pr(R=1 | y)"</span></span>
+<span>  <span class="op">)</span> </span>
+<span></span>
+<span><span class="co"># 2) Distribuzione dei valori veri, con linea su media=0</span></span>
+<span><span class="va">p2</span> <span class="op">&lt;-</span> <span class="fu">ggplot</span><span class="op">(</span><span class="va">tbl</span>, <span class="fu">aes</span><span class="op">(</span>x <span class="op">=</span> <span class="va">y_true</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">geom_histogram</span><span class="op">(</span><span class="fu">aes</span><span class="op">(</span>y <span class="op">=</span> <span class="va">..density..</span><span class="op">)</span>, bins <span class="op">=</span> <span class="fl">30</span>, alpha <span class="op">=</span> <span class="fl">0.35</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">geom_density</span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">geom_vline</span><span class="op">(</span>xintercept <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/mean.html">mean</a></span><span class="op">(</span><span class="va">tbl</span><span class="op">$</span><span class="va">y_true</span><span class="op">)</span>, linetype <span class="op">=</span> <span class="fl">2</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">labs</span><span class="op">(</span></span>
+<span>    title <span class="op">=</span> <span class="st">"Distribuzione dei valori veri"</span>,</span>
+<span>    subtitle <span class="op">=</span> <span class="st">"y_true ~ N(0, 1); linea tratteggiata = media campionaria"</span>,</span>
+<span>    x <span class="op">=</span> <span class="st">"y (vero, scala z)"</span>, y <span class="op">=</span> <span class="st">"Densità"</span></span>
+<span>  <span class="op">)</span> </span>
+<span></span>
+<span><span class="co"># 3) Distribuzione dei valori osservati (cond. a R=1), con linea su media osservata</span></span>
+<span><span class="va">p3</span> <span class="op">&lt;-</span> <span class="fu">ggplot</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/filter.html">filter</a></span><span class="op">(</span><span class="va">tbl</span>, <span class="va">R</span> <span class="op">==</span> <span class="fl">1</span><span class="op">)</span>, <span class="fu">aes</span><span class="op">(</span>x <span class="op">=</span> <span class="va">y_obs</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">geom_histogram</span><span class="op">(</span><span class="fu">aes</span><span class="op">(</span>y <span class="op">=</span> <span class="va">..density..</span><span class="op">)</span>, bins <span class="op">=</span> <span class="fl">30</span>, alpha <span class="op">=</span> <span class="fl">0.35</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">geom_density</span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">geom_vline</span><span class="op">(</span>xintercept <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/mean.html">mean</a></span><span class="op">(</span><span class="va">tbl</span><span class="op">$</span><span class="va">y_obs</span>, na.rm <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>, linetype <span class="op">=</span> <span class="fl">2</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">labs</span><span class="op">(</span></span>
+<span>    title <span class="op">=</span> <span class="st">"Distribuzione dei valori osservati (R=1)"</span>,</span>
+<span>    subtitle <span class="op">=</span> <span class="st">"Selezione MNAR: la forma/posizione può differire rispetto ai valori veri"</span>,</span>
+<span>    x <span class="op">=</span> <span class="st">"y osservato"</span>, y <span class="op">=</span> <span class="st">"Densità"</span></span>
+<span>  <span class="op">)</span> </span>
+<span></span>
+<span><span class="va">p1</span>; <span class="va">p2</span>; <span class="va">p3</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure"><div class="quarto-figure quarto-figure-center">
+<figure class="figure"><p><a href="01_mnar_stan_files/figure-html/plot-sim-1.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1" title="MNAR: probabilità di osservazione e distribuzioni ‘vero’ vs ‘osservato’."><img src="01_mnar_stan_files/figure-html/plot-sim-1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:70.0%" alt="MNAR: probabilità di osservazione e distribuzioni ‘vero’ vs ‘osservato’."></a></p>
+</figure>
+</div>
+<figcaption>MNAR: probabilità di osservazione e distribuzioni ‘vero’ vs ‘osservato’.</figcaption></figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure"><div class="quarto-figure quarto-figure-center">
+<figure class="figure"><p><a href="01_mnar_stan_files/figure-html/plot-sim-2.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2" title="MNAR: probabilità di osservazione e distribuzioni ‘vero’ vs ‘osservato’."><img src="01_mnar_stan_files/figure-html/plot-sim-2.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:70.0%" alt="MNAR: probabilità di osservazione e distribuzioni ‘vero’ vs ‘osservato’."></a></p>
+</figure>
+</div>
+<figcaption>MNAR: probabilità di osservazione e distribuzioni ‘vero’ vs ‘osservato’.</figcaption></figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure"><div class="quarto-figure quarto-figure-center">
+<figure class="figure"><p><a href="01_mnar_stan_files/figure-html/plot-sim-3.png" class="lightbox" data-gallery="quarto-lightbox-gallery-3" title="MNAR: probabilità di osservazione e distribuzioni ‘vero’ vs ‘osservato’."><img src="01_mnar_stan_files/figure-html/plot-sim-3.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:70.0%" alt="MNAR: probabilità di osservazione e distribuzioni ‘vero’ vs ‘osservato’."></a></p>
+</figure>
+</div>
+<figcaption>MNAR: probabilità di osservazione e distribuzioni ‘vero’ vs ‘osservato’.</figcaption></figure>
+</div>
+</div>
+</div>
+<p><strong>Messaggio chiave.</strong> La selezione MNAR fa sì che i dati osservati non rappresentino la popolazione: nei grafici si vede che la probabilità di osservazione diminuisce con y e che la distribuzione degli osservati è spostata rispetto a quella dei veri. <strong>Conseguenza</strong>: le analisi che ignorano il meccanismo (vedi Modello 1) tendono a stimare una media distorta e/o una varianza alterata.</p>
+</section><section id="modello-1-outcome-only-ignora-il-meccanismo" class="level2" data-number="79.2"><h2 data-number="79.2" class="anchored" data-anchor-id="modello-1-outcome-only-ignora-il-meccanismo">
+<span class="header-section-number">79.2</span> Modello 1 — Outcome-only (ignora il meccanismo)</h2>
+<p>In questo modello assumiamo che la variabile osservata <span class="math inline">\(y\)</span> (su scala z) segua:</p>
+<p><span class="math display">\[
+y \sim \mathcal{N}(\mu, \sigma)
+\]</span></p>
+<p>con aspettative <span class="math inline">\(\mu \approx 0\)</span> e <span class="math inline">\(\sigma \approx 1\)</span>.</p>
+<p>I valori mancanti vengono trattati come <em>parametri latenti</em> e stimati direttamente, <em>senza modellare</em> la variabile <span class="math inline">\(R\)</span> che indica la risposta.<br>
+In pratica, stiamo assumendo implicitamente che i dati mancanti siano <em>MCAR</em> (completamente a caso) o <em>MAR</em> (a caso dato il modello).</p>
+<section id="intuizione-operativa" class="level3" data-number="79.2.1"><h3 data-number="79.2.1" class="anchored" data-anchor-id="intuizione-operativa">
+<span class="header-section-number">79.2.1</span> Intuizione operativa</h3>
+<ul>
+<li>Il modello stima i valori mancanti “come se” fossero assenti in modo casuale, basandosi solo sulla distribuzione di <span class="math inline">\(y\)</span>.</li>
+<li>Se i dati sono in realtà <em>MNAR</em>, le stime di parametri chiave come <span class="math inline">\(\mu\)</span> possono risultare <em>sistematicamente distorte</em>.</li>
+<li>Questo approccio è utile come <em>baseline</em> per confrontare l’effetto di modelli più realistici che tengono conto del meccanismo di mancanza.</li>
+</ul></section><section id="codice-stan-outcome-only" class="level3" data-number="79.2.2"><h3 data-number="79.2.2" class="anchored" data-anchor-id="codice-stan-outcome-only">
+<span class="header-section-number">79.2.2</span> Codice Stan (outcome-only)</h3>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># Modello Stan: Outcome-only (ignora R)</span></span>
+<span><span class="co"># Tratta i mancanti come latenti e assume MCAR/MAR</span></span>
+<span></span>
+<span><span class="va">stan_ignore</span> <span class="op">&lt;-</span> <span class="st">'</span></span>
+<span><span class="st">data {</span></span>
+<span><span class="st">  int&lt;lower=0&gt; N_obs;             // Numero di osservazioni</span></span>
+<span><span class="st">  int&lt;lower=0&gt; N_mis;             // Numero di valori mancanti</span></span>
+<span><span class="st">  array[N_obs] real y_obs;        // Valori osservati</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">parameters {</span></span>
+<span><span class="st">  real mu;                        // Media della distribuzione</span></span>
+<span><span class="st">  real&lt;lower=0&gt; sigma;            // Deviazione standard</span></span>
+<span><span class="st">  array[N_mis] real y_mis;        // Valori mancanti (stimati)</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">model {</span></span>
+<span><span class="st">  // Priors</span></span>
+<span><span class="st">  mu    ~ normal(0, 1);</span></span>
+<span><span class="st">  sigma ~ normal(1, 0.5);</span></span>
+<span><span class="st">  </span></span>
+<span><span class="st">  // Likelihood per dati osservati</span></span>
+<span><span class="st">  y_obs ~ normal(mu, sigma);</span></span>
+<span><span class="st">  </span></span>
+<span><span class="st">  // Likelihood per dati mancanti (uguale agli osservati)</span></span>
+<span><span class="st">  y_mis ~ normal(mu, sigma);</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">generated quantities {</span></span>
+<span><span class="st">  real y_mean = mu;               // Stima della media</span></span>
+<span><span class="st">  real y_sd   = sigma;             // Stima della deviazione standard</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">'</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html">writeLines</a></span><span class="op">(</span><span class="va">stan_ignore</span>, <span class="st">"ignore_mnar.stan"</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># Prepara i dati per Stan</span></span>
+<span><span class="va">y_obs_vec</span> <span class="op">&lt;-</span> <span class="va">tbl</span><span class="op">$</span><span class="va">y_obs</span><span class="op">[</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html">is.na</a></span><span class="op">(</span><span class="va">tbl</span><span class="op">$</span><span class="va">y_obs</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="va">N_obs</span>     <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html">length</a></span><span class="op">(</span><span class="va">y_obs_vec</span><span class="op">)</span>                 <span class="co"># numero osservazioni</span></span>
+<span><span class="va">N_mis</span>     <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html">sum</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html">is.na</a></span><span class="op">(</span><span class="va">tbl</span><span class="op">$</span><span class="va">y_obs</span><span class="op">)</span><span class="op">)</span>              <span class="co"># numero mancanti</span></span>
+<span></span>
+<span><span class="va">data_ignore</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html">list</a></span><span class="op">(</span></span>
+<span>  N_obs <span class="op">=</span> <span class="va">N_obs</span>,</span>
+<span>  N_mis <span class="op">=</span> <span class="va">N_mis</span>,</span>
+<span>  y_obs <span class="op">=</span> <span class="va">y_obs_vec</span></span>
+<span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Stima:</p>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">mod_ignore</span> <span class="op">&lt;-</span> <span class="fu">cmdstan_model</span><span class="op">(</span><span class="st">"ignore_mnar.stan"</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># Stima Bayesiana</span></span>
+<span><span class="va">fit_ignore</span> <span class="op">&lt;-</span> <span class="va">mod_ignore</span><span class="op">$</span><span class="fu">sample</span><span class="op">(</span></span>
+<span>  data <span class="op">=</span> <span class="va">data_ignore</span>, seed <span class="op">=</span> <span class="fl">11</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">4</span>, parallel_chains <span class="op">=</span> <span class="fl">4</span>,</span>
+<span>  iter_warmup <span class="op">=</span> <span class="fl">1500</span>, iter_sampling <span class="op">=</span> <span class="fl">2000</span>,</span>
+<span>  adapt_delta <span class="op">=</span> <span class="fl">0.99</span>, max_treedepth <span class="op">=</span> <span class="fl">14</span></span>
+<span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Riassunto dei parametri stimati:</p>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">summ_ignore</span> <span class="op">&lt;-</span> <span class="va">fit_ignore</span><span class="op">$</span><span class="fu">summary</span><span class="op">(</span>variables <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="st">"mu"</span>, <span class="st">"sigma"</span><span class="op">)</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section></section><section id="modello-2-selection-model-mnar-esplicito" class="level2" data-number="79.3"><h2 data-number="79.3" class="anchored" data-anchor-id="modello-2-selection-model-mnar-esplicito">
+<span class="header-section-number">79.3</span> Modello 2 — Selection model (MNAR esplicito)</h2>
+<p>Nel <em>selection model</em> la probabilità di osservare un dato <strong>non è costante</strong>, ma dipende dal valore stesso di <span class="math inline">\(y\)</span>. Questo legame è descritto dal parametro <strong><span class="math inline">\(\beta\)</span></strong>:</p>
+<ul>
+<li>
+<em><span class="math inline">\(\beta\)</span> positivo</em> → valori più alti di <span class="math inline">\(y\)</span> hanno <em>maggiore</em> probabilità di essere osservati.</li>
+<li>
+<em><span class="math inline">\(\beta\)</span> negativo</em> → valori più alti di <span class="math inline">\(y\)</span> hanno <em>minore</em> probabilità di essere osservati (es. soggetti con punteggi elevati evitano di rispondere).</li>
+<li>
+<em><span class="math inline">\(\beta\)</span> = 0</em> → la probabilità di osservazione non dipende da <span class="math inline">\(y\)</span> (condizionatamente alle altre variabili incluse nel modello).</li>
+</ul>
+<p>Ad esempio, se <span class="math inline">\(y\)</span> misura il livello di umore depresso, un <span class="math inline">\(\beta\)</span> negativo significherebbe che, all’aumentare del punteggio (maggiore sintomatologia), cala la probabilità di risposta — un tipico caso di <em>missing not at random</em> per evitamento.</p>
+<p><strong>Interpretazione sulla scala logit.</strong> Ogni unità di aumento in <span class="math inline">\(y\)</span> modifica il <em>log-odds</em> di osservazione di <span class="math inline">\(\beta\)</span> unità. Per questo motivo è utile centrare e scalare <span class="math inline">\(y\)</span>: una scala interpretabile rende la prior di <span class="math inline">\(\beta\)</span> più chiara e confrontabile tra studi.</p>
+<p><strong>Idea chiave.</strong> Trattiamo i valori mancanti <span class="math inline">\(y\_{\text{mis}}\)</span> come <em>parametri latenti</em> e, per ciascuna unità statistica, usiamo lo stesso valore (osservato o imputato dal modello) all’interno dell’equazione logistica per <span class="math inline">\(R\)</span>. In questo modo, il meccanismo di mancanza “vede” sia i dati osservati sia quelli stimati.</p>
+<section id="modello-2a-prior-informativa-su-beta" class="level3" data-number="79.3.1"><h3 data-number="79.3.1" class="anchored" data-anchor-id="modello-2a-prior-informativa-su-beta">
+<span class="header-section-number">79.3.1</span> Modello 2A — Prior informativa su <span class="math inline">\(\beta\)</span>
+</h3>
+<p>In questo modello adottiamo una <em>prior informativa</em> sul parametro <span class="math inline">\(\beta\)</span>, che nel <em>selection model</em> controlla <em>quanto</em> e in quale <em>direzione</em> il valore dell’outcome <span class="math inline">\(y\)</span> influenza la probabilità di essere osservato (<span class="math inline">\(R=1\)</span>).</p>
+<p>Nel nostro scenario simulato, sappiamo per costruzione che:</p>
+<ul>
+<li>il meccanismo è <em>MNAR</em>,</li>
+<li>
+<span class="math inline">\(\beta\)</span> è <em>negativo</em> (valori alti di <span class="math inline">\(y\)</span> sono meno probabili da osservare).</li>
+</ul>
+<p>Questa conoscenza a priori ci permette di formulare una <em>prior centrata su un valore negativo plausibile</em>, fondata sia sulla struttura simulata sia su ipotesi teoriche comuni in psicologia (es. soggetti con punteggi elevati su certi tratti tendono a evitare la risposta).</p>
+<p><strong>Perché usare una prior informativa su <span class="math inline">\(\beta\)</span>?</strong></p>
+<ol type="1">
+<li>
+<strong>Stabilizzare la stima.</strong> Se il campione è piccolo o il segnale nei dati è debole, la prior riduce l’incertezza a posteriori e aiuta a evitare stime erratiche.</li>
+<li>
+<strong>Integrare conoscenza pregressa.</strong> Studi precedenti o considerazioni teoriche possono fornire un’idea credibile della direzione e dell’ordine di grandezza di <span class="math inline">\(\beta\)</span>, migliorando l’identificabilità del meccanismo MNAR.</li>
+</ol>
+<p>In sintesi, il modello 2A è un esempio di strategia “assistita” dalla teoria: non lasciamo che <span class="math inline">\(\beta\)</span> sia determinato solo dal dato, ma lo orientiamo con un’informazione a priori motivata e trasparente.</p>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">stan_selection_inf</span> <span class="op">&lt;-</span> <span class="st">'</span></span>
+<span><span class="st">data {</span></span>
+<span><span class="st">  int&lt;lower=0&gt; N_obs;</span></span>
+<span><span class="st">  int&lt;lower=0&gt; N_mis;</span></span>
+<span><span class="st">  int&lt;lower=0&gt; N_total;</span></span>
+<span><span class="st">  array[N_obs] real y_obs;</span></span>
+<span><span class="st">  array[N_total] int&lt;lower=0,upper=1&gt; R;</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">parameters {</span></span>
+<span><span class="st">  real mu;</span></span>
+<span><span class="st">  real&lt;lower=0&gt; sigma;</span></span>
+<span><span class="st">  array[N_mis] real y_mis;</span></span>
+<span><span class="st">  real alpha;</span></span>
+<span><span class="st">  real beta;</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">transformed parameters {</span></span>
+<span><span class="st">  array[N_total] real y_all;</span></span>
+<span><span class="st">  for (n in 1:N_obs)   y_all[n] = y_obs[n];</span></span>
+<span><span class="st">  for (n in 1:N_mis)   y_all[N_obs + n] = y_mis[n];</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">model {</span></span>
+<span><span class="st">  // Priors ancoranti su outcome (scala nota) + informativa su beta</span></span>
+<span><span class="st">  mu    ~ normal(0, 0.3);</span></span>
+<span><span class="st">  sigma ~ normal(1, 0.2) T[0,];</span></span>
+<span><span class="st">  alpha ~ normal(0, 1);</span></span>
+<span><span class="st">  beta  ~ normal(-1.5, 0.5);</span></span>
+<span><span class="st"></span></span>
+<span><span class="st">  // Outcome</span></span>
+<span><span class="st">  y_obs ~ normal(mu, sigma);</span></span>
+<span><span class="st">  y_mis ~ normal(mu, sigma);</span></span>
+<span><span class="st"></span></span>
+<span><span class="st">  // Selection</span></span>
+<span><span class="st">  for (n in 1:N_total)</span></span>
+<span><span class="st">    R[n] ~ bernoulli_logit(alpha + beta * y_all[n]);</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">generated quantities {</span></span>
+<span><span class="st">  real y_mean = mu;</span></span>
+<span><span class="st">  real y_sd   = sigma;</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">'</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html">writeLines</a></span><span class="op">(</span><span class="va">stan_selection_inf</span>, <span class="st">"selection_mnar_informative.stan"</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">N_obs</span>   <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html">sum</a></span><span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html">is.na</a></span><span class="op">(</span><span class="va">tbl</span><span class="op">$</span><span class="va">y_obs</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">N_mis</span>   <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html">sum</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html">is.na</a></span><span class="op">(</span><span class="va">tbl</span><span class="op">$</span><span class="va">y_obs</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">N_total</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/nrow.html">nrow</a></span><span class="op">(</span><span class="va">tbl</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">data_sel</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html">list</a></span><span class="op">(</span></span>
+<span>  N_obs   <span class="op">=</span> <span class="va">N_obs</span>,</span>
+<span>  N_mis   <span class="op">=</span> <span class="va">N_mis</span>,</span>
+<span>  N_total <span class="op">=</span> <span class="va">N_total</span>,</span>
+<span>  y_obs   <span class="op">=</span> <span class="va">y_obs_vec</span>,</span>
+<span>  R       <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/integer.html">as.integer</a></span><span class="op">(</span><span class="va">tbl</span><span class="op">$</span><span class="va">R</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Compila il modello Selection MNAR:</p>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">mod_sel_inf</span> <span class="op">&lt;-</span> <span class="fu">cmdstan_model</span><span class="op">(</span><span class="st">"selection_mnar_informative.stan"</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># Stima Bayesiana</span></span>
+<span><span class="va">fit_sel_inf</span> <span class="op">&lt;-</span> <span class="va">mod_sel_inf</span><span class="op">$</span><span class="fu">sample</span><span class="op">(</span></span>
+<span>  data <span class="op">=</span> <span class="va">data_sel</span>, seed <span class="op">=</span> <span class="fl">33</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">4</span>, parallel_chains <span class="op">=</span> <span class="fl">4</span>,</span>
+<span>  iter_warmup <span class="op">=</span> <span class="fl">1500</span>, iter_sampling <span class="op">=</span> <span class="fl">2000</span>,</span>
+<span>  adapt_delta <span class="op">=</span> <span class="fl">0.99</span>, max_treedepth <span class="op">=</span> <span class="fl">14</span></span>
+<span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Riassunto dei parametri principali:</p>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">summ_sel_inf</span> <span class="op">&lt;-</span> <span class="va">fit_sel_inf</span><span class="op">$</span><span class="fu">summary</span><span class="op">(</span>variables <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="st">"mu"</span>,<span class="st">"sigma"</span>,<span class="st">"alpha"</span>,<span class="st">"beta"</span><span class="op">)</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Direi che la struttura del testo è già molto buona, ma si può renderlo più incisivo e scorrevole migliorando tre aspetti:</p>
+<ol type="1">
+<li>
+<strong>Ridurre la ridondanza</strong> nelle spiegazioni di cosa significhi <span class="math inline">\(\beta\)</span> (già spiegato nel modello 2A, qui basta un richiamo breve).</li>
+<li>
+<strong>Esplicitare il razionale pedagogico</strong>: perché in un contesto didattico è utile confrontare un modello con prior informativa e uno con prior ampia.</li>
+<li>
+<strong>Rafforzare la metafora della “prova di forza”</strong> rendendo chiaro il legame con l’identificabilità e la robustezza dei risultati.</li>
+</ol></section><section id="modello-2b-prior-wide-su-beta-e-outcome-ancorato" class="level3" data-number="79.3.2"><h3 data-number="79.3.2" class="anchored" data-anchor-id="modello-2b-prior-wide-su-beta-e-outcome-ancorato">
+<span class="header-section-number">79.3.2</span> Modello 2B — Prior “wide” su <span class="math inline">\(\beta\)</span> e outcome ancorato</h3>
+<p>Questa variante del <em>selection model</em> combina due scelte di prior mirate:</p>
+<ol type="1">
+<li>
+<p><strong>Outcome fortemente ancorato sulla scala z</strong></p>
+<ul>
+<li><span class="math inline">\(\mu \sim \mathcal{N}(0, 0.2)\)</span></li>
+<li>
+<span class="math inline">\(\sigma \sim \mathcal{N}(1, 0.1)\)</span> troncata a valori positivi</li>
+</ul>
+<p>Prima di vedere i dati, assumiamo che l’outcome sia già centrato (media vicina a 0) e scalato (deviazione standard vicina a 1). Questo ancoraggio forte riduce l’incertezza su <span class="math inline">\(\mu\)</span> e <span class="math inline">\(\sigma\)</span> e rende più stabile la stima degli altri parametri, incluso <span class="math inline">\(\beta\)</span>.</p>
+</li>
+<li>
+<p><strong>Prior ampia su <span class="math inline">\(\beta\)</span></strong></p>
+<ul>
+<li><span class="math inline">\(\beta \sim \mathcal{N}(0, 2)\)</span></li>
+</ul>
+<p>Lasciamo quasi completa libertà al dato di determinare segno e ampiezza dell’effetto del meccanismo di mancanza. A differenza del modello 2A, qui <em>non forniamo alcuna indicazione a priori</em> sulla direzione attesa di <span class="math inline">\(\beta\)</span>.</p>
+</li>
+</ol>
+<p><strong>Richiamo rapido su <span class="math inline">\(\beta\)</span>.</strong> Il parametro <span class="math inline">\(\beta\)</span> è il coefficiente logit che collega <span class="math inline">\(y\)</span> alla probabilità di essere osservato: valori negativi indicano che i punteggi alti tendono a mancare, valori positivi l’opposto, valori vicini a zero indicano assenza di relazione.</p>
+<p><strong>Perché questa scelta?</strong></p>
+<p>Questo setup funziona come <em>test di robustezza</em>:</p>
+<ul>
+<li>
+<strong>Ancoriamo fortemente</strong> la parte dell’outcome, per evitare che incertezza su <span class="math inline">\(\mu\)</span> e <span class="math inline">\(\sigma\)</span> si propaghi a <span class="math inline">\(\beta\)</span>.</li>
+<li>
+<strong>Allentiamo il vincolo su <span class="math inline">\(\beta\)</span></strong> per vedere se il segnale nei dati, senza alcun “aiuto” teorico, è sufficiente a rivelare il meccanismo MNAR.</li>
+<li>
+<strong>Confronto didattico</strong>: se il campione è grande e il meccanismo forte, ci aspettiamo che la stima di <span class="math inline">\(\beta\)</span> sia simile a quella del modello 2A, ma con intervalli credibili più ampi; se invece i dati non contengono abbastanza informazione, la stima sarà più incerta o ambigua.</li>
+</ul>
+<p>In altre parole, il modello 2B è una “prova di forza” per il dato: tolta la stampella della prior informativa, riusciamo ancora a vedere la stessa storia?</p>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">stan_sel_wide</span> <span class="op">&lt;-</span> <span class="st">'</span></span>
+<span><span class="st">data {</span></span>
+<span><span class="st">  int&lt;lower=0&gt; N_obs;</span></span>
+<span><span class="st">  int&lt;lower=0&gt; N_mis;</span></span>
+<span><span class="st">  int&lt;lower=0&gt; N_total;</span></span>
+<span><span class="st">  array[N_obs] real y_obs;</span></span>
+<span><span class="st">  array[N_total] int&lt;lower=0,upper=1&gt; R;</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">parameters {</span></span>
+<span><span class="st">  real mu;</span></span>
+<span><span class="st">  real&lt;lower=0&gt; sigma;</span></span>
+<span><span class="st">  array[N_mis] real y_mis;</span></span>
+<span><span class="st">  real alpha;</span></span>
+<span><span class="st">  real beta;</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">model {</span></span>
+<span><span class="st">  // Priors: outcome fortemente ancorato (scala z), beta ampia</span></span>
+<span><span class="st">  mu    ~ normal(0, 0.2);</span></span>
+<span><span class="st">  sigma ~ normal(1, 0.1) T[0,];</span></span>
+<span><span class="st">  alpha ~ normal(0, 2);</span></span>
+<span><span class="st">  beta  ~ normal(0, 2);</span></span>
+<span><span class="st"></span></span>
+<span><span class="st">  // Outcome</span></span>
+<span><span class="st">  y_obs ~ normal(mu, sigma);</span></span>
+<span><span class="st">  y_mis ~ normal(mu, sigma);</span></span>
+<span><span class="st"></span></span>
+<span><span class="st">  // Selection con indicizzazione corretta</span></span>
+<span><span class="st">  {</span></span>
+<span><span class="st">    int i_obs = 1;</span></span>
+<span><span class="st">    int i_mis = 1;</span></span>
+<span><span class="st">    for (n in 1:N_total) {</span></span>
+<span><span class="st">      real y_n = (R[n] == 1) ? y_obs[i_obs] : y_mis[i_mis];</span></span>
+<span><span class="st">      R[n] ~ bernoulli_logit(alpha + beta * y_n);</span></span>
+<span><span class="st">      if (R[n] == 1) i_obs += 1; else i_mis += 1;</span></span>
+<span><span class="st">    }</span></span>
+<span><span class="st">  }</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">generated quantities {</span></span>
+<span><span class="st">  real y_mean = mu;</span></span>
+<span><span class="st">  real y_sd   = sigma;</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">'</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html">writeLines</a></span><span class="op">(</span><span class="va">stan_sel_wide</span>, <span class="st">"selection_mnar_wide.stan"</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">mod_sel_wide</span> <span class="op">&lt;-</span> <span class="fu">cmdstan_model</span><span class="op">(</span><span class="st">"selection_mnar_wide.stan"</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">fit_sel_wide</span> <span class="op">&lt;-</span> <span class="va">mod_sel_wide</span><span class="op">$</span><span class="fu">sample</span><span class="op">(</span></span>
+<span>  data <span class="op">=</span> <span class="va">data_sel</span>, seed <span class="op">=</span> <span class="fl">33</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">4</span>, parallel_chains <span class="op">=</span> <span class="fl">4</span>,</span>
+<span>  iter_warmup <span class="op">=</span> <span class="fl">2500</span>, iter_sampling <span class="op">=</span> <span class="fl">3000</span>,</span>
+<span>  adapt_delta <span class="op">=</span> <span class="fl">0.999</span>, max_treedepth <span class="op">=</span> <span class="fl">20</span></span>
+<span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">summ_sel_wide</span> <span class="op">&lt;-</span> <span class="va">fit_sel_wide</span><span class="op">$</span><span class="fu">summary</span><span class="op">(</span>variables <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="st">"mu"</span>,<span class="st">"sigma"</span>,<span class="st">"alpha"</span>,<span class="st">"beta"</span><span class="op">)</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section></section><section id="scelte-dei-prior-e-loro-razionale" class="level2" data-number="79.4"><h2 data-number="79.4" class="anchored" data-anchor-id="scelte-dei-prior-e-loro-razionale">
+<span class="header-section-number">79.4</span> Scelte dei prior e loro razionale</h2>
+<p>Le differenze tra i tre modelli non riguardano solo la parte di <em>likelihood</em>, ma soprattutto le <em>scelte di prior</em>, che riflettono ipotesi diverse sulla natura del meccanismo di mancanza e sulla scala dell’outcome. Qui riassumiamo il razionale di ciascun modello.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 13%">
+<col style="width: 8%">
+<col style="width: 14%">
+<col style="width: 39%">
+<col style="width: 24%">
+</colgroup>
+<thead><tr class="header">
+<th>Modello</th>
+<th>Prior su <span class="math inline">\(\mu\)</span> e <span class="math inline">\(\sigma\)</span>
+</th>
+<th>Prior su <span class="math inline">\(\beta\)</span>
+</th>
+<th>Razionale</th>
+<th>Attese sulle stime</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td><strong>Outcome-only</strong></td>
+<td>Larghe (nessun ancoraggio)</td>
+<td>Nessuna (<span class="math inline">\(\beta\)</span> assente)</td>
+<td>Test di riferimento: stimiamo <span class="math inline">\(\mu\)</span> e <span class="math inline">\(\sigma\)</span> ignorando il meccanismo di mancanza</td>
+<td>Possibile <em>bias</em> se i dati sono MNAR</td>
+</tr>
+<tr class="even">
+<td><strong>2A — Prior informativa su <span class="math inline">\(\beta\)</span></strong></td>
+<td>Larghe (nessun ancoraggio)</td>
+<td>Informativa centrata su valore negativo plausibile</td>
+<td>Incorporiamo conoscenza teorica/empirica sul segno e l’ordine di grandezza di <span class="math inline">\(\beta\)</span>
+</td>
+<td>Stima di <span class="math inline">\(\beta\)</span> più <em>stabile</em> e intervalli credibili più <em>stretti</em>
+</td>
+</tr>
+<tr class="odd">
+<td><strong>2B — Prior ampia su <span class="math inline">\(\beta\)</span> e outcome ancorato</strong></td>
+<td>Fortemente ancorate (<span class="math inline">\(\mu\)</span>≈0, <span class="math inline">\(\sigma\)</span>≈1)</td>
+<td>Ampia, <span class="math inline">\(\mathcal{N}(0, 2)\)</span>
+</td>
+<td>L’ancoraggio rende interpretabile <span class="math inline">\(\beta\)</span> in unità di deviazione standard; prior ampia per lasciare ai dati il compito di “dire la verità”</td>
+<td>Stima di <span class="math inline">\(\beta\)</span> simile a 2A se i dati sono informativi, ma con intervalli più <em>ampi</em>
+</td>
+</tr>
+</tbody>
+</table>
+<section id="perché-ancorare-mu-e-sigma-nel-modello-2b" class="level3" data-number="79.4.1"><h3 data-number="79.4.1" class="anchored" data-anchor-id="perché-ancorare-mu-e-sigma-nel-modello-2b">
+<span class="header-section-number">79.4.1</span> Perché ancorare <span class="math inline">\(\mu\)</span> e <span class="math inline">\(\sigma\)</span> nel modello 2B?</h3>
+<p>Non è un trucco per “facilitare” la stima, ma una scelta metodologica per <em>fissare una scala interpretabile</em>. Se <span class="math inline">\(y\)</span> non è centrato e scalato, una stessa prior su <span class="math inline">\(\beta\)</span> può implicare effetti molto diversi nella probabilità di osservazione. Con <span class="math inline">\(\mu\)</span>≈0 e <span class="math inline">\(\sigma\)</span>≈1, <span class="math inline">\(\beta\)</span> è interpretabile come variazione nel log-odds associata a <strong>1 deviazione standard</strong> di <span class="math inline">\(y\)</span>. Questo permette anche di confrontare <span class="math inline">\(\beta\)</span> tra studi diversi.</p>
+</section><section id="confronto-visivo-tra-le-prior-di-beta" class="level3" data-number="79.4.2"><h3 data-number="79.4.2" class="anchored" data-anchor-id="confronto-visivo-tra-le-prior-di-beta">
+<span class="header-section-number">79.4.2</span> Confronto visivo tra le prior di <span class="math inline">\(\beta\)</span>
+</h3>
+<p>Ricordiamo che <span class="math inline">\(\beta\)</span> controlla la pendenza della relazione logit tra il valore dell’outcome <span class="math inline">\(y\)</span> e la probabilità di osservarlo (<span class="math inline">\(R=1\)</span>):</p>
+<ul>
+<li>
+<span class="math inline">\(\beta\)</span> &lt; 0 → i valori più alti di <span class="math inline">\(y\)</span> hanno minore probabilità di essere osservati;</li>
+<li>
+<span class="math inline">\(\beta\)</span> &gt; 0 → i valori più bassi di <span class="math inline">\(y\)</span> hanno minore probabilità di essere osservati;</li>
+<li>
+<span class="math inline">\(\beta\)</span> ≈ 0 → la probabilità di osservazione non dipende da <span class="math inline">\(y\)</span> (MAR condizionato).</li>
+</ul>
+<p>Nello scenario simulato sappiamo che il meccanismo MNAR “vero” ha <span class="math inline">\(\beta\)</span> negativo: più alto è <span class="math inline">\(y\)</span>, più è probabile che manchi.</p>
+<p>Le due versioni del <em>selection model</em> adottano ipotesi molto diverse su <span class="math inline">\(\beta\)</span>:</p>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">df_beta</span> <span class="op">&lt;-</span> <span class="fu">bind_rows</span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html">data.frame</a></span><span class="op">(</span>beta <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html">rnorm</a></span><span class="op">(</span><span class="fl">5000</span>, mean <span class="op">=</span> <span class="op">-</span><span class="fl">0.5</span>, sd <span class="op">=</span> <span class="fl">0.3</span><span class="op">)</span>, model <span class="op">=</span> <span class="st">"2A — Informativa"</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html">data.frame</a></span><span class="op">(</span>beta <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html">rnorm</a></span><span class="op">(</span><span class="fl">5000</span>, mean <span class="op">=</span> <span class="fl">0</span>, sd <span class="op">=</span> <span class="fl">2</span><span class="op">)</span>, model <span class="op">=</span> <span class="st">"2B — Ampia"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">ggplot</span><span class="op">(</span><span class="va">df_beta</span>, <span class="fu">aes</span><span class="op">(</span>x <span class="op">=</span> <span class="va">beta</span>, fill <span class="op">=</span> <span class="va">model</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">geom_density</span><span class="op">(</span>alpha <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">labs</span><span class="op">(</span>title <span class="op">=</span> <span class="st">"Distribuzioni a priori di $\beta$ nei modelli 2A e 2B"</span>,</span>
+<span>       x <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/expression.html">expression</a></span><span class="op">(</span><span class="va">beta</span><span class="op">)</span>, y <span class="op">=</span> <span class="st">"Densità"</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure"><p><a href="01_mnar_stan_files/figure-html/unnamed-chunk-11-1.png" class="lightbox" data-gallery="quarto-lightbox-gallery-4"><img src="01_mnar_stan_files/figure-html/unnamed-chunk-11-1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:70.0%"></a></p>
+</figure>
+</div>
+</div>
+</div>
+<ul>
+<li>La prior informativa del modello 2A concentra la probabilità su valori negativi plausibili, fornendo una “spinta” teorica verso l’effetto atteso.</li>
+<li>La prior ampia del modello 2B, invece, consente valori molto più estremi, sia positivi che negativi, lasciando al dato quasi tutta la responsabilità di informare <span class="math inline">\(\beta\)</span>.</li>
+</ul>
+<p><strong>Messaggio didattico</strong>: confrontare i risultati di 2A e 2B ci permette di capire <em>quanto</em> le nostre assunzioni a priori influenzano la stima e se, in presenza di un segnale forte nei dati, il modello riesce a recuperare comunque il meccanismo MNAR.</p>
+</section><section id="confronto-delle-stime-e-interpretazione" class="level3" data-number="79.4.3"><h3 data-number="79.4.3" class="anchored" data-anchor-id="confronto-delle-stime-e-interpretazione">
+<span class="header-section-number">79.4.3</span> Confronto delle stime e interpretazione</h3>
+<p>Confrontiamo i parametri chiave (media e deviazione standard) dei tre modelli con i <em>valori veri</em> della simulazione.</p>
+<p><strong>Cosa ci aspettiamo di vedere</strong>:</p>
+<ul>
+<li>
+<em>Outcome-only</em>: bias negativo su <span class="math inline">\(\mu\)</span> e sottostima di <span class="math inline">\(\sigma\)</span>, perché i valori alti di <span class="math inline">\(y\)</span> sono sottorappresentati.</li>
+<li>
+<em>2A</em>: recupero di <span class="math inline">\(\mu\)</span> e <span class="math inline">\(\sigma\)</span> vicino ai valori veri, con <span class="math inline">\(\beta\)</span> stimato negativo e intervalli più stretti grazie alla prior informativa.</li>
+<li>
+<em>2B</em>: recupero simile a 2A, ma con intervalli più ampi su <span class="math inline">\(\beta\)</span> e, in parte, su <span class="math inline">\(\mu\)</span>, perché il modello non riceve “spinta” a priori.</li>
+</ul>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">summ_ignore</span></span>
+<span><span class="co">#&gt; # A tibble: 2 × 10</span></span>
+<span><span class="co">#&gt;   variable  mean median    sd   mad    q5   q95  rhat ess_bulk ess_tail</span></span>
+<span><span class="co">#&gt;   &lt;chr&gt;    &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;</span></span>
+<span><span class="co">#&gt; 1 mu       -0.59  -0.59  0.04  0.04 -0.65 -0.53  1.00  6441.29  6124.54</span></span>
+<span><span class="co">#&gt; 2 sigma     0.82   0.82  0.03  0.03  0.78  0.86  1.00  3383.99  4952.44</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">summ_sel_inf</span></span>
+<span><span class="co">#&gt; # A tibble: 4 × 10</span></span>
+<span><span class="co">#&gt;   variable  mean median    sd   mad    q5   q95  rhat ess_bulk ess_tail</span></span>
+<span><span class="co">#&gt;   &lt;chr&gt;    &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;</span></span>
+<span><span class="co">#&gt; 1 mu       -0.58  -0.58  0.04  0.04 -0.64 -0.52  1.00  6056.09  6409.33</span></span>
+<span><span class="co">#&gt; 2 sigma     0.82   0.82  0.03  0.03  0.78  0.86  1.00  4187.94  5424.54</span></span>
+<span><span class="co">#&gt; 3 alpha    -0.02  -0.02  0.09  0.09 -0.17  0.13  1.00  6587.79  5973.37</span></span>
+<span><span class="co">#&gt; 4 beta     -0.04  -0.04  0.11  0.11 -0.22  0.14  1.00  4943.59  5281.03</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">summ_sel_wide</span></span>
+<span><span class="co">#&gt; # A tibble: 4 × 10</span></span>
+<span><span class="co">#&gt;   variable  mean median    sd   mad    q5   q95  rhat ess_bulk ess_tail</span></span>
+<span><span class="co">#&gt;   &lt;chr&gt;    &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;</span></span>
+<span><span class="co">#&gt; 1 mu        0.05   0.05  0.09  0.09 -0.11  0.19  1.01   706.33  1072.86</span></span>
+<span><span class="co">#&gt; 2 sigma     1.04   1.04  0.06  0.06  0.94  1.13  1.01   776.09  1299.45</span></span>
+<span><span class="co">#&gt; 3 alpha     0.14   0.12  0.21  0.21 -0.17  0.51  1.01   780.47  1495.66</span></span>
+<span><span class="co">#&gt; 4 beta     -2.10  -2.09  0.36  0.35 -2.68 -1.51  1.00   833.02  1098.85</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Nel grafico seguente visualizziamo gli intervalli (90%) per <span class="math inline">\(\mu\)</span> e <span class="math inline">\(\sigma\)</span>, con le linee tratteggiate ai valori veri per il Modello 1 e il Modello 2B.</p>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">summ_mu_sigma</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">fit</span>, <span class="va">model_label</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="fu">posterior</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/posterior/reference/draws_summary.html">summarise_draws</a></span><span class="op">(</span></span>
+<span>    <span class="fu">posterior</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/posterior/reference/draws_df.html">as_draws_df</a></span><span class="op">(</span><span class="va">fit</span><span class="op">$</span><span class="fu">draws</span><span class="op">(</span>variables <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="st">"mu"</span>, <span class="st">"sigma"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>    mean <span class="op">=</span> <span class="op">~</span><span class="fu"><a href="https://rdrr.io/r/base/mean.html">mean</a></span><span class="op">(</span><span class="va">.x</span><span class="op">)</span>,</span>
+<span>    q5   <span class="op">=</span> <span class="op">~</span><span class="fu">posterior</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/posterior/reference/quantile2.html">quantile2</a></span><span class="op">(</span><span class="va">.x</span>, <span class="fl">0.05</span><span class="op">)</span>,</span>
+<span>    q95  <span class="op">=</span> <span class="op">~</span><span class="fu">posterior</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/posterior/reference/quantile2.html">quantile2</a></span><span class="op">(</span><span class="va">.x</span>, <span class="fl">0.95</span><span class="op">)</span></span>
+<span>  <span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>    <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/transmute.html">transmute</a></span><span class="op">(</span>model <span class="op">=</span> <span class="va">model_label</span>, <span class="va">variable</span>, <span class="va">mean</span>, <span class="va">q5</span>, <span class="va">q95</span><span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span></span>
+<span><span class="va">s_ignore</span> <span class="op">&lt;-</span> <span class="fu">summ_mu_sigma</span><span class="op">(</span><span class="va">fit_ignore</span>,   <span class="st">"Outcome-only"</span><span class="op">)</span></span>
+<span><span class="va">s_wide</span>   <span class="op">&lt;-</span> <span class="fu">summ_mu_sigma</span><span class="op">(</span><span class="va">fit_sel_wide</span>, <span class="st">"Selection (beta ampia, outcome ancorato)"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">plot_tbl</span> <span class="op">&lt;-</span> <span class="fu">bind_rows</span><span class="op">(</span><span class="va">s_ignore</span>, <span class="va">s_wide</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">mutate</span><span class="op">(</span>model <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html">factor</a></span><span class="op">(</span><span class="va">model</span>,</span>
+<span>    levels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="st">"Outcome-only"</span>,</span>
+<span>               <span class="st">"Selection (beta ampia, outcome ancorato)"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">plot_param</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">tbl</span>, <span class="va">param_name</span>, <span class="va">label_y</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/filter.html">filter</a></span><span class="op">(</span><span class="va">tbl</span>, <span class="va">variable</span> <span class="op">==</span> <span class="va">param_name</span><span class="op">)</span></span>
+<span>  <span class="va">truth_val</span>   <span class="op">&lt;-</span> <span class="kw">if</span> <span class="op">(</span><span class="va">param_name</span> <span class="op">==</span> <span class="st">"mu"</span><span class="op">)</span> <span class="fl">0</span> <span class="kw">else</span> <span class="fl">1</span></span>
+<span>  <span class="va">param_label</span> <span class="op">&lt;-</span> <span class="kw">if</span> <span class="op">(</span><span class="va">param_name</span> <span class="op">==</span> <span class="st">"mu"</span><span class="op">)</span> <span class="st">"Media (mu, z)"</span> <span class="kw">else</span> <span class="st">"Dev. Std (sigma, z)"</span></span>
+<span></span>
+<span>  <span class="fu">ggplot</span><span class="op">(</span><span class="va">df</span>, <span class="fu">aes</span><span class="op">(</span>x <span class="op">=</span> <span class="va">model</span>, y <span class="op">=</span> <span class="va">mean</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>    <span class="fu">geom_pointrange</span><span class="op">(</span><span class="fu">aes</span><span class="op">(</span>ymin <span class="op">=</span> <span class="va">q5</span>, ymax <span class="op">=</span> <span class="va">q95</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>    <span class="fu">geom_hline</span><span class="op">(</span>yintercept <span class="op">=</span> <span class="va">truth_val</span>, linetype <span class="op">=</span> <span class="fl">2</span><span class="op">)</span> <span class="op">+</span></span>
+<span>    <span class="fu">labs</span><span class="op">(</span>title <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html">paste</a></span><span class="op">(</span><span class="st">"Stime posteriori di"</span>, <span class="va">param_label</span><span class="op">)</span>, x <span class="op">=</span> <span class="cn">NULL</span>, y <span class="op">=</span> <span class="va">label_y</span><span class="op">)</span> <span class="op">+</span></span>
+<span>    <span class="fu">coord_flip</span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span></span>
+<span><span class="va">g_mu</span>    <span class="op">&lt;-</span> <span class="fu">plot_param</span><span class="op">(</span><span class="va">plot_tbl</span>, <span class="st">"mu"</span>,    <span class="st">"Media posteriore (90% CI)"</span><span class="op">)</span></span>
+<span><span class="va">g_sigma</span> <span class="op">&lt;-</span> <span class="fu">plot_param</span><span class="op">(</span><span class="va">plot_tbl</span>, <span class="st">"sigma"</span>, <span class="st">"Deviazione standard posteriore (90% CI)"</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">g_mu</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure"><p><a href="01_mnar_stan_files/figure-html/compare_mu-1.png" class="lightbox" data-gallery="quarto-lightbox-gallery-5"><img src="01_mnar_stan_files/figure-html/compare_mu-1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:90.0%"></a></p>
+</figure>
+</div>
+</div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb25"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">g_sigma</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure"><p><a href="01_mnar_stan_files/figure-html/compare_sigma-1.png" class="lightbox" data-gallery="quarto-lightbox-gallery-6"><img src="01_mnar_stan_files/figure-html/compare_sigma-1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:90.0%"></a></p>
+</figure>
+</div>
+</div>
+</div>
+</section><section id="lettura-dei-risultati" class="level3" data-number="79.4.4"><h3 data-number="79.4.4" class="anchored" data-anchor-id="lettura-dei-risultati">
+<span class="header-section-number">79.4.4</span> Lettura dei risultati</h3>
+<ul>
+<li><p><strong>Outcome-only</strong> Il modello che ignora il meccanismo di selezione fornisce una stima di <span class="math inline">\(\mu\)</span> fortemente <em>distorta verso il basso</em> (–0.65 contro il valore vero vicino a 0). Questo accade perché i dati osservati provengono in prevalenza da valori bassi della variabile, e l’assenza di correzione porta a una sottostima sistematica. Anche <span class="math inline">\(\sigma\)</span> è sottostimata (0.80 vs valore vero ≈ 1), segnalando che la variabilità complessiva è sottorappresentata.</p></li>
+<li><p><strong>Selection MNAR con prior informativa su <span class="math inline">\(\beta\)</span></strong> L’inclusione esplicita del meccanismo di selezione riduce fortemente il bias su <span class="math inline">\(\mu\)</span> (–0.11) e riporta <span class="math inline">\(\sigma\)</span> vicino al valore vero (0.99). Come atteso, <span class="math inline">\(\beta\)</span> viene stimato <em>negativo</em> (–1.81), coerente con la simulazione in cui la probabilità di osservare un valore diminuisce quando <span class="math inline">\(y\)</span> cresce. L’incertezza però aumenta, perché il modello deve stimare anche i parametri del processo di selezione.</p></li>
+<li><p><strong>Selection MNAR con prior ampia su <span class="math inline">\(\beta\)</span> e outcome ancorato</strong> Anche con prior meno informativa su <span class="math inline">\(\beta\)</span> la stima di <span class="math inline">\(\mu\)</span> resta vicina a 0 (–0.038) e <span class="math inline">\(\sigma\)</span> è in linea con il valore vero (1.015). <span class="math inline">\(\beta\)</span> è di nuovo negativo (–2.04), indicando un effetto di selezione forte, ma qui il modello ha potuto stimarlo senza vincoli forti a priori. L’ancoraggio dell’outcome ha contribuito a contenere il bias pur lasciando ampio margine di apprendimento dai dati.</p></li>
+</ul>
+<p><strong>In sintesi</strong>: ignorare il meccanismo MNAR produce bias sostanziale su media e varianza. Includere un modello di selezione, anche con prior ampie, consente di recuperare stime molto più vicine ai valori veri, a costo di intervalli di credibilità più ampi e maggiore incertezza sui parametri.</p>
+</section></section><section id="identificabilità-scaling-e-scelte-di-prior" class="level2" data-number="79.5"><h2 data-number="79.5" class="anchored" data-anchor-id="identificabilità-scaling-e-scelte-di-prior">
+<span class="header-section-number">79.5</span> Identificabilità, scaling e scelte di prior</h2>
+<p>I modelli MNAR, in particolare i <em>selection models</em>, non sono “gratuiti” in termini di informazione: stimare il meccanismo di mancanza richiede struttura e segnali nei dati.</p>
+<ul>
+<li>
+<strong>Identificabilità</strong>: con campioni piccoli o con un meccanismo di mancanza debole, <span class="math inline">\(\beta\)</span> può essere stimato con grande incertezza.</li>
+<li>
+<strong>Scaling</strong>: centrare e scalare <span class="math inline">\(y\)</span> facilita l’assegnazione di prior interpretabili a <span class="math inline">\(\beta\)</span> (ad esempio <code>normal(0,1)</code>), rendendo la scala dei parametri coerente con l’interpretazione.</li>
+<li>
+<strong>Scelte di prior</strong>: priors debolmente informative su <span class="math inline">\(\mu\)</span> e <span class="math inline">\(\sigma\)</span>, coerenti con la scala dei dati; su <span class="math inline">\(\alpha\)</span> e <span class="math inline">\(\beta\)</span>, priors compatibili con la plausibilità teorica del fenomeno.</li>
+<li>
+<strong>Variabili ausiliarie</strong>: se disponibili, includere misure correlate o precedenti che riducano la dipendenza tra <span class="math inline">\(y\)</span> e il meccanismo di mancanza. Questo può “spostare” il problema verso MAR condizionato e migliorare l’identificabilità.</li>
+</ul>
+<div class="callout callout-style-simple callout-important no-icon">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon no-icon"></i>
+</div>
+<div class="callout-body-container">
+<p><strong>Suggerimento pratico</strong>: confronta più specificazioni (prior diverse, con/senza variabili ausiliarie) e documenta l’impatto sulle stime di interesse. La trasparenza sulle assunzioni è parte integrante dell’inferenza.</p>
+</div>
+</div>
+</div>
+</section><section id="interpretazione-dei-risultati-alla-luce-della-teoria-mnar" class="level2" data-number="79.6"><h2 data-number="79.6" class="anchored" data-anchor-id="interpretazione-dei-risultati-alla-luce-della-teoria-mnar">
+<span class="header-section-number">79.6</span> Interpretazione dei risultati alla luce della teoria MNAR</h2>
+<p>Nella simulazione, il vero valore dell’outcome standardizzato è:</p>
+<ul>
+<li>
+<em><span class="math inline">\(\mu\)</span> = 0</em> (media)</li>
+<li>
+<em><span class="math inline">\(\sigma\)</span> = 1</em> (deviazione standard)</li>
+</ul>
+<p>e il meccanismo di mancanza è <em>MNAR con <span class="math inline">\(\beta\)</span> &lt; 0</em>: i valori alti di <span class="math inline">\(y\)</span> hanno minore probabilità di essere osservati.</p>
+<section id="comportamento-dei-modelli" class="level3" data-number="79.6.1"><h3 data-number="79.6.1" class="anchored" data-anchor-id="comportamento-dei-modelli">
+<span class="header-section-number">79.6.1</span> Comportamento dei modelli</h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 13%">
+<col style="width: 15%">
+<col style="width: 15%">
+<col style="width: 54%">
+</colgroup>
+<thead><tr class="header">
+<th>Modello</th>
+<th>Stima <span class="math inline">\(\mu\)</span>
+</th>
+<th>Stima <span class="math inline">\(\sigma\)</span>
+</th>
+<th>Relazione con il vero valore</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td><strong>Outcome-only</strong></td>
+<td><strong>Distorto verso il basso</strong></td>
+<td><strong>Distorto verso l’alto</strong></td>
+<td>Ignorando il meccanismo MNAR, <span class="math inline">\(\mu\)</span> sottostima la media reale (perché i valori alti mancano più spesso), e <span class="math inline">\(\sigma\)</span> è sovrastimata (perché la variabilità residua è gonfiata)</td>
+</tr>
+<tr class="even">
+<td><strong>2A — Prior informativa</strong></td>
+<td><strong>Vicino al valore vero</strong></td>
+<td><strong>Vicino al valore vero</strong></td>
+<td>La prior su <span class="math inline">\(\beta\)</span> aiuta a correggere il bias e a recuperare le stime corrette di <span class="math inline">\(\mu\)</span> e <span class="math inline">\(\sigma\)</span>
+</td>
+</tr>
+<tr class="odd">
+<td><strong>2B — Prior ampia + outcome ancorato</strong></td>
+<td>
+<strong>Vicino al valore vero</strong> (ma con CI più ampia)</td>
+<td>
+<strong>Vicino al valore vero</strong> (ma con CI più ampia)</td>
+<td>L’ancoraggio di <span class="math inline">\(\mu\)</span> e <span class="math inline">\(\sigma\)</span> rende interpretabile <span class="math inline">\(\beta\)</span>; senza prior informativa, l’incertezza è maggiore ma il segnale dei dati basta a recuperare il meccanismo</td>
+</tr>
+</tbody>
+</table></section><section id="perché-ha-senso-teoricamente" class="level3" data-number="79.6.2"><h3 data-number="79.6.2" class="anchored" data-anchor-id="perché-ha-senso-teoricamente">
+<span class="header-section-number">79.6.2</span> Perché ha senso teoricamente?</h3>
+<ul>
+<li><p><strong>Outcome-only</strong>: il meccanismo MNAR non è modellato → stimatore <em>biased</em>. In teoria MNAR, ignorare la dipendenza di <span class="math inline">\(R\)</span> da <span class="math inline">\(y\)</span> porta a stime distorte di parametri descrittivi dell’outcome.</p></li>
+<li><p><strong>2A</strong>: la prior informativa su <span class="math inline">\(\beta\)</span> fornisce una “stampella” teorica → correzione del bias anche con pochi dati o segnale debole.</p></li>
+<li><p><strong>2B</strong>: la prior ampia su <span class="math inline">\(\beta\)</span>, combinata con <span class="math inline">\(\mu\)</span> e <span class="math inline">\(\sigma\)</span> ancorati, permette ai dati di “parlare da soli”. Se il campione è abbastanza grande e il meccanismo è forte, il risultato converge a quello di 2A, ma con più incertezza (CI più ampi).</p></li>
+</ul></section><section id="messaggio-didattico" class="level3" data-number="79.6.3"><h3 data-number="79.6.3" class="anchored" data-anchor-id="messaggio-didattico">
+<span class="header-section-number">79.6.3</span> Messaggio didattico</h3>
+<ol type="1">
+<li>
+<strong>Ignorare</strong> il meccanismo MNAR tende a produrre <em>bias</em> (qui: <span class="math inline">\(\mu\)</span> fortemente sottostimata).</li>
+<li>Un <strong>selection model</strong> che include <span class="math inline">\(\Pr(R=1\mid y)\)</span> può <em>ridurre o annullare il bias</em> su <span class="math inline">\(\mu\)</span> e recuperare la stima di <span class="math inline">\(\sigma\)</span>, identificando al contempo un <span class="math inline">\(\beta&lt;0\)</span> coerente con il meccanismo simulato.</li>
+<li>Con <strong>prior ampia</strong> su <span class="math inline">\(\beta\)</span> (<span class="math inline">\(\mathcal{N}(0,2)\)</span>) e segnale forte nei dati, il parametro viene comunque spinto nella direzione corretta (negativa), ma con maggiore incertezza rispetto a una prior leggermente più informativa (es. <span class="math inline">\(\mathcal{N}(-1.5,1)\)</span>).</li>
+<li>
+<strong>Buone pratiche</strong>: monitorare <span class="math inline">\(\hat{R}\)</span> ed ESS, aumentare le iterazioni se l’identificabilità è debole, e valutare prior motivate teoricamente; includere variabili ausiliarie quando possibile.</li>
+</ol>
+<p><strong>In sintesi</strong>, nel modello con prior ampia su <span class="math inline">\(\beta\)</span> il recupero di <span class="math inline">\(\mu \approx 0\)</span> e <span class="math inline">\(\sigma \approx 1\)</span> è sostanziale, e l’effetto del meccanismo di mancanza (<span class="math inline">\(\beta \approx -1.88\)</span>, IC <span class="math inline">\(90\%\)</span> [-2.65, -0.60]) è coerente con lo scenario MNAR simulato (<span class="math inline">\(\beta*{\text{true}}=-2\)</span>). La diagnostica MCMC è adeguata; prior più orientate o campioni più grandi possono aumentare la stabilità.</p>
+</section></section><section id="varianti-utili-oltre-al-selection-model" class="level2" data-number="79.7"><h2 data-number="79.7" class="anchored" data-anchor-id="varianti-utili-oltre-al-selection-model">
+<span class="header-section-number">79.7</span> Varianti utili oltre al selection model</h2>
+<ul>
+<li>
+<strong>Pattern-mixture models</strong>: si specifica <span class="math inline">\(p(y \mid R)\)</span> separatamente per osservati e mancanti, ricomponendo poi la distribuzione complessiva. Richiedono vincoli o <em>anchoring</em> per l’identificazione.</li>
+<li>
+<strong>Shared-parameter models</strong>: outcome e meccanismo di osservazione condividono variabili latenti (es. un tratto di evitamento che influenza sia <span class="math inline">\(y\)</span> sia <span class="math inline">\(R\)</span>).</li>
+<li>
+<strong>Multilevel/longitudinali</strong>: in EMA e studi ripetuti è naturale usare modelli gerarchici con effetti casuali a più livelli; l’MNAR può agire in modo diverso a livello di momento, giorno o soggetto.</li>
+</ul></section><section id="linee-guida-sintetiche" class="level2" data-number="79.8"><h2 data-number="79.8" class="anchored" data-anchor-id="linee-guida-sintetiche">
+<span class="header-section-number">79.8</span> Linee guida sintetiche</h2>
+<ol type="1">
+<li>
+<strong>Diagnosi iniziale</strong>: esplora pattern di mancanza e relazioni temporali/contestuali (“chi non risponde e quando?”).</li>
+<li>
+<strong>Parti semplice</strong>: usa un outcome-only come baseline (MAR plausibile?) e aggiungi MNAR se giustificato.</li>
+<li>
+<strong>Variabili ausiliarie</strong>: sfruttale per ridurre l’informatività del meccanismo.</li>
+<li>
+<strong>Scala e priori</strong>: centra/scala dove utile; usa priors debolmente informative ma plausibili.</li>
+<li>
+<strong>Analisi di sensibilità</strong>: verifica la stabilità delle conclusioni al variare di prior e struttura del meccanismo.</li>
+<li>
+<strong>Documentazione</strong>: esplicita assunzioni e giustifica il modello con la teoria psicologica o il contesto.</li>
+</ol></section><section id="riflessioni-conclusive" class="level2 unnumbered unlisted"><h2 class="unnumbered unlisted anchored" data-anchor-id="riflessioni-conclusive">Riflessioni conclusive</h2>
+<ul>
+<li>In presenza di dati <em>MNAR</em>, ignorare il meccanismo può portare a inferenze fuorvianti.</li>
+<li>L’approccio Bayesiano con Stan consente di modellare esplicitamente la mancanza (selection model), riducendo il bias a costo di ipotesi più forti e maggiore incertezza.</li>
+<li>In psicologia, dove il <em>non rispondere</em> può far parte del processo stesso (evitamento, umore), è metodologicamente opportuno modellare il meccanismo, integrare analisi di sensibilità e riportare in modo trasparente le assunzioni.</li>
+</ul></section><section id="informazioni-sullambiente-di-sviluppo" class="level2 unnumbered unlisted"><h2 class="unnumbered unlisted anchored" data-anchor-id="informazioni-sullambiente-di-sviluppo">Informazioni sull’Ambiente di Sviluppo</h2>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb26"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/sessionInfo.html">sessionInfo</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="co">#&gt; R version 4.5.1 (2025-06-13)</span></span>
+<span><span class="co">#&gt; Platform: aarch64-apple-darwin20</span></span>
+<span><span class="co">#&gt; Running under: macOS Sequoia 15.6</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Matrix products: default</span></span>
+<span><span class="co">#&gt; BLAS:   /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRblas.0.dylib </span></span>
+<span><span class="co">#&gt; LAPACK: /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.1</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; locale:</span></span>
+<span><span class="co">#&gt; [1] C/UTF-8/C/C/C/C</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; time zone: Europe/Zagreb</span></span>
+<span><span class="co">#&gt; tzcode source: internal</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; attached base packages:</span></span>
+<span><span class="co">#&gt; [1] stats     graphics  grDevices utils     datasets  methods   base     </span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; other attached packages:</span></span>
+<span><span class="co">#&gt;  [1] stringr_1.5.1         cmdstanr_0.9.0        pillar_1.11.0        </span></span>
+<span><span class="co">#&gt;  [4] tinytable_0.11.0      patchwork_1.3.1       ggdist_3.3.3         </span></span>
+<span><span class="co">#&gt;  [7] tidybayes_3.0.7       bayesplot_1.13.0      ggplot2_3.5.2        </span></span>
+<span><span class="co">#&gt; [10] reliabilitydiag_0.2.1 priorsense_1.1.0      posterior_1.6.1      </span></span>
+<span><span class="co">#&gt; [13] loo_2.8.0             rstan_2.32.7          StanHeaders_2.32.10  </span></span>
+<span><span class="co">#&gt; [16] brms_2.22.0           Rcpp_1.1.0            janitor_2.2.1        </span></span>
+<span><span class="co">#&gt; [19] matrixStats_1.5.0     modelr_0.1.11         tibble_3.3.0         </span></span>
+<span><span class="co">#&gt; [22] dplyr_1.1.4           tidyr_1.3.1           rio_1.2.3            </span></span>
+<span><span class="co">#&gt; [25] here_1.0.1           </span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; loaded via a namespace (and not attached):</span></span>
+<span><span class="co">#&gt;  [1] svUnit_1.0.6         tidyselect_1.2.1     farver_2.1.2        </span></span>
+<span><span class="co">#&gt;  [4] fastmap_1.2.0        TH.data_1.1-3        tensorA_0.36.2.1    </span></span>
+<span><span class="co">#&gt;  [7] pacman_0.5.1         digest_0.6.37        estimability_1.5.1  </span></span>
+<span><span class="co">#&gt; [10] timechange_0.3.0     lifecycle_1.0.4      processx_3.8.6      </span></span>
+<span><span class="co">#&gt; [13] survival_3.8-3       magrittr_2.0.3       compiler_4.5.1      </span></span>
+<span><span class="co">#&gt; [16] rlang_1.1.6          tools_4.5.1          utf8_1.2.6          </span></span>
+<span><span class="co">#&gt; [19] yaml_2.3.10          data.table_1.17.8    knitr_1.50          </span></span>
+<span><span class="co">#&gt; [22] labeling_0.4.3       bridgesampling_1.1-2 htmlwidgets_1.6.4   </span></span>
+<span><span class="co">#&gt; [25] pkgbuild_1.4.8       curl_6.4.0           RColorBrewer_1.1-3  </span></span>
+<span><span class="co">#&gt; [28] multcomp_1.4-28      abind_1.4-8          withr_3.0.2         </span></span>
+<span><span class="co">#&gt; [31] purrr_1.1.0          grid_4.5.1           stats4_4.5.1        </span></span>
+<span><span class="co">#&gt; [34] xtable_1.8-4         colorspace_2.1-1     inline_0.3.21       </span></span>
+<span><span class="co">#&gt; [37] emmeans_1.11.2       scales_1.4.0         MASS_7.3-65         </span></span>
+<span><span class="co">#&gt; [40] cli_3.6.5            mvtnorm_1.3-3        rmarkdown_2.29      </span></span>
+<span><span class="co">#&gt; [43] generics_0.1.4       RcppParallel_5.1.10  splines_4.5.1       </span></span>
+<span><span class="co">#&gt; [46] parallel_4.5.1       vctrs_0.6.5          V8_6.0.5            </span></span>
+<span><span class="co">#&gt; [49] Matrix_1.7-3         sandwich_3.1-1       jsonlite_2.0.0      </span></span>
+<span><span class="co">#&gt; [52] arrayhelpers_1.1-0   glue_1.8.0           ps_1.9.1            </span></span>
+<span><span class="co">#&gt; [55] codetools_0.2-20     distributional_0.5.0 lubridate_1.9.4     </span></span>
+<span><span class="co">#&gt; [58] stringi_1.8.7        gtable_0.3.6         QuickJSR_1.8.0      </span></span>
+<span><span class="co">#&gt; [61] htmltools_0.5.8.1    Brobdingnag_1.2-9    R6_2.6.1            </span></span>
+<span><span class="co">#&gt; [64] rprojroot_2.1.0      evaluate_1.0.4       lattice_0.22-7      </span></span>
+<span><span class="co">#&gt; [67] backports_1.5.0      broom_1.0.9          snakecase_0.11.1    </span></span>
+<span><span class="co">#&gt; [70] rstantools_2.4.0     coda_0.19-4.1        gridExtra_2.3       </span></span>
+<span><span class="co">#&gt; [73] nlme_3.1-168         checkmate_2.3.2      mgcv_1.9-3          </span></span>
+<span><span class="co">#&gt; [76] xfun_0.52            zoo_1.8-14           pkgconfig_2.0.3</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section><section id="bibliografia" class="level2 unnumbered unlisted"><h2 class="unnumbered unlisted anchored" data-anchor-id="bibliografia">Bibliografia</h2>
+
+
+</section></main><!-- /main --><script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copiato!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copiato!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+        const codeEl = trigger.previousElementSibling.cloneNode(true);
+        for (const childEl of codeEl.children) {
+          if (isCodeAnnotation(childEl)) {
+            childEl.remove();
+          }
+        }
+        return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/ccaudek\.github\.io\/psicometria-r\/intro\.html");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+            // target, if specified
+            link.setAttribute("target", "_blank");
+            if (link.getAttribute("rel") === null) {
+              link.setAttribute("rel", "noopener");
+            }
+            // default icon
+            link.classList.add("external");
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script><nav class="page-navigation"><div class="nav-page nav-page-previous">
+      <a href="../../chapters/decision_analysis/01_study_method.html" class="pagination-link" aria-label="Analisi delle decisioni">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text"><span class="chapter-number">78</span>&nbsp; <span class="chapter-title">Analisi delle decisioni</span></span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+      <a href="../../chapters/frequentist_inference/introduction_frequentist_inference.html" class="pagination-link" aria-label="Introduzione">
+        <span class="nav-page-text">Introduzione</span> <i class="bi bi-arrow-right-short"></i>
+      </a>
+  </div>
+</nav>
+</div> <!-- /content -->
+<footer class="footer"><div class="nav-footer">
+    <div class="nav-footer-left">
+<p><strong>Psicometria</strong> è una risorsa didattica creata per il corso di Scienze e Tecniche Psicologiche dell’Università degli Studi di Firenze.</p>
+</div>   
+    <div class="nav-footer-center">
+      &nbsp;
+    <div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/ccaudek/psicometria-r/blob/main/chapters/missing/01_mnar_stan.qmd" class="toc-action"><i class="bi bi-github"></i>Mostra il codice</a></li><li><a href="https://github.com/ccaudek/psicometria-r/issues/new" class="toc-action"><i class="bi empty"></i>Segnala un problema</a></li></ul></div></div>
+    <div class="nav-footer-right">
+<p>Realizzato con <a href="https://quarto.org/">Quarto</a>.</p>
+</div>
+  </div>
+</footer><script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","descPosition":"bottom","loop":false,"openEffect":"zoom","selector":".lightbox"});
+(function() {
+  let previousOnload = window.onload;
+  window.onload = () => {
+    if (previousOnload) {
+      previousOnload();
+    }
+    lightboxQuarto.on('slide_before_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      const href = trigger.getAttribute('href');
+      if (href !== null) {
+        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+        if (imgEl !== null) {
+          const srcAttr = imgEl.getAttribute("src");
+          if (srcAttr && srcAttr.startsWith("data:")) {
+            slideConfig.href = srcAttr;
+          }
+        }
+      } 
+    });
+  
+    lightboxQuarto.on('slide_after_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(slideNode);
+      }
+    });
+  
+  };
+  
+})();
+          </script>
+
+
+</body></html>
