@@ -1175,26 +1175,40 @@ Per semplificare i calcoli, standardizziamo la variabile:</p>
 y_z = \frac{y - 50}{10} \quad \Rightarrow \quad y_z \sim \mathcal{N}(0, 1)
 \]</span></p>
 <p>Ora modelliamo una situazione comune nella ricerca psicologica: le persone con ansia sociale più elevata tendono a evitare a rispondere al questionario, lasciando più risposte mancanti.</p>
-<p>Questo comportamento di evitamento è descritto da un <em>modello di selezione</em> (<em>selection model</em>):</p>
+<p>Il comportamento di evitamento è formalizzato attraverso un <em>modello di selezione</em> (<em>selection model</em>) di tipo logistico, che specifica la probabilità condizionata di osservazione del dato nel modo seguente:</p>
 <p><span id="eq-selection-model"><span class="math display">\[
-\Pr(R_i = 1 \mid y_i) = \text{logit}^{-1}(\alpha + \beta\, y_i)
+\Pr(R_i = 1 \mid y_i) = \text{logit}^{-1}(\alpha + \beta\, y_i) .
 \tag{79.1}\]</span></span></p>
-<p>dove:</p>
+<p>Definizione formale delle componenti del modello:</p>
 <ul>
 <li>
-<span class="math inline">\(R_i\)</span> è la <em>variabile indicatrice di osservazione</em> per l’unità <span class="math inline">\(i\)</span>;</li>
+<em>Variabile di risposta latente</em>:<br><span class="math inline">\(R_i \in \{0,1\}\)</span> è una <em>variabile binaria latente</em> che modella il processo di osservazione, dove:
+<ul>
 <li>
-<span class="math inline">\(R_i = 1\)</span> significa che il dato <span class="math inline">\(y_i\)</span> è stato <em>osservato</em> (il partecipante ha risposto);</li>
+<span class="math inline">\(R_i = 1\)</span> indica che l’osservazione <span class="math inline">\(y_i\)</span> è <em>osservabile</em> (il partecipante ha fornito una risposta valida);<br>
+</li>
 <li>
-<span class="math inline">\(R_i = 0\)</span> significa che il dato <span class="math inline">\(y_i\)</span> è <em>mancante</em> (il partecipante non ha risposto);</li>
-<li>
-<span class="math inline">\(\beta &lt; 0\)</span> implica che, all’aumentare di <span class="math inline">\(y_i\)</span>, la probabilità di risposta diminuisce (es. punteggi più alti sono associati a una maggiore probabilità di mancare la risposta);</li>
-<li>
-<span class="math inline">\(\beta &gt; 0\)</span> implicherebbe l’opposto: punteggi più alti aumentano la probabilità di risposta;</li>
-<li>
-<span class="math inline">\(\beta = 0\)</span> indica che la probabilità di risposta non dipende da <span class="math inline">\(y_i\)</span> (condizionatamente alle altre variabili del modello).</li>
+<span class="math inline">\(R_i = 0\)</span> denota un <em>dato mancante</em> (mancata risposta del partecipante).</li>
 </ul>
-<p><strong>Nota didattica</strong>: questo esempio riflette un tipico caso MNAR, in cui la probabilità di osservare il dato dipende direttamente dal valore vero della variabile di interesse.</p>
+</li>
+<li>
+<em>Parametro <span class="math inline">\(\beta\)</span> e meccanismo di missingness</em>:<br>
+La relazione tra <span class="math inline">\(y_i\)</span> e <span class="math inline">\(\Pr(R_i = 1 \mid y_i)\)</span> è governata dal parametro <span class="math inline">\(\beta\)</span>:
+<ul>
+<li>Se <span class="math inline">\(\beta &lt; 0\)</span>: sussiste un <em>meccanismo di missingness non ignorabile</em> (MNAR) con <em>dipendenza negativa monotona</em>. Valori più elevati di <span class="math inline">\(y_i\)</span> riducono la probabilità di osservazione, indicando un <em>pattern di evitamento selettivo</em> (es. partecipanti con sintomi di ansia sociale più severi tendono ad evitare di rispondere).<br>
+</li>
+<li>Se <span class="math inline">\(\beta &gt; 0\)</span>: il missingness è ancora MNAR, ma con <em>dipendenza positiva monotona</em>. Valori elevati di <span class="math inline">\(y_i\)</span> aumentano la probabilità di osservazione (es. partecipanti con maggiore ansia sociale hanno maggiore propensione a rispondere).<br>
+</li>
+<li>Se <span class="math inline">\(\beta = 0\)</span>: la probabilità di osservazione è <em>indipendente</em> da <span class="math inline">\(y_i\)</span>, soddisfacendo l’ipotesi di <em>Missing Completely at Random</em> (MCAR).</li>
+</ul>
+</li>
+</ul>
+<p><strong>Nota didattica</strong>: l’esempio qui discusso riflette un tipico caso MNAR, in cui la probabilità di osservare il dato dipende direttamente dal valore vero della variabile di interesse.</p>
+<p>Generiamo un dataset sintetico di <span class="math inline">\(N\)</span> = 1000 unità statistiche, dove il meccanismo di missingness segue un modello di selezione logistico con parametri:</p>
+<ul>
+<li>intercetta (<span class="math inline">\(\alpha\)</span>) = 0,</li>
+<li>effetto della variabile risposta (<span class="math inline">\(\beta\)</span>) = -2.0.</li>
+</ul>
 <div class="cell" data-layout-align="center">
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html">set.seed</a></span><span class="op">(</span><span class="fl">1234</span><span class="op">)</span>   </span>
 <span></span>
@@ -1208,11 +1222,13 @@ y_z = \frac{y - 50}{10} \quad \Rightarrow \quad y_z \sim \mathcal{N}(0, 1)
 <span><span class="va">y_obs</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html">ifelse</a></span><span class="op">(</span><span class="va">R</span> <span class="op">==</span> <span class="fl">1</span>, <span class="va">y_true</span>, <span class="cn">NA_real_</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">tbl</span> <span class="op">&lt;-</span> <span class="fu">tibble</span><span class="op">(</span><span class="va">y_true</span>, <span class="va">R</span>, <span class="va">y_obs</span>, <span class="va">p_obs</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/mean.html">mean</a></span><span class="op">(</span><span class="va">R</span><span class="op">)</span>; <span class="fu"><a href="https://rdrr.io/r/base/mean.html">mean</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html">is.na</a></span><span class="op">(</span><span class="va">y_obs</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/mean.html">mean</a></span><span class="op">(</span><span class="va">R</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 0.501</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/mean.html">mean</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html">is.na</a></span><span class="op">(</span><span class="va">y_obs</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 0.499</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>Consideriamo un riassunto numerico, utile per far emergere subito il bias:</p>
+<section id="analisi-del-bias-indotto-da-mnar" class="level3" data-number="79.1.1"><h3 data-number="79.1.1" class="anchored" data-anchor-id="analisi-del-bias-indotto-da-mnar">
+<span class="header-section-number">79.1.1</span> Analisi del bias indotto da MNAR</h3>
 <div class="cell" data-layout-align="center">
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">summ</span> <span class="op">&lt;-</span> <span class="fu">tibble</span><span class="op">(</span></span>
 <span>  grandezza <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="st">"Media"</span>, <span class="st">"Varianza"</span><span class="op">)</span>,</span>
@@ -1226,7 +1242,10 @@ y_z = \frac{y - 50}{10} \quad \Rightarrow \quad y_z \sim \mathcal{N}(0, 1)
 <span><span class="co">#&gt; 1 Media     -0.0266    -0.594</span></span>
 <span><span class="co">#&gt; 2 Varianza   0.995      0.663</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>Visualizziamo ora la <em>probabilità di osservazione</em> in funzione del valore vero e confrontiamo la <em>distribuzione dei veri</em> con quella dei <em>solo osservati</em>.</p>
+<p>I dati evidenziando una sottostima sistematica dovuta al meccanismo MNAR.</p>
+</section><section id="visualizzazione-degli-effetti-di-selezione" class="level3" data-number="79.1.2"><h3 data-number="79.1.2" class="anchored" data-anchor-id="visualizzazione-degli-effetti-di-selezione">
+<span class="header-section-number">79.1.2</span> Visualizzazione degli effetti di selezione</h3>
+<p>Visualizziamo ora la <em>probabilità di osservazione</em> in funzione del valore vero e confrontiamo la <em>distribuzione dei valori veri</em> con quella dei valori <em>osservati</em>, escludendo i valori mancanti.</p>
 <div class="cell" data-layout-align="center">
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># 1) Probabilità di osservazione in funzione del valore vero</span></span>
 <span><span class="va">p1</span> <span class="op">&lt;-</span> <span class="fu">ggplot</span><span class="op">(</span><span class="va">tbl</span>, <span class="fu">aes</span><span class="op">(</span>x <span class="op">=</span> <span class="va">y_true</span>, y <span class="op">=</span> <span class="va">p_obs</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
@@ -1290,15 +1309,14 @@ y_z = \frac{y - 50}{10} \quad \Rightarrow \quad y_z \sim \mathcal{N}(0, 1)
 </div>
 </div>
 <p><strong>Messaggio chiave.</strong> La selezione MNAR fa sì che i dati osservati non rappresentino la popolazione: nei grafici si vede che la probabilità di osservazione diminuisce con y e che la distribuzione degli osservati è spostata rispetto a quella dei veri. <strong>Conseguenza</strong>: le analisi che ignorano il meccanismo (vedi Modello 1) tendono a stimare una media distorta e/o una varianza alterata.</p>
-</section><section id="modello-1-outcome-only-ignora-il-meccanismo" class="level2" data-number="79.2"><h2 data-number="79.2" class="anchored" data-anchor-id="modello-1-outcome-only-ignora-il-meccanismo">
+</section></section><section id="modello-1-outcome-only-ignora-il-meccanismo" class="level2" data-number="79.2"><h2 data-number="79.2" class="anchored" data-anchor-id="modello-1-outcome-only-ignora-il-meccanismo">
 <span class="header-section-number">79.2</span> Modello 1 — Outcome-only (ignora il meccanismo)</h2>
 <p>In questo modello assumiamo che la variabile osservata <span class="math inline">\(y\)</span> (su scala z) segua:</p>
 <p><span class="math display">\[
 y \sim \mathcal{N}(\mu, \sigma)
 \]</span></p>
 <p>con aspettative <span class="math inline">\(\mu \approx 0\)</span> e <span class="math inline">\(\sigma \approx 1\)</span>.</p>
-<p>I valori mancanti vengono trattati come <em>parametri latenti</em> e stimati direttamente, <em>senza modellare</em> la variabile <span class="math inline">\(R\)</span> che indica la risposta.<br>
-In pratica, stiamo assumendo implicitamente che i dati mancanti siano <em>MCAR</em> (completamente a caso) o <em>MAR</em> (a caso dato il modello).</p>
+<p>I valori mancanti vengono trattati come <em>parametri latenti</em> e stimati direttamente<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>, <em>senza modellare</em> la variabile <span class="math inline">\(R\)</span> che indica la risposta. In pratica, stiamo assumendo implicitamente che i dati mancanti siano <em>MCAR</em> (completamente a caso) o <em>MAR</em> (a caso dato il modello).</p>
 <section id="intuizione-operativa" class="level3" data-number="79.2.1"><h3 data-number="79.2.1" class="anchored" data-anchor-id="intuizione-operativa">
 <span class="header-section-number">79.2.1</span> Intuizione operativa</h3>
 <ul>
@@ -1371,7 +1389,7 @@ In pratica, stiamo assumendo implicitamente che i dati mancanti siano <em>MCAR</
 </div>
 </section></section><section id="modello-2-selection-model-mnar-esplicito" class="level2" data-number="79.3"><h2 data-number="79.3" class="anchored" data-anchor-id="modello-2-selection-model-mnar-esplicito">
 <span class="header-section-number">79.3</span> Modello 2 — Selection model (MNAR esplicito)</h2>
-<p>Nel <em>selection model</em> la probabilità di osservare un dato <strong>non è costante</strong>, ma dipende dal valore stesso di <span class="math inline">\(y\)</span>. Questo legame è descritto dal parametro <strong><span class="math inline">\(\beta\)</span></strong>:</p>
+<p>Nel <em>selection model</em> la probabilità di osservare un dato <em>non è costante</em>, ma dipende dal valore stesso di <span class="math inline">\(y\)</span>. Questo legame è descritto dal parametro <em><span class="math inline">\(\beta\)</span></em>:</p>
 <ul>
 <li>
 <em><span class="math inline">\(\beta\)</span> positivo</em> → valori più alti di <span class="math inline">\(y\)</span> hanno <em>maggiore</em> probabilità di essere osservati.</li>
@@ -1944,7 +1962,10 @@ In pratica, stiamo assumendo implicitamente che i dati mancanti siano <em>MCAR</
 </section><section id="bibliografia" class="level2 unnumbered unlisted"><h2 class="unnumbered unlisted anchored" data-anchor-id="bibliografia">Bibliografia</h2>
 
 
-</section></main><!-- /main --><script id="quarto-html-after-body" type="application/javascript">
+</section><section id="footnotes" class="footnotes footnotes-end-of-document" role="doc-endnotes"><hr>
+<ol>
+<li id="fn1"><p>Cosa significa “i valori mancanti sono <em>parametri latenti</em>?” Indichiamo con <span class="math inline">\(y_i\)</span> il valore “vero” per l’unità <span class="math inline">\(i\)</span>. Per alcune unità <span class="math inline">\(y_i\)</span> <em>non è osservato</em> (manca). Nel modello bayesiano <em>includiamo comunque</em> un oggetto <span class="math inline">\(y_i\)</span> per ogni unità, <em>anche quando è mancante</em>: lo trattiamo come una quantità sconosciuta da inferire insieme a <span class="math inline">\(\mu\)</span> e <span class="math inline">\(\sigma\)</span>. Tecnicamente: aggiungiamo un nodo <span class="math inline">\(y_i^{\text{mis}}\)</span> con la <em>stessa distribuzione dell’outcome</em>, ad es. <span class="math inline">\(y_i^{\text{mis}} \sim \mathcal{N}(\mu,\sigma).\)</span> Durante il campionamento, il modello <em>genera valori plausibili</em> per ciascun <span class="math inline">\(y_i^{\text{mis}}\)</span> coerenti con <span class="math inline">\(\mu\)</span> e <span class="math inline">\(\sigma\)</span>. Importante: questi <span class="math inline">\(y_i^{\text{mis}}\)</span> <em>non “informano”</em> <span class="math inline">\(\mu\)</span> e <span class="math inline">\(\sigma\)</span> oltre ai dati osservati: sono imputazioni <em>coerenti col modello</em> (servono, per esempio, a produrre dataset completi), <em>ma non correggono</em> eventuali distorsioni dovute al meccanismo di mancanza. In breve: l’imputazione discende solo dalla distribuzione scelta per <span class="math inline">\(y.\)</span><a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+</ol></section></main><!-- /main --><script id="quarto-html-after-body" type="application/javascript">
   window.document.addEventListener("DOMContentLoaded", function (event) {
     const icon = "";
     const anchorJS = new window.AnchorJS();
