@@ -13,7 +13,7 @@
 ::: callout-tip
 ## Prerequisiti
 
-- Leggere l'appendice @sec-apx-calculus.
+- Leggere l'@sec-apx-calculus.
 :::
 
 ::: callout-important
@@ -31,16 +31,13 @@ pacman::p_load(cmdstanr, reshape2)
 :::
 
 
-## Introduzione 
+## Introduzione {.unnumbered .unlisted}
 
-Nelle lezioni precedenti abbiamo esaminato diversi esempi di inferenza bayesiana, concentrandoci su situazioni semplici, come il modello bernoulliano a un singolo parametro. In quei contesti, abbiamo utilizzato metodi come:
+Nei capitoli precedenti abbiamo esaminato diversi esempi di inferenza bayesiana, concentrandoci su modelli parametrici semplici come il caso unidimensionale del modello bernoulliano. In questi scenari elementari, abbiamo utilizzato due approcci principali: l’*approssimazione discreta su griglia*, che valuta la distribuzione a posteriori su un insieme finito di valori parametrali, e l’uso di *distribuzioni a priori coniugate*, che, grazie alla loro forma analiticamente trattabile, permettono di derivare la posterior in modo esatto.  
 
-- l'approssimazione tramite griglia, che consiste nel suddividere l'intervallo dei valori possibili in punti discreti e calcolare la distribuzione a posteriori su ciascun punto;
-- l'impiego di distribuzioni a priori coniugate, che consentono di derivare la distribuzione a posteriori in modo analitico.
+Tuttavia, questi metodi presentano limitazioni significative non appena ci si allontana da contesti idealizzati. In particolare, diventano rapidamente inefficienti in presenza di modelli con molteplici parametri, relazioni complesse tra variabili, o distribuzioni a priori non coniugate. In tali casi, il calcolo analitico risulta spesso intrattabile, mentre l’approssimazione su griglia diventa computazionalmente proibitiva a causa della crescita esponenziale del numero di valutazioni necessarie al crescere della dimensionalità dello spazio parametrico.  
 
-Questi approcci risultano efficaci per modelli elementari, ma diventano rapidamente impraticabili al crescere della complessità del modello o del numero di parametri. In tali situazioni, è necessario adottare metodi più flessibili ed efficienti.
-
-In questo capitolo introdurremo una tecnica fondamentale per l'inferenza bayesiana moderna: il *Metodo Monte Carlo a Catena di Markov (MCMC)*.
+Per affrontare queste sfide, l’inferenza bayesiana moderna fa ricorso a tecniche numeriche avanzate, tra cui spicca il *Metodo Monte Carlo a Catena di Markov (MCMC)*. Questo approccio innovativo supera i limiti dei metodi tradizionali generando campioni dalla distribuzione a posteriori attraverso un processo iterativo che combina l’efficienza del campionamento stocastico con la flessibilità degli algoritmi markoviani. Il risultato è una metodologia potente e generale, in grado di fornire stime accurate anche per modelli complessi e ad alta dimensionalità, senza richiedere soluzioni analitiche chiuse.  
 
 
 ## L'obiettivo del metodo MCMC
@@ -54,17 +51,20 @@ L'idea di base è la seguente:
 - in questo modo, possiamo stimare quantità di interesse, come la media, la varianza, o intervalli di credibilità, anche senza conoscere una forma analitica esplicita della distribuzione a posteriori.
 
 
-## Una differenza importante rispetto ai metodi precedenti
+### La natura dipendente del campionamento MCMC
 
-A differenza dei metodi visti finora, i campioni prodotti da MCMC *non sono indipendenti*: ciascun campione dipende dal campione precedente. In altre parole, il processo di campionamento segue una **catena di Markov**, in cui la generazione del valore successivo si basa unicamente sul valore corrente, senza dipendere dall'intera storia precedente.
+A differenza delle tecniche di campionamento indipendente precedentemente esaminate, l'approccio MCMC genera una sequenza di valori correlati attraverso un meccanismo di transizione markoviana. La caratteristica distintiva di questo processo risiede nella proprietà di Markov: ogni nuovo campione dipende esclusivamente dallo stato corrente della catena, mostrando memoria soltanto a breve termine piuttosto che dipendenza dall'intera storia precedente.
 
-Questa dipendenza introduce una **correlazione** tra i campioni successivi:
+Questa architettura sequenziale produce inevitabilmente autocorrelazione tra osservazioni adiacenti. Quando la catena visita una regione ad alta densità della distribuzione target, tenderà a persistere in tale zona per diverse iterazioni prima di migrare verso altre regioni. Mentre tale comportamento è funzionale all'esplorazione efficiente dello spazio parametrico, introduce importanti considerazioni pratiche:
 
-- se un campione assume un valore elevato, anche il successivo avrà una maggiore probabilità di essere vicino a quel valore;
-- tale correlazione non costituisce un problema in sé, ma implica che per ottenere stime affidabili sia necessario generare un numero più elevato di campioni rispetto a quanto sarebbe richiesto con campioni indipendenti.
+1. l'informazione effettiva contenuta in $N$ campioni correlati è inferiore a quella di $N$ campioni indipendenti;
+2. la valutazione della convergenza richiede analisi diagnostiche specifiche;
+3. la dimensione efficace del campione (ESS) diventa un parametro cruciale per la qualità dell'inferenza.
+
+Per compensare questa riduzione di informazione per campione, è generalmente necessario generare sequenze più lunghe rispetto al campionamento indipendente. Tuttavia, questo svantaggio apparente è ampiamente compensato dalla capacità di MCMC di affrontare problemi complessi che risulterebbero intrattabili con metodi tradizionali.
 
 
-## Perché utilizzare MCMC
+### Perché utilizzare MCMC
 
 Il metodo MCMC è diventato uno strumento centrale nell'inferenza bayesiana contemporanea perché:
 
@@ -72,7 +72,8 @@ Il metodo MCMC è diventato uno strumento centrale nell'inferenza bayesiana cont
 - non richiede il calcolo diretto dell'integrale di normalizzazione che compare nel teorema di Bayes;
 - permette di ottenere approssimazioni accurate della distribuzione a posteriori tramite simulazione numerica.
 
-Nel seguito ci concentreremo sull'**algoritmo di Metropolis**, uno dei metodi più semplici ed essenziali per implementare il campionamento MCMC.
+Nel seguito ci concentreremo sull'*algoritmo di Metropolis*, uno dei metodi più semplici ed essenziali per implementare il campionamento MCMC.
+
 
 ## L'algoritmo di Metropolis: introduzione intuitiva
 

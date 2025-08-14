@@ -14,6 +14,9 @@ library(tibble) # tibble come formato tabellare
 library(modelr) # modelli + dataframe
 library(matrixStats) # funzioni vettorializzate su righe/colonne
 library(janitor)
+library(conflicted)
+conflicts_prefer(stats::var)
+conflicts_prefer(stats::sd)
 
 ## ─────────────────────────────────────────────────────────────────────
 ## 2. Pacchetti per analisi bayesiana

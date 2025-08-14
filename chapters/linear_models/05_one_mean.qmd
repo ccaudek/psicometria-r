@@ -23,43 +23,48 @@ here::here("code", "_common.R") |>
 
 # Load packages
 if (!requireNamespace("pacman")) install.packages("pacman")
-pacman::p_load(cmdstanr, posterior, bayestestR, brms, ggdist)
+pacman::p_load(cmdstanr, posterior, bayestestR, brms, ggdist, conflicted)
+
+conflicts_prefer(stats::sd)
 ```
 :::
 
-## Introduzione
+## Introduzione {.unnumbered .unlisted}
 
-In questo capitolo ci occuperemo di un tema classico in statistica: come inferire la media di una popolazione a partire da un campione di dati quantitativi. Si tratta di una situazione che incontriamo spesso in psicologia, ad esempio quando vogliamo stimare l’altezza media, il livello medio di ansia, o la soddisfazione media in un certo gruppo di persone. Tuttavia, anziché affrontare questo problema nel modo tradizionale, qui lo considereremo da una prospettiva più ampia e moderna, che mette al centro due concetti fondamentali per la psicologia scientifica: **variabilità** e **incertezza**.
+In questo capitolo ci occuperemo di un tema classico in statistica: come inferire la media di una popolazione a partire da un campione di dati quantitativi. Si tratta di una situazione che incontriamo spesso in psicologia, ad esempio quando vogliamo stimare l’altezza media, il livello medio di ansia, o la soddisfazione media in un certo gruppo di persone. Tuttavia, anziché affrontare questo problema nel modo tradizionale, qui lo considereremo da una prospettiva più ampia e moderna, che mette al centro due concetti fondamentali per la psicologia scientifica: *variabilità* e *incertezza*.
+
 
 ### La variabilità come punto di partenza
 
-Ogni volta che raccogliamo dati psicologici, ci confrontiamo inevitabilmente con la variabilità. Alcune differenze sono **tra individui**:
+Ogni volta che raccogliamo dati psicologici, ci confrontiamo inevitabilmente con la variabilità. Alcune differenze sono *tra individui*:
 
-🔀 **Variabilità inter-individuale**: ad esempio, quanto differiscono tra loro le altezze, i tempi di reazione o i livelli di benessere soggettivo?
+*Variabilità inter-individuale*: ad esempio, quanto differiscono tra loro le altezze, i tempi di reazione o i livelli di benessere soggettivo?
 
-Altre differenze sono **all’interno dello stesso individuo**, anche se meno visibili in un singolo rilevamento:
+Altre differenze sono *all’interno dello stesso individuo*, anche se meno visibili in un singolo rilevamento:
 
-🔄 **Variabilità intra-individuale**: quanto potrebbe variare la risposta della stessa persona se la misurassimo in momenti diversi della giornata, o in giorni diversi? Anche quando non la osserviamo direttamente, la variabilità intra-individuale è sempre una componente latente del dato psicologico, e ci invita a riflettere sulle fonti di instabilità e fluttuazione nei comportamenti e negli stati mentali.
+*Variabilità intra-individuale*: quanto potrebbe variare la risposta della stessa persona se la misurassimo in momenti diversi della giornata, o in giorni diversi? Anche quando non la osserviamo direttamente, la variabilità intra-individuale è sempre una componente latente del dato psicologico, e ci invita a riflettere sulle fonti di instabilità e fluttuazione nei comportamenti e negli stati mentali.
+
 
 ### L'incertezza come oggetto dell'inferenza
 
-A partire da questa variabilità, vogliamo formulare inferenze sul valore medio di un certo parametro (come l’altezza media in una popolazione). Ma ogni inferenza è anche un atto di **stima incerta**: nessun campione ci dà la verità, ma solo una gamma di possibilità più o meno plausibili.
+A partire da questa variabilità, vogliamo formulare inferenze sul valore medio di un certo parametro (come l’altezza media in una popolazione). Ma ogni inferenza è anche un atto di *stima incerta*: nessun campione ci dà la verità, ma solo una gamma di possibilità più o meno plausibili.
 
 In questo capitolo affronteremo quindi il problema dell’inferenza sulla media da due prospettive complementari:
 
-* **Approccio frequentista**: basato sull’idea di ripetizione del campionamento e sul calcolo di un intervallo di confidenza;
-* **Approccio bayesiano**: che assume esplicitamente l’incertezza e la rappresenta attraverso una distribuzione di probabilità (la *distribuzione a posteriori*).
+* *Approccio frequentista*: basato sull’idea di ripetizione del campionamento e sul calcolo di un intervallo di confidenza;
+* *Approccio bayesiano*: che assume esplicitamente l’incertezza e la rappresenta attraverso una distribuzione di probabilità (la *distribuzione a posteriori*).
+
 
 ### Perché usare `brms`?
 
-Invece di derivare la distribuzione a posteriori della media in modo analitico (come nei modelli con prior coniugati), useremo il pacchetto `brms`, che si basa su un potente algoritmo di campionamento chiamato **NUTS** (No-U-Turn Sampler). Questo ci permetterà di stimare numericamente l’intera distribuzione a posteriori della media e della variabilità, anche in casi in cui il calcolo analitico sarebbe difficile o impossibile. In questo modo, potremo:
+Invece di derivare la distribuzione a posteriori della media in modo analitico (come nei modelli con prior coniugati), useremo il pacchetto `brms`, che si basa su un potente algoritmo di campionamento chiamato *NUTS* (No-U-Turn Sampler). Questo ci permetterà di stimare numericamente l’intera distribuzione a posteriori della media e della variabilità, anche in casi in cui il calcolo analitico sarebbe difficile o impossibile. In questo modo, potremo:
 
 * quantificare l’incertezza su ciò che ci interessa (ad esempio: qual è l’altezza media? con quanta certezza lo possiamo dire?);
 * visualizzare in modo intuitivo l’effetto dei dati e dei priori sulle nostre stime;
 * avvicinarci a un modo di pensare statistico più adatto alla complessità della psicologia, dove ogni dato è il risultato di molte fonti di variabilità.
 
 
-## Il modello Normale: un primo passo nella descrizione della variabilità 🔀
+## Il modello Normale: un primo passo nella descrizione della variabilità
 
 Quando parliamo di altezza, ansia, tempo di reazione o qualsiasi altra variabile psicologica continua, un punto di partenza comune è il modello Normale. Questo modello assume che le osservazioni siano distribuite attorno a un valore medio, con una certa dispersione. In termini formali, diciamo che ogni osservazione $y_n$ è generata da una distribuzione Normale con media $\mu$ e deviazione standard $\sigma$:
 
@@ -72,11 +77,11 @@ Nel linguaggio dell’inferenza, $\mu$ rappresenta il valore centrale che voglia
 Nel capitolo precedente abbiamo visto come calcolare la distribuzione a posteriori di questi parametri in modo analitico, quando si utilizzano prior coniugati. In questo capitolo, invece, riprendiamo lo stesso problema, ma adottiamo un approccio più generale e flessibile: stimiamo il modello usando il pacchetto `brms`, che utilizza metodi MCMC per approssimare la distribuzione a posteriori, anche quando non esistono soluzioni chiuse.
 
 
-## Un esempio concreto: la variabilità dell’altezza nei !Kung San 🔀
+## Un esempio concreto: la variabilità dell’altezza nei !Kung San
 
 Per rendere più concreto il problema, useremo un dataset storico: i dati raccolti da Nancy Howell tra la fine degli anni ’60 presso i !Kung San, una popolazione del deserto del Kalahari con uno stile di vita basato su caccia e raccolta.
 
-I dati che utilizzeremo riportano le altezze di individui adulti (con età superiore ai 18 anni). Questo esempio è tratto da @McElreath_rethinking, ed è ideale per iniziare a riflettere sulla **variabilità inter-individuale**.
+I dati che utilizzeremo riportano le altezze di individui adulti (con età superiore ai 18 anni). Questo esempio è tratto da @McElreath_rethinking, ed è ideale per iniziare a riflettere sulla *variabilità inter-individuale*.
 
 ```{r}
 df <- rio::import(here::here("data", "Howell_18.csv"))
@@ -88,6 +93,7 @@ Il campione è composto da 352 osservazioni:
 ```{r}
 length(df$height)
 ```
+
 
 ### Distribuzione osservata dell’altezza
 
@@ -114,7 +120,7 @@ df |>
 Il Q-Q plot mostra un leggero scostamento: la curva empirica è un po’ più piatta rispetto alla linea teorica, segno che la variabilità osservata è leggermente inferiore a quella attesa da una Normale standard (code meno pesanti). Tuttavia, la discrepanza è modesta, e possiamo comunque usare il modello gaussiano come prima approssimazione della distribuzione dei dati.
 
 
-## Specifica del modello: una distribuzione per descrivere l’incertezza 🔀
+## Specifica del modello: una distribuzione per descrivere l’incertezza
 
 Nel modello bayesiano, ipotizziamo che ogni osservazione $y_n$ sia indipendente e identicamente distribuita (iid):
 
@@ -123,15 +129,15 @@ y_n \sim \mathcal N(\mu, \sigma),
 $$
 
 * $\mu$: la media vera (ignota) della popolazione.
-* $\sigma$: la deviazione standard vera, che misura **quanta variabilità c’è tra gli individui**.
+* $\sigma$: la deviazione standard vera, che misura *quanta variabilità c’è tra gli individui*.
 
 > L'assunzione di indipendenza implica che conoscere l'errore commesso su un individuo non ci dice nulla sull'errore commesso su un altro.
 > L'assunzione di identica distribuzione implica che tutti gli individui provengano dalla stessa popolazione.
 
-Scrivere $y_n \sim \mathcal N(\mu, \sigma)$ è quindi un modo compatto per dire che **ogni osservazione è un'espressione della variabilità inter-individuale**, distribuita attorno a un valore centrale.
+Scrivere $y_n \sim \mathcal N(\mu, \sigma)$ è quindi un modo compatto per dire che *ogni osservazione è un'espressione della variabilità inter-individuale*, distribuita attorno a un valore centrale.
 
 
-## Stime preliminari: una fotografia della variabilità 🔍
+## Stime preliminari: una fotografia della variabilità
 
 Prima di definire i priori o stimare la distribuzione a posteriori, è utile esplorare alcune statistiche descrittive:
 
@@ -142,18 +148,18 @@ sd(df$height)     # deviazione standard campionaria
 
 Queste due quantità ci offrono una prima “fotografia” della variabilità nel campione:
 
-* La **media campionaria** è una stima iniziale di $\mu$, che potrà guidarci nella scelta di una prior realistica.
-* La **deviazione standard campionaria** è una misura iniziale di $\sigma$, e descrive quanto le osservazioni si discostano, in media, dalla media.
+* La *media campionaria* è una stima iniziale di $\mu$, che potrà guidarci nella scelta di una prior realistica.
+* La *deviazione standard campionaria* è una misura iniziale di $\sigma$, e descrive quanto le osservazioni si discostano, in media, dalla media.
 
 Anche se queste statistiche non riflettono ancora in modo completo l’incertezza che abbiamo, sono molto utili per:
 
-1. **Guidare la scelta dei priors** in un’ottica informata;
-2. **Individuare possibili outlier o anomalie**, che potrebbero influenzare sia l’inferenza frequentista sia quella bayesiana.
+1. *Guidare la scelta dei priors* in un’ottica informata;
+2. *Individuare possibili outlier o anomalie*, che potrebbero influenzare sia l’inferenza frequentista sia quella bayesiana.
 
 
-## Il modello frequentista: stimare la media come punto fisso 🔀
+## Il modello frequentista: stimare la media come punto fisso
 
-Nel contesto dell’inferenza classica, uno dei modi più semplici per stimare la **media di una popolazione** consiste nell’adottare un modello lineare senza predittori: un modello che si limita a stimare un’unica quantità, chiamata **intercetta**. In pratica, questo corrisponde a stimare la **media campionaria** dei dati osservati.
+Nel contesto dell’inferenza classica, uno dei modi più semplici per stimare la *media di una popolazione* consiste nell’adottare un modello lineare senza predittori: un modello che si limita a stimare un’unica quantità, chiamata *intercetta*. In pratica, questo corrisponde a stimare la *media campionaria* dei dati osservati.
 
 In R, questo modello si specifica in modo molto compatto:
 
@@ -161,7 +167,8 @@ In R, questo modello si specifica in modo molto compatto:
 height ~ 1
 ```
 
-Il simbolo `1` indica che vogliamo stimare solo l’intercetta, senza nessuna variabile esplicativa. In termini pratici, l’intercetta rappresenta qui la **media dell’altezza** nel campione.
+Il simbolo `1` indica che vogliamo stimare solo l’intercetta, senza nessuna variabile esplicativa. In termini pratici, l’intercetta rappresenta qui la *media dell’altezza* nel campione.
+
 
 ### Specifica e stima del modello
 
@@ -174,7 +181,8 @@ fm1 <- lm(
 )
 ```
 
-Questo comando applica il metodo della **minima somma dei quadrati**, producendo una stima puntuale della media, assieme a una misura della sua variabilità.
+Questo comando applica il metodo della *minima somma dei quadrati*, producendo una stima puntuale della media, assieme a una misura della sua variabilità.
+
 
 ### Interpretare i risultati
 
@@ -186,14 +194,15 @@ summary(fm1)
 
 Il riassunto mostra diverse informazioni, ma le più rilevanti in questo contesto sono:
 
-* **La stima dell’intercetta** $\hat{\alpha}$: coincide con la media campionaria delle altezze.
-* **L’errore standard**: misura la variabilità attesa della stima $\hat{\alpha}$ se ripetessimo il campionamento molte volte.
-* **Il p-value**: quantifica la probabilità di osservare un valore della statistica test così estremo (o più) se la media vera fosse 0. In questo caso ha scarso interesse pratico, perché il valore di riferimento (0 cm) non è plausibile.
-* **Il R²**: che in assenza di predittori non è interpretabile in modo utile.
+* *La stima dell’intercetta* $\hat{\alpha}$: coincide con la media campionaria delle altezze.
+* *L’errore standard*: misura la variabilità attesa della stima $\hat{\alpha}$ se ripetessimo il campionamento molte volte.
+* *Il p-value*: quantifica la probabilità di osservare un valore della statistica test così estremo (o più) se la media vera fosse 0. In questo caso ha scarso interesse pratico, perché il valore di riferimento (0 cm) non è plausibile.
+* *Il R²*: che in assenza di predittori non è interpretabile in modo utile.
+
 
 ### Intervallo di confidenza al 95%: una misura indiretta dell’incertezza
 
-Il modello frequentista non descrive la nostra incertezza come una distribuzione su $\mu$, ma fornisce invece un **intervallo di confidenza**, che ha un’interpretazione indiretta: se ripetessimo l’esperimento un numero molto elevato di volte, in circa il 95% dei casi l’intervallo conterrebbe il vero valore della media.
+Il modello frequentista non descrive la nostra incertezza come una distribuzione su $\mu$, ma fornisce invece un *intervallo di confidenza*, che ha un’interpretazione indiretta: se ripetessimo l’esperimento un numero molto elevato di volte, in circa il 95% dei casi l’intervallo conterrebbe il vero valore della media.
 
 Possiamo calcolarlo con:
 
@@ -225,24 +234,25 @@ coef(fm1) + c(-1, 1) * qt(0.975, df.residual(fm1)) * 0.413
 * `qt(0.975, df.residual(fm1))` fornisce il valore critico t,
 * `0.413` è l’errore standard (da sostituire con quello esatto, se disponibile).
 
+
 ### Riflessione: cos’è l’incertezza, per davvero?
 
-Nel modello frequentista, l’incertezza sulla media è descritta in termini di **variabilità potenziale tra campioni**, non come incertezza su un valore specifico. Il parametro $\mu$ è trattato come **fisso ma ignoto**, e tutta l’incertezza risiede nella stima che otteniamo da un singolo campione.
+Nel modello frequentista, l’incertezza sulla media è descritta in termini di *variabilità potenziale tra campioni*, non come incertezza su un valore specifico. Il parametro $\mu$ è trattato come *fisso ma ignoto*, e tutta l’incertezza risiede nella stima che otteniamo da un singolo campione.
 
-In questo senso, l’approccio frequentista **non fornisce una distribuzione sul parametro**: non possiamo dire “la probabilità che la media sia tra 153 e 155 cm è del 95%”, ma solo che “se ripetessimo l’esperimento molte volte, l’intervallo conterrebbe la media vera nel 95% dei casi”.
+In questo senso, l’approccio frequentista *non fornisce una distribuzione sul parametro*: non possiamo dire “la probabilità che la media sia tra 153 e 155 cm è del 95%”, ma solo che “se ripetessimo l’esperimento molte volte, l’intervallo conterrebbe la media vera nel 95% dei casi”.
 
-Nel prossimo paragrafo vedremo come un modello bayesiano offra un’alternativa: trattare $\mu$ come una **variabile aleatoria** su cui esprimere direttamente l’incertezza, permettendoci di formulare affermazioni probabilistiche esplicite sui valori possibili del parametro.
+Nel prossimo paragrafo vedremo come un modello bayesiano offra un’alternativa: trattare $\mu$ come una *variabile aleatoria* su cui esprimere direttamente l’incertezza, permettendoci di formulare affermazioni probabilistiche esplicite sui valori possibili del parametro.
 
 
-## Il modello Bayesiano: descrivere l’incertezza con distribuzioni 🔀
+## Il modello Bayesiano: descrivere l’incertezza con distribuzioni
 
 Dopo aver stimato la media dell’altezza con il modello frequentista, possiamo affrontare lo stesso problema con un approccio bayesiano, usando il pacchetto `brms`. Questo ci consente di rappresentare in modo più diretto l’incertezza che abbiamo sui parametri del modello.
 
-Nel framework bayesiano, tutti i parametri sono trattati come **variabili aleatorie**: invece di stimare un singolo valore per la media, stimiamo una **distribuzione a posteriori**, che riflette l’incertezza residua dopo aver osservato i dati.
+Nel framework bayesiano, tutti i parametri sono trattati come *variabili aleatorie*: invece di stimare un singolo valore per la media, stimiamo una *distribuzione a posteriori*, che riflette l’incertezza residua dopo aver osservato i dati.
 
-### Priori debolmente informativi: quando “non sappiamo molto” 🔍
+### Priori debolmente informativi: quando “non sappiamo molto” 
 
-Ogni modello bayesiano richiede la specifica di **distribuzioni a priori**. Tuttavia, quando non abbiamo conoscenze forti da inserire, possiamo affidarci ai **priori debolmente informativi**: distribuzioni ampie, generiche e poco vincolanti, che permettono ai dati di “parlare da soli”.
+Ogni modello bayesiano richiede la specifica di *distribuzioni a priori*. Tuttavia, quando non abbiamo conoscenze forti da inserire, possiamo affidarci ai *priori debolmente informativi*: distribuzioni ampie, generiche e poco vincolanti, che permettono ai dati di “parlare da soli”.
 
 Se non specifichiamo nulla, `brms` userà questi prior di default. È un buon punto di partenza, soprattutto per modelli semplici e dataset abbastanza ricchi.
 
@@ -270,7 +280,7 @@ fm2 <- brm(
 Qui stiamo stimando due parametri:
 
 * $\mu$ → media dell’altezza nella popolazione;
-* $\sigma$ → deviazione standard, che rappresenta **quanta variabilità inter-individuale** osserviamo.
+* $\sigma$ → deviazione standard, che rappresenta *quanta variabilità inter-individuale* osserviamo.
 
 In termini formali, il modello è scritto come:
 
@@ -288,9 +298,9 @@ summary(fm2)
 
 Nel risultato troveremo:
 
-* **Media della distribuzione a posteriori** per $\alpha$, che è la stima centrale di $\mu$;
-* **Errore standard a posteriori**, cioè quanto fluttua $\mu$ nei campioni simulati;
-* **Intervallo di credibilità** al 95%: l’intervallo in cui cade il 95% della distribuzione a posteriori di $\mu$.
+* *Media della distribuzione a posteriori* per $\alpha$, che è la stima centrale di $\mu$;
+* *Errore standard a posteriori*, cioè quanto fluttua $\mu$ nei campioni simulati;
+* *Intervallo di credibilità* al 95%: l’intervallo in cui cade il 95% della distribuzione a posteriori di $\mu$.
 
 A differenza dell’intervallo di confidenza frequentista, qui possiamo davvero dire:
 
@@ -304,7 +314,7 @@ A differenza dell’intervallo di confidenza frequentista, qui possiamo davvero 
 | Frequentista | “La media stimata è 154.6, con un intervallo di confidenza al 95% tra 153.8 e 155.4.”               |
 | Bayesiano    | “La media stimata a posteriori è 154.6, con un intervallo di credibilità al 95% tra 153.8 e 155.4.” |
 
-Numericamente possono coincidere, ma la **logica inferenziale è diversa**: nel caso bayesiano, l’intervallo descrive ciò che crediamo plausibile; nel frequentista, ciò che la procedura catturerebbe nella maggior parte dei campioni ripetuti.
+Numericamente possono coincidere, ma la *logica inferenziale è diversa*: nel caso bayesiano, l’intervallo descrive ciò che crediamo plausibile; nel frequentista, ciò che la procedura catturerebbe nella maggior parte dei campioni ripetuti.
 
 
 ### Esplorare i campioni a posteriori: guardare l’incertezza in faccia
@@ -336,25 +346,25 @@ quantile(as_draws_df(fm2)$b_Intercept, probs = c(0.025, 0.975))
 > Questi valori sintetizzano l’incertezza associata alla nostra stima della media: non un singolo punto, ma una nuvola di possibilità, tutte compatibili con i dati osservati.
 
 
-### Conclusioni intermedie 🔀
+### Conclusioni intermedie
 
 Abbiamo visto come:
 
-* L’approccio frequentista fornisca una **stima puntuale** e un **intervallo ipotetico** di copertura.
-* L’approccio bayesiano fornisca una **distribuzione completa a posteriori**, da cui possiamo derivare medie, intervalli, probabilità e visualizzazioni.
+* L’approccio frequentista fornisca una *stima puntuale* e un *intervallo ipotetico* di copertura.
+* L’approccio bayesiano fornisca una *distribuzione completa a posteriori*, da cui possiamo derivare medie, intervalli, probabilità e visualizzazioni.
 
-Entrambi gli approcci descrivono la **variabilità tra individui**, ma il metodo bayesiano offre strumenti più trasparenti per rappresentare l’**incertezza sui parametri**.
+Entrambi gli approcci descrivono la *variabilità tra individui*, ma il metodo bayesiano offre strumenti più trasparenti per rappresentare l’*incertezza sui parametri*.
 
 > Questo è particolarmente utile in psicologia, dove campioni ridotti, contesti variabili e differenze individuali richiedono modelli che sappiano dire “quanto (non) sappiamo”.
 
-Nel prossimo paragrafo vedremo come possiamo **personalizzare i priori**, incorporando informazioni pregresse (da studi precedenti, teoria, esperienza clinica…), e come questo possa influenzare l’inferenza nei casi in cui i dati da soli non siano sufficientemente informativi.
+Nel prossimo paragrafo vedremo come possiamo *personalizzare i priori*, incorporando informazioni pregresse (da studi precedenti, teoria, esperienza clinica…), e come questo possa influenzare l’inferenza nei casi in cui i dati da soli non siano sufficientemente informativi.
 
 
-## Uso dei Prior nel Modello Bayesiano: rendere esplicite le ipotesi sull’incertezza 🔍
+## Uso dei Prior nel Modello Bayesiano: rendere esplicite le ipotesi sull’incertezza
 
 Finora abbiamo visto che è possibile stimare un modello bayesiano anche senza specificare esplicitamente i prior: in tal caso, `brms` utilizza prior debolmente informativi, lasciando che siano i dati a guidare l’inferenza.
 
-Ma il cuore dell’approccio bayesiano sta proprio qui: nella possibilità di incorporare conoscenze precedenti, aspettative, risultati di studi precedenti — insomma, di modellare in modo **esplicito e trasparente** l’incertezza che abbiamo prima di vedere i dati.
+Ma il cuore dell’approccio bayesiano sta proprio qui: nella possibilità di incorporare conoscenze precedenti, aspettative, risultati di studi precedenti — insomma, di modellare in modo *esplicito e trasparente* l’incertezza che abbiamo prima di vedere i dati.
 
 ### Tre domande chiave prima di stimare
 
@@ -364,9 +374,10 @@ Prima di usare un modello bayesiano, è utile porsi alcune domande fondamentali:
 * Come possiamo esprimere questa conoscenza sotto forma di distribuzioni?
 * Quanto vogliamo che questa conoscenza influenzi l’inferenza?
 
-La risposta a queste domande guida la scelta dei prior. Nei passaggi che seguono, vedremo come un modello informato da prior realistici possa non solo migliorare la stima, ma anche **aumentare la coerenza tra teoria e dati**.
+La risposta a queste domande guida la scelta dei prior. Nei passaggi che seguono, vedremo come un modello informato da prior realistici possa non solo migliorare la stima, ma anche *aumentare la coerenza tra teoria e dati*.
 
-### Specificare i prior: un esempio concreto 🔀
+
+### Specificare i prior: un esempio concreto
 
 Riprendiamo il nostro esempio sull’altezza nella popolazione dei !Kung San. Supponiamo di avere un’idea ragionevole su quanto potrebbe essere la media e la variabilità delle altezze.
 
@@ -378,9 +389,9 @@ Possiamo tradurre questa conoscenza nel linguaggio delle distribuzioni:
 * Per $\sigma$ (la deviazione standard), ipotizziamo:
   $\sigma \sim \mathcal{N}^+(0, 20)$ — una normale troncata a destra, che garantisce valori positivi.
 
-Questi prior sono **informativi ma ampi**: riflettono aspettative plausibili, senza imporre vincoli troppo rigidi.
+Questi prior sono *informativi ma ampi*: riflettono aspettative plausibili, senza imporre vincoli troppo rigidi.
 
-> ℹ️ McElreath scherza dicendo di usare come prior la propria altezza. L’ironia nasconde un principio importante: *ogni ipotesi è valida, purché dichiarata*. Un buon modello bayesiano non finge oggettività, ma esplicita l’incertezza iniziale.
+> McElreath scherza dicendo di usare come prior la propria altezza. L’ironia nasconde un principio importante: *ogni ipotesi è valida, purché dichiarata*. Un buon modello bayesiano non finge oggettività, ma esplicita l’incertezza iniziale.
 
 
 ### Forma del modello con prior espliciti
@@ -395,7 +406,7 @@ Y_i &\sim \mathcal{N}(\mu, \sigma) \\\\
 \end{aligned}
 $$
 
-Qui, sia la media sia la variabilità della popolazione sono trattate come **quantità soggette a incertezza**. La stima diventa un aggiornamento: partiamo da un’opinione iniziale e la modifichiamo alla luce dei dati.
+Qui, sia la media sia la variabilità della popolazione sono trattate come *quantità soggette a incertezza*. La stima diventa un aggiornamento: partiamo da un’opinione iniziale e la modifichiamo alla luce dei dati.
 
 
 ### Implementazione in `brms`
@@ -419,6 +430,7 @@ fm3 <- brm(
 )
 ```
 
+
 ### Analisi dell’output
 
 Una volta stimato il modello, possiamo esaminarlo come sempre con:
@@ -427,11 +439,12 @@ Una volta stimato il modello, possiamo esaminarlo come sempre con:
 summary(fm3)
 ```
 
-Se i dati sono informativi (come in questo caso), l’effetto dei prior sarà contenuto: la distribuzione a posteriori sarà molto simile a quella ottenuta con prior deboli. Questo è un comportamento desiderabile: il prior **non deve forzare i risultati**, ma integrarsi con essi.
+Se i dati sono informativi (come in questo caso), l’effetto dei prior sarà contenuto: la distribuzione a posteriori sarà molto simile a quella ottenuta con prior deboli. Questo è un comportamento desiderabile: il prior *non deve forzare i risultati*, ma integrarsi con essi.
+
 
 ### Scegliere il livello dell’intervallo di credibilità
 
-Possiamo modificare la probabilità coperta dall’intervallo credibile, ad esempio scegliendo un **intervallo all’89%** anziché al 95%:
+Possiamo modificare la probabilità coperta dall’intervallo credibile, ad esempio scegliendo un *intervallo all’89%* anziché al 95%:
 
 ```{r}
 summary(fm3, prob = 0.89)
@@ -439,7 +452,7 @@ summary(fm3, prob = 0.89)
 
 Questa scelta è proposta da McElreath come default per motivi pedagogici: evitare che l’intervallo venga interpretato come test di significatività.
 
-> “Why 89%? Because it’s prime.” — è un invito a **pensare criticamente** alle convenzioni statistiche, e a riflettere su cosa stiamo cercando davvero di comunicare quando riportiamo un intervallo.
+> “Why 89%? Because it’s prime.” — è un invito a *pensare criticamente* alle convenzioni statistiche, e a riflettere su cosa stiamo cercando davvero di comunicare quando riportiamo un intervallo.
 
 
 ### Cosa otteniamo con prior espliciti?
@@ -454,7 +467,7 @@ Usare prior informativi consente di:
 
 ### Conclusione
 
-In un modello bayesiano, ogni assunzione è chiara e trattabile. I risultati non sono semplici numeri, ma **distribuzioni di credibilità** che raccontano ciò che è plausibile, dato ciò che sapevamo prima e ciò che abbiamo osservato ora.
+In un modello bayesiano, ogni assunzione è chiara e trattabile. I risultati non sono semplici numeri, ma *distribuzioni di credibilità* che raccontano ciò che è plausibile, dato ciò che sapevamo prima e ciò che abbiamo osservato ora.
 
 > Questo rende l’approccio bayesiano particolarmente adatto alla psicologia: un campo dove l’incertezza è la norma, la variabilità è parte del fenomeno da spiegare, e la trasparenza delle assunzioni è fondamentale.
 
@@ -463,18 +476,18 @@ Nel prossimo paragrafo, ci concentreremo su come visualizzare e valutare queste 
 
 ## Visualizzare l’incertezza con `bayesplot`
 
-Il pacchetto **`bayesplot`** è uno strumento prezioso per ogni analisi bayesiana: permette di esplorare visivamente la variabilità delle stime a posteriori, di diagnosticare l’efficienza del campionamento MCMC e di verificare se il modello riesce a riprodurre i dati osservati.
+Il pacchetto `bayesplot` è uno strumento prezioso per ogni analisi bayesiana: permette di esplorare visivamente la variabilità delle stime a posteriori, di diagnosticare l’efficienza del campionamento MCMC e di verificare se il modello riesce a riprodurre i dati osservati.
 
-In un contesto psicologico, dove spesso i dati sono rumorosi e le inferenze complesse, poter visualizzare **dove e quanto il modello è incerto** è fondamentale.
+In un contesto psicologico, dove spesso i dati sono rumorosi e le inferenze complesse, poter visualizzare *dove e quanto il modello è incerto* è fondamentale.
 
 
 ### Traceplot: osservare le catene in azione
 
 Il traceplot mostra l’evoluzione dei campioni per ogni parametro nel corso delle iterazioni MCMC. Serve a controllare:
 
-* che le catene siano **stazionarie** (nessuna deriva sistematica),
-* che si **mescolino bene** (assenza di autocorrelazione),
-* che ci sia **convergenza** (tutte le catene esplorano la stessa distribuzione).
+* che le catene siano *stazionarie* (nessuna deriva sistematica),
+* che si *mescolino bene* (assenza di autocorrelazione),
+* che ci sia *convergenza* (tutte le catene esplorano la stessa distribuzione).
 
 ```{r}
 mcmc_trace(fm3, pars = c("Intercept", "sigma"), facet_args = list(nrow = 2))
@@ -491,9 +504,9 @@ Per visualizzare la distribuzione di probabilità di un parametro stimato, possi
 mcmc_areas(fm3, regex_pars = "b_Intercept", prob = 0.89)
 ```
 
-Questa funzione evidenzia l’**intervallo credibile** in cui cade, ad esempio, l’89% della densità a posteriori per la media dell’altezza.
+Questa funzione evidenzia l’*intervallo credibile* in cui cade, ad esempio, l’89% della densità a posteriori per la media dell’altezza.
 
-> 🔎 A differenza dell’intervallo di confidenza, qui possiamo davvero dire che **c’è l’89% di probabilità che la media vera sia compresa in quell’intervallo**.
+> A differenza dell’intervallo di confidenza, qui possiamo davvero dire che *c’è l’89% di probabilità che la media vera sia compresa in quell’intervallo*.
 
 
 ### Distribuzione congiunta di due parametri: incrociare incertezze
@@ -504,12 +517,12 @@ Quando vogliamo esplorare la relazione tra due parametri (ad esempio, media e de
 mcmc_scatter(fm3, pars = c("Intercept", "sigma"))
 ```
 
-Questo tipo di visualizzazione è utile per valutare **dipendenze tra parametri**: ad esempio, se i campioni sono inclinati lungo una diagonale, significa che c’è correlazione a posteriori tra i due.
+Questo tipo di visualizzazione è utile per valutare *dipendenze tra parametri*: ad esempio, se i campioni sono inclinati lungo una diagonale, significa che c’è correlazione a posteriori tra i due.
 
 
 ### Posterior Predictive Check: il modello spiega davvero i dati?
 
-Una delle forze dell’approccio bayesiano è che i modelli sono **generativi**: possiamo simulare nuovi dati partendo dalle distribuzioni a posteriori e confrontarli con quelli osservati.
+Una delle forze dell’approccio bayesiano è che i modelli sono *generativi*: possiamo simulare nuovi dati partendo dalle distribuzioni a posteriori e confrontarli con quelli osservati.
 
 ```{r}
 pp_check(fm3)
@@ -520,7 +533,7 @@ La funzione `pp_check()` mostra:
 * in nero: la distribuzione dei dati osservati,
 * in colore: più repliche simulate dal modello.
 
-Se le simulazioni coprono bene i dati reali, il modello è coerente con le osservazioni. Se invece ci sono **scostamenti sistematici**, questo può indicare che:
+Se le simulazioni coprono bene i dati reali, il modello è coerente con le osservazioni. Se invece ci sono *scostamenti sistematici*, questo può indicare che:
 
 * la distribuzione scelta non è adatta,
 * ci sono outlier non gestiti,
@@ -529,7 +542,7 @@ Se le simulazioni coprono bene i dati reali, il modello è coerente con le osser
 
 ## L’approccio tradizionale: il test t di Student
 
-Prima dell’adozione diffusa dei metodi bayesiani, l’inferenza sulla media veniva solitamente effettuata con il **test t**. Questo approccio assume che la variabilità osservata nel campione (stimata con la deviazione standard campionaria) sia sufficiente a rappresentare l’incertezza sul parametro d’interesse.
+Prima dell’adozione diffusa dei metodi bayesiani, l’inferenza sulla media veniva solitamente effettuata con il *test t*. Questo approccio assume che la variabilità osservata nel campione (stimata con la deviazione standard campionaria) sia sufficiente a rappresentare l’incertezza sul parametro d’interesse.
 
 Il calcolo si basa sulla statistica:
 
@@ -537,7 +550,7 @@ $$
 T = \frac{\bar{X} - \mu_0}{s / \sqrt{n}}.
 $$
 
-Il test permette di costruire un intervallo di confidenza, ma non di fare affermazioni probabilistiche sui parametri. Il valore $\mu$ è considerato fisso ma sconosciuto, e l’incertezza è attribuita unicamente al **campionamento**.
+Il test permette di costruire un intervallo di confidenza, ma non di fare affermazioni probabilistiche sui parametri. Il valore $\mu$ è considerato fisso ma sconosciuto, e l’incertezza è attribuita unicamente al *campionamento*.
 
 
 ## Confronto tra approcci: stesso dato, epistemologie diverse
@@ -569,7 +582,7 @@ Nel prossimi capitoli ci sposteremo dal caso di una sola media al confronto tra 
 
 ::: {.callout-important title="Problemi" collapse="true"}
 
-**Obiettivo:** Utilizzare i dati dello studio di @tarrats2025efficacy per replicare i risultati riportati nella Figura 2 , applicando sia l’approccio frequentista che il framework bayesiano. Calcolare inoltre la grandezza dell’effetto nel contesto bayesiano (Cohen’s $d$) e generare un grafico che visualizzi la distribuzione a posteriori della grandezza dell’effetto ottenuta. 
+*Obiettivo:* Utilizzare i dati dello studio di @tarrats2025efficacy per replicare i risultati riportati nella Figura 2 , applicando sia l’approccio frequentista che il framework bayesiano. Calcolare inoltre la grandezza dell’effetto nel contesto bayesiano (Cohen’s $d$) e generare un grafico che visualizzi la distribuzione a posteriori della grandezza dell’effetto ottenuta. 
 
 :::
 
@@ -747,10 +760,10 @@ ggplot(post_samples, aes(x = effect_size)) +
 ```
 :::
 
-## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
+## Informazioni sull'Ambiente di Sviluppo {.unnumbered .unlisted} 
 
 ```{r}
 sessionInfo()
 ```
 
-## Bibliografia {.unnumbered}
+## Bibliografia {.unnumbered .unlisted}
