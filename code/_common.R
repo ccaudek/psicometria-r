@@ -40,6 +40,7 @@ library(bayesplot) # diagnostiche bayesiane con ggplot2
 library(tidybayes) # manipolazione tidy di output bayesiani
 library(ggdist) # visualizzazioni di distribuzioni
 library(patchwork) # composizione di più grafici ggplot2
+library(conflicted)
 
 # Tema uniforme leggibile per tutte le figure
 theme_set(bayesplot::theme_default(base_family = "sans", base_size = 14))
@@ -47,6 +48,9 @@ theme_set(bayesplot::theme_default(base_family = "sans", base_size = 14))
 # Palette base (3 colori Set1), con nomi mnemonici
 palette_set1 <- RColorBrewer::brewer.pal(3, "Set1")
 names(palette_set1) <- c("uno", "due", "tre")
+
+conflict_prefer("filter", "dplyr") # Always use dplyr::filter
+conflict_prefer("select", "dplyr") # Always use dplyr::select
 
 ## ─────────────────────────────────────────────────────────────────────
 ## 4. Stile tabelle

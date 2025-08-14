@@ -83,22 +83,31 @@ $$
 
 Ora modelliamo una situazione comune nella ricerca psicologica: le persone con ansia sociale più elevata tendono a evitare a rispondere al questionario, lasciando più risposte mancanti.  
 
-Questo comportamento di evitamento è descritto da un *modello di selezione* (*selection model*):
+Il comportamento di evitamento è formalizzato attraverso un *modello di selezione* (*selection model*) di tipo logistico, che specifica la probabilità condizionata di osservazione del dato nel modo seguente:
 
 $$
-\Pr(R_i = 1 \mid y_i) = \text{logit}^{-1}(\alpha + \beta\, y_i) 
+\Pr(R_i = 1 \mid y_i) = \text{logit}^{-1}(\alpha + \beta\, y_i) .
 $$ {#eq-selection-model}
 
-dove: 
+Definizione formale delle componenti del modello:
 
-- $R_i$ è la *variabile indicatrice di osservazione* per l’unità $i$; 
-- $R_i = 1$ significa che il dato $y_i$ è stato *osservato* (il partecipante ha risposto); 
-- $R_i = 0$ significa che il dato $y_i$ è *mancante* (il partecipante non ha risposto); 
-- $\beta < 0$ implica che, all’aumentare di $y_i$, la probabilità di risposta diminuisce (es. punteggi più alti sono associati a una maggiore probabilità di mancare la risposta); 
-- $\beta > 0$ implicherebbe l’opposto: punteggi più alti aumentano la probabilità di risposta; 
-- $\beta = 0$ indica che la probabilità di risposta non dipende da $y_i$ (condizionatamente alle altre variabili del modello). 
+- *Variabile di risposta latente*:  
+  $R_i \in \{0,1\}$ è una *variabile binaria latente* che modella il processo di osservazione, dove:  
+  - $R_i = 1$ indica che l'osservazione $y_i$ è *osservabile* (il partecipante ha fornito una risposta valida);  
+  - $R_i = 0$ denota un *dato mancante* (mancata risposta del partecipante).  
 
-**Nota didattica**: questo esempio riflette un tipico caso MNAR, in cui la probabilità di osservare il dato dipende direttamente dal valore vero della variabile di interesse.
+- *Parametro $\beta$ e meccanismo di missingness*:  
+  La relazione tra $y_i$ e $\Pr(R_i = 1 \mid y_i)$ è governata dal parametro $\beta$:  
+  - Se $\beta < 0$: sussiste un *meccanismo di missingness non ignorabile* (MNAR) con *dipendenza negativa monotona*. Valori più elevati di $y_i$ riducono la probabilità di osservazione, indicando un *pattern di evitamento selettivo* (es. partecipanti con sintomi di ansia sociale più severi tendono ad evitare di rispondere).  
+  - Se $\beta > 0$: il missingness è ancora MNAR, ma con *dipendenza positiva monotona*. Valori elevati di $y_i$ aumentano la probabilità di osservazione (es. partecipanti con maggiore ansia sociale hanno maggiore propensione a rispondere).  
+  - Se $\beta = 0$: la probabilità di osservazione è *indipendente* da $y_i$, soddisfacendo l'ipotesi di *Missing Completely at Random* (MCAR).  
+
+**Nota didattica**: l'esempio qui discusso riflette un tipico caso MNAR, in cui la probabilità di osservare il dato dipende direttamente dal valore vero della variabile di interesse.
+
+Generiamo un dataset sintetico di $N$ = 1000 unità statistiche, dove il meccanismo di missingness segue un modello di selezione logistico con parametri:
+
+- intercetta ($\alpha$) = 0,
+- effetto della variabile risposta ($\beta$) = -2.0.
 
 ```{r}
 #| label: simulate
@@ -117,10 +126,11 @@ R      <- rbinom(N, 1, p_obs)
 y_obs  <- ifelse(R == 1, y_true, NA_real_)
 
 tbl <- tibble(y_true, R, y_obs, p_obs)
-mean(R); mean(is.na(y_obs))
+mean(R)
+mean(is.na(y_obs))
 ```
 
-Consideriamo un riassunto numerico, utile per far emergere subito il bias:
+### Analisi del bias indotto da MNAR
 
 ```{r}
 summ <- tibble(
@@ -131,7 +141,12 @@ summ <- tibble(
 print(summ)
 ```
 
-Visualizziamo ora la *probabilità di osservazione* in funzione del valore vero e confrontiamo la *distribuzione dei veri* con quella dei *solo osservati*.
+I dati evidenziando una sottostima sistematica dovuta al meccanismo MNAR.
+
+
+### Visualizzazione degli effetti di selezione
+
+Visualizziamo ora la *probabilità di osservazione* in funzione del valore vero e confrontiamo la *distribuzione dei valori veri* con quella dei valori *osservati*, escludendo i valori mancanti.
 
 ```{r}
 #| label: plot-sim
@@ -187,8 +202,9 @@ $$
 
 con aspettative $\mu \approx 0$ e $\sigma \approx 1$.
 
-I valori mancanti vengono trattati come *parametri latenti* e stimati direttamente, *senza modellare* la variabile $R$ che indica la risposta.  
-In pratica, stiamo assumendo implicitamente che i dati mancanti siano *MCAR* (completamente a caso) o *MAR* (a caso dato il modello).
+I valori mancanti vengono trattati come *parametri latenti* e stimati direttamente[^1], *senza modellare* la variabile $R$ che indica la risposta. In pratica, stiamo assumendo implicitamente che i dati mancanti siano *MCAR* (completamente a caso) o *MAR* (a caso dato il modello).
+
+[^1]: Cosa significa “i valori mancanti sono *parametri latenti*?” Indichiamo con $y_i$ il valore “vero” per l’unità $i$. Per alcune unità $y_i$ *non è osservato* (manca). Nel modello bayesiano *includiamo comunque* un oggetto $y_i$ per ogni unità, *anche quando è mancante*: lo trattiamo come una quantità sconosciuta da inferire insieme a $\mu$ e $\sigma$. Tecnicamente: aggiungiamo un nodo $y_i^{\text{mis}}$ con la *stessa distribuzione dell’outcome*, ad es. $y_i^{\text{mis}} \sim \mathcal{N}(\mu,\sigma).$  Durante il campionamento, il modello *genera valori plausibili* per ciascun $y_i^{\text{mis}}$ coerenti con $\mu$ e $\sigma$. Importante: questi $y_i^{\text{mis}}$ *non “informano”* $\mu$ e $\sigma$ oltre ai dati osservati: sono imputazioni *coerenti col modello* (servono, per esempio, a produrre dataset completi), *ma non correggono* eventuali distorsioni dovute al meccanismo di mancanza. In breve: l’imputazione discende solo dalla distribuzione scelta per $y.$
 
 
 ### Intuizione operativa
@@ -276,7 +292,7 @@ summ_ignore <- fit_ignore$summary(variables = c("mu", "sigma"))
 
 ## Modello 2 — Selection model (MNAR esplicito)
 
-Nel *selection model* la probabilità di osservare un dato **non è costante**, ma dipende dal valore stesso di $y$. Questo legame è descritto dal parametro **$\beta$**:
+Nel *selection model* la probabilità di osservare un dato *non è costante*, ma dipende dal valore stesso di $y$. Questo legame è descritto dal parametro *$\beta$*:
 
 * *$\beta$ positivo* → valori più alti di $y$ hanno *maggiore* probabilità di essere osservati.
 * *$\beta$ negativo* → valori più alti di $y$ hanno *minore* probabilità di essere osservati (es. soggetti con punteggi elevati evitano di rispondere).
