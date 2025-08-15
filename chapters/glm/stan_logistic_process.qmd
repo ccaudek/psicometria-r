@@ -1,0 +1,551 @@
+---
+title: "Oltre la regressione logistica: modelli di scelta con Stan e R"
+subtitle: "Dal GLM a un modello processuale per dati binari (didattica per psicologia)"
+author: "Dispensa – Psicometria / Analisi Bayesiana"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    code-fold: show
+    theme: litera
+    css: styles.css
+execute:
+  echo: true
+  warning: false
+  message: false
+lang: it
+---
+
+::: callout-tip
+## Obiettivi del capitolo
+
+- Introdurre la regressione logistica in modo **intuitivo**.
+- Mostrare come un **Probabilistic Programming Language (Stan)** permetta di andare **oltre** un GLM classico.
+- Costruire un **modello processuale** per scelte binarie (es. sì/no, A/B) in psicologia.
+- Eseguire **prior predictive check**, **stima bayesiana** e **posterior predictive check** in **R** (con `cmdstanr` e `brms` opzionale).
+- Estendere il modello in forma **gerarchica** (differenze individuali).
+:::
+
+# 1. Motivazione: perché oltre il GLM?
+
+La regressione logistica classica è uno strumento potente quando vogliamo modellare una risposta binaria $y \in \{0,1\}$ come funzione di predittori $ \mathbf{x} $.
+Tuttavia, in molti contesti psicologici la risposta non è il risultato di un "colpo secco", bensì l'esito di un **processo** (cognitivo/decisorio) che si dispiega nel tempo o dipende da variabili **latenti** (ad esempio, una **utilità** o una **tendenza all'approvazione** non osservata).
+
+L'idea chiave di questo capitolo: **usiamo Stan per esplicitare il meccanismo** che genera la risposta binaria.
+
+- **GLM logit (base)**: $ \Pr(y=1 \mid \mathbf{x}) = \operatorname{logit}^{-1}(\alpha + \mathbf{x}^\top \boldsymbol\beta) $.
+- **Modello processuale (esteso)**: introduciamo una **variabile latente** $u$ (utilità/propensione) che a sua volta dipende da $\mathbf{x}$ *e* da fattori dinamici (p.es. abitudine o apprendimento), e la scelta $y$ nasce dalla soglia di $u$ con rumore.
+
+
+## 2. Regressione logistica: il ponte intuitivo
+
+### 2.1 Dal logit alla probabilità
+
+Nel GLM logit:
+
+$$
+\text{logit}(p_i) \equiv \log\frac{p_i}{1 - p_i} = \alpha + \mathbf{x}_i^\top \boldsymbol\beta,\quad
+p_i = \Pr(y_i=1) = \frac{1}{1 + \exp(-\alpha - \mathbf{x}_i^\top \boldsymbol\beta)}.
+$$
+
+Interpretazione didattica:
+
+- $\alpha$ sposta la curva a sinistra/destra (tendenza di base).
+- $\boldsymbol\beta$ inclina la **S** logistica: variazioni nei predittori cambiano l'odds e quindi la probabilità.
+- Per piccole variazioni di un predittore $x_j$, l'odds ratio cambia di un fattore $\exp(\beta_j)$.
+
+
+### 2.2 Dalla scelta al processo
+
+La stessa formula può essere vista come approssimazione di un **processo decisionale**: esiste una **utilità latente** $u_i$ che si confronta con una soglia, ma è misurata con rumore logistico. Se assumiamo
+
+$$
+u_i = \alpha + \mathbf{x}_i^\top \boldsymbol\beta + \varepsilon_i,\quad \varepsilon_i \sim \text{Logistic}(0,1),
+$$
+
+allora $\Pr(y_i=1)=\Pr(u_i>0)=\operatorname{logit}^{-1}(\alpha + \mathbf{x}_i^\top \boldsymbol\beta)$.
+
+Questa lettura **meccanicistica** ci apre alla generalizzazione: possiamo far evolvere $u_i$ nel tempo o farlo dipendere da stati latenti.
+
+
+### 3. Oltre il GLM: un modello processuale semplice
+
+Consideriamo un compito con **ripetizioni** per ogni soggetto (trial), dove la **propensione latente** $u_{i,t}$ dipende da predittori osservati $ \mathbf{x}_{i,t} $ e da un **termine dinamico** che cattura, per esempio, **abitudine**/**fatica**/**apprendimento** attraverso un filtro **AR(1)**:
+
+$$
+\begin{aligned}
+u_{i,t} &= \alpha_i + \mathbf{x}_{i,t}^\top \boldsymbol\beta + \phi\, u_{i,t-1} + \eta_{i,t}, \qquad \eta_{i,t} \sim \mathcal{N}(0,\sigma_u), \\
+y_{i,t} &\sim \text{Bernoulli}\!\left(\operatorname{logit}^{-1}(u_{i,t})\right).
+\end{aligned}
+$$
+
+- $\alpha_i$: **intercetta soggetto-specifica** (eterogeneità tra individui).
+- $\phi$: **persistenza dinamica** della propensione (0 = indipendenza; positivo = inerzia; negativo = alternanza).
+- $\sigma_u$: **variabilità processuale**.
+- $\boldsymbol\beta$: effetto dei predittori osservati.
+
+Questo è già *oltre* il GLM: la probabilità di scelta non dipende solo da $ \mathbf{x} $, ma dal **processo latente** $u_{i,t}$.
+
+::: callout-note
+**Quando usarlo?** In attività ripetute (decisioni sequenziali, compiti sperimentali, EMA con scelte sì/no), quando si sospetta **dipendenza temporale** o **stati interni** non osservati.
+:::
+
+
+## 4. Setup in R
+
+```{r}
+#| label: setup
+#| message: false
+#| warning: false
+# Install/load pacchetti necessari
+req <- c("cmdstanr", "posterior", "bayesplot", "dplyr", "tidyr", "ggplot2", "tibble", "purrr", "stringr", "readr", "brms")
+for (p in req) {
+  if (!requireNamespace(p, quietly = TRUE)) {
+    install.packages(p, dependencies = TRUE)
+  }
+}
+library(cmdstanr)
+library(posterior)
+library(bayesplot)
+library(dplyr); library(tidyr); library(ggplot2); library(tibble); library(purrr)
+library(brms)   # opzionale, per confronto con GLM classico
+set.seed(123)
+```
+
+
+## 5. Simulazione dati 
+
+Simuliamo $I=100$ soggetti, $T=30$ trial ciascuno. Un predittore binario $x_{i,t}$ (es. **condizione sperimentale**: 0 = neutra, 1 = saliente).
+
+```{r}
+#| label: simulate-data
+#| fig-cap: "Esempio simulato: propensione latente, predittore e risposta."
+I <- 100
+Tt <- 30
+N  <- I*Tt
+
+alpha_i <- rnorm(I, 0, 0.7)                 # eterogeneità individui
+beta    <- 0.6                              # effetto del predittore
+phi     <- 0.5                              # persistenza dinamica
+sigma_u <- 0.6                              # rumore del processo
+
+# Predittore binario per semplicità (es. condizione)
+x <- rbinom(N, 1, 0.5)
+
+# Indici soggetto/trial
+df <- tibble(
+  id = rep(1:I, each = Tt),
+  t  = rep(1:Tt, times = I),
+  x  = x
+)
+
+# Genera processo latente e risposta
+u <- numeric(N)
+y <- integer(N)
+
+for (i in 1:I) {
+  ui <- numeric(Tt)
+  a  <- alpha_i[i]
+  for (t in 1:Tt) {
+    idx <- (i-1)*Tt + t
+    mean_ut <- a + beta*df$x[idx] + (ifelse(t==1, 0, phi*ui[t-1]))
+    ui[t]   <- rnorm(1, mean_ut, sigma_u)
+    p       <- 1/(1+exp(-ui[t]))
+    y[idx]  <- rbinom(1, 1, p)
+  }
+  u[((i-1)*Tt+1):(i*Tt)] <- ui
+}
+
+df$u_lat <- u
+df$y     <- y
+
+df %>% head()
+```
+
+Visualizziamo (per alcuni soggetti) la dinamica latente e le scelte.
+
+```{r}
+#| label: plot-sim
+#| fig-cap: "Serie latente u e scelte per 6 soggetti (punti pieni = y=1)."
+six_ids <- sample(unique(df$id), 6)
+df_plot <- df %>% 
+  dplyr::filter(id %in% six_ids)
+
+ggplot(df_plot, aes(t, u_lat)) +
+  geom_line() +
+  geom_point(aes(y = ifelse(y==1, u_lat, NA))) +
+  facet_wrap(~ id, scales = "free_y") +
+  labs(x = "trial", y = "u (latente)")
+```
+
+# 6. Tabella-ponte: algebra ↔ Stan
+
+La tabella seguente collega i simboli matematici con gli oggetti Stan.
+
+| Concetto | Simbolo | Stan | Note |
+|---|---|---|---|
+| N. osservazioni | $N$ | `int<lower=1> N;` | Total trials |
+| Indice soggetto | $i=1,\dots,I$ | `int<lower=1> I;` `array[N] int<lower=1,upper=I> id;` | Mappatura trial→soggetto |
+| Predittore | $x_{i,t}$ | `array[N] int<lower=0,upper=1> x;` | qui binario (estendibile a `vector[N] x;`) |
+| Risposta | $y_{i,t}$ | `array[N] int<lower=0,upper=1> y;` | Bernoulli |
+| Latente | $u_{i,t}$ | `vector[N] u;` | Stato dinamico |
+| Intercetta sogg. | $\alpha_i$ | `vector[I] alpha;` | gerarchico con iper-priori |
+| Persistenza | $\phi$ | `real<lower=-.99, upper=.99> phi;` | AR(1) stabile |
+| Var. latente | $\sigma_u$ | `real<lower=0> sigma_u;` | sd del rumore di processo |
+| Effetto x | $\beta$ | `real beta;` | estendibile a vettore |
+
+
+## 7. Stan: modello processuale (AR(1) sulla scala del logit)
+
+Di seguito il codice Stan completo. Usiamo una parametrizzazione **non centrata** per $\alpha_i$ per migliorare la mescolanza MCMC.
+
+```{r}
+#| label: write-stan-file
+#| eval: true
+stan_code <- '
+data{
+  int<lower=1> N;                    // total trials
+  int<lower=1> I;                    // subjects
+  array[N] int<lower=1,upper=I> id;  // subject id per trial
+  array[N] int<lower=0,upper=1> x;   // binary predictor (extendable)
+  array[N] int<lower=0,upper=1> y;   // response
+  array[N] int<lower=1> t;           // trial index per subject (1..T_i)
+}
+parameters{
+  // subject random intercepts (non-centered)
+  vector[I] alpha_raw;
+  real alpha_mu;
+  real<lower=0> alpha_sigma;
+
+  real beta;                         // effect of x
+  real<lower=-0.99, upper=0.99> phi; // AR(1) persistence
+  real<lower=0> sigma_u;             // process noise (sd)
+
+  // latent state
+  vector[N] u;
+}
+transformed parameters{
+  vector[I] alpha;
+  alpha = alpha_mu + alpha_sigma * alpha_raw;
+}
+model{
+  // Priors (debolmente informativi)
+  alpha_raw ~ normal(0, 1);
+  alpha_mu  ~ normal(0, 1);
+  alpha_sigma ~ exponential(1);      // sd soggetto
+  beta ~ normal(0, 1);
+  phi  ~ normal(0, 0.5);             // concentrato vicino a 0 (ma con supporto ampio via bounds)
+  sigma_u ~ exponential(1);
+
+  // State evolution (AR(1) on logit scale) + likelihood
+  for (n in 1:N){
+    if (t[n] == 1){
+      u[n] ~ normal(alpha[id[n]] + beta * x[n], sigma_u);
+    } else {
+      // previous latent for the same subject is u[n-1] because trials are grouped by subject
+      u[n] ~ normal(alpha[id[n]] + beta * x[n] + phi * u[n-1], sigma_u);
+    }
+    y[n] ~ bernoulli_logit(u[n]);
+  }
+}
+generated quantities{
+  // Posterior predictive
+  array[N] int y_rep;
+  for (n in 1:N){
+    y_rep[n] = bernoulli_logit_rng(u[n]);
+  }
+}
+'
+
+stan_file <- write_stan_file(stan_code)
+stan_file
+```
+
+**Nota sul dato in input:** il ciclo sopra assume che i trial siano **ordinati per soggetto** e per **tempo**. Lo garantiremo nel preprocessing.
+
+
+## 8. Preprocess e stima in `cmdstanr`
+
+```{r}
+# Riordina per (id, t) e prepara le liste per Stan
+dat <- df %>%
+  arrange(id, t) %>%
+  mutate(x = as.integer(x),
+         y = as.integer(y))
+
+stan_dat <- list(
+  N  = nrow(dat),
+  I  = dplyr::n_distinct(dat$id),
+  id = as.integer(dat$id),
+  x  = as.array(dat$x),
+  y  = as.array(dat$y),
+  t  = as.array(dat$t)
+)
+```
+
+```{r}
+mod <- cmdstan_model(stan_file)
+```
+
+```{r}
+#| label: fit-stan
+
+fit <- mod$sample(
+  data = stan_dat,
+  seed = 2024,
+  chains = 4, parallel_chains = 4,
+  iter_warmup = 1000, iter_sampling = 1000,
+  refresh = 200
+)
+```
+
+
+```{r}
+fit$summary() %>%
+  dplyr::filter(grepl("alpha_mu|alpha_sigma|beta|phi|sigma_u", variable))
+```
+
+
+## 9. Diagnostica e Posterior Predictive Check
+
+```{r}
+#| label: diag-ppc
+library(posterior)
+draws <- as_draws_df(fit$draws())
+
+# Rhat e ESS sintetici
+fit$summary(c("alpha_mu","alpha_sigma","beta","phi","sigma_u"))
+
+# PPC: proporzione di 1 nelle repliche vs osservato
+y_rep <- fit$draws("y_rep") %>% as_draws_matrix()
+prop1_rep <- apply(y_rep, 1, function(r) mean(r))
+prop1_obs <- mean(stan_dat$y)
+
+tibble(
+  stat = c("prop(y=1) osservata", "prop(y=1) replicata (mediana)"),
+  value = c(prop1_obs, median(prop1_rep))
+)
+```
+
+```{r}
+#| label: ppc-plot
+pp <- bayesplot::ppc_stat(
+  y = stan_dat$y,
+  yrep = y_rep[sample(1:nrow(y_rep), size = min(500, nrow(y_rep))), ],
+  stat = "mean"
+)
+pp + ggplot2::labs(title = "Posterior predictive check – media di y")
+```
+
+
+## 10. Confronto (rapido) con GLM logit classico
+
+Per mostrare il legame (e la differenza!), stimiamo un **GLM logit** ignorando la dinamica latente. Qui usiamo `brms` per comodità; in alternativa `glm()` con famiglia binomiale.
+
+```{r}
+#| label: brms-glm
+# ATTENZIONE: brms ignora la dipendenza seriale e l'eterogeneità nei trials!
+fit_glm <- brm(
+  y ~ x,
+  data = dat,
+  family = bernoulli(link = "logit"),
+  prior = c(prior(normal(0, 1), class = "b")),
+  chains = 2, iter = 2000, seed = 123,
+  backend = "cmdstanr"
+)
+summary(fit_glm)
+```
+
+Confronto concettuale:
+
+- Il GLM stima un $\beta$ "medio" sull'intero dataset.
+- Il modello processuale attribuisce parte della struttura a $u_{i,t}$ e alla dinamica $\phi$, quindi $\beta$ riflette l'effetto **netto** del predittore **al netto** della dipendenza temporale.
+
+
+## 11. Estensione gerarchica (varianza tra soggetti)
+
+Spesso vogliamo che anche $\beta$ vari per soggetto. Sostituire:
+$$
+\beta_i = \beta_\mu + \beta_\sigma \cdot \beta_{i,\text{raw}},\quad \beta_{i,\text{raw}} \sim \mathcal{N}(0,1),
+$$
+e usare $\beta_i$ al posto di $\beta$ nella transizione di stato.
+
+**Esempio di modifica minima (solo snippet Stan):**
+
+```stan
+parameters{
+  vector[I] alpha_raw;
+  real alpha_mu;
+  real<lower=0> alpha_sigma;
+
+  vector[I] beta_raw;
+  real beta_mu;
+  real<lower=0> beta_sigma;
+
+  real<lower=-0.99,upper=0.99> phi;
+  real<lower=0> sigma_u;
+  vector[N] u;
+}
+transformed parameters{
+  vector[I] alpha = alpha_mu + alpha_sigma * alpha_raw;
+  vector[I] beta  = beta_mu  + beta_sigma  * beta_raw;
+}
+model{
+  alpha_raw ~ normal(0,1);
+  beta_raw  ~ normal(0,1);
+  alpha_mu ~ normal(0,1);
+  beta_mu  ~ normal(0,1);
+  alpha_sigma ~ exponential(1);
+  beta_sigma  ~ exponential(1);
+  phi ~ normal(0,0.5);
+  sigma_u ~ exponential(1);
+
+  for (n in 1:N){
+    if (t[n]==1)
+      u[n] ~ normal(alpha[id[n]] + beta[id[n]] * x[n], sigma_u);
+    else
+      u[n] ~ normal(alpha[id[n]] + beta[id[n]] * x[n] + phi*u[n-1], sigma_u);
+    y[n] ~ bernoulli_logit(u[n]);
+  }
+}
+```
+
+
+## 12. Prior Predictive Check (prima dei dati!)
+
+È buona pratica verificare che i **priori** implichino risultati plausibili *prima* di guardare i dati.
+
+Strategia semplice: simuliamo da `generated quantities` con soli prior (o campioniamo parametri dai priori e generiamo $y$).
+
+```{r}
+#| label: prior-pred
+# Esempio: campioniamo parametri dai priori e generiamo y su una piccola griglia
+S <- 2000
+alpha_mu_s  <- rnorm(S, 0, 1)
+alpha_sigma_s <- rexp(S, 1)
+beta_s      <- rnorm(S, 0, 1)
+phi_s       <- pmin(pmax(rnorm(S, 0, 0.5), -0.99), 0.99)
+sigma_u_s   <- rexp(S, 1)
+
+# Generiamo 1 soggetto, 30 trial, x ~ Bern(0.5)
+ppc_prop <- numeric(S)
+for (s in 1:S){
+  a <- rnorm(1, alpha_mu_s[s], alpha_sigma_s[s])
+  u <- numeric(Tt)
+  ysim <- integer(Tt)
+  for (t in 1:Tt){
+    mean_ut <- a + beta_s[s]*rbinom(1,1,0.5) + ifelse(t==1, 0, phi_s[s]*u[t-1])
+    u[t] <- rnorm(1, mean_ut, sigma_u_s[s])
+    p <- 1/(1+exp(-u[t]))
+    ysim[t] <- rbinom(1,1,p)
+  }
+  ppc_prop[s] <- mean(ysim)
+}
+
+summary_ppc <- quantile(ppc_prop, probs = c(.05,.5,.95))
+summary_ppc
+```
+
+Se la distribuzione precedente per la proporzione di 1 è totalmente implausibile (troppo vicina a 0 o 1), riconsiderare i priori (ad es. restringere $\sigma_u$, ridurre $|\phi|$, ecc.).
+
+## 13. Interpretazione dei parametri
+
+- $\alpha_\mu$: tendenza media dei soggetti a rispondere 1 (sulla scala logit).
+- $\alpha_\sigma$: variabilità tra soggetti (intercetta).
+- $\beta$: effetto **marginale** del predittore sulla propensione latente $u$.
+- $\phi$: **inerzia** (se $>0$, la propensione tende a mantenersi; se $<0$, alternanza). 
+- $\sigma_u$: **irregolarità** del processo (più grande = risposte più rumorose a parità di $\alpha,\beta,\phi$).
+
+
+## 14. Cosa abbiamo guadagnato rispetto al GLM
+
+- Possiamo **separare** l'effetto del predittore dall'**inerzia** della risposta.
+- Possiamo modellare **stati latenti** che riflettono componenti psicologiche (abitudine, fatica, apprendimento).
+- Possiamo estendere in modo naturale a **gerarchie** (differenze individuali su $\alpha$, $\beta$, …).
+
+
+## 15. Varianti utili
+
+- **Più predittori** $\mathbf{x}_{i,t}$: sostituire `beta * x[n]` con `dot_product(beta, Xrow[n])`.
+- **Softmax multinomiale** per scelte con più di due alternative.
+- **Apprendimento**: far dipendere $u_{i,t}$ da una variabile di **valore** aggiornata con una regola (es. Rescorla–Wagner), pur mantenendo l’esito binario via logit.
+- **Link alternativi** (probit) o errori heavy–tailed sulla dinamica $u$.
+
+
+## 16. Appendice: Stan completo (versione gerarchica su $\beta$)
+
+Per comodità, ecco un file Stan *pronto* che implementa la variante con $\beta_i$ soggetto-specifico e posterior predictive:
+
+```{r}
+#| label: write-stan-hier
+stan_hier <- '
+data{
+  int<lower=1> N;
+  int<lower=1> I;
+  array[N] int<lower=1,upper=I> id;
+  array[N] int<lower=0,upper=1> x;
+  array[N] int<lower=0,upper=1> y;
+  array[N] int<lower=1> t;
+}
+parameters{
+  vector[I] alpha_raw;
+  real alpha_mu;
+  real<lower=0> alpha_sigma;
+
+  vector[I] beta_raw;
+  real beta_mu;
+  real<lower=0> beta_sigma;
+
+  real<lower=-0.99, upper=0.99> phi;
+  real<lower=0> sigma_u;
+
+  vector[N] u;
+}
+transformed parameters{
+  vector[I] alpha = alpha_mu + alpha_sigma * alpha_raw;
+  vector[I] beta  = beta_mu  + beta_sigma  * beta_raw;
+}
+model{
+  alpha_raw ~ normal(0, 1);
+  beta_raw  ~ normal(0, 1);
+  alpha_mu  ~ normal(0, 1);
+  beta_mu   ~ normal(0, 1);
+  alpha_sigma ~ exponential(1);
+  beta_sigma  ~ exponential(1);
+  phi ~ normal(0, 0.5);
+  sigma_u ~ exponential(1);
+
+  for (n in 1:N){
+    if (t[n] == 1)
+      u[n] ~ normal(alpha[id[n]] + beta[id[n]] * x[n], sigma_u);
+    else
+      u[n] ~ normal(alpha[id[n]] + beta[id[n]] * x[n] + phi * u[n-1], sigma_u);
+    y[n] ~ bernoulli_logit(u[n]);
+  }
+}
+generated quantities{
+  array[N] int y_rep;
+  for (n in 1:N){
+    y_rep[n] = bernoulli_logit_rng(u[n]);
+  }
+}
+'
+write_stan_file(stan_hier)
+```
+
+# 17. Riepilogo
+
+- La **regressione logistica** è un primo passo per le risposte binarie.
+- Con **Stan**, possiamo esplicitare un **processo latente dinamico** che genera la risposta.
+- Questo approccio è **più vicino** alle teorie psicologiche (stati interni, abitudine, apprendimento) e migliora l'interpretabilità dei parametri.
+- Le estensioni gerarchiche permettono di studiare **differenze individuali** in modo naturale.
+
+::: callout-important
+### Compiti suggeriti agli studenti
+
+1. Estendere il modello a **due predittori** (continui) e verificare come cambiano $\beta$ e $\phi$.
+2. Sostituire l'AR(1) con una **regola di apprendimento** (p.es. Rescorla–Wagner) che aggiorna uno stato di valore $Q_{t}$, e usare $\operatorname{logit}^{-1}(Q_t)$ per generare $y_t$.
+3. Implementare la variante **gerarchica su $\beta$** e confrontare la varianza tra soggetti ($\beta_\sigma$) tra condizioni sperimentali.
+:::
+

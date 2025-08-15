@@ -46,7 +46,7 @@ library(patchwork) # composizione di più grafici ggplot2
 library(conflicted)
 
 # Tema uniforme leggibile per tutte le figure
-theme_set(bayesplot::theme_default(base_family = "sans", base_size = 14))
+theme_set(bayesplot::theme_default(base_family = "serif", base_size = 14))
 
 # Palette base (3 colori Set1), con nomi mnemonici
 palette_set1 <- RColorBrewer::brewer.pal(3, "Set1")

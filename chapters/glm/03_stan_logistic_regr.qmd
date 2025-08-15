@@ -1,0 +1,915 @@
+# Regressione logistica con Stan {#sec-reg-logistic-stan}
+
+
+::: callout-important
+## Preparazione del Notebook
+
+```{r}
+#| output: false
+
+here::here("code", "_common.R") |> 
+  source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(brms, cmdstanr, posterior, brms, bayestestR, insight)
+```
+:::
+
+## Introduzione {.unnumbered .unlisted}
+
+::: {.lead}
+La regressione logistica è un modello additivo utilizzato per dati binari, ossia dati $y$ che assumono valori 0 o 1. Per modellare i dati binari, dobbiamo aggiungere due caratteristiche al modello base $y = a + bx$: una trasformazione non lineare che vincola l'output tra 0 e 1 (a differenza di $a + bx$, che è illimitato), e un metodo per interpretare i numeri risultanti come probabilità che un evento si verifichi.
+:::
+
+In questo capitolo, approfondiremo la regressione logistica bivariata, un modello statistico che ci consente di analizzare le relazioni tra una variabile di esito binaria e una singola variabile indipendente. Esploreremo il processo di stima dei coefficienti del modello attraverso un approccio bayesiano e forniremo un'interpretazione dei risultati ottenuti. Mostreremo come i coefficienti influenzano la probabilità di successo della variabile binaria di esito, nonché come interpretare il loro segno e ampiezza. 
+
+La presente trattazione ricalca, in parte, quella fornita da @fox2015applied, adattandola a nuovi contesti applicativi. Per una trattazione più ampia dei fondamenti teorici, si consenta la consultazione del suddetto riferimento.
+
+
+## Modello di regressione logistica per variabili binarie
+
+Il modello di regressione logistica è utilizzato per analizzare la relazione tra una variabile dipendente dicotomica, che assume i valori di "successo" e "fallimento", e una o più variabili indipendenti, che possono essere sia quantitative che qualitative. Qui ci concentreremo sul caso di una sola variabile indipendente.
+
+Consideriamo $n$ osservazioni i.i.d., dove $Y_i$ indica l'osservazione $i$-esima della variabile risposta, per $i=1, \dots, n$. Ogni osservazione è associata a un vettore di variabili esplicative $(x_1, \dots, x_p)$. La relazione che vogliamo esaminare è tra la probabilità di successo $\pi_i$ e la variabile esplicativa, espressa dalla formula:
+
+$$
+P(Y=1 \mid X=x_i) = \pi_i.
+$$
+
+In questo contesto, la variabile dipendente $Y$ segue una distribuzione di Bernoulli, con i seguenti possibili valori:
+
+$$
+y_i = 
+\begin{cases} 
+    1 & \text{per un successo (per l'osservazione $i$-esima)},\\
+    0 & \text{per un fallimento}.
+\end{cases}
+$$
+
+Le probabilità associate a questi valori sono rispettivamente $\pi$ per il successo e $1-\pi$ per il fallimento:
+
+$$
+\begin{aligned}
+    P(Y_i = 1) &= \pi,\\
+    P(Y_i = 0) &= 1-\pi.
+\end{aligned}
+$$
+
+Questo modello permette di studiare come le variabili esplicative influenzino la probabilità di un evento binario, come il successo o il fallimento.
+
+La media condizionata $\mathbb{E}(Y \mid X=x)$ in una popolazione può essere vista come la proporzione di valori 1 per un dato punteggio $x$ sulla variabile esplicativa, ovvero la probabilità condizionata $\pi_i$ di osservare l'esito $Y = 1$ in corrispondenza di un certo livello $X$:
+
+$$
+\pi_i \equiv P(Y = 1 \mid X = x).
+$$
+
+Il valore atteso diventa:
+
+$$
+\mathbb{E}(Y \mid x) = \pi_i.
+$$
+
+Se $X$ è una variabile discreta, possiamo calcolare la proporzione di $Y=1$ per ogni valore di $X=x$ nel campione. Queste proporzioni rappresentano una stima non parametrica della funzione di regressione di $Y$ su $X$, e possono essere stimate tramite tecniche di smoothing.
+
+Per valori bassi della variabile $X$, la proporzione condizionata di valori $Y=1$ sarà prossima allo 0. Per valori alti di $X$, la proporzione di valori $Y=1$ sarà prossima a 1. A livelli intermedi di $X$, la curva di regressione non parametrica gradualmente approssima i valori 0 e 1 seguendo un andamento sigmoidale.
+
+Per illustrare, generiamo dei dati simulati con una variabile dicotomica $Y$ e una variabile discreta $X$ nei quali la probabilità che $Y=1$ aumenta con il valore di $X$.
+
+```{r}
+# --- Setup ---------------------------------------------------------------
+set.seed(42)                      # Per riproducibilità
+n <- 1000                         # Numero di osservazioni
+X <- sample(0:9, n, replace = TRUE)  # Predittore discreto con livelli 0..9
+
+# --- Modello logistico e generazione dati -------------------------------
+logistic <- function(x, beta0, beta1) plogis(beta0 + beta1 * x)
+
+beta0 <- -2
+beta1 <- 1                       # Maggiore pendenza
+p <- logistic(X, beta0, beta1)   # Probabilità di successo
+
+Y <- rbinom(n, size = 1, prob = p)  # Esito dicotomico
+
+# --- Media di successo e SE per ciascun livello di X --------------------
+# SE stimato come sd(Y)/sqrt(n_k); per proporzioni è vicino a sqrt(p*(1-p)/n_k)
+df <- tibble::tibble(X = X, Y = Y)
+
+summary_by_X <- df %>%
+  group_by(X) %>%
+  summarise(
+    mean_success_rate = mean(Y),
+    se = sd(Y) / sqrt(dplyr::n()),
+    .groups = "drop"
+  )
+
+# (opzionale) Limita le barre d’errore all’intervallo [0, 1]
+summary_by_X <- summary_by_X %>%
+  mutate(
+    ymin = pmax(0, mean_success_rate - se),
+    ymax = pmin(1, mean_success_rate + se)
+  )
+
+# --- Grafico: punti + barre d’errore + smoother non-parametrico (LOESS) --
+ggplot(summary_by_X, aes(x = X, y = mean_success_rate)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.1) +
+  geom_smooth(method = "loess", span = 0.3, se = FALSE, color = "red") +
+  labs(x = "X", y = "Mean Success Rate") +
+  theme(panel.grid.minor = element_blank())
+```
+
+
+## Modello Lineare nelle Probabilità
+
+Potremmo pensare di usare una funzione lineare per rappresentare la dipendenza di $Y$ da $X$. Introduciamo un modello lineare con le seguenti assunzioni standard:
+
+$$
+Y_i = \alpha + \beta X_i + \varepsilon_i,
+$$
+
+dove $\varepsilon_i$ segue una distribuzione normale con media 0 e varianza 1 ($\varepsilon_i \sim \mathcal{N}(0, 1)$) e gli errori $\varepsilon_i$ e $\varepsilon_j$ sono indipendenti per ogni $i \neq j$. Il valore atteso di $Y_i$ è quindi $\mathbb{E}(Y_i) = \alpha + \beta X_i$, portando a:
+
+$$
+\pi_i = \alpha + \beta X_i.
+$$
+
+Questo è noto come *modello lineare nelle probabilità* (*linear probability model*). Tuttavia, questo approccio presenta una limitazione significativa: non garantisce che i valori predetti di $\pi_i$ siano confinati nell'intervallo [0,1], come richiesto per le probabilità.
+
+
+### Problemi di normalità
+
+Considerando che $Y_i$ può assumere solo i valori 0 o 1, i residui $\varepsilon_i$ risultano anch'essi dicotomici e quindi non possono seguire una distribuzione normale. Ad esempio, se $Y_i=1$ con probabilità $\pi_i$, il residuo sarà:
+
+$$
+\varepsilon_i = 1 - \mathbb{E}(Y_i) = 1 - (\alpha + \beta X_i) = 1 - \pi_i.
+$$
+
+Se, invece, $Y_i=0$ con probabilità $1-\pi_i$, il residuo sarà:
+
+$$
+\varepsilon_i = 0 - \mathbb{E}(Y_i) = 0 - (\alpha + \beta X_i) = - \pi_i.
+$$
+
+Tuttavia, se la dimensione del campione è grande, il teorema del limite centrale può mitigare l'importanza dell'assunzione di normalità per le stime dei minimi quadrati.
+
+
+### Problematiche di eteroschedasticità
+
+Utilizzare il metodo dei minimi quadrati può essere inappropriato in questo contesto poiché la varianza dei residui non è costante ma dipende dalla media, e quindi dalla variabile $X$. Assumendo che il modello sia lineare, abbiamo che $\mathbb{E}(\varepsilon_i)=0$. Sfruttando le relazioni discusse in precedenza, la varianza dei residui si calcola come:
+
+$$
+\mathbb{V}(\varepsilon_i) = (1-\pi_i)\pi_i.
+$$
+
+Consideriamo che la varianza dei residui $\varepsilon_i$ può essere espressa come:
+
+$$
+\text{Var}(\varepsilon_i) = \mathbb{E}(\varepsilon_i^2) - \mathbb{E}(\varepsilon_i)^2,
+$$
+
+dove $\mathbb{E}(\varepsilon_i^2)$ è il valore atteso del quadrato dei residui e $\mathbb{E}(\varepsilon_i)^2$ è il quadrato del valore atteso dei residui.
+
+Ora calcoliamo $\mathbb{E}(\varepsilon_i^2)$:
+
+$$
+\begin{align*}
+\mathbb{E}(\varepsilon_i^2) &= \mathbb{E}[(Y_i - \mathbb{E}(Y_i))^2] \\
+&= \mathbb{E}[(Y_i - \pi_i)^2] \\
+&= \mathbb{E}[(Y_i^2 - 2Y_i\pi_i + \pi_i^2)] \\
+&= \mathbb{E}(Y_i^2) - 2\mathbb{E}(Y_i\pi_i) + \mathbb{E}(\pi_i^2) \\
+&= \mathbb{E}(Y_i) - 2\mathbb{E}(Y_i\pi_i) + \pi_i^2 \\
+&= \pi_i - 2\pi_i^2 + \pi_i^2 \\
+&= \pi_i - \pi_i^2 \\
+&= \pi_i(1 - \pi_i)
+\end{align*}
+$$
+
+Ora calcoliamo $\mathbb{E}(\varepsilon_i)^2$:
+
+$$
+\begin{align*}
+\mathbb{E}(\varepsilon_i)^2 &= (\mathbb{E}(Y_i - \mathbb{E}(Y_i)))^2 \\
+&= (\mathbb{E}(Y_i - \pi_i))^2 \\
+&= (0)^2 \\
+&= 0
+\end{align*}
+$$
+
+Quindi, sostituendo questi risultati nella formula della varianza dei residui, otteniamo:
+
+$$
+\text{Var}(\varepsilon_i) = \mathbb{E}(\varepsilon_i^2) - \mathbb{E}(\varepsilon_i)^2 = \pi_i(1 - \pi_i)
+$$
+
+Quindi, abbiamo dimostrato che la varianza dei residui nel modello lineare nelle probabilità può essere espressa come $(1-\pi_i)\pi_i$.
+
+Dato che $\pi_i$ dipende da $x$, ciò significa che la varianza non è costante in funzione di $x$. Questa eteroschedasticità dei residui rappresenta un problema per le stime dei minimi quadrati nel modello lineare, specialmente quando le probabilità $\pi_i$ sono vicine a 0 o 1.
+
+
+### Linearità
+
+Il maggiore inconveniente connesso all'adozione del modello lineare nelle probabilità deriva dal fatto che la stima della probabilità di successo, $P(\hat{Y}_i=1)=\hat{\pi}_i$, non è necessariamente compresa nell'intervallo $(0,1)$, ma può essere sia negativa sia maggiore di 1. Nel caso dell'esempio in discussione, ciò significa che la retta dei minimi quadrati produce valori attesi $\hat{\pi}$ inferiori a 0 per bassi valori della variabile $X$ e valori $\hat{\pi}$ superiori a 1 per valori di $X$ alti.
+
+
+## Modello lineare nelle probabilità vincolato
+
+Una soluzione per mantenere $\pi$ all'interno dell'intervallo (0, 1) è la seguente specificazione del modello:
+
+$$
+\pi=
+\begin{cases}
+  0                           &\text{se $\alpha + \beta X < 0$},\\
+  \alpha + \beta X           &\text{se $0 \leq \alpha + \beta X \leq 1$},\\
+  1 &\text{se $\alpha + \beta X > 1$}.
+\end{cases}
+$$
+
+Questo *modello lineare nelle probabilità vincolato* mostra alcune instabilità, soprattutto a causa della sua dipendenza critica dai valori estremi di $\pi$, dove assume i valori 0 o 1. La linearità di $\pi = \alpha + \beta X$ si basa fortemente sui punti in cui si verificano questi estremi. In particolare, la stima di $\pi = 0$ può essere influenzata dal valore minimo di $X$ associato a $Y=1$, mentre la stima di $\pi = 1$ può dipendere dal valore massimo di $X$ per cui $Y=0$. Questi valori estremi tendono a variare significativamente tra diversi campioni e possono diventare più estremi all'aumentare della dimensione del campione.
+
+La presenza di più variabili esplicative ($k \geq 2$) complica ulteriormente la stima dei parametri del modello. Inoltre, il modello mostra un cambiamento brusco nella pendenza della curva di regressione ai punti estremi (0 e 1 di $\pi$), risultando poco realistico in molte situazioni pratiche. Questo rende il modello meno adatto a descrivere relazioni complesse e gradualmente variabili tra $\pi$ e $X$.
+
+Una funzione che modella una relazione più fluida e continua tra $\pi$ e $X$ sarebbe più realistica e rappresentativa delle dinamiche osservate. Questo motiva la preferenza per modelli alternativi, come il modello di regressione logistica, che tende a fornire una rappresentazione più accurata e realistica delle interazioni tra variabili dicotomiche e esplicative.
+
+
+## Regressione logistica
+
+Un metodo efficace per gestire il problema del vincolo sulle probabilità è specificare modelli non direttamente per le probabilità stesse, ma per una loro trasformazione che elimina tale vincolo. Invece di definire un modello lineare per la probabilità condizionata $\pi_i$, si può specificare un modello lineare per il logaritmo degli odds (logit):
+
+$$
+\eta_i = \log_e \frac{\pi_i}{1-\pi_i} = \alpha + \beta x_i,
+$$
+
+Questo approccio non presenta problemi poiché il logit $\eta_i$ è sempre un numero reale, permettendo di modellare una trasformazione lineare di $\pi_i$. La trasformazione inversa, che ci permette di ottenere $\pi_i$ da $\eta_i$, è data dalla funzione logistica:
+
+$$
+\pi_i = \frac{e^{\eta_i}}{1 + e^{\eta_i}} = \frac{e^{\alpha + \beta x_i}}{1 + e^{\alpha + \beta x_i}}.
+$$
+
+### Vantaggi della regressione logistica
+
+La regressione logistica presenta diversi vantaggi rispetto al modello lineare delle probabilità:
+
+1. **Vincolo delle Probabilità:** La trasformazione logistica assicura che i valori predetti di $\pi_i$ siano sempre compresi nell'intervallo [0,1].
+2. **Interpretabilità degli Odds Ratio:** Il coefficiente $\beta$ può essere interpretato come il cambiamento logaritmico negli odds di successo associato a un incremento unitario di $X$. In altre parole, $e^\beta$ rappresenta il fattore di aumento (o diminuzione) degli odds per un incremento unitario della variabile indipendente.
+3. **Gestione dell'Eteroschedasticità:** La forma funzionale della varianza del modello di regressione logistica $\pi_i (1 - \pi_i)$ è intrinsecamente considerata nel processo di stima tramite il metodo della massima verosimiglianza.
+
+
+### Esempio numerico
+
+Per illustrare l'applicazione della regressione logistica, consideriamo nuovamente i dati simulati precedentemente. Applichiamo il modello di regressione logistica ai dati e tracciamo la curva logistica risultante:
+
+```{r}
+# Supponiamo che df contenga X e Y (0/1) già generati
+# Calcolo delle medie e degli errori standard
+summary_by_X <- df %>%
+  group_by(X) %>%
+  summarise(
+    mean_success_rate = mean(Y),
+    se = sd(Y) / sqrt(n()),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    ymin = pmax(0, mean_success_rate - se),
+    ymax = pmin(1, mean_success_rate + se)
+  )
+
+# Modello di regressione logistica
+logit_model <- glm(Y ~ X, data = df, family = binomial(link = "logit"))
+
+# Predizioni su una griglia fine di valori di X
+x_vals <- seq(min(df$X), max(df$X), length.out = 100)
+pred_df <- data.frame(X = x_vals)
+pred_df$pred <- predict(logit_model, newdata = pred_df, type = "response")
+
+# Grafico
+ggplot(summary_by_X, aes(x = X, y = mean_success_rate)) +
+  geom_point(color = "blue") +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.1, color = "blue") +
+  geom_line(data = pred_df, aes(x = X, y = pred), color = "red") +
+  labs(x = "X", y = "Mean Success Rate") +
+  theme(panel.grid.minor = element_blank())
+```
+
+Questo esempio dimostra come la regressione logistica possa essere utilizzata per modellare una variabile dicotomica in funzione di una variabile indipendente. La curva logistica risultante rappresenta adeguatamente la relazione tra $X$ e la probabilità di successo $Y$, garantendo che i valori predetti di $\pi_i$ siano sempre compresi nell'intervallo [0,1].
+
+Nelle sezioni seguenti, descriveremo in dettaglio il modello di regressione logistica utilizzato per generare la curva logistica mostrata nella figura precedente. Inizieremo chiarendo i concetti di odds e logit e la loro relazione con le probabilità.
+
+
+## Componente sistematica
+
+La componente sistematica mette in relazione un vettore ($\eta_1, \eta_2, \dots, \eta_k$) con le variabili esplicative mediante un modello lineare. Sia $X_{ij}$ il valore della $j$-esima variabile esplicativa ($j=1, 2, \dots, p$) per l'$i$-esima osservazione ($i=1, \dots, k$). Allora 
+
+$$
+\eta_i = \sum_j \beta_j X_{ij}.
+$$
+
+Questa combinazione lineare di variabili esplicative è chiamata il *predittore lineare*. Un $X_{ij}=1, \forall i$ viene utilizzato per il coefficiente dell'intercetta del modello (talvolta denotata da $\alpha$).
+
+
+## Componente aleatoria
+
+La  componente aleatoria del modello suppone l'esistenza di
+  $k$ osservazioni indipendenti $y_1, y_2, \dots, y_k$, ciascuna delle
+  quali viene trattata come la realizzazione di una variabile casuale
+  $Y_i$. Si assume che $Y_i$ abbia una distribuzione binomiale:
+
+$$
+Y_i \sim Bin(n_i, \pi_i)
+$$
+
+con parametri $n_i$ e $\pi_i$. Per dati individuali (uno per ciascun valore $x_i$), $n_i=1,
+    \forall i$.
+  
+
+## Funzione legame
+
+La  funzione legame $g(\cdot)$  mette in relazione il valore atteso della variabile risposta $Y_i$ con la componente sistematica $\eta_i$ del modello. Abbiamo visto che $\mathbb{E}(Y_i)=\pi_i$. Che relazione c'è tra $\pi_i$ e il predittore lineare $\eta_i= \alpha + \sum_j  \beta_j X_{ij}$?  La risposta a questa domanda è data dalla funzione legame:
+
+$$
+\eta_i = g(\pi_i) = \ln{\frac{\pi_i}{1-\pi_i}} .
+$$
+
+Si noti che la funzione legame non trasforma la variabile risposta $Y_i$ ma bensì il suo valore atteso $\pi_i$.
+
+La funzione legame è invertibile: anziché trasformare il valore atteso nel predittore lineare si può trasformare il predittore lineare nel valore atteso $\pi_i$:
+
+$$
+\pi_i = \frac{e^{\eta_i}}{1+e^{\eta_i}} =  \frac{e^{\alpha + \sum_j  \beta_j X_{ij}}}{1+e^{\alpha + \sum_j  \beta_j X_{ij}}}.
+$$
+
+Si ottiene così un modello non lineare per le probabilità $\pi_i$.
+
+In conclusione, la regressione logistica estende il concetto di regressione lineare per modellare le probabilità condizionate di esiti Bernoulliani $ Y $, adoperando la funzione logistica come collegamento per trasformare relazioni lineari tra predittori ($ \eta_i = \beta_0 + \beta_1 X_{i} $) in probabilità nell'intervallo [0,1]. Questo metodo permette di passare dalla modellazione diretta della probabilità $ p $ alla modellazione di una funzione di tale probabilità attraverso una relazione lineare, impiegando la funzione logit come funzione di collegamento.
+
+
+## Coefficienti del modello nella regressione logistica e la loro interpretazione
+
+Un aspetto cruciale per comprendere la relazione tra le variabili predittive e una variabile di risposta binaria è l'interpretazione dei coefficienti del modello.
+
+### Odds Ratio
+
+Il caso più semplice che consente di interpetare l'odds ratio in una regressione logistica è quando la variabile indipendente (X) è binaria (cioè può assumere solo valori 0 e 1).
+
+In una regressione logistica, il modello assume la forma:
+
+$$
+\log \left( \frac{P(Y = 1)}{P(Y = 0)} \right) = \beta_0 + \beta_1 X ,
+$$
+
+dove:
+
+- $\log \left( \frac{P(Y = 1)}{P(Y = 0)} \right)$ è il logaritmo dell'odds che l'evento $Y = 1$ avvenga,
+- $\beta_0$ è l'intercetta del modello,
+- $\beta_1$ è il coefficiente per la variabile indipendente $X$.
+
+### Passo 1: Calcolare gli odds per i due valori di $X$
+
+Quando $X = 0$, l'equazione diventa:
+
+$$
+\log \left( \frac{P(Y = 1 \mid X = 0)}{P(Y = 0 \mid X = 0)} \right) = \beta_0 .
+$$
+
+Questo significa che l'odds di $Y = 1$ dato che $X = 0$ è:
+
+$$
+\frac{P(Y = 1 \mid X = 0)}{P(Y = 0 \mid X = 0)} = e^{\beta_0} .
+$$
+
+Allo stesso modo, quando $X = 1$, l'equazione diventa:
+
+$$
+\log \left( \frac{P(Y = 1 \mid X = 1)}{P(Y = 0 \mid X = 1)} \right) = \beta_0 + \beta_1 .
+$$
+
+Quindi, l'odds di $Y = 1$ dato che $X = 1$ è:
+
+$$
+\frac{P(Y = 1 \mid X = 1)}{P(Y = 0 \mid X = 1)} = e^{\beta_0 + \beta_1} .
+$$
+
+### Passo 2: Calcolare l’Odds Ratio
+
+L'odds ratio è il rapporto tra gli odds quando $X = 1$ e quando $X = 0$:
+
+$$
+\text{Odds Ratio} = \frac{\frac{P(Y = 1 \mid X = 1)}{P(Y = 0 \mid X = 1)}}{\frac{P(Y = 1 \mid X = 0)}{P(Y = 0 \mid X = 0)}} = \frac{e^{\beta_0 + \beta_1}}{e^{\beta_0}}.
+$$
+
+Semplificando, otteniamo:
+
+$$
+\text{Odds Ratio} = e^{\beta_1} .
+$$
+
+### Interpretazione dell'Odds Ratio
+
+L’odds ratio $e^{\beta_1}$ rappresenta il cambiamento relativo negli odds di $Y = 1$ per un aumento di una unità di $X$ (in questo caso, il passaggio da $X = 0$ a $X = 1$). 
+
+Se $\beta_1$ è:
+
+- **Maggiore di zero** ($e^{\beta_1} > 1$): l’odds di $Y = 1$ aumenta quando $X$ passa da 0 a 1.
+- **Minore di zero** ($e^{\beta_1} < 1$): l’odds di $Y = 1$ diminuisce quando $X$ passa da 0 a 1.
+- **Uguale a zero** ($e^{\beta_1} = 1$): l’odds di $Y = 1$ non cambia in base ai valori di $X$.
+
+In sintesi, l’odds ratio $e^{\beta_1}$ fornisce una misura dell’associazione tra la variabile binaria $X$ e la probabilità dell’evento $Y = 1$, rappresentando il moltiplicatore degli odds nel caso in cui $X$ passi da 0 a 1.
+
+
+### Interpretazione sui Logit
+
+Nella regressione logistica, ogni coefficiente $\beta_j$ del modello può essere interpretato direttamente in termini di log-odds, che sono i logaritmi delle probabilità di ottenere un evento con esito positivo ($y=1$). Quando interpretiamo i coefficienti:
+
+- **Coefficienti Positivi ($\beta_j > 0$)**: Un coefficiente positivo indica che c'è una relazione diretta tra il predittore e l'aumento dei log-odds di osservare l'evento di interesse. Questo significa che all'aumentare del valore del predittore, la probabilità dell'evento di interesse aumenta.
+  
+- **Coefficienti Negativi ($\beta_j < 0$)**: Al contrario, un coefficiente negativo indica una relazione inversa tra il predittore e la probabilità logistica dell'evento. Con l'aumentare del predittore, i log-odds e quindi la probabilità dell'evento diminuiscono.
+
+
+### Interpretazione sugli Odds Ratio (OR)
+
+L'interpretazione dei coefficienti nella regressione logistica può estendersi agli odds ratio (OR), che forniscono informazioni sulla relazione tra i predittori e la probabilità dell'evento di interesse. Per esempio, consideriamo un modello con un predittore continuo $X$ e un coefficiente $\beta_1 = 0.50$. Il logaritmo naturale dell'odds ratio, $\log(OR) = 0.50$, viene esponenziato per ottenere:
+
+$$
+OR = e^{0.50} \approx 1.65.
+$$
+
+Questo risultato indica che per un'unità di incremento in $X$, l'odds di sperimentare l'evento di interesse è circa 1.65 volte maggiore. In altre parole, l'incremento di una unità nel predittore $X$ aumenta l'odds di sperimentare l'evento di interesse di circa il 65%. Viceversa, un coefficiente negativo indicherebbe una diminuzione dell'odds per un incremento di una unità in $X$.
+
+
+### Interpretazione sulla Scala delle Probabilità
+
+La regressione logistica consente di interpretare i coefficienti non solo in termini di log-odds, ma anche relativamente alle variazioni di probabilità. Consideriamo un modello che predice la probabilità di superare un esame basandosi sul numero di ore di studio ($X$).
+
+Supponiamo che il coefficiente associato alle ore di studio sia $\beta_1 = 0.5$. Questo valore indica che ogni ora aggiuntiva di studio incrementa i log-odds di successo nell'esame. Per comprendere l'impatto di un'ora in più di studio sulla probabilità di successo, possiamo utilizzare la seguente formula:
+
+$$
+\Delta p = \frac{1}{1 + e^{-(\beta_0 + 0.5 \cdot (X_1 + 1))}} - \frac{1}{1 + e^{-(\beta_0 + 0.5 \cdot X_1)}}.
+$$
+
+Questa formula calcola la differenza tra la probabilità di successo dopo aver aggiunto un'ora di studio e la probabilità di successo prima di tale aggiunta. In termini pratici, $\Delta p$ rappresenta l'incremento della probabilità di superare l'esame attribuibile a un'ora supplementare di studio. Questa interpretazione è cruciale per valutare quantitativamente l'effetto delle ore di studio sulla probabilità di superare l'esame.
+
+
+## Un esempio numerico
+
+Consideriamo nuovamente i dati simulati in precedenza
+
+```{r}
+head(df)
+```
+
+Stimeremo ora i coefficienti del modello di regressione logistica usando Stan. Definiamo i dati nel formato atteso da Stan:
+
+```{r}
+stan_data <- list(
+  N = nrow(df),
+  y = df$Y,
+  x = df$X
+)
+```
+
+Compiliamo il modello di regressione logistica e stampiamo lo script Stan:
+
+```{r}
+# Costruisci il path al file Stan
+stan_file <- file.path(here::here("stan", "logistic_regression.stan"))
+# Compila il modello Stan
+model <- cmdstan_model(stan_file)
+# Stampa il codice Stan
+cat(readLines(stan_file), sep = "\n")
+```
+
+Eseguiamo il campionamento MCMC:
+
+```{r}
+#| output: false
+fit <- model$sample(
+  data = stan_data,
+  iter_warmup = 1000,
+  iter_sampling = 2000,
+  seed = 123,
+  refresh = 0          # 0 = non mostrare progress bar
+)
+```
+
+Esaminiamo le tracce:
+
+```{r}
+# Estrai i draw posteriori come array
+posterior_array <- fit$draws()
+```
+
+```{r}
+mcmc_trace(posterior_array, pars = c("alpha", "beta"))
+```
+
+Otteniamo le stime a posteriori dei parametri:
+
+```{r}
+fit$summary(variables = c("alpha", "beta"))
+```
+
+Creiamo un nuovo DataFrame con 100 valori $x$ nell'intervallo [0, 9]:
+
+```{r}
+new_data <- data.frame(
+  x = seq(0, 9, length.out = 100)
+)
+new_data |> head()
+```
+
+Otteniamo le medie a posteriori dei parametri $\alpha$ e $\beta$:
+
+```{r}
+alpha <- mean(fit$draws("alpha"))
+beta  <- mean(fit$draws("beta"))
+
+print(alpha)
+print(beta)
+```
+
+Calcoliamo i logit per ogni valore $x$ nel dataset `new_data` utilizzando le stime a posteriori dei parametri $\alpha$ e $\beta$ ottenute dal modello di regressione logistica. Nel modello di regressione logistica, il logit della probabilità è una funzione lineare di $x$:
+
+$$
+\log \left( \frac{p}{1-p} \right) = \alpha + \beta x
+$$
+
+```{r}
+logit_p = alpha + new_data$x * beta
+logit_p
+```
+
+Esaminiamo graficamente la relazione tra il logit $\log \left( \frac{p}{1-p} \right)$ e $x$:
+
+```{r}
+# Aggiungi la colonna logit_p a new_data
+new_data$logit_p <- logit_p
+
+# Grafico
+ggplot(new_data, aes(x = x, y = logit_p)) +
+  geom_line(color = "blue") +
+  labs(
+    title = "Logit Predetti in Funzione di X",
+    x = "X",
+    y = "Logit"
+  )
+```
+
+Calcoliamo i logit per ogni valore $x$ nel dataset `new_data` utilizzando le stime a posteriori dei parametri $\alpha$ e $\beta$ ottenute dal modello di regressione logistica. Nel modello di regressione logistica, il logit della probabilità è una funzione lineare di $x$. Per ottenere la probabilità $p$ dalla trasformazione del logit, possiamo utilizzare la funzione logistica inversa. Svolgiamo la conversione:
+
+1. Calcoliamo il logit per ogni valore di $x$:
+
+   $$
+   \text{logit}_p = \alpha + \beta x
+   $$
+
+2. Applichiamo la funzione logistica inversa (antilogit) per ottenere la probabilità $p$:
+
+   $$
+   p = \frac{e^{\text{logit}_p}}{1 + e^{\text{logit}_p}} = \frac{e^{\alpha + \beta x}}{1 + e^{\alpha + \beta x}}
+   $$
+
+Questa formula ci permette di trasformare il logit in una probabilità compresa tra 0 e 1 per ogni valore di $x$ nel dataset `new_data`.
+
+```{r}
+# Calcola le probabilità dalla scala logit
+prob <- exp(new_data$logit_p) / (1 + exp(new_data$logit_p))
+
+# Aggiungi la colonna a new_data
+new_data$prob <- prob
+
+# Grafico con ggplot2
+ggplot(new_data, aes(x = x, y = prob)) +
+  geom_line(color = "blue") +
+  labs(
+    title = "Probabilità Predetta in Funzione di X",
+    x = "X",
+    y = "Probabilità Predetta"
+  )
+```
+
+### Interpretazione dei coefficienti nella regressione logistica
+
+Abbiamo stimato i coefficienti $\alpha$ e $\beta$ dal modello di regressione logistica con i seguenti valori:
+
+- $\alpha = -1.7784477$
+- $\beta = 1.003503126$
+
+Esamineremo ora l'interpretazione di questi coefficienti sulla scala dei logit, dell'odds ratio e delle probabilità.
+
+
+#### La regola del dividere per 4
+
+La regola del dividere per 4 è un metodo utile per interpretare i coefficienti della regressione logistica. Dividendo il coefficiente $\beta$ per 4, si ottiene un'approssimazione della massima variazione nella probabilità $\Pr(y = 1)$ per un incremento unitario in $x$, in corrispondenza di $p = 0.5$.
+
+La curva logistica è più ripida al centro, dove $\alpha + \beta x = 0$ e quindi $\text{logit}^{-1}(\alpha + \beta x) = 0.5$. In questo punto, la pendenza della curva, ovvero la derivata della funzione logistica, è massima e raggiunge il valore $\beta / 4$.
+
+Per esempio, nel modello con $\alpha = -1.778$ e $\beta = 1.003$, dividendo $\beta$ per 4 otteniamo circa 0.25. Questo valore rappresenta l'aumento massimo, in termini di probabilità, che possiamo aspettarci per un incremento unitario in $x$, in corrispondenza di $p = 0.5$.
+
+In sintesi, la regola del dividere per 4 semplifica l'interpretazione dei coefficienti della regressione logistica, fornendo un'indicazione intuitiva di come la variabile indipendente influisce sulla probabilità dell'evento di interesse.
+
+
+#### Scala dei Logit
+
+Nella regressione logistica, la funzione logit rappresenta una relazione lineare tra il logit della probabilità di successo e la variabile indipendente $X$:
+
+$$
+\log \left( \frac{p}{1-p} \right) = \alpha + \beta x
+$$
+
+Con i coefficienti stimati, la funzione logit diventa:
+
+$$
+\log \left( \frac{p}{1-p} \right) = -1.7784477 + 1.003503126 \cdot x
+$$
+
+- **$\alpha = -1.7784477$**: Questo è l'intercetta del modello, il valore del logit quando $x = 0$. Indica che, quando $x$ è 0, il logit della probabilità di successo è $-1.778$.
+- **$\beta = 1.003503126$**: Questo è il coefficiente di $x$ e rappresenta il cambiamento nel logit per ogni incremento unitario in $x$. In altre parole, per ogni incremento di 1 unità in $x$, il logit della probabilità di successo aumenta di circa $1.0035$.
+
+
+#### Odds Ratio
+
+L'odds ratio (OR) misura il cambiamento relativo nelle odds di successo per un incremento unitario in $x$. È ottenuto esponenziando il coefficiente $\beta$:
+
+$$
+\text{OR} = e^{\beta} = e^{1.0035} \approx 2.728
+$$
+
+Un odds ratio di circa $2.728$ indica che, per ogni incremento unitario in $x$, le odds di successo aumentano di circa $172.8\%$. In altre parole, l'odds di successo è circa $2.728$ volte maggiore per ogni unità aggiuntiva di $x$.
+
+
+#### Scala delle Probabilità
+
+Per interpretare l'effetto di $\beta$ sulla scala delle probabilità, possiamo considerare come la probabilità $p$ cambia in corrispondenza di specifici valori di $x$.
+
+1. Quando $x = 0$:
+
+$$
+\log \left( \frac{p}{1-p} \right) = -1.778
+$$
+
+Invertendo il logit per ottenere $p$:
+
+$$
+p = \frac{e^{-1.7784477}}{1 + e^{-1.7784477}} \approx \frac{0.169} {1 + 0.169} \approx 0.144
+$$
+
+Quindi, la probabilità di successo quando $x = 0$ è circa $14.4\%$.
+
+2. Per un incremento unitario in $x$, diciamo $x = 1$:
+
+$$
+\log \left( \frac{p}{1-p} \right) = -1.778 + 1.0035 \cdot 1 \approx -0.7749
+$$
+
+Invertendo il logit per ottenere $p$:
+
+$$
+p = \frac{e^{-0.774944574}}{1 + e^{-0.774944574}} \approx \frac{0.461} {1 + 0.461} \approx 0.316
+$$
+
+Quindi, la probabilità di successo quando $x = 1$ è circa $31.6\%$. Tuttavia questo incremento non è costante per i diversi livelli $x$ e il modo più semplice per mostrare la relazione tra probabilità di successo e la variabile $X$ è quella di generare un grafico come quello che abbimo prodotto in precedenza.
+
+
+### Riassunto
+
+- **Scala dei Logit**: Un incremento unitario in $x$ aumenta il logit della probabilità di successo di $1.0035$.
+- **Odds Ratio**: Le odds di successo aumentano di circa $2.728$ volte per ogni incremento unitario in $x$.
+- **Scala delle Probabilità**: Quando $x$ passa da 0 a 1, la probabilità di successo aumenta da circa $14.4\%$ a $31.6\%$. Per la relazione tra ciascun livello $x$ e la probabilità di successo è necessario generare un grafico.
+
+Questa analisi dimostra come i coefficienti del modello di regressione logistica possono essere interpretati su diverse scale, fornendo un quadro completo della relazione tra la variabile indipendente e la probabilità di successo.
+
+
+## Regressione logistica con sola intercetta
+
+Nella regressione lineare, un modello con sola intercetta stima semplicemente la media del campione. Analogamente, un modello lineare con un singolo predittore binario stima la differenza tra due medie. Per la regressione logistica, un modello con sola intercetta stima invece un’unica proporzione: la probabilità che la variabile risposta assuma valore 1, uguale per tutte le unità del campione.
+
+
+### Esempio
+
+Supponiamo di avere un campione casuale di 50 persone, sottoposte a un test per una certa caratteristica psicologica (es. la tendenza a ricordare dettagli irrilevanti in un compito di memoria). Il risultato è che 10 persone (20%) presentano la caratteristica.
+
+Per 10 successi su 50 prove, la stima puntuale frequentista è:
+
+$$
+  \hat{p}=\frac{10}{50}=0{.}20,\qquad 
+  SE_{\text{Wald}}=\sqrt{\frac{\hat p(1-\hat p)}{n}}
+  =\sqrt{\frac{0.2\cdot 0.8}{50}}\approx 0{.}06.
+$$
+    
+Gli **intervalli di confidenza al 95%** possono essere calcolati in modi diversi nell’approccio frequentista. Di seguito i principali:
+    
+```{r}
+# Dati
+x <- 10
+n <- 50
+p_hat <- x / n
+p_hat
+```
+  
+1) Wald (approssimazione normale)
+
+> Semplice ma spesso **instabile** con n moderati o p vicino a 0/1.
+  
+```{r}
+se_wald <- sqrt(p_hat * (1 - p_hat) / n)
+ci_wald <- p_hat + c(-1, 1) * 1.96 * se_wald
+ci_wald
+```
+  
+2) Wilson / score
+  
+> In genere **preferibile** al Wald. In `prop.test()` la correzione di continuità è attiva di default.
+  
+```{r}
+ci_wilson_cc   <- prop.test(x, n)$conf.int   # score + correzione di continuità
+ci_wilson_nocc <- prop.test(x, n, correct = FALSE)$conf.int # score senza correzione
+ci_wilson_nocc
+```
+  
+3) Esatto (Clopper–Pearson)
+  
+> Basato sulla binomiale; tende a essere **conservativo** (intervalli più ampi).
+  
+```{r}
+ci_exact <- binom.test(x, n, conf.level = 0.95)$conf.int
+ci_exact
+```
+
+
+#### Riepilogo 
+
+```{r}
+# Tabella riassuntiva con i principali metodi
+res <- data.frame(
+  metodo = c("Wald", "Wilson (no cc)", "Wilson (cc)", "Clopper–Pearson"),
+  lower  = c(ci_wald[1], ci_wilson_nocc[1], ci_wilson_cc[1], ci_exact[1]),
+  upper  = c(ci_wald[2], ci_wilson_nocc[2], ci_wilson_cc[2], ci_exact[2])
+)
+res
+```
+
+
+Possiamo ottenere la stessa informazione tramite una regressione logistica bayesiana con sola intercetta:
+
+```{r}
+#| output: false
+# Dati
+y <- c(rep(0, 40), rep(1, 10))
+df <- data.frame(y = y)
+
+# Modello bernoulli con sola intercetta
+fit <- brm(
+  y ~ 1,
+  data = df,
+  family = bernoulli(),
+  seed = 123,
+  chains = 4,
+  iter = 2000,
+  backend = "cmdstanr"
+)
+```
+
+```{r}
+summary(fit, round_to = 2)
+```
+
+Il coefficiente stimato `b_Intercept` è sulla **scala logit**. Per ottenere la probabilità, si usa la trasformazione inversa:
+
+```{r}
+# Valori stimati dal modello (esempio)
+intercept <- -1.38
+error <- 0.34
+
+# Probabilità media stimata
+p_hat <- plogis(intercept)
+
+# Limiti di credibilità (approx ±1 SE sulla scala logit)
+lower_bound <- plogis(intercept - error)
+upper_bound <- plogis(intercept + error)
+
+cat(sprintf("p_hat: %.3f, Lower bound: %.3f, Upper bound: %.3f",
+            p_hat, lower_bound, upper_bound), "\n")
+```
+
+Risultato atteso:
+
+$$
+\hat{p} \approx 0.20,\quad \text{CrI 95\%} \approx [0.14, 0.27].
+$$
+
+
+### Confronto tra approcci
+
+Le stime ottenute dalla regressione logistica e quelle calcolate con la formula classica possono differire leggermente per due motivi principali:
+
+1. **Uso dei priori**: in `brm` il modello è bayesiano e, anche con priori deboli, questi contribuiscono leggermente alla stima.
+2. **Inferenza esatta**: l’errore standard classico è un’approssimazione, valida asintoticamente, mentre il modello bayesiano restituisce la distribuzione posteriore completa, che tiene conto esattamente della natura discreta dei dati.
+
+
+**Interpretazione psicologica**
+In un contesto di ricerca, questo tipo di modello è utile quando vogliamo stimare la prevalenza di un comportamento o di un tratto in una popolazione, con un’incertezza ben quantificata. Ad esempio, potremmo voler stimare la proporzione di studenti che provano ansia significativa durante un esame, o la percentuale di pazienti che mostrano un certo pattern cognitivo in un test clinico.
+
+
+## Regressione logistica con un singolo predittore binario
+
+Quando il predittore è una variabile dicotomica, la regressione logistica è concettualmente equivalente a un **confronto di proporzioni**. La differenza è che il modello logit ci permette di ottenere stime e intervalli di credibilità direttamente dal modello probabilistico, senza ricorrere a formule approssimate per l’errore standard, e può essere facilmente esteso ad altri predittori o a strutture gerarchiche.
+
+Per rendere l’esempio più vicino alla psicologia, immaginiamo uno **studio sperimentale sulla memoria**: 50 partecipanti svolgono un compito di richiamo libero senza alcun aiuto (condizione 0), altri 60 lo svolgono con un suggerimento iniziale (condizione 1). La variabile `y` indica se il partecipante ha ricordato correttamente un elemento target (1 = corretto, 0 = errato). Supponiamo che nella condizione senza suggerimento 10 su 50 partecipanti ricordino correttamente (20%), mentre nella condizione con suggerimento il numero salga a 20 su 60 (33%).
+
+Questi dati possono essere organizzati così:
+
+```{r}
+#| label: data
+#| message: false
+x <- c(rep(0, 50), rep(1, 60))
+y <- c(rep(0, 40), rep(1, 10),   # condizione 0: 40 errori, 10 successi
+       rep(0, 40), rep(1, 20))   # condizione 1: 40 errori, 20 successi
+df <- data.frame(x = x, y = y)
+table(df$x, df$y)
+```
+
+
+### Stima del modello
+
+Usiamo `brm` per stimare un modello di regressione logistica bayesiano, specificando la famiglia `bernoulli` con link logit:
+
+```{r}
+#| output: false
+set.seed(123)
+
+fit <- brm(
+  y ~ x,  # logit(p) = b_Intercept + b_x * x
+  data   = df,
+  family = bernoulli(link = "logit"),
+  backend = "cmdstanr",
+  chains = 4, iter = 2000
+)
+```
+
+```{r}
+summary(fit)
+```
+
+
+### Interpretazione dei coefficienti
+
+* `b_Intercept` è il **logit** della probabilità di successo nella condizione 0 ($p(x=0)$).
+* `b_x` rappresenta la **differenza di logit** tra condizione 1 e condizione 0.
+* Per ottenere le probabilità sulla scala naturale, si applica la funzione **logit-inversa**:
+  $p = \mathrm{plogis}(\text{logit}) = \frac{1}{1+e^{-\text{logit}}}$.
+
+
+### Probabilità posteriori e differenza
+
+Calcoliamo $p(0)$, $p(1)$ e la loro differenza $\Delta$ per ciascun campione del posteriore, e riassumiamo:
+
+```{r}
+#| label: posterior-diff
+draws <- as_draws_df(fit)  # dal pacchetto 'posterior'
+
+p0   <- plogis(draws$b_Intercept)
+p1   <- plogis(draws$b_Intercept + draws$b_x)
+diff <- p1 - p0
+
+summ <- tibble::tibble(
+  quantity = c("p(x=0)", "p(x=1)", "diff = p(1)-p(0)"),
+  mean     = c(mean(p0), mean(p1), mean(diff)),
+  median   = c(median(p0), median(p1), median(diff)),
+  q2.5     = c(quantile(p0, .025), quantile(p1, .025), quantile(diff, .025)),
+  q97.5    = c(quantile(p0, .975), quantile(p1, .975), quantile(diff, .975)),
+  sd       = c(sd(p0), sd(p1), sd(diff))
+)
+summ
+```
+
+
+### Commento ai risultati
+
+In questo caso, la probabilità media stimata di richiamo corretto è circa **20%** nella condizione senza suggerimento e **33%** con suggerimento. La differenza $\Delta$ è quindi di circa **0.13** punti percentuali, con un intervallo di credibilità al 95% che va da valori leggermente negativi (indicando che il suggerimento potrebbe non essere sempre utile) a valori positivi fino a circa **0.29**.
+
+L’ampiezza dell’intervallo riflette l’incertezza dovuta alla dimensione campionaria relativamente ridotta. In un’ottica psicologica, questo tipo di stima ci permette di dire che, pur essendo plausibile un effetto positivo del suggerimento, non possiamo escludere del tutto la possibilità che l’effetto sia nullo o trascurabile. La regressione logistica fornisce una base formale per incorporare ulteriori predittori (ad esempio età, livello di ansia da test) o effetti gerarchici (partecipanti, item) in studi più complessi.
+
+
+### Distribuzione posteriore della differenza
+
+```{r}
+#| label: plot-diff
+tibble(diff = diff) |>
+  ggplot(aes(x = diff)) +
+  geom_histogram(bins = 40, fill = "skyblue", color = "white") +
+  geom_vline(xintercept = mean(diff), color = "red", linewidth = 1) +
+  labs(
+    title = expression(paste("Distribuzione posteriore di ", Delta, " = p(x=1) - p(x=0)")),
+    x = "Differenza di probabilità",
+    y = "Frequenza"
+  ) 
+```
+
+
+## Informazioni sull'ambiente di sviluppo {.unnumbered .unlisted}
+
+```{r}
+sessionInfo()
+```
+
+## Bibliografia {.unnumbered .unlisted}

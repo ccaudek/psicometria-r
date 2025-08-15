@@ -1,0 +1,459 @@
+# Modello di regolazione emotiva con soglia decisionale variabile {#sec-dynamic-models-emo-regulation}
+
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+# Setup comune del manuale
+here::here("code", "_common.R") |> source()
+library(cmdstanr)
+
+# Salvagente nel caso la palette non sia definita
+if (!exists("palette_set1")) {
+  palette_set1 <- RColorBrewer::brewer.pal(3, "Set1")
+  names(palette_set1) <- c("uno", "due", "tre")
+}
+col1 <- unname(palette_set1[[1]])
+col2 <- unname(palette_set1[[2]])
+col3 <- unname(palette_set1[[3]])
+```
+
+
+::: callout-note
+## Obiettivi di apprendimento
+
+* Capire la **regressione logistica** in modo intuitivo (logit, odds, probabilità).
+* Vedere come un GLM classico può **modellare differenze tra condizioni**.
+* Spingersi **oltre il GLM** con Stan, esplicitando il **processo psicologico** (soglia decisionale che cambia per condizione e nel tempo).
+* Implementare: **simulazione dati**, **stima in Stan con cmdstanr**, **check predittivi** e **estensioni** (gerarchico e dinamico).
+:::
+
+
+## Introduzione {.unnumbered .unlisted}
+
+
+
+## Il compito: giudizi "positivo/negativo" sotto bassa vs alta pressione  
+
+Immaginiamo un esperimento in cui i partecipanti sono chiamati a svolgere un compito di classificazione binaria. In ogni prova, viene presentato uno stimolo che deve essere valutato come **positivo** (codificato come 1) o **negativo** (codificato come 0). L'obiettivo è studiare come le risposte dei partecipanti varino in due diverse condizioni sperimentali, caratterizzate da diversi livelli di pressione:  
+
+- **Condizione 1: Bassa pressione**  
+  In questa condizione, i partecipanti hanno a disposizione un tempo sufficiente per valutare lo stimolo e rispondere senza fretta. L'ambiente è calmo e privo di elementi stressanti, permettendo una valutazione più riflessiva.  
+
+- **Condizione 2: Alta pressione**  
+  Qui, i partecipanti devono rispondere in condizioni di tempo scarso e sotto stress, simulando situazioni in cui è richiesta una decisione rapida. Questa condizione può indurre una maggiore impulsività, influenzando la strategia decisionale.  
+
+
+### Ipotesi psicologica e meccanismi cognitivi  
+
+Secondo l'ipotesi proposta, le risposte dei partecipanti sono guidate da due componenti cognitive fondamentali:  
+
+1. **Sensibilità percettiva (s)**  
+   Rappresenta la capacità del partecipante di discriminare correttamente la valenza dello stimolo (positivo vs negativo). Maggiore è la sensibilità, più le risposte saranno guidate dall'effettiva natura dello stimolo.  
+
+2. **Soglia decisionale (τ)**  
+   Corrisponde al criterio adottato dal partecipante per decidere se classificare lo stimolo come positivo o negativo. Una soglia più alta richiede una maggiore certezza prima di rispondere "positivo", mentre una soglia più bassa riflette una tendenza a rispondere più liberamente.  
+   - **Variazione tra condizioni**: Si ipotizza che la soglia sia più bassa nella condizione di alta pressione, poiché lo stress e la fretta spingono verso decisioni più impulsive.  
+   - **Variazione temporale**: Nella condizione di alta pressione, la soglia potrebbe ulteriormente diminuire nel corso delle prove, riflettendo un accumulo di affaticamento o un adattamento alla pressione temporale.  
+
+### Modellazione statistica: confronto tra approccio classico e modello dinamico  
+
+#### Limitazioni del modello lineare generalizzato (GLM) tradizionale  
+
+Nella psicologia sperimentale, il framework dei **Modelli Lineari Generalizzati (GLM)** rappresenta lo standard per l'analisi di dati binari. Un'implementazione tipica utilizzerebbe una **regressione logistica**, dove:  
+
+- La variabile dipendente è la risposta binaria (positivo/negativo)  
+- I predittori includerebbero:  
+  - La valenza intrinseca dello stimolo (variabile fissa)  
+  - La condizione sperimentale (bassa vs. alta pressione) come fattore tra soggetti  
+
+Tuttavia, questo approccio presenta due limitazioni fondamentali:  
+
+1. **Staticità del criterio decisionale**:  
+   Il modello assume che la soglia τ sia costante sia tra condizioni che all'interno della stessa sessione sperimentale. Ciò non riflette l'ipotesi psicologica secondo cui:  
+   - La pressione temporale abbassa globalmente la soglia  
+   - Nella condizione stressante, la soglia potrebbe diminuire progressivamente (effetto dinamico intra-sessione)  
+
+2. **Separazione artificiale dei parametri**:  
+   La regressione tradizionale non permette una modellazione esplicita dell'interdipendenza tra sensibilità percettiva (s) e criterio decisionale (τ), che invece sono concettualmente legati nel processo cognitivo reale.  
+
+### Vantaggi dell'approccio bayesiano con Stan  
+
+Stan supera le limitazioni dei metodi tradizionali attraverso una modellazione flessibile e interpretabile, offrendo vantaggi concettuali e pratici significativi.  
+
+#### Modellazione esplicita della soglia  
+
+Stan permette di parametrizzare direttamente la soglia *τ* come variabile latente, integrandola nel processo generativo dei dati. La dipendenza dalla condizione sperimentale può essere implementata con strutture condizionali intuitive:  
+
+```stan  
+tau = (condition == 1) ? tau_low : tau_high;  
+```  
+
+L'approccio supporta l'introduzione di vincoli teorici, come iperparametri che impongono *τ_high < τ_low* per coerenza con le ipotesi sull'impulsività.  
+
+#### Dinamica temporale adattiva  
+
+Per catturare effetti temporali (es. l'abbassamento progressivo del criterio sotto pressione), il modello può includere parametri di deriva con regolarizzazioni:  
+
+```stan  
+tau_trial[t] = tau_high - alpha * t;  // Decadimento controllato di tau  
+```  
+
+Dove *α* quantifica la velocità di cambiamento e *t* rappresenta la prova corrente, con opportune trasformazioni per garantire valori biologicamente plausibili.  
+
+#### Integrazione strutturale tra parametri  
+
+La relazione tra sensibilità percettiva (*s*) e soglia decisionale emerge naturalmente dalla specificazione probabilistica del modello:  
+
+```stan  
+response ~ bernoulli_logit(s * valence - tau);  
+```  
+
+Questa formulazione riflette il bilanciamento competitivo tra:  
+
+- L'evidenza sensoriale (*s × valenza* dello stimolo)  
+- La cautela del decisore (*τ*), con interpretazione diretta come criterio di risposta.  
+
+
+### Implicazioni teoriche e pratiche  
+
+#### Validità ecologica  
+
+L'approccio riproduce la natura dinamica delle decisioni reali, allineandosi a teorie consolidate (es. modelli di accumulo di evidenza). Le stime dei parametri riflettono l'evoluzione temporale dei processi cognitivi, non semplicemente il loro stato medio.  
+
+#### Precisione statistica  
+
+L'incertezza negli effetti dinamici è esplicitamente quantificata attraverso intervalli credibili. L'uso di *prior* informative permette di incorporare conoscenze preesistenti senza sacrificare la flessibilità.  
+
+#### Estensibilità  
+
+La struttura modulare facilita l'aggiunta di:  
+
+- Effetti individuali (gerarchici)  
+- Predittori contestuali (es. carico cognitivo)  
+- Nonlinearità (es. soglie adattive)  
+
+**Esempio interpretativo**  
+
+> "Nella condizione ad alta pressione, la soglia diminuisce di 0.15 unità per prova (95% HDI [0.12, 0.18]), rivelando un incremento progressivo dell'impulsività. L'assenza di questo effetto (β = -0.01, HDI [-0.03, 0.02]) nelle condizioni di bassa pressione supporta l'ipotesi di un meccanismo specifico attivato dallo stress."  
+
+Questa granularità trasforma l'analisi in una "rappresentazione dinamica" del processo decisionale, superando le limitazioni degli approcci statici.
+
+
+# 2. Regressione logistica: un’intuizione rapida
+
+La regressione logistica connette un predittore lineare $\eta$ alla probabilità $p$ di un esito 1 con la **logit-link**:
+  
+  $$
+  \text{logit}(p) = \log\frac{p}{1-p} = \eta = \beta_0 + \beta_1 x_1 + \cdots
+$$
+  
+  * $p = \frac{1}{1+\exp(-\eta)}$.
+* **Odds** $= p/(1-p)$; **log-odds** $=$ logit$(p)$.
+* Ogni coefficiente sposta i **log-odds** linearmente → cambia $p$ in modo non lineare ma monotono.
+
+# 3. Dal GLM a un modello generativo con soglia
+
+## 3.1 Due vie a confronto
+
+**GLM classico (logistico)**:
+  
+  $$
+  \text{logit}\,P(y=1) = \beta_0 + \beta_1\text{valence} + \beta_2\text{cond2} + \beta_3(\text{valence}\times \text{cond2}).
+$$
+  
+  Buono per testare effetti medi, ma **non** esplicita un *meccanismo* come una soglia decisionale condizione-specifica o dinamica.
+
+**Modello generativo con soglia**:
+  
+  $$
+  \text{logit}\,P(y_n=1) = s\,[\text{valence}_n - \tau_n],
+$$
+  
+  dove:
+  
+  * $s$ = **sensibilità** globale,
+* $\tau_n$ = **soglia** che dipende dalla **condizione** (via `if/else`) e può **variare col tempo** nelle prove stressanti.
+
+Questo è ancora una regressione logistica, ma **parametrizzata in modo psicologicamente interpretabile** (sensibilità e soglia). Con Stan puoi:
+  
+  * usare `if (cond[n]==2) ... else ...` per scegliere la soglia;
+* far evolvere $\tau_n$ lungo le prove (fatica/impulsività).
+
+# 4. Simulazione dati in R
+
+```{r}
+set.seed(123)
+
+# Parametri "verità a terra"
+N      <- 800                 # numero prove totali (un partecipante per semplicità)
+prop2  <- 0.5                 # proporzione in condizione 2
+N2     <- round(N * prop2)
+N1     <- N - N2
+
+s_true       <- 3.0           # sensibilità
+tau1_true    <- 0.40          # soglia in condizione 1
+tau2_base    <- 0.20          # soglia base in condizione 2
+tau2_slope   <- -0.002        # deriva nel tempo (più bassa col progredire delle prove) in cond. 2
+
+# Disegno
+cond <- c(rep(1, N1), rep(2, N2))
+trial_id <- ave(cond, cond, FUN = seq_along) # trial progressivo per ciascuna condizione
+
+# Valenza stimolo (0=neg, 1=pos): qui alterniamo / mescoliamo per esempio
+valence <- rbinom(N, size = 1, prob = 0.5)
+
+# Soglia per prova
+tau <- ifelse(
+  cond == 1,
+  tau1_true,
+  tau2_base + tau2_slope * scale(trial_id)[,1]  # dinamica in condizione 2
+)
+
+# Probabilità e risposta
+linpred <- s_true * (valence - tau)
+p       <- 1 / (1 + exp(-linpred))
+choice  <- rbinom(N, 1, p)
+
+dat <- data.frame(
+  y = choice,
+  valence = valence,
+  cond = cond,
+  trial = trial_id
+)
+
+head(dat)
+```
+
+# 5. Un GLM logistico di riferimento (R)
+
+```{r}
+glm_ref <- glm(y ~ valence * factor(cond), data = dat, family = binomial())
+summary(glm_ref)
+```
+
+> **Nota didattica.** Il GLM cattura l’effetto medio della condizione e dell’interazione, ma **non** dice *come* la soglia cambi lungo le prove in condizione 2. Con Stan possiamo esprimerlo in modo generativo e trasparente.
+
+# 6. Modello base in Stan: soglie per condizione (if/else)
+
+* Un parametro di **sensibilità** `s`.
+* Due **soglie**: `tau1` (cond.1), `tau2` (cond.2).
+* **if/else** nel ciclo: scegli la soglia in base a `cond[n]`.
+
+```{stan}
+// file: emo_threshold_basic.stan
+data {
+  int<lower=1> N;
+  array[N] int<lower=0,upper=1> y;          // risposta (0/1)
+  array[N] int<lower=0,upper=1> valence;    // 0=neg, 1=pos
+  array[N] int<lower=1,upper=2> cond;       // 1=bassa pressione, 2=alta pressione
+}
+parameters {
+  real s;                 // sensibilità
+  real tau1;              // soglia condizione 1
+  real tau2;              // soglia condizione 2
+}
+model {
+  // Priors deboli ma informative
+  s    ~ normal(0, 3);
+  tau1 ~ normal(0.5, 0.5);
+  tau2 ~ normal(0.5, 0.5);
+  
+  for (n in 1:N) {
+    real tau_n;
+    if (cond[n] == 1) {
+      tau_n = tau1;
+    } else {
+      tau_n = tau2;
+    }
+    target += bernoulli_logit_lpmf(y[n] | s * (valence[n] - tau_n));
+  }
+}
+generated quantities {
+  // PPC: predizioni replicate
+  array[N] int y_rep;
+  for (n in 1:N) {
+    real tau_n = (cond[n] == 1) ? tau1 : tau2;
+    real p = inv_logit(s * (valence[n] - tau_n));
+    y_rep[n] = bernoulli_rng(p);
+  }
+}
+```
+
+## 6.1 Stima con `cmdstanr`
+
+```{r}
+library(cmdstanr)
+
+# Scrivi il modello su disco (se necessario)
+modfile <- "emo_threshold_basic.stan"
+if (!file.exists(modfile)) {
+  writeLines(readLines("emo_threshold_basic.stan"), modfile)
+}
+
+# Prepara la lista dati
+stan_data <- list(
+  N = nrow(dat),
+  y = dat$y,
+  valence = dat$valence,
+  cond = dat$cond
+)
+
+mod_basic <- cmdstan_model(modfile)
+fit_basic <- mod_basic$sample(
+  data = stan_data,
+  seed = 123,
+  chains = 4, parallel_chains = 4,
+  iter_warmup = 1000, iter_sampling = 1000
+)
+
+fit_basic$summary(c("s","tau1","tau2"))
+```
+
+## 6.2 Check predittivi rapidi
+
+```{r}
+library(posterior)
+draws <- fit_basic$draws()
+
+# Estrai y_rep e confronta media globale con osservata
+y_rep   <- as_draws_matrix(draws, variable = "y_rep")
+p_mean  <- colMeans(y_rep)
+obs_mean <- mean(dat$y)
+
+c(obs_mean = obs_mean, mean_rep_mean = mean(p_mean))
+```
+
+# 7. Modello esteso: soglia dinamica in condizione 2
+
+Ora facciamo il salto **oltre il GLM**: lasciamo che la soglia **evolva nel tempo** (solo in condizione 2). Un modo semplice:
+  
+  $$
+  \tau_n =
+  \begin{cases}
+\tau_1, & \text{se } \text{cond}=1\\[2mm]
+\tau_{2,\text{base}} + \tau_{2,\text{slope}}\, z(\text{trial}), & \text{se } \text{cond}=2
+\end{cases}
+$$
+  
+  dove $z(\text{trial})$ è il trial **standardizzato** (per stabilità).
+
+```{stan}
+// file: emo_threshold_dynamic.stan
+data {
+  int<lower=1> N;
+  array[N] int<lower=0,upper=1> y;
+  array[N] int<lower=0,upper=1> valence;
+  array[N] int<lower=1,upper=2> cond;
+  array[N] real ztrial; // trial standardizzato (media 0, sd 1)
+}
+parameters {
+  real s;
+  real tau1;
+  real tau2_base;
+  real tau2_slope;  // <0: soglia scende col tempo, >0: sale
+}
+model {
+  s          ~ normal(0, 3);
+  tau1       ~ normal(0.5, 0.5);
+  tau2_base  ~ normal(0.5, 0.5);
+  tau2_slope ~ normal(0, 0.5);
+  
+  for (n in 1:N) {
+    real tau_n;
+    if (cond[n] == 1) {
+      tau_n = tau1;
+    } else {
+      tau_n = tau2_base + tau2_slope * ztrial[n];
+    }
+    target += bernoulli_logit_lpmf(y[n] | s * (valence[n] - tau_n));
+  }
+}
+generated quantities {
+  array[N] int y_rep;
+  for (n in 1:N) {
+    real tau_n = (cond[n] == 1) ? tau1 : (tau2_base + tau2_slope * ztrial[n]);
+    real p = inv_logit(s * (valence[n] - tau_n));
+    y_rep[n] = bernoulli_rng(p);
+  }
+}
+```
+
+## 7.1 Stima e confronto
+
+```{r}
+# Standardizza trial complessivo (qui per semplicità su tutte le prove)
+ztrial <- scale(dat$trial)[,1]
+
+stan_data_dyn <- list(
+  N = nrow(dat),
+  y = dat$y,
+  valence = dat$valence,
+  cond = dat$cond,
+  ztrial = ztrial
+)
+
+mod_dyn <- cmdstan_model("emo_threshold_dynamic.stan")
+fit_dyn <- mod_dyn$sample(
+  data = stan_data_dyn,
+  seed = 123,
+  chains = 4, parallel_chains = 4,
+  iter_warmup = 1000, iter_sampling = 1000
+)
+
+fit_dyn$summary(c("s","tau1","tau2_base","tau2_slope"))
+```
+
+### 7.2 Interpretazione
+
+* `s` vicino a 3 indica buona **sensibilità** (coerente con la simulazione).
+* `tau1` e `tau2_base` quantificano il **criterio** in ciascuna condizione.
+* `tau2_slope` < 0 supporta l’ipotesi che **sotto pressione** la soglia **cali** nel tempo (decisioni più “positive” a parità di valenza → maggiore impulsività/criterio più basso).
+
+# 8. Perché questo va “oltre” un GLM?
+
+* Un GLM può includere `trial` e interazioni, ma resta un **modello di regressione**.
+* In Stan, abbiamo parametrizzato la **meccanica decisionale** (sensibilità vs **soglia**), selezionando la **soglia per condizione** con `if/else` e permettendo **dinamica nel tempo**.
+* Possiamo aggiungere facilmente **altri stati latenti**, p.es. stanchezza, *drift* cumulativo, o vincoli psicologici sui parametri (p.es. soglie in $[0,1]$ se interpretate come criteri su una scala di valenza normalizzata).
+
+# 9. Estensioni (spunti per esercizi)
+
+## 9.1 Modello gerarchico (più partecipanti)
+
+* Aggiungi un indice `id[n]` e specifica variazioni tra-soggetti:
+  
+  * $s_i \sim \mathcal{N}(\mu_s, \sigma_s)$,
+* $\tau_{1,i} \sim \mathcal{N}(\mu_{\tau1}, \sigma_{\tau1})$,
+* $\tau_{2,i}^{\text{base}} \sim \mathcal{N}(\mu_{\tau2}, \sigma_{\tau2})$, ecc.
+* Questo permette **partial pooling** e stime individuali più stabili.
+
+## 9.2 Rumore extra o lapse rate
+
+* Integra una piccola probabilità $\lambda$ di **risposta casuale**:
+  $p^\* = (1-\lambda)\,p + \lambda\cdot 0.5$, con $\lambda \in [0,0.1]$.
+* Utile quando osservi code di errori non spiegate dal solo logit.
+
+## 9.3 Regressori a livello di prova
+
+* Aggiungi **arousal**, **RT normalizzato**, **fatica auto-riferita** per modulare la soglia solo nella condizione 2:
+  
+  $$
+  \tau_n = \tau_{2,\text{base}} + \tau_{2,\text{slope}} z(\text{trial}) + \gamma \cdot \text{arousal}_n.
+$$
+  
+  ## 9.4 Confronto modelli via PPC/ELPD
+  
+  * Usa **posterior predictive checks** grafici (istogrammi di $\bar{y}$, proporzioni per condizione).
+* Con più modelli, confronta ELPD (via loo) quando implementi versioni in `brms` o estrai il log-lik da Stan.
+
+# 10. Riepilogo didattico
+
+* **Logistica**: collega linearità nei **log-odds** a probabilità $p$.
+* **GLM**: utile per effetti medi e interazioni, ma non esplicita meccanismi psicologici.
+* **Stan**: permette di **modellare il processo** (sensibilità e **soglia**), usare **if/else** per condizioni/fasi, e introdurre **dinamiche temporali** e **gerarchie**.
+* Questo esercizio mostra come un **PPL** trasformi una regressione in un **modello cognitivo minimale**, chiaro e estendibile.
+
+
+## Bibliografia {.unnumbered .unlisted}
+
