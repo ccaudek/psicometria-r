@@ -1,0 +1,2498 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="it" xml:lang="it"><head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.7.32">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<meta name="author" content="Corrado Caudek">
+<title>74&nbsp; Oltre la regressione logistica: modelli di scelta con Stan e R – Psicometria</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+<script src="../../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../../">
+<link href="../../chapters/entropy/01_entropy.html" rel="next">
+<link href="../../chapters/glm/03_stan_logistic_regr.html" rel="prev">
+<link href="../../style/gauss.png" rel="icon" type="image/png">
+<script src="../../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../../site_libs/quarto-html/popper.min.js"></script>
+<script src="../../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-1b3e43c72e8be34557c75123b0b69e0d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../../site_libs/bootstrap/bootstrap-d7fac04b5d151a4d6c6d9112c1827663.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script src="../../site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
+<link href="../../site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
+<link href="../../site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet"><script id="quarto-search-options" type="application/json">{
+  "location": "sidebar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "start",
+  "type": "textbox",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "Nessun risultato",
+    "search-matching-documents-text": "documenti trovati",
+    "search-copy-link-title": "Copiare il link nella ricerca",
+    "search-hide-matches-text": "Nascondere i risultati aggiuntivi",
+    "search-more-match-text": "ci sono altri risultati in questo documento",
+    "search-more-matches-text": "ulteriori risultati in questo documento",
+    "search-clear-button-title": "Pulire",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancellare",
+    "search-submit-button-title": "Inviare",
+    "search-label": "Ricerca"
+  }
+}</script><script async="" src="https://www.googletagmanager.com/gtag/js?id=G-QT5S3P9D31"></script><script type="text/javascript">
+
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', 'G-QT5S3P9D31', { 'anonymize_ip': true});
+</script><script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script><script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script><link rel="stylesheet" href="styles.css">
+</head>
+<body class="nav-sidebar floating quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top"><nav class="quarto-secondary-nav"><div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Attiva/disattiva la barra laterale" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../../chapters/glm/introduction_glm.html">GLM</a></li><li class="breadcrumb-item"><a href="../../chapters/glm/03a_stan_logistic_process.html"><span class="chapter-number">74</span>&nbsp; <span class="chapter-title">Oltre la regressione logistica: modelli di scelta con Stan e R</span></a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Attiva/disattiva la barra laterale" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+      <button type="button" class="btn quarto-search-button" aria-label="Ricerca" onclick="window.quartoOpenSearch();">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+  </nav></header><!-- content --><div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto"><div class="pt-lg-2 mt-2 text-left sidebar-header">
+    <div class="sidebar-title mb-0 py-0">
+      <a href="../../">Psicometria</a> 
+        <div class="sidebar-tools-main">
+    <a href="https://github.com/ccaudek/psicometria-r/" title="Eseguire il codice" class="quarto-navigation-tool px-1" aria-label="Eseguire il codice"><i class="bi bi-github"></i></a>
+  <a href="" class="quarto-reader-toggle quarto-navigation-tool px-1" onclick="window.quartoToggleReader(); return false;" title="Attiva/disattiva la modalità lettore">
+  <div class="quarto-reader-toggle-btn">
+  <i class="bi"></i>
+  </div>
+</a>
+</div>
+    </div>
+      </div>
+        <div class="mt-2 flex-shrink-0 align-items-center">
+        <div class="sidebar-search">
+        <div id="quarto-search" class="" title="Ricerca"></div>
+        </div>
+        </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Informazioni generali</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../prefazione.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Introduzione</span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../../chapters/key_notions/introduction_key_notions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Fondamenti</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/key_notions/01_data_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">1</span>&nbsp; <span class="chapter-title">La crisi di replicazione e la riforma metodologica in psicologia</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/key_notions/02_key_notions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">2</span>&nbsp; <span class="chapter-title">Concetti chiave</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/key_notions/03_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">3</span>&nbsp; <span class="chapter-title">Campionamento, metodologia sperimentale e studi osservazionali</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/key_notions/04_measurement.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">4</span>&nbsp; <span class="chapter-title">La misurazione in psicologia</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/key_notions/05_cognitive_models.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">5</span>&nbsp; <span class="chapter-title">Dalla descrizione alla spiegazione: modelli meccanicistici e computazionali in psicologia</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../../chapters/R/introduction_r_lang.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">R</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/R/01_r_syntax.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">6</span>&nbsp; <span class="chapter-title">Un approccio moderno all’analisi dei dati</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/R/02_utility_functions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">7</span>&nbsp; <span class="chapter-title">Utility functions</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/R/03_r_programming.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">8</span>&nbsp; <span class="chapter-title">Programmazione</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/R/04_r_packages.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">9</span>&nbsp; <span class="chapter-title">Pacchetti</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/R/05_dplyr.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">10</span>&nbsp; <span class="chapter-title">Introduzione a <code>dplyr</code></span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/R/06_quarto.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">11</span>&nbsp; <span class="chapter-title">Quarto</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/R/07_environment.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">12</span>&nbsp; <span class="chapter-title">L’ambiente di programmazione</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/R/08_ai.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">13</span>&nbsp; <span class="chapter-title">Utilizzo di strumenti AI</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../../chapters/eda/introduction_eda.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EDA</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/eda/01_project_structure.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">14</span>&nbsp; <span class="chapter-title">Le fasi del progetto di analisi dei dati</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/eda/02_data_cleaning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">15</span>&nbsp; <span class="chapter-title">Flusso di lavoro per la pulizia dei dati</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/eda/04_exploring_qualitative_data.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">16</span>&nbsp; <span class="chapter-title">Esplorare i dati qualitativi</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/eda/05_exploring_numeric_data.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">17</span>&nbsp; <span class="chapter-title">Esplorare i dati numerici</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/eda/06_data_visualization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">18</span>&nbsp; <span class="chapter-title">Principi della visualizzazione dei dati</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/eda/07_loc_scale.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">19</span>&nbsp; <span class="chapter-title">Indicatori di tendenza centrale e variabilità</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/eda/07a_introduction_normal_distribution.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">20</span>&nbsp; <span class="chapter-title">Introduzione alla distribuzione normale</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/eda/08_correlation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">21</span>&nbsp; <span class="chapter-title">Relazioni tra variabili</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/eda/09_causality.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">22</span>&nbsp; <span class="chapter-title">Causalità dai dati osservazionali</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/eda/10_estimand.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">23</span>&nbsp; <span class="chapter-title">Estimandi teorici e estimandi empirici</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/eda/11_outlier.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">24</span>&nbsp; <span class="chapter-title">Outlier</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../../chapters/probability/introduction_probability.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Probabilità</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/01_intro_prob.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">25</span>&nbsp; <span class="chapter-title">Interpretazione della probabilità</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/02_probability_models.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">26</span>&nbsp; <span class="chapter-title">Modelli probabilistici</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/03_prob_spaces.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">27</span>&nbsp; <span class="chapter-title">La Probabilità come misura della certezza razionale: un’interpretazione Bayesiana</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/04_sigma-algebra.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">28</span>&nbsp; <span class="chapter-title">Dal Discreto al Continuo: la <span class="math inline">\(\sigma\)</span>-algebra</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/05_conditional_prob.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">29</span>&nbsp; <span class="chapter-title">Probabilità condizionata</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/06_bayes_theorem.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">30</span>&nbsp; <span class="chapter-title">Il teorema di Bayes</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/07_random_var.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">31</span>&nbsp; <span class="chapter-title">Variabili casuali</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/08_prob_distributions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">32</span>&nbsp; <span class="chapter-title">Distribuzioni di massa e di densità</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/09_expval_var.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">33</span>&nbsp; <span class="chapter-title">Proprietà delle variabili casuali</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/10_sampling_distr.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">34</span>&nbsp; <span class="chapter-title">Stime, stimatori e parametri</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/11a_joint_prob.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">35</span>&nbsp; <span class="chapter-title">Probabilità congiunta</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/11b_cov_cor.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">36</span>&nbsp; <span class="chapter-title">Covarianza e correlazione</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/11c_joint_prob_cont.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">37</span>&nbsp; <span class="chapter-title">Caso continuo</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/12a_intro_distributions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">38</span>&nbsp; <span class="chapter-title">Introduzione alle distribuzioni di probabilità</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/12_discr_rv_distr.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">39</span>&nbsp; <span class="chapter-title">Distribuzioni di v.c. discrete</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/13_cont_rv_distr.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">40</span>&nbsp; <span class="chapter-title">Distribuzioni di v.c. continue</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/14_gauss.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">41</span>&nbsp; <span class="chapter-title">Assunzione di gaussianità e trasformazioni dei dati</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/probability/15_likelihood.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">42</span>&nbsp; <span class="chapter-title">La verosimiglianza</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false">
+ <span class="menu-text">Inferenza</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/bayesian_inference/introduction_bayes_inference.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Introduzione</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/bayesian_inference/01_uncertainty.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">43</span>&nbsp; <span class="chapter-title">Abbracciare l’incertezza</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/bayesian_inference/02_intro_bayes.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">44</span>&nbsp; <span class="chapter-title">La quantificazione dell’incertezza</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/bayesian_inference/03_statistical_models.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">45</span>&nbsp; <span class="chapter-title">Modelli statistici</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/bayesian_inference/04_bayesian_inference.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">46</span>&nbsp; <span class="chapter-title">Inferenza bayesiana</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/bayesian_inference/05_subj_prop.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">47</span>&nbsp; <span class="chapter-title">Aggiornare le credenze su un parametro: dal prior alla posterior</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/bayesian_inference/07_conjugate_families_1.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">48</span>&nbsp; <span class="chapter-title">Distribuzioni coniugate (1)</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/bayesian_inference/08_conjugate_families_2.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">49</span>&nbsp; <span class="chapter-title">Distribuzioni coniugate (2)</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/bayesian_inference/09_summary_posterior.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">50</span>&nbsp; <span class="chapter-title">Sintesi a posteriori</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/bayesian_inference/10_balance_prior_post.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">51</span>&nbsp; <span class="chapter-title">L’influenza della distribuzione a priori</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/bayesian_inference/11_gamma_poisson_model.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">52</span>&nbsp; <span class="chapter-title">Modello coniugato Gamma-Poisson</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/bayesian_inference/12_gamma_exponential_model.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">53</span>&nbsp; <span class="chapter-title">Modello gamma-esponenziale</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/bayesian_inference/13_prior_pred_check.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">54</span>&nbsp; <span class="chapter-title">Controllo predittivo a priori (Prior Predictive Check)</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/bayesian_inference/14_post_pred_distr.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">55</span>&nbsp; <span class="chapter-title">Distribuzione predittiva a posteriori</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false">
+ <span class="menu-text">MCMC</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/mcmc/introduction_mcmc.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Introduzione</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/mcmc/01_metropolis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">56</span>&nbsp; <span class="chapter-title">L’algoritmo di Metropolis-Hastings</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/mcmc/02_ppl.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">57</span>&nbsp; <span class="chapter-title">Linguaggi di programmazione probabilistici</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/mcmc/07_bayesian_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">58</span>&nbsp; <span class="chapter-title">Flusso di lavoro bayesiano</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false">
+ <span class="menu-text">Regressione</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/linear_models/introduction_linear_models.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Introduzione</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/linear_models/01_reglin_frequentist.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">59</span>&nbsp; <span class="chapter-title">La regressione lineare bivariata</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/linear_models/02_regr_toward_mean.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">60</span>&nbsp; <span class="chapter-title">La regressione verso la media</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/linear_models/03_reglin_bayes.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">61</span>&nbsp; <span class="chapter-title">Modello bayesiano di regressione lineare bivariata</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/linear_models/04_synt_sugar.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">62</span>&nbsp; <span class="chapter-title">Zucchero sintattico</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/linear_models/04a_stan_regression.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">63</span>&nbsp; <span class="chapter-title">Regressione lineare in Stan</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/linear_models/05_one_mean.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">64</span>&nbsp; <span class="chapter-title">Inferenza bayesiana su una media</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/linear_models/07_two_means.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">65</span>&nbsp; <span class="chapter-title">Confronto tra le medie di due gruppi</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/linear_models/07a_effect_size.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">66</span>&nbsp; <span class="chapter-title">La grandezza dell’effetto: valutare la rilevanza pratica</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/linear_models/08_sample_size.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">67</span>&nbsp; <span class="chapter-title">Pianificazione della dimensione campionaria</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/linear_models/09_anova_1via.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">68</span>&nbsp; <span class="chapter-title">ANOVA ad una via</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/linear_models/10_anova_2vie.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">69</span>&nbsp; <span class="chapter-title">ANOVA ad due vie</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/linear_models/11_one_proportion.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">70</span>&nbsp; <span class="chapter-title">Inferenza sulle proporzioni</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/linear_models/12_two_proportions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">71</span>&nbsp; <span class="chapter-title">Confronto tra due proporzioni indipendenti</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/linear_models/13_poisson_model.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">72</span>&nbsp; <span class="chapter-title">Modello di Poisson</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="true">
+ <span class="menu-text">GLM</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="true" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth1 show">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/glm/introduction_glm.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Introduzione</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/glm/03_stan_logistic_regr.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">73</span>&nbsp; <span class="chapter-title">Regressione logistica con Stan</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/glm/03a_stan_logistic_process.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text"><span class="chapter-number">74</span>&nbsp; <span class="chapter-title">Oltre la regressione logistica: modelli di scelta con Stan e R</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="false">
+ <span class="menu-text">Entropia</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="false" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-9" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/entropy/01_entropy.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">75</span>&nbsp; <span class="chapter-title">Entropia e informazione di Shannon</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/entropy/02_kl.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">76</span>&nbsp; <span class="chapter-title">La divergenza di Kullback-Leibler</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/entropy/03_model_comparison.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">77</span>&nbsp; <span class="chapter-title">Valutare i modelli bayesiani: Log-Score, LPPD, ELPD e LOO-CV</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="false">
+ <span class="menu-text">Modelli</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="false" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/formal_models/introduction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">78</span>&nbsp; <span class="chapter-title">Teorie formali dei fenomeni psicologici</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/formal_models/01_dynamic_models.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">79</span>&nbsp; <span class="chapter-title">Il modello di revisione degli obiettivi</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/formal_models/02_dynamic_models.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">80</span>&nbsp; <span class="chapter-title">Estensioni</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/formal_models/03_rescorla_wagner.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">81</span>&nbsp; <span class="chapter-title">Il modello di Rescorla–Wagner</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
+ <span class="menu-text">Decisioni</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-11" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/decision_analysis/01_study_method.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">82</span>&nbsp; <span class="chapter-title">Analisi delle decisioni</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false">
+ <span class="menu-text">Missing</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-12" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/missing/01_mnar_stan.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">83</span>&nbsp; <span class="chapter-title">Dati mancanti in psicologia: identificare e modellare i casi MNAR con un approccio Bayesiano in Stan</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false">
+ <span class="menu-text">Frequentismo</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-13" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/frequentist_inference/introduction_frequentist_inference.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Introduzione</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/frequentist_inference/01_intro_frequentist.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">84</span>&nbsp; <span class="chapter-title">Inferenza frequentista</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/frequentist_inference/01a_stime_parametri.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">85</span>&nbsp; <span class="chapter-title">Stime, stimatori e parametri</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/frequentist_inference/02_conf_interv.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">86</span>&nbsp; <span class="chapter-title">Intervalli di fiducia</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/frequentist_inference/03_sample_size.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">87</span>&nbsp; <span class="chapter-title">La grandezza del campione</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/frequentist_inference/04_test_ipotesi.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">88</span>&nbsp; <span class="chapter-title">Significatività statistica</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/frequentist_inference/05_two_ind_samples.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">89</span>&nbsp; <span class="chapter-title">Test t di Student per campioni indipendenti</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="false">
+ <span class="menu-text">Crisi</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="false" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-14" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/replication_crisis/introduction_replication_crisis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Introduzione</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/replication_crisis/01_crisis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">90</span>&nbsp; <span class="chapter-title">La crisi della replicazione</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/replication_crisis/02_limits_stat_freq.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">91</span>&nbsp; <span class="chapter-title">Limiti dell’inferenza frequentista</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/replication_crisis/03_effect_size.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">92</span>&nbsp; <span class="chapter-title">La grandezza dell’effetto</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/replication_crisis/04_s_m_errors.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">93</span>&nbsp; <span class="chapter-title">Errori di segno e errori di grandezza</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/replication_crisis/05_p_values.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">94</span>&nbsp; <span class="chapter-title">La fragilità del <em>p</em>-valore</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/replication_crisis/06_changes.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">95</span>&nbsp; <span class="chapter-title">Riforma</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/replication_crisis/07_piranha.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">96</span>&nbsp; <span class="chapter-title">Il Problema del priming: sfide e paradossi nella psicologia sociale</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/replication_crisis/08_degrees_of_freedom.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">97</span>&nbsp; <span class="chapter-title">I gradi di libertà del ricercatore</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/replication_crisis/09_integrity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">98</span>&nbsp; <span class="chapter-title">Integrità della ricerca</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false">
+ <span class="menu-text">Epilogo</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/epiloque/epiloque.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Considerazioni Conclusive</span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="false">
+ <span class="menu-text">Appendici</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="false" aria-label="Attiva/disattiva sezione">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/appendix/a01_shell.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">A</span>&nbsp; <span class="chapter-title">La Shell</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/appendix/a01a_files.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">B</span>&nbsp; <span class="chapter-title">Cartelle e documenti</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/appendix/a02_math_symbols.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">C</span>&nbsp; <span class="chapter-title">Simbologia di base</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/appendix/a03_latex.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">D</span>&nbsp; <span class="chapter-title">Equazioni Matematiche in LaTeX</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/appendix/a11_numbers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">E</span>&nbsp; <span class="chapter-title">Numeri e intervalli</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/appendix/a12_sum_notation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">F</span>&nbsp; <span class="chapter-title">Sommatorie</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/appendix/a13_sets.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">G</span>&nbsp; <span class="chapter-title">Insiemi</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/appendix/a14_combinatorics.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">H</span>&nbsp; <span class="chapter-title">Calcolo combinatorio</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/appendix/a15_calculus.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">I</span>&nbsp; <span class="chapter-title">Per liberarvi dai terrori preliminari</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/appendix/a47_first_order_markov.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">J</span>&nbsp; <span class="chapter-title">Catene di Markov</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/appendix/a50_lin_fun.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">K</span>&nbsp; <span class="chapter-title">La funzione lineare</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../chapters/appendix/a71_install_cmdstan.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">L</span>&nbsp; <span class="chapter-title">Come installare CmdStan</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+    </ul>
+</div>
+</nav><div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active"><h2 id="toc-title">Indice</h2>
+   
+  <ul>
+<li><a href="#motivazione-perch%C3%A9-oltre-il-glm" id="toc-motivazione-perché-oltre-il-glm" class="nav-link active" data-scroll-target="#motivazione-perch%C3%A9-oltre-il-glm"><span class="header-section-number">74.1</span> Motivazione: perché oltre il GLM?</a></li>
+  <li>
+<a href="#regressione-logistica-il-ponte-intuitivo" id="toc-regressione-logistica-il-ponte-intuitivo" class="nav-link" data-scroll-target="#regressione-logistica-il-ponte-intuitivo"><span class="header-section-number">74.2</span> Regressione logistica: il ponte intuitivo</a>
+  <ul class="collapse">
+<li><a href="#dal-logit-alla-probabilit%C3%A0" id="toc-dal-logit-alla-probabilità" class="nav-link" data-scroll-target="#dal-logit-alla-probabilit%C3%A0"><span class="header-section-number">74.2.1</span> Dal logit alla probabilità</a></li>
+  <li><a href="#dalla-scelta-al-processo" id="toc-dalla-scelta-al-processo" class="nav-link" data-scroll-target="#dalla-scelta-al-processo"><span class="header-section-number">74.2.2</span> Dalla scelta al processo</a></li>
+  <li><a href="#oltre-il-glm-un-modello-processuale-semplice" id="toc-oltre-il-glm-un-modello-processuale-semplice" class="nav-link" data-scroll-target="#oltre-il-glm-un-modello-processuale-semplice"><span class="header-section-number">74.2.3</span> Oltre il GLM: un modello processuale semplice</a></li>
+  </ul>
+</li>
+  <li><a href="#simulazione-dati" id="toc-simulazione-dati" class="nav-link" data-scroll-target="#simulazione-dati"><span class="header-section-number">74.3</span> Simulazione dati</a></li>
+  <li><a href="#stan-modello-processuale-ar1-sulla-scala-del-logit" id="toc-stan-modello-processuale-ar1-sulla-scala-del-logit" class="nav-link" data-scroll-target="#stan-modello-processuale-ar1-sulla-scala-del-logit"><span class="header-section-number">74.4</span> Stan: modello processuale (AR(1) sulla scala del logit)</a></li>
+  <li><a href="#preprocess-e-stima-in-cmdstanr" id="toc-preprocess-e-stima-in-cmdstanr" class="nav-link" data-scroll-target="#preprocess-e-stima-in-cmdstanr"><span class="header-section-number">74.5</span> Preprocess e stima in <code>cmdstanr</code></a></li>
+  <li><a href="#diagnostica-e-posterior-predictive-check" id="toc-diagnostica-e-posterior-predictive-check" class="nav-link" data-scroll-target="#diagnostica-e-posterior-predictive-check"><span class="header-section-number">74.6</span> Diagnostica e Posterior Predictive Check</a></li>
+  <li><a href="#confronto-rapido-con-glm-logit-classico" id="toc-confronto-rapido-con-glm-logit-classico" class="nav-link" data-scroll-target="#confronto-rapido-con-glm-logit-classico"><span class="header-section-number">74.7</span> Confronto (rapido) con GLM logit classico</a></li>
+  <li><a href="#estensione-gerarchica-varianza-tra-soggetti" id="toc-estensione-gerarchica-varianza-tra-soggetti" class="nav-link" data-scroll-target="#estensione-gerarchica-varianza-tra-soggetti"><span class="header-section-number">74.8</span> Estensione gerarchica (varianza tra soggetti)</a></li>
+  <li><a href="#prior-predictive-check-prima-dei-dati" id="toc-prior-predictive-check-prima-dei-dati" class="nav-link" data-scroll-target="#prior-predictive-check-prima-dei-dati"><span class="header-section-number">74.9</span> Prior Predictive Check (prima dei dati!)</a></li>
+  <li><a href="#interpretazione-dei-parametri" id="toc-interpretazione-dei-parametri" class="nav-link" data-scroll-target="#interpretazione-dei-parametri"><span class="header-section-number">74.10</span> Interpretazione dei parametri</a></li>
+  <li><a href="#cosa-abbiamo-guadagnato-rispetto-al-glm" id="toc-cosa-abbiamo-guadagnato-rispetto-al-glm" class="nav-link" data-scroll-target="#cosa-abbiamo-guadagnato-rispetto-al-glm"><span class="header-section-number">74.11</span> Cosa abbiamo guadagnato rispetto al GLM</a></li>
+  <li><a href="#varianti-utili" id="toc-varianti-utili" class="nav-link" data-scroll-target="#varianti-utili"><span class="header-section-number">74.12</span> Varianti utili</a></li>
+  <li><a href="#appendice-stan-completo-versione-gerarchica-su-beta" id="toc-appendice-stan-completo-versione-gerarchica-su-beta" class="nav-link" data-scroll-target="#appendice-stan-completo-versione-gerarchica-su-beta"><span class="header-section-number">74.13</span> Appendice: Stan completo (versione gerarchica su <span class="math inline">\(\beta\)</span>)</a></li>
+  <li><a href="#riepilogo" id="toc-riepilogo" class="nav-link" data-scroll-target="#riepilogo"><span class="header-section-number">74.14</span> Riepilogo</a></li>
+  </ul><div class="toc-actions"><ul><li><a href="https://github.com/ccaudek/psicometria-r/blob/main/chapters/glm/03a_stan_logistic_process.qmd" class="toc-action"><i class="bi bi-github"></i>Mostra il codice</a></li><li><a href="https://github.com/ccaudek/psicometria-r/issues/new" class="toc-action"><i class="bi empty"></i>Segnala un problema</a></li></ul></div></nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../../chapters/glm/introduction_glm.html">GLM</a></li><li class="breadcrumb-item"><a href="../../chapters/glm/03a_stan_logistic_process.html"><span class="chapter-number">74</span>&nbsp; <span class="chapter-title">Oltre la regressione logistica: modelli di scelta con Stan e R</span></a></li></ol></nav><div class="quarto-title">
+<h1 class="title">
+<span class="chapter-number">74</span>&nbsp; <span class="chapter-title">Oltre la regressione logistica: modelli di scelta con Stan e R</span>
+</h1>
+<p class="subtitle lead">Dal GLM a un modello processuale per dati binari (didattica per psicologia)</p>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    <div>
+    <div class="quarto-title-meta-heading">Autore/Autrice</div>
+    <div class="quarto-title-meta-contents">
+             <p>Dispensa – Psicometria / Analisi Bayesiana </p>
+          </div>
+  </div>
+    
+  
+    
+  </div>
+  
+
+
+</header><div class="callout callout-style-simple callout-tip no-icon callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon no-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Obiettivi del capitolo
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<ul>
+<li>Mostrare come un <strong>Probabilistic Programming Language (Stan)</strong> permetta di andare <strong>oltre</strong> un GLM classico.</li>
+<li>Costruire un <strong>modello processuale</strong> per scelte binarie (es. sì/no, A/B) in psicologia.</li>
+<li>Eseguire <strong>prior predictive check</strong>, <strong>stima bayesiana</strong> e <strong>posterior predictive check</strong> in <strong>R</strong> (con <code>cmdstanr</code> e <code>brms</code> opzionale).</li>
+<li>Estendere il modello in forma <strong>gerarchica</strong> (differenze individuali).</li>
+</ul>
+</div>
+</div>
+<div class="callout callout-style-simple callout-important no-icon callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon no-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Preparazione del Notebook
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<div class="cell">
+<details open="" class="code-fold"><summary>Codice</summary><div class="sourceCode" id="cb1"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html">here</a></span><span class="op">(</span><span class="st">"code"</span>, <span class="st">"_common.R"</span><span class="op">)</span> <span class="op">|&gt;</span> </span>
+<span>  <span class="kw"><a href="https://rdrr.io/r/base/source.html">source</a></span><span class="op">(</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Load packages</span></span>
+<span><span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/ns-load.html">requireNamespace</a></span><span class="op">(</span><span class="st">"pacman"</span><span class="op">)</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html">install.packages</a></span><span class="op">(</span><span class="st">"pacman"</span><span class="op">)</span></span>
+<span><span class="fu">pacman</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/pacman/man/p_load.html">p_load</a></span><span class="op">(</span><span class="va">brms</span>, <span class="va">cmdstanr</span>, <span class="va">posterior</span>, <span class="va">brms</span>, <span class="va">bayestestR</span>, <span class="va">insight</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+</div>
+</div>
+<section id="motivazione-perché-oltre-il-glm" class="level2" data-number="74.1"><h2 data-number="74.1" class="anchored" data-anchor-id="motivazione-perché-oltre-il-glm">
+<span class="header-section-number">74.1</span> Motivazione: perché oltre il GLM?</h2>
+<p>La regressione logistica classica è uno strumento potente quando vogliamo modellare una risposta binaria <span class="math inline">\(y \in \{0,1\}\)</span> come funzione di predittori $ $. Tuttavia, in molti contesti psicologici la risposta non è il risultato di un “colpo secco”, bensì l’esito di un <strong>processo</strong> (cognitivo/decisorio) che si dispiega nel tempo o dipende da variabili <strong>latenti</strong> (ad esempio, una <strong>utilità</strong> o una <strong>tendenza all’approvazione</strong> non osservata).</p>
+<p>L’idea chiave di questo capitolo: <strong>usiamo Stan per esplicitare il meccanismo</strong> che genera la risposta binaria.</p>
+<ul>
+<li>
+<strong>GLM logit (base)</strong>: $ (y=1 ) = ^{-1}(+ ^) $.</li>
+<li>
+<strong>Modello processuale (esteso)</strong>: introduciamo una <strong>variabile latente</strong> <span class="math inline">\(u\)</span> (utilità/propensione) che a sua volta dipende da <span class="math inline">\(\mathbf{x}\)</span> <em>e</em> da fattori dinamici (p.es. abitudine o apprendimento), e la scelta <span class="math inline">\(y\)</span> nasce dalla soglia di <span class="math inline">\(u\)</span> con rumore.</li>
+</ul></section><section id="regressione-logistica-il-ponte-intuitivo" class="level2" data-number="74.2"><h2 data-number="74.2" class="anchored" data-anchor-id="regressione-logistica-il-ponte-intuitivo">
+<span class="header-section-number">74.2</span> Regressione logistica: il ponte intuitivo</h2>
+<section id="dal-logit-alla-probabilità" class="level3" data-number="74.2.1"><h3 data-number="74.2.1" class="anchored" data-anchor-id="dal-logit-alla-probabilità">
+<span class="header-section-number">74.2.1</span> Dal logit alla probabilità</h3>
+<p>Nel GLM logit:</p>
+<p><span class="math display">\[
+\text{logit}(p_i) \equiv \log\frac{p_i}{1 - p_i} = \alpha + \mathbf{x}_i^\top \boldsymbol\beta,\quad
+p_i = \Pr(y_i=1) = \frac{1}{1 + \exp(-\alpha - \mathbf{x}_i^\top \boldsymbol\beta)}.
+\]</span></p>
+<p>Interpretazione:</p>
+<ul>
+<li>
+<span class="math inline">\(\alpha\)</span> sposta la curva a sinistra/destra (tendenza di base).</li>
+<li>
+<span class="math inline">\(\boldsymbol\beta\)</span> inclina la <strong>S</strong> logistica: variazioni nei predittori cambiano l’odds e quindi la probabilità.</li>
+<li>Per piccole variazioni di un predittore <span class="math inline">\(x_j\)</span>, l’odds ratio cambia di un fattore <span class="math inline">\(\exp(\beta_j)\)</span>.</li>
+</ul></section><section id="dalla-scelta-al-processo" class="level3" data-number="74.2.2"><h3 data-number="74.2.2" class="anchored" data-anchor-id="dalla-scelta-al-processo">
+<span class="header-section-number">74.2.2</span> Dalla scelta al processo</h3>
+<p>La stessa formula può essere vista come approssimazione di un <strong>processo decisionale</strong>: esiste una <strong>utilità latente</strong> <span class="math inline">\(u_i\)</span> che si confronta con una soglia, ma è misurata con rumore logistico. Se assumiamo</p>
+<p><span class="math display">\[
+u_i = \alpha + \mathbf{x}_i^\top \boldsymbol\beta + \varepsilon_i,\quad \varepsilon_i \sim \text{Logistic}(0,1),
+\]</span></p>
+<p>allora <span class="math inline">\(\Pr(y_i=1)=\Pr(u_i&gt;0)=\operatorname{logit}^{-1}(\alpha + \mathbf{x}_i^\top \boldsymbol\beta)\)</span>.</p>
+<p>Questa lettura <strong>meccanicistica</strong> ci apre alla generalizzazione: possiamo far evolvere <span class="math inline">\(u_i\)</span> nel tempo o farlo dipendere da stati latenti.</p>
+</section><section id="oltre-il-glm-un-modello-processuale-semplice" class="level3" data-number="74.2.3"><h3 data-number="74.2.3" class="anchored" data-anchor-id="oltre-il-glm-un-modello-processuale-semplice">
+<span class="header-section-number">74.2.3</span> Oltre il GLM: un modello processuale semplice</h3>
+<p>Consideriamo un compito con <em>ripetizioni</em> per ogni soggetto (trial), dove la <em>propensione latente</em> <span class="math inline">\(u_{i,t}\)</span> dipende da predittori osservati $ _{i,t} $ e da un <em>termine dinamico</em> che cattura, per esempio, <em>abitudine</em>/<em>fatica</em>/<em>apprendimento</em> attraverso un filtro <em>AR(1)</em>:</p>
+<p><span class="math display">\[
+\begin{aligned}
+u_{i,t} &amp;= \alpha_i + \mathbf{x}_{i,t}^\top \boldsymbol\beta + \phi\, u_{i,t-1} + \eta_{i,t}, \qquad \eta_{i,t} \sim \mathcal{N}(0,\sigma_u), \\
+y_{i,t} &amp;\sim \text{Bernoulli}\!\left(\operatorname{logit}^{-1}(u_{i,t})\right).
+\end{aligned}
+\]</span></p>
+<ul>
+<li>
+<span class="math inline">\(\alpha_i\)</span>: <strong>intercetta soggetto-specifica</strong> (eterogeneità tra individui).</li>
+<li>
+<span class="math inline">\(\phi\)</span>: <strong>persistenza dinamica</strong> della propensione (0 = indipendenza; positivo = inerzia; negativo = alternanza).</li>
+<li>
+<span class="math inline">\(\sigma_u\)</span>: <strong>variabilità processuale</strong>.</li>
+<li>
+<span class="math inline">\(\boldsymbol\beta\)</span>: effetto dei predittori osservati.</li>
+</ul>
+<p>Questo è già <em>oltre</em> il GLM: la probabilità di scelta non dipende solo da <span class="math inline">\(\mathbf{x}\)</span>, ma dal <strong>processo latente</strong> <span class="math inline">\(u_{i,t}\)</span>.</p>
+<div class="callout callout-style-simple callout-note no-icon">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon no-icon"></i>
+</div>
+<div class="callout-body-container">
+<p><strong>Quando usarlo?</strong> In attività ripetute (decisioni sequenziali, compiti sperimentali, EMA con scelte sì/no), quando si sospetta <strong>dipendenza temporale</strong> o <strong>stati interni</strong> non osservati.</p>
+</div>
+</div>
+</div>
+</section></section><section id="simulazione-dati" class="level2" data-number="74.3"><h2 data-number="74.3" class="anchored" data-anchor-id="simulazione-dati">
+<span class="header-section-number">74.3</span> Simulazione dati</h2>
+<p>Simuliamo <span class="math inline">\(I=100\)</span> soggetti, <span class="math inline">\(T=30\)</span> trial ciascuno. Un predittore binario <span class="math inline">\(x_{i,t}\)</span> (es. <strong>condizione sperimentale</strong>: 0 = neutra, 1 = saliente).</p>
+<div class="cell" data-layout-align="center">
+<details open="" class="code-fold"><summary>Codice</summary><div class="sourceCode" id="cb2"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">I</span> <span class="op">&lt;-</span> <span class="fl">100</span></span>
+<span><span class="va">Tt</span> <span class="op">&lt;-</span> <span class="fl">30</span></span>
+<span><span class="va">N</span>  <span class="op">&lt;-</span> <span class="va">I</span><span class="op">*</span><span class="va">Tt</span></span>
+<span></span>
+<span><span class="va">alpha_i</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html">rnorm</a></span><span class="op">(</span><span class="va">I</span>, <span class="fl">0</span>, <span class="fl">0.7</span><span class="op">)</span>                 <span class="co"># eterogeneità individui</span></span>
+<span><span class="va">beta</span>    <span class="op">&lt;-</span> <span class="fl">0.6</span>                              <span class="co"># effetto del predittore</span></span>
+<span><span class="va">phi</span>     <span class="op">&lt;-</span> <span class="fl">0.5</span>                              <span class="co"># persistenza dinamica</span></span>
+<span><span class="va">sigma_u</span> <span class="op">&lt;-</span> <span class="fl">0.6</span>                              <span class="co"># rumore del processo</span></span>
+<span></span>
+<span><span class="co"># Predittore binario per semplicità (es. condizione)</span></span>
+<span><span class="va">x</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Binomial.html">rbinom</a></span><span class="op">(</span><span class="va">N</span>, <span class="fl">1</span>, <span class="fl">0.5</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Indici soggetto/trial</span></span>
+<span><span class="va">df</span> <span class="op">&lt;-</span> <span class="fu">tibble</span><span class="op">(</span></span>
+<span>  id <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html">rep</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="va">I</span>, each <span class="op">=</span> <span class="va">Tt</span><span class="op">)</span>,</span>
+<span>  t  <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html">rep</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="va">Tt</span>, times <span class="op">=</span> <span class="va">I</span><span class="op">)</span>,</span>
+<span>  x  <span class="op">=</span> <span class="va">x</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Genera processo latente e risposta</span></span>
+<span><span class="va">u</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html">numeric</a></span><span class="op">(</span><span class="va">N</span><span class="op">)</span></span>
+<span><span class="va">y</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/integer.html">integer</a></span><span class="op">(</span><span class="va">N</span><span class="op">)</span></span>
+<span></span>
+<span><span class="kw">for</span> <span class="op">(</span><span class="va">i</span> <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="va">I</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">ui</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html">numeric</a></span><span class="op">(</span><span class="va">Tt</span><span class="op">)</span></span>
+<span>  <span class="va">a</span>  <span class="op">&lt;-</span> <span class="va">alpha_i</span><span class="op">[</span><span class="va">i</span><span class="op">]</span></span>
+<span>  <span class="kw">for</span> <span class="op">(</span><span class="va">t</span> <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="va">Tt</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="va">idx</span> <span class="op">&lt;-</span> <span class="op">(</span><span class="va">i</span><span class="op">-</span><span class="fl">1</span><span class="op">)</span><span class="op">*</span><span class="va">Tt</span> <span class="op">+</span> <span class="va">t</span></span>
+<span>    <span class="va">mean_ut</span> <span class="op">&lt;-</span> <span class="va">a</span> <span class="op">+</span> <span class="va">beta</span><span class="op">*</span><span class="va">df</span><span class="op">$</span><span class="va">x</span><span class="op">[</span><span class="va">idx</span><span class="op">]</span> <span class="op">+</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/ifelse.html">ifelse</a></span><span class="op">(</span><span class="va">t</span><span class="op">==</span><span class="fl">1</span>, <span class="fl">0</span>, <span class="va">phi</span><span class="op">*</span><span class="va">ui</span><span class="op">[</span><span class="va">t</span><span class="op">-</span><span class="fl">1</span><span class="op">]</span><span class="op">)</span><span class="op">)</span></span>
+<span>    <span class="va">ui</span><span class="op">[</span><span class="va">t</span><span class="op">]</span>   <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html">rnorm</a></span><span class="op">(</span><span class="fl">1</span>, <span class="va">mean_ut</span>, <span class="va">sigma_u</span><span class="op">)</span></span>
+<span>    <span class="va">p</span>       <span class="op">&lt;-</span> <span class="fl">1</span><span class="op">/</span><span class="op">(</span><span class="fl">1</span><span class="op">+</span><span class="fu"><a href="https://rdrr.io/r/base/Log.html">exp</a></span><span class="op">(</span><span class="op">-</span><span class="va">ui</span><span class="op">[</span><span class="va">t</span><span class="op">]</span><span class="op">)</span><span class="op">)</span></span>
+<span>    <span class="va">y</span><span class="op">[</span><span class="va">idx</span><span class="op">]</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Binomial.html">rbinom</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">1</span>, <span class="va">p</span><span class="op">)</span></span>
+<span>  <span class="op">}</span></span>
+<span>  <span class="va">u</span><span class="op">[</span><span class="op">(</span><span class="op">(</span><span class="va">i</span><span class="op">-</span><span class="fl">1</span><span class="op">)</span><span class="op">*</span><span class="va">Tt</span><span class="op">+</span><span class="fl">1</span><span class="op">)</span><span class="op">:</span><span class="op">(</span><span class="va">i</span><span class="op">*</span><span class="va">Tt</span><span class="op">)</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="va">ui</span></span>
+<span><span class="op">}</span></span>
+<span></span>
+<span><span class="va">df</span><span class="op">$</span><span class="va">u_lat</span> <span class="op">&lt;-</span> <span class="va">u</span></span>
+<span><span class="va">df</span><span class="op">$</span><span class="va">y</span>     <span class="op">&lt;-</span> <span class="va">y</span></span>
+<span></span>
+<span><span class="va">df</span> <span class="op">%&gt;%</span> <span class="fu"><a href="https://rdrr.io/r/utils/head.html">head</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="co">#&gt; # A tibble: 6 × 5</span></span>
+<span><span class="co">#&gt;      id     t     x u_lat     y</span></span>
+<span><span class="co">#&gt;   &lt;int&gt; &lt;int&gt; &lt;int&gt; &lt;dbl&gt; &lt;int&gt;</span></span>
+<span><span class="co">#&gt; 1     1     1     1  1.58     0</span></span>
+<span><span class="co">#&gt; 2     1     2     1  1.75     1</span></span>
+<span><span class="co">#&gt; 3     1     3     1  2.32     1</span></span>
+<span><span class="co">#&gt; 4     1     4     0  2.63     1</span></span>
+<span><span class="co">#&gt; 5     1     5     0  2.39     1</span></span>
+<span><span class="co">#&gt; 6     1     6     0  1.91     0</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+<p>Visualizziamo (per alcuni soggetti) la dinamica latente e le scelte.</p>
+<div class="cell" data-layout-align="center">
+<details open="" class="code-fold"><summary>Codice</summary><div class="sourceCode" id="cb3"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">six_ids</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sample.html">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/unique.html">unique</a></span><span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">id</span><span class="op">)</span>, <span class="fl">6</span><span class="op">)</span></span>
+<span><span class="va">df_plot</span> <span class="op">&lt;-</span> <span class="va">df</span> <span class="op">%&gt;%</span> </span>
+<span>  <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/filter.html">filter</a></span><span class="op">(</span><span class="va">id</span> <span class="op"><a href="https://rdrr.io/r/base/match.html">%in%</a></span> <span class="va">six_ids</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">ggplot</span><span class="op">(</span><span class="va">df_plot</span>, <span class="fu">aes</span><span class="op">(</span><span class="va">t</span>, <span class="va">u_lat</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">geom_line</span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">geom_point</span><span class="op">(</span><span class="fu">aes</span><span class="op">(</span>y <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html">ifelse</a></span><span class="op">(</span><span class="va">y</span><span class="op">==</span><span class="fl">1</span>, <span class="va">u_lat</span>, <span class="cn">NA</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">facet_wrap</span><span class="op">(</span><span class="op">~</span> <span class="va">id</span>, scales <span class="op">=</span> <span class="st">"free_y"</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">labs</span><span class="op">(</span>x <span class="op">=</span> <span class="st">"trial"</span>, y <span class="op">=</span> <span class="st">"u (latente)"</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details><div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure"><div class="quarto-figure quarto-figure-center">
+<figure class="figure"><p><a href="03a_stan_logistic_process_files/figure-html/plot-sim-1.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1" title="Serie latente u e scelte per 6 soggetti (punti pieni = y=1)."><img src="03a_stan_logistic_process_files/figure-html/plot-sim-1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:70.0%" alt="Serie latente u e scelte per 6 soggetti (punti pieni = y=1)."></a></p>
+</figure>
+</div>
+<figcaption>Serie latente u e scelte per 6 soggetti (punti pieni = y=1).</figcaption></figure>
+</div>
+</div>
+</div>
+<p><strong>Tabella-ponte: algebra ↔︎ Stan.</strong></p>
+<p>La tabella seguente collega i simboli matematici con gli oggetti Stan.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead><tr class="header">
+<th>Concetto</th>
+<th>Simbolo</th>
+<th>Stan</th>
+<th>Note</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td>N. osservazioni</td>
+<td><span class="math inline">\(N\)</span></td>
+<td><code>int&lt;lower=1&gt; N;</code></td>
+<td>Total trials</td>
+</tr>
+<tr class="even">
+<td>Indice soggetto</td>
+<td><span class="math inline">\(i=1,\dots,I\)</span></td>
+<td>
+<code>int&lt;lower=1&gt; I;</code> <code>array[N] int&lt;lower=1,upper=I&gt; id;</code>
+</td>
+<td>Mappatura trial→soggetto</td>
+</tr>
+<tr class="odd">
+<td>Predittore</td>
+<td><span class="math inline">\(x_{i,t}\)</span></td>
+<td><code>array[N] int&lt;lower=0,upper=1&gt; x;</code></td>
+<td>qui binario (estendibile a <code>vector[N] x;</code>)</td>
+</tr>
+<tr class="even">
+<td>Risposta</td>
+<td><span class="math inline">\(y_{i,t}\)</span></td>
+<td><code>array[N] int&lt;lower=0,upper=1&gt; y;</code></td>
+<td>Bernoulli</td>
+</tr>
+<tr class="odd">
+<td>Latente</td>
+<td><span class="math inline">\(u_{i,t}\)</span></td>
+<td><code>vector[N] u;</code></td>
+<td>Stato dinamico</td>
+</tr>
+<tr class="even">
+<td>Intercetta sogg.</td>
+<td><span class="math inline">\(\alpha_i\)</span></td>
+<td><code>vector[I] alpha;</code></td>
+<td>gerarchico con iper-priori</td>
+</tr>
+<tr class="odd">
+<td>Persistenza</td>
+<td><span class="math inline">\(\phi\)</span></td>
+<td><code>real&lt;lower=-.99, upper=.99&gt; phi;</code></td>
+<td>AR(1) stabile</td>
+</tr>
+<tr class="even">
+<td>Var. latente</td>
+<td><span class="math inline">\(\sigma_u\)</span></td>
+<td><code>real&lt;lower=0&gt; sigma_u;</code></td>
+<td>sd del rumore di processo</td>
+</tr>
+<tr class="odd">
+<td>Effetto x</td>
+<td><span class="math inline">\(\beta\)</span></td>
+<td><code>real beta;</code></td>
+<td>estendibile a vettore</td>
+</tr>
+</tbody>
+</table></section><section id="stan-modello-processuale-ar1-sulla-scala-del-logit" class="level2" data-number="74.4"><h2 data-number="74.4" class="anchored" data-anchor-id="stan-modello-processuale-ar1-sulla-scala-del-logit">
+<span class="header-section-number">74.4</span> Stan: modello processuale (AR(1) sulla scala del logit)</h2>
+<p>Di seguito il codice Stan completo. Usiamo una parametrizzazione <strong>non centrata</strong> per <span class="math inline">\(\alpha_i\)</span> per migliorare la mescolanza MCMC.</p>
+<div class="cell" data-layout-align="center">
+<details open="" class="code-fold"><summary>Codice</summary><div class="sourceCode" id="cb4"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">stan_code</span> <span class="op">&lt;-</span> <span class="st">'</span></span>
+<span><span class="st">data{</span></span>
+<span><span class="st">  int&lt;lower=1&gt; N;                    // total trials</span></span>
+<span><span class="st">  int&lt;lower=1&gt; I;                    // subjects</span></span>
+<span><span class="st">  array[N] int&lt;lower=1,upper=I&gt; id;  // subject id per trial</span></span>
+<span><span class="st">  array[N] int&lt;lower=0,upper=1&gt; x;   // binary predictor (extendable)</span></span>
+<span><span class="st">  array[N] int&lt;lower=0,upper=1&gt; y;   // response</span></span>
+<span><span class="st">  array[N] int&lt;lower=1&gt; t;           // trial index per subject (1..T_i)</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">parameters{</span></span>
+<span><span class="st">  // subject random intercepts (non-centered)</span></span>
+<span><span class="st">  vector[I] alpha_raw;</span></span>
+<span><span class="st">  real alpha_mu;</span></span>
+<span><span class="st">  real&lt;lower=0&gt; alpha_sigma;</span></span>
+<span><span class="st"></span></span>
+<span><span class="st">  real beta;                         // effect of x</span></span>
+<span><span class="st">  real&lt;lower=-0.99, upper=0.99&gt; phi; // AR(1) persistence</span></span>
+<span><span class="st">  real&lt;lower=0&gt; sigma_u;             // process noise (sd)</span></span>
+<span><span class="st"></span></span>
+<span><span class="st">  // latent state</span></span>
+<span><span class="st">  vector[N] u;</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">transformed parameters{</span></span>
+<span><span class="st">  vector[I] alpha;</span></span>
+<span><span class="st">  alpha = alpha_mu + alpha_sigma * alpha_raw;</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">model{</span></span>
+<span><span class="st">  // Priors (debolmente informativi)</span></span>
+<span><span class="st">  alpha_raw ~ normal(0, 1);</span></span>
+<span><span class="st">  alpha_mu  ~ normal(0, 1);</span></span>
+<span><span class="st">  alpha_sigma ~ exponential(1);  // sd soggetto</span></span>
+<span><span class="st">  beta ~ normal(0, 1);</span></span>
+<span><span class="st">  phi  ~ normal(0, 0.5);  // concentrato vicino a 0 (ma con supporto ampio via bounds)</span></span>
+<span><span class="st">  sigma_u ~ exponential(1);</span></span>
+<span><span class="st"></span></span>
+<span><span class="st">  // State evolution (AR(1) on logit scale) + likelihood</span></span>
+<span><span class="st">  for (n in 1:N){</span></span>
+<span><span class="st">    if (t[n] == 1){</span></span>
+<span><span class="st">      u[n] ~ normal(alpha[id[n]] + beta * x[n], sigma_u);</span></span>
+<span><span class="st">    } else {</span></span>
+<span><span class="st">      // previous latent for the same subject is u[n-1] because trials are grouped by subject</span></span>
+<span><span class="st">      u[n] ~ normal(alpha[id[n]] + beta * x[n] + phi * u[n-1], sigma_u);</span></span>
+<span><span class="st">    }</span></span>
+<span><span class="st">    y[n] ~ bernoulli_logit(u[n]);</span></span>
+<span><span class="st">  }</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">generated quantities{</span></span>
+<span><span class="st">  // Posterior predictive</span></span>
+<span><span class="st">  array[N] int y_rep;</span></span>
+<span><span class="st">  for (n in 1:N){</span></span>
+<span><span class="st">    y_rep[n] = bernoulli_logit_rng(u[n]);</span></span>
+<span><span class="st">  }</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">'</span></span>
+<span></span>
+<span><span class="va">stan_file</span> <span class="op">&lt;-</span> <span class="fu">write_stan_file</span><span class="op">(</span><span class="va">stan_code</span><span class="op">)</span></span>
+<span><span class="va">stan_file</span></span>
+<span><span class="co">#&gt; [1] "/var/folders/gw/hc72by314msbfbhm58gh0fgc0000gn/T/RtmpG37TGD/model_f6995b9c1d96c6ea3d2ff4d13088cbe0.stan"</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+<p><strong>Nota sul dato in input:</strong> il ciclo sopra assume che i trial siano <strong>ordinati per soggetto</strong> e per <strong>tempo</strong>. Lo garantiremo nel preprocessing.</p>
+</section><section id="preprocess-e-stima-in-cmdstanr" class="level2" data-number="74.5"><h2 data-number="74.5" class="anchored" data-anchor-id="preprocess-e-stima-in-cmdstanr">
+<span class="header-section-number">74.5</span> Preprocess e stima in <code>cmdstanr</code>
+</h2>
+<div class="cell" data-layout-align="center">
+<details open="" class="code-fold"><summary>Codice</summary><div class="sourceCode" id="cb5"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># Riordina per (id, t) e prepara le liste per Stan</span></span>
+<span><span class="va">dat</span> <span class="op">&lt;-</span> <span class="va">df</span> <span class="op">%&gt;%</span></span>
+<span>  <span class="fu">arrange</span><span class="op">(</span><span class="va">id</span>, <span class="va">t</span><span class="op">)</span> <span class="op">%&gt;%</span></span>
+<span>  <span class="fu">mutate</span><span class="op">(</span>x <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/integer.html">as.integer</a></span><span class="op">(</span><span class="va">x</span><span class="op">)</span>,</span>
+<span>         y <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/integer.html">as.integer</a></span><span class="op">(</span><span class="va">y</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">stan_dat</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html">list</a></span><span class="op">(</span></span>
+<span>  N  <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/nrow.html">nrow</a></span><span class="op">(</span><span class="va">dat</span><span class="op">)</span>,</span>
+<span>  I  <span class="op">=</span> <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/n_distinct.html">n_distinct</a></span><span class="op">(</span><span class="va">dat</span><span class="op">$</span><span class="va">id</span><span class="op">)</span>,</span>
+<span>  id <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/integer.html">as.integer</a></span><span class="op">(</span><span class="va">dat</span><span class="op">$</span><span class="va">id</span><span class="op">)</span>,</span>
+<span>  x  <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/array.html">as.array</a></span><span class="op">(</span><span class="va">dat</span><span class="op">$</span><span class="va">x</span><span class="op">)</span>,</span>
+<span>  y  <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/array.html">as.array</a></span><span class="op">(</span><span class="va">dat</span><span class="op">$</span><span class="va">y</span><span class="op">)</span>,</span>
+<span>  t  <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/array.html">as.array</a></span><span class="op">(</span><span class="va">dat</span><span class="op">$</span><span class="va">t</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+<div class="cell" data-layout-align="center">
+<details open="" class="code-fold"><summary>Codice</summary><div class="sourceCode" id="cb6"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">mod</span> <span class="op">&lt;-</span> <span class="fu">cmdstan_model</span><span class="op">(</span><span class="va">stan_file</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+<div class="cell" data-layout-align="center">
+<details open="" class="code-fold"><summary>Codice</summary><div class="sourceCode" id="cb7"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="va">mod</span><span class="op">$</span><span class="fu">sample</span><span class="op">(</span></span>
+<span>  data <span class="op">=</span> <span class="va">stan_dat</span>,</span>
+<span>  seed <span class="op">=</span> <span class="fl">2024</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">4</span>, parallel_chains <span class="op">=</span> <span class="fl">4</span>,</span>
+<span>  iter_warmup <span class="op">=</span> <span class="fl">1000</span>, iter_sampling <span class="op">=</span> <span class="fl">4000</span>,</span>
+<span>  refresh <span class="op">=</span> <span class="fl">200</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; Running MCMC with 4 parallel chains...</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration:    1 / 5000 [  0%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration:    1 / 5000 [  0%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 3 Iteration:    1 / 5000 [  0%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration:    1 / 5000 [  0%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration:  200 / 5000 [  4%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration:  200 / 5000 [  4%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration:  200 / 5000 [  4%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration:  200 / 5000 [  4%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration:  400 / 5000 [  8%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration:  400 / 5000 [  8%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration:  400 / 5000 [  8%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration:  400 / 5000 [  8%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration:  600 / 5000 [ 12%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration:  600 / 5000 [ 12%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration:  600 / 5000 [ 12%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration:  800 / 5000 [ 16%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration:  600 / 5000 [ 12%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration:  800 / 5000 [ 16%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration:  800 / 5000 [ 16%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 1000 / 5000 [ 20%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 1001 / 5000 [ 20%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration:  800 / 5000 [ 16%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 1000 / 5000 [ 20%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 1001 / 5000 [ 20%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 1000 / 5000 [ 20%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 1001 / 5000 [ 20%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 1200 / 5000 [ 24%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 1000 / 5000 [ 20%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 1001 / 5000 [ 20%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 1200 / 5000 [ 24%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 1200 / 5000 [ 24%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 1400 / 5000 [ 28%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 1400 / 5000 [ 28%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 1200 / 5000 [ 24%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 1600 / 5000 [ 32%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 1400 / 5000 [ 28%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 1600 / 5000 [ 32%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 1800 / 5000 [ 36%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 1600 / 5000 [ 32%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 1400 / 5000 [ 28%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 1800 / 5000 [ 36%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 1800 / 5000 [ 36%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 2000 / 5000 [ 40%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 2000 / 5000 [ 40%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 1600 / 5000 [ 32%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 2000 / 5000 [ 40%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 2200 / 5000 [ 44%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 2400 / 5000 [ 48%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 1800 / 5000 [ 36%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 2200 / 5000 [ 44%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 2000 / 5000 [ 40%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 2200 / 5000 [ 44%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 2600 / 5000 [ 52%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 2400 / 5000 [ 48%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 2200 / 5000 [ 44%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 2400 / 5000 [ 48%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 2800 / 5000 [ 56%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 2400 / 5000 [ 48%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 3000 / 5000 [ 60%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 2600 / 5000 [ 52%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 2600 / 5000 [ 52%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 3200 / 5000 [ 64%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 2600 / 5000 [ 52%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 2800 / 5000 [ 56%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 3400 / 5000 [ 68%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 2800 / 5000 [ 56%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 2800 / 5000 [ 56%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 3600 / 5000 [ 72%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 3800 / 5000 [ 76%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 3000 / 5000 [ 60%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 3000 / 5000 [ 60%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 4000 / 5000 [ 80%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 4200 / 5000 [ 84%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 3000 / 5000 [ 60%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 3200 / 5000 [ 64%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 4400 / 5000 [ 88%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 3200 / 5000 [ 64%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 3400 / 5000 [ 68%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 4600 / 5000 [ 92%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 3600 / 5000 [ 72%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 3400 / 5000 [ 68%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 4800 / 5000 [ 96%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 3200 / 5000 [ 64%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 5000 / 5000 [100%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 finished in 564.5 seconds.</span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 3600 / 5000 [ 72%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 3800 / 5000 [ 76%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 3400 / 5000 [ 68%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 3800 / 5000 [ 76%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 3600 / 5000 [ 72%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 4000 / 5000 [ 80%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 4000 / 5000 [ 80%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 3800 / 5000 [ 76%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 4200 / 5000 [ 84%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 4000 / 5000 [ 80%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 4200 / 5000 [ 84%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 4400 / 5000 [ 88%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 4200 / 5000 [ 84%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 4600 / 5000 [ 92%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 4400 / 5000 [ 88%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 4800 / 5000 [ 96%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 4400 / 5000 [ 88%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 5000 / 5000 [100%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 finished in 783.8 seconds.</span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 4600 / 5000 [ 92%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 4600 / 5000 [ 92%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 4800 / 5000 [ 96%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 4800 / 5000 [ 96%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 5000 / 5000 [100%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 finished in 863.6 seconds.</span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 5000 / 5000 [100%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 finished in 877.7 seconds.</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; All 4 chains finished successfully.</span></span>
+<span><span class="co">#&gt; Mean chain execution time: 772.4 seconds.</span></span>
+<span><span class="co">#&gt; Total execution time: 877.9 seconds.</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+<div class="cell" data-layout-align="center">
+<details open="" class="code-fold"><summary>Codice</summary><div class="sourceCode" id="cb8"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">fit</span><span class="op">$</span><span class="fu">summary</span><span class="op">(</span><span class="op">)</span> <span class="op">%&gt;%</span></span>
+<span>  <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/filter.html">filter</a></span><span class="op">(</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/grep.html">grepl</a></span><span class="op">(</span><span class="st">"alpha_mu|alpha_sigma|beta|phi|sigma_u"</span>, <span class="va">variable</span><span class="op">)</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="co">#&gt; # A tibble: 5 × 10</span></span>
+<span><span class="co">#&gt;   variable     mean median    sd   mad    q5   q95  rhat ess_bulk ess_tail</span></span>
+<span><span class="co">#&gt;   &lt;chr&gt;       &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;</span></span>
+<span><span class="co">#&gt; 1 alpha_mu     0.05   0.04  0.09  0.09 -0.09  0.20  1.01   895.34   599.53</span></span>
+<span><span class="co">#&gt; 2 alpha_sigma  0.70   0.69  0.14  0.13  0.49  0.93  1.07    52.32   334.20</span></span>
+<span><span class="co">#&gt; 3 beta         0.47   0.47  0.09  0.09  0.33  0.62  1.01   732.95  1698.94</span></span>
+<span><span class="co">#&gt; 4 phi          0.50   0.50  0.09  0.09  0.34  0.64  1.07    54.66   360.85</span></span>
+<span><span class="co">#&gt; 5 sigma_u      0.35   0.33  0.11  0.10  0.20  0.55  1.26    13.20    17.31</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+</section><section id="diagnostica-e-posterior-predictive-check" class="level2" data-number="74.6"><h2 data-number="74.6" class="anchored" data-anchor-id="diagnostica-e-posterior-predictive-check">
+<span class="header-section-number">74.6</span> Diagnostica e Posterior Predictive Check</h2>
+<div class="cell" data-layout-align="center">
+<details open="" class="code-fold"><summary>Codice</summary><div class="sourceCode" id="cb9"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">draws</span> <span class="op">&lt;-</span> <span class="fu">as_draws_df</span><span class="op">(</span><span class="va">fit</span><span class="op">$</span><span class="fu">draws</span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Rhat e ESS sintetici</span></span>
+<span><span class="va">fit</span><span class="op">$</span><span class="fu">summary</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="st">"alpha_mu"</span>,<span class="st">"alpha_sigma"</span>,<span class="st">"beta"</span>,<span class="st">"phi"</span>,<span class="st">"sigma_u"</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; # A tibble: 5 × 10</span></span>
+<span><span class="co">#&gt;   variable     mean median    sd   mad    q5   q95  rhat ess_bulk ess_tail</span></span>
+<span><span class="co">#&gt;   &lt;chr&gt;       &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;</span></span>
+<span><span class="co">#&gt; 1 alpha_mu     0.05   0.04  0.09  0.09 -0.09  0.20  1.01   895.34   599.53</span></span>
+<span><span class="co">#&gt; 2 alpha_sigma  0.70   0.69  0.14  0.13  0.49  0.93  1.07    52.32   334.20</span></span>
+<span><span class="co">#&gt; 3 beta         0.47   0.47  0.09  0.09  0.33  0.62  1.01   732.95  1698.94</span></span>
+<span><span class="co">#&gt; 4 phi          0.50   0.50  0.09  0.09  0.34  0.64  1.07    54.66   360.85</span></span>
+<span><span class="co">#&gt; 5 sigma_u      0.35   0.33  0.11  0.10  0.20  0.55  1.26    13.20    17.31</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+<div class="cell" data-layout-align="center">
+<details open="" class="code-fold"><summary>Codice</summary><div class="sourceCode" id="cb10"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># PPC: proporzione di 1 nelle repliche vs osservato</span></span>
+<span><span class="va">y_rep</span> <span class="op">&lt;-</span> <span class="va">fit</span><span class="op">$</span><span class="fu">draws</span><span class="op">(</span><span class="st">"y_rep"</span><span class="op">)</span> <span class="op">%&gt;%</span> <span class="fu">as_draws_matrix</span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="va">prop1_rep</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/apply.html">apply</a></span><span class="op">(</span><span class="va">y_rep</span>, <span class="fl">1</span>, <span class="kw">function</span><span class="op">(</span><span class="va">r</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/mean.html">mean</a></span><span class="op">(</span><span class="va">r</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">prop1_obs</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/mean.html">mean</a></span><span class="op">(</span><span class="va">stan_dat</span><span class="op">$</span><span class="va">y</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">tibble</span><span class="op">(</span></span>
+<span>  stat <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="st">"prop(y=1) osservata"</span>, <span class="st">"prop(y=1) replicata (mediana)"</span><span class="op">)</span>,</span>
+<span>  value <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="va">prop1_obs</span>, <span class="fu"><a href="https://rdrr.io/r/stats/median.html">median</a></span><span class="op">(</span><span class="va">prop1_rep</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; # A tibble: 2 × 2</span></span>
+<span><span class="co">#&gt;   stat                          value</span></span>
+<span><span class="co">#&gt;   &lt;chr&gt;                         &lt;dbl&gt;</span></span>
+<span><span class="co">#&gt; 1 prop(y=1) osservata           0.6  </span></span>
+<span><span class="co">#&gt; 2 prop(y=1) replicata (mediana) 0.602</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+<div class="cell" data-layout-align="center">
+<details open="" class="code-fold"><summary>Codice</summary><div class="sourceCode" id="cb11"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">pp</span> <span class="op">&lt;-</span> <span class="fu">bayesplot</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/bayesplot/reference/PPC-test-statistics.html">ppc_stat</a></span><span class="op">(</span></span>
+<span>  y <span class="op">=</span> <span class="va">stan_dat</span><span class="op">$</span><span class="va">y</span>,</span>
+<span>  yrep <span class="op">=</span> <span class="va">y_rep</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html">sample</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html">nrow</a></span><span class="op">(</span><span class="va">y_rep</span><span class="op">)</span>, size <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html">min</a></span><span class="op">(</span><span class="fl">500</span>, <span class="fu"><a href="https://rdrr.io/r/base/nrow.html">nrow</a></span><span class="op">(</span><span class="va">y_rep</span><span class="op">)</span><span class="op">)</span><span class="op">)</span>, <span class="op">]</span>,</span>
+<span>  stat <span class="op">=</span> <span class="st">"mean"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">pp</span> <span class="op">+</span> <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html">labs</a></span><span class="op">(</span>title <span class="op">=</span> <span class="st">"Posterior predictive check – media di y"</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details><div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure"><p><a href="03a_stan_logistic_process_files/figure-html/ppc-plot-1.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2"><img src="03a_stan_logistic_process_files/figure-html/ppc-plot-1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:70.0%"></a></p>
+</figure>
+</div>
+</div>
+</div>
+</section><section id="confronto-rapido-con-glm-logit-classico" class="level2" data-number="74.7"><h2 data-number="74.7" class="anchored" data-anchor-id="confronto-rapido-con-glm-logit-classico">
+<span class="header-section-number">74.7</span> Confronto (rapido) con GLM logit classico</h2>
+<p>Per mostrare il legame (e la differenza!), stimiamo un <strong>GLM logit</strong> ignorando la dinamica latente. Qui usiamo <code>brms</code> per comodità; in alternativa <code><a href="https://rdrr.io/r/stats/glm.html">glm()</a></code> con famiglia binomiale.</p>
+<div class="cell" data-layout-align="center">
+<details open="" class="code-fold"><summary>Codice</summary><div class="sourceCode" id="cb12"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># ATTENZIONE: brms ignora la dipendenza seriale e l'eterogeneità nei trials!</span></span>
+<span><span class="va">fit_glm</span> <span class="op">&lt;-</span> <span class="fu">brm</span><span class="op">(</span></span>
+<span>  <span class="va">y</span> <span class="op">~</span> <span class="va">x</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">dat</span>,</span>
+<span>  family <span class="op">=</span> <span class="fu">bernoulli</span><span class="op">(</span>link <span class="op">=</span> <span class="st">"logit"</span><span class="op">)</span>,</span>
+<span>  prior <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="fu">prior</span><span class="op">(</span><span class="fu">normal</span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1</span><span class="op">)</span>, class <span class="op">=</span> <span class="st">"b"</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">2</span>, iter <span class="op">=</span> <span class="fl">2000</span>, seed <span class="op">=</span> <span class="fl">123</span>,</span>
+<span>  backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
+<span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+<div class="cell" data-layout-align="center">
+<details open="" class="code-fold"><summary>Codice</summary><div class="sourceCode" id="cb13"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html">summary</a></span><span class="op">(</span><span class="va">fit_glm</span><span class="op">)</span></span>
+<span><span class="co">#&gt;  Family: bernoulli </span></span>
+<span><span class="co">#&gt;   Links: mu = logit </span></span>
+<span><span class="co">#&gt; Formula: y ~ x </span></span>
+<span><span class="co">#&gt;    Data: dat (Number of observations: 3000) </span></span>
+<span><span class="co">#&gt;   Draws: 2 chains, each with iter = 2000; warmup = 1000; thin = 1;</span></span>
+<span><span class="co">#&gt;          total post-warmup draws = 2000</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Regression Coefficients:</span></span>
+<span><span class="co">#&gt;           Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS</span></span>
+<span><span class="co">#&gt; Intercept     0.25      0.05     0.14     0.35 1.00     1943     1506</span></span>
+<span><span class="co">#&gt; x             0.33      0.08     0.19     0.48 1.00     1935     1387</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Draws were sampled using sample(hmc). For each parameter, Bulk_ESS</span></span>
+<span><span class="co">#&gt; and Tail_ESS are effective sample size measures, and Rhat is the potential</span></span>
+<span><span class="co">#&gt; scale reduction factor on split chains (at convergence, Rhat = 1).</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+<p>Confronto concettuale:</p>
+<ul>
+<li>Il GLM stima un <span class="math inline">\(\beta\)</span> “medio” sull’intero dataset.</li>
+<li>Il modello processuale attribuisce parte della struttura a <span class="math inline">\(u_{i,t}\)</span> e alla dinamica <span class="math inline">\(\phi\)</span>, quindi <span class="math inline">\(\beta\)</span> riflette l’effetto <strong>netto</strong> del predittore <strong>al netto</strong> della dipendenza temporale.</li>
+</ul></section><section id="estensione-gerarchica-varianza-tra-soggetti" class="level2" data-number="74.8"><h2 data-number="74.8" class="anchored" data-anchor-id="estensione-gerarchica-varianza-tra-soggetti">
+<span class="header-section-number">74.8</span> Estensione gerarchica (varianza tra soggetti)</h2>
+<p>Spesso vogliamo che anche <span class="math inline">\(\beta\)</span> vari per soggetto. Sostituire:</p>
+<p><span class="math display">\[
+\beta_i = \beta_\mu + \beta_\sigma \cdot \beta_{i,\text{raw}},\quad \beta_{i,\text{raw}} \sim \mathcal{N}(0,1),
+\]</span> e usare <span class="math inline">\(\beta_i\)</span> al posto di <span class="math inline">\(\beta\)</span> nella transizione di stato.</p>
+<p><strong>Esempio di modifica minima (solo snippet Stan):</strong></p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode stan code-with-copy"><code class="sourceCode stan"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">parameters</span>{</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>[I] alpha_raw;</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span> alpha_mu;</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span>&lt;<span class="kw">lower</span>=<span class="dv">0</span>&gt; alpha_sigma;</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>[I] beta_raw;</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span> beta_mu;</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span>&lt;<span class="kw">lower</span>=<span class="dv">0</span>&gt; beta_sigma;</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span>&lt;<span class="kw">lower</span>=-<span class="fl">0.99</span>,<span class="kw">upper</span>=<span class="fl">0.99</span>&gt; phi;</span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span>&lt;<span class="kw">lower</span>=<span class="dv">0</span>&gt; sigma_u;</span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>[N] u;</span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a><span class="kw">transformed parameters</span>{</span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>[I] alpha = alpha_mu + alpha_sigma * alpha_raw;</span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>[I] beta  = beta_mu  + beta_sigma  * beta_raw;</span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a><span class="kw">model</span>{</span>
+<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a>  alpha_raw ~ normal(<span class="dv">0</span>,<span class="dv">1</span>);</span>
+<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a>  beta_raw  ~ normal(<span class="dv">0</span>,<span class="dv">1</span>);</span>
+<span id="cb14-21"><a href="#cb14-21" aria-hidden="true" tabindex="-1"></a>  alpha_mu ~ normal(<span class="dv">0</span>,<span class="dv">1</span>);</span>
+<span id="cb14-22"><a href="#cb14-22" aria-hidden="true" tabindex="-1"></a>  beta_mu  ~ normal(<span class="dv">0</span>,<span class="dv">1</span>);</span>
+<span id="cb14-23"><a href="#cb14-23" aria-hidden="true" tabindex="-1"></a>  alpha_sigma ~ exponential(<span class="dv">1</span>);</span>
+<span id="cb14-24"><a href="#cb14-24" aria-hidden="true" tabindex="-1"></a>  beta_sigma  ~ exponential(<span class="dv">1</span>);</span>
+<span id="cb14-25"><a href="#cb14-25" aria-hidden="true" tabindex="-1"></a>  phi ~ normal(<span class="dv">0</span>,<span class="fl">0.5</span>);</span>
+<span id="cb14-26"><a href="#cb14-26" aria-hidden="true" tabindex="-1"></a>  sigma_u ~ exponential(<span class="dv">1</span>);</span>
+<span id="cb14-27"><a href="#cb14-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-28"><a href="#cb14-28" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> (n <span class="cf">in</span> <span class="dv">1</span>:N){</span>
+<span id="cb14-29"><a href="#cb14-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (t[n]==<span class="dv">1</span>)</span>
+<span id="cb14-30"><a href="#cb14-30" aria-hidden="true" tabindex="-1"></a>      u[n] ~ normal(alpha[id[n]] + beta[id[n]] * x[n], sigma_u);</span>
+<span id="cb14-31"><a href="#cb14-31" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span></span>
+<span id="cb14-32"><a href="#cb14-32" aria-hidden="true" tabindex="-1"></a>      u[n] ~ normal(alpha[id[n]] + beta[id[n]] * x[n] + phi*u[n<span class="dv">-1</span>], sigma_u);</span>
+<span id="cb14-33"><a href="#cb14-33" aria-hidden="true" tabindex="-1"></a>    y[n] ~ bernoulli_logit(u[n]);</span>
+<span id="cb14-34"><a href="#cb14-34" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb14-35"><a href="#cb14-35" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section><section id="prior-predictive-check-prima-dei-dati" class="level2" data-number="74.9"><h2 data-number="74.9" class="anchored" data-anchor-id="prior-predictive-check-prima-dei-dati">
+<span class="header-section-number">74.9</span> Prior Predictive Check (prima dei dati!)</h2>
+<p>È buona pratica verificare che i <strong>priori</strong> implichino risultati plausibili <em>prima</em> di guardare i dati.</p>
+<p>Strategia semplice: simuliamo da <code>generated quantities</code> con soli prior (o campioniamo parametri dai priori e generiamo <span class="math inline">\(y\)</span>).</p>
+<div class="cell" data-layout-align="center">
+<details open="" class="code-fold"><summary>Codice</summary><div class="sourceCode" id="cb15"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># Esempio: campioniamo parametri dai priori e generiamo y su una piccola griglia</span></span>
+<span><span class="va">S</span> <span class="op">&lt;-</span> <span class="fl">2000</span></span>
+<span><span class="va">alpha_mu_s</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html">rnorm</a></span><span class="op">(</span><span class="va">S</span>, <span class="fl">0</span>, <span class="fl">1</span><span class="op">)</span></span>
+<span><span class="va">alpha_sigma_s</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Exponential.html">rexp</a></span><span class="op">(</span><span class="va">S</span>, <span class="fl">1</span><span class="op">)</span></span>
+<span><span class="va">beta_s</span>      <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html">rnorm</a></span><span class="op">(</span><span class="va">S</span>, <span class="fl">0</span>, <span class="fl">1</span><span class="op">)</span></span>
+<span><span class="va">phi_s</span>       <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html">pmin</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Extremes.html">pmax</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Normal.html">rnorm</a></span><span class="op">(</span><span class="va">S</span>, <span class="fl">0</span>, <span class="fl">0.5</span><span class="op">)</span>, <span class="op">-</span><span class="fl">0.99</span><span class="op">)</span>, <span class="fl">0.99</span><span class="op">)</span></span>
+<span><span class="va">sigma_u_s</span>   <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Exponential.html">rexp</a></span><span class="op">(</span><span class="va">S</span>, <span class="fl">1</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Generiamo 1 soggetto, 30 trial, x ~ Bern(0.5)</span></span>
+<span><span class="va">ppc_prop</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html">numeric</a></span><span class="op">(</span><span class="va">S</span><span class="op">)</span></span>
+<span><span class="kw">for</span> <span class="op">(</span><span class="va">s</span> <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="va">S</span><span class="op">)</span><span class="op">{</span></span>
+<span>  <span class="va">a</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html">rnorm</a></span><span class="op">(</span><span class="fl">1</span>, <span class="va">alpha_mu_s</span><span class="op">[</span><span class="va">s</span><span class="op">]</span>, <span class="va">alpha_sigma_s</span><span class="op">[</span><span class="va">s</span><span class="op">]</span><span class="op">)</span></span>
+<span>  <span class="va">u</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html">numeric</a></span><span class="op">(</span><span class="va">Tt</span><span class="op">)</span></span>
+<span>  <span class="va">ysim</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/integer.html">integer</a></span><span class="op">(</span><span class="va">Tt</span><span class="op">)</span></span>
+<span>  <span class="kw">for</span> <span class="op">(</span><span class="va">t</span> <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="va">Tt</span><span class="op">)</span><span class="op">{</span></span>
+<span>    <span class="va">mean_ut</span> <span class="op">&lt;-</span> <span class="va">a</span> <span class="op">+</span> <span class="va">beta_s</span><span class="op">[</span><span class="va">s</span><span class="op">]</span><span class="op">*</span><span class="fu"><a href="https://rdrr.io/r/stats/Binomial.html">rbinom</a></span><span class="op">(</span><span class="fl">1</span>,<span class="fl">1</span>,<span class="fl">0.5</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html">ifelse</a></span><span class="op">(</span><span class="va">t</span><span class="op">==</span><span class="fl">1</span>, <span class="fl">0</span>, <span class="va">phi_s</span><span class="op">[</span><span class="va">s</span><span class="op">]</span><span class="op">*</span><span class="va">u</span><span class="op">[</span><span class="va">t</span><span class="op">-</span><span class="fl">1</span><span class="op">]</span><span class="op">)</span></span>
+<span>    <span class="va">u</span><span class="op">[</span><span class="va">t</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html">rnorm</a></span><span class="op">(</span><span class="fl">1</span>, <span class="va">mean_ut</span>, <span class="va">sigma_u_s</span><span class="op">[</span><span class="va">s</span><span class="op">]</span><span class="op">)</span></span>
+<span>    <span class="va">p</span> <span class="op">&lt;-</span> <span class="fl">1</span><span class="op">/</span><span class="op">(</span><span class="fl">1</span><span class="op">+</span><span class="fu"><a href="https://rdrr.io/r/base/Log.html">exp</a></span><span class="op">(</span><span class="op">-</span><span class="va">u</span><span class="op">[</span><span class="va">t</span><span class="op">]</span><span class="op">)</span><span class="op">)</span></span>
+<span>    <span class="va">ysim</span><span class="op">[</span><span class="va">t</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Binomial.html">rbinom</a></span><span class="op">(</span><span class="fl">1</span>,<span class="fl">1</span>,<span class="va">p</span><span class="op">)</span></span>
+<span>  <span class="op">}</span></span>
+<span>  <span class="va">ppc_prop</span><span class="op">[</span><span class="va">s</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/mean.html">mean</a></span><span class="op">(</span><span class="va">ysim</span><span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span></span>
+<span><span class="va">summary_ppc</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/quantile.html">quantile</a></span><span class="op">(</span><span class="va">ppc_prop</span>, probs <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="fl">.05</span>,<span class="fl">.5</span>,<span class="fl">.95</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">summary_ppc</span></span>
+<span><span class="co">#&gt;      5%     50%     95% </span></span>
+<span><span class="co">#&gt; 0.03333 0.50000 0.96667</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+<p>Se la distribuzione precedente per la proporzione di 1 è totalmente implausibile (troppo vicina a 0 o 1), riconsiderare i priori (ad es. restringere <span class="math inline">\(\sigma_u\)</span>, ridurre <span class="math inline">\(|\phi|\)</span>, ecc.).</p>
+</section><section id="interpretazione-dei-parametri" class="level2" data-number="74.10"><h2 data-number="74.10" class="anchored" data-anchor-id="interpretazione-dei-parametri">
+<span class="header-section-number">74.10</span> Interpretazione dei parametri</h2>
+<ul>
+<li>
+<span class="math inline">\(\alpha_\mu\)</span>: tendenza media dei soggetti a rispondere 1 (sulla scala logit).</li>
+<li>
+<span class="math inline">\(\alpha_\sigma\)</span>: variabilità tra soggetti (intercetta).</li>
+<li>
+<span class="math inline">\(\beta\)</span>: effetto <strong>marginale</strong> del predittore sulla propensione latente <span class="math inline">\(u\)</span>.</li>
+<li>
+<span class="math inline">\(\phi\)</span>: <strong>inerzia</strong> (se <span class="math inline">\(&gt;0\)</span>, la propensione tende a mantenersi; se <span class="math inline">\(&lt;0\)</span>, alternanza).</li>
+<li>
+<span class="math inline">\(\sigma_u\)</span>: <strong>irregolarità</strong> del processo (più grande = risposte più rumorose a parità di <span class="math inline">\(\alpha,\beta,\phi\)</span>).</li>
+</ul></section><section id="cosa-abbiamo-guadagnato-rispetto-al-glm" class="level2" data-number="74.11"><h2 data-number="74.11" class="anchored" data-anchor-id="cosa-abbiamo-guadagnato-rispetto-al-glm">
+<span class="header-section-number">74.11</span> Cosa abbiamo guadagnato rispetto al GLM</h2>
+<ul>
+<li>Possiamo <strong>separare</strong> l’effetto del predittore dall’<strong>inerzia</strong> della risposta.</li>
+<li>Possiamo modellare <strong>stati latenti</strong> che riflettono componenti psicologiche (abitudine, fatica, apprendimento).</li>
+<li>Possiamo estendere in modo naturale a <strong>gerarchie</strong> (differenze individuali su <span class="math inline">\(\alpha\)</span>, <span class="math inline">\(\beta\)</span>, …).</li>
+</ul></section><section id="varianti-utili" class="level2" data-number="74.12"><h2 data-number="74.12" class="anchored" data-anchor-id="varianti-utili">
+<span class="header-section-number">74.12</span> Varianti utili</h2>
+<ul>
+<li>
+<strong>Più predittori</strong> <span class="math inline">\(\mathbf{x}_{i,t}\)</span>: sostituire <code>beta * x[n]</code> con <code>dot_product(beta, Xrow[n])</code>.</li>
+<li>
+<strong>Softmax multinomiale</strong> per scelte con più di due alternative.</li>
+<li>
+<strong>Apprendimento</strong>: far dipendere <span class="math inline">\(u_{i,t}\)</span> da una variabile di <strong>valore</strong> aggiornata con una regola (es. Rescorla–Wagner), pur mantenendo l’esito binario via logit.</li>
+<li>
+<strong>Link alternativi</strong> (probit) o errori heavy–tailed sulla dinamica <span class="math inline">\(u\)</span>.</li>
+</ul></section><section id="appendice-stan-completo-versione-gerarchica-su-beta" class="level2" data-number="74.13"><h2 data-number="74.13" class="anchored" data-anchor-id="appendice-stan-completo-versione-gerarchica-su-beta">
+<span class="header-section-number">74.13</span> Appendice: Stan completo (versione gerarchica su <span class="math inline">\(\beta\)</span>)</h2>
+<p>Per comodità, ecco un file Stan <em>pronto</em> che implementa la variante con <span class="math inline">\(\beta_i\)</span> soggetto-specifico e posterior predictive:</p>
+<div class="cell" data-layout-align="center">
+<details open="" class="code-fold"><summary>Codice</summary><div class="sourceCode" id="cb16"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">stan_hier</span> <span class="op">&lt;-</span> <span class="st">'</span></span>
+<span><span class="st">data{</span></span>
+<span><span class="st">  int&lt;lower=1&gt; N;</span></span>
+<span><span class="st">  int&lt;lower=1&gt; I;</span></span>
+<span><span class="st">  array[N] int&lt;lower=1,upper=I&gt; id;</span></span>
+<span><span class="st">  array[N] int&lt;lower=0,upper=1&gt; x;</span></span>
+<span><span class="st">  array[N] int&lt;lower=0,upper=1&gt; y;</span></span>
+<span><span class="st">  array[N] int&lt;lower=1&gt; t;</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">parameters{</span></span>
+<span><span class="st">  vector[I] alpha_raw;</span></span>
+<span><span class="st">  real alpha_mu;</span></span>
+<span><span class="st">  real&lt;lower=0&gt; alpha_sigma;</span></span>
+<span><span class="st"></span></span>
+<span><span class="st">  vector[I] beta_raw;</span></span>
+<span><span class="st">  real beta_mu;</span></span>
+<span><span class="st">  real&lt;lower=0&gt; beta_sigma;</span></span>
+<span><span class="st"></span></span>
+<span><span class="st">  real&lt;lower=-0.99, upper=0.99&gt; phi;</span></span>
+<span><span class="st">  real&lt;lower=0&gt; sigma_u;</span></span>
+<span><span class="st"></span></span>
+<span><span class="st">  vector[N] u;</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">transformed parameters{</span></span>
+<span><span class="st">  vector[I] alpha = alpha_mu + alpha_sigma * alpha_raw;</span></span>
+<span><span class="st">  vector[I] beta  = beta_mu  + beta_sigma  * beta_raw;</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">model{</span></span>
+<span><span class="st">  alpha_raw ~ normal(0, 1);</span></span>
+<span><span class="st">  beta_raw  ~ normal(0, 1);</span></span>
+<span><span class="st">  alpha_mu  ~ normal(0, 1);</span></span>
+<span><span class="st">  beta_mu   ~ normal(0, 1);</span></span>
+<span><span class="st">  alpha_sigma ~ exponential(1);</span></span>
+<span><span class="st">  beta_sigma  ~ exponential(1);</span></span>
+<span><span class="st">  phi ~ normal(0, 0.5);</span></span>
+<span><span class="st">  sigma_u ~ exponential(1);</span></span>
+<span><span class="st"></span></span>
+<span><span class="st">  for (n in 1:N){</span></span>
+<span><span class="st">    if (t[n] == 1)</span></span>
+<span><span class="st">      u[n] ~ normal(alpha[id[n]] + beta[id[n]] * x[n], sigma_u);</span></span>
+<span><span class="st">    else</span></span>
+<span><span class="st">      u[n] ~ normal(alpha[id[n]] + beta[id[n]] * x[n] + phi * u[n-1], sigma_u);</span></span>
+<span><span class="st">    y[n] ~ bernoulli_logit(u[n]);</span></span>
+<span><span class="st">  }</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">generated quantities{</span></span>
+<span><span class="st">  array[N] int y_rep;</span></span>
+<span><span class="st">  for (n in 1:N){</span></span>
+<span><span class="st">    y_rep[n] = bernoulli_logit_rng(u[n]);</span></span>
+<span><span class="st">  }</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">'</span></span>
+<span><span class="va">stan_file</span> <span class="op">&lt;-</span> <span class="fu">write_stan_file</span><span class="op">(</span><span class="va">stan_hier</span><span class="op">)</span></span>
+<span><span class="va">stan_file</span></span>
+<span><span class="co">#&gt; [1] "/var/folders/gw/hc72by314msbfbhm58gh0fgc0000gn/T/RtmpG37TGD/model_57fef14f477e0db4fa4ea8c35554bdf3.stan"</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+<div class="cell" data-layout-align="center">
+<details open="" class="code-fold"><summary>Codice</summary><div class="sourceCode" id="cb17"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">mod_hier</span> <span class="op">&lt;-</span> <span class="fu">cmdstan_model</span><span class="op">(</span><span class="va">stan_file</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+<div class="cell" data-layout-align="center">
+<details open="" class="code-fold"><summary>Codice</summary><div class="sourceCode" id="cb18"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">fit_hier</span> <span class="op">&lt;-</span> <span class="va">mod_hier</span><span class="op">$</span><span class="fu">sample</span><span class="op">(</span></span>
+<span>  data <span class="op">=</span> <span class="va">stan_dat</span>,</span>
+<span>  seed <span class="op">=</span> <span class="fl">2024</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">4</span>, parallel_chains <span class="op">=</span> <span class="fl">4</span>,</span>
+<span>  iter_warmup <span class="op">=</span> <span class="fl">1000</span>, iter_sampling <span class="op">=</span> <span class="fl">4000</span>,</span>
+<span>  refresh <span class="op">=</span> <span class="fl">200</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; Running MCMC with 4 parallel chains...</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration:    1 / 5000 [  0%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration:    1 / 5000 [  0%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration:    1 / 5000 [  0%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration:    1 / 5000 [  0%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration:  200 / 5000 [  4%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration:  200 / 5000 [  4%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration:  200 / 5000 [  4%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration:  200 / 5000 [  4%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration:  400 / 5000 [  8%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration:  400 / 5000 [  8%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration:  400 / 5000 [  8%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration:  600 / 5000 [ 12%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration:  400 / 5000 [  8%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration:  800 / 5000 [ 16%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration:  600 / 5000 [ 12%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration:  600 / 5000 [ 12%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 1000 / 5000 [ 20%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 1001 / 5000 [ 20%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration:  600 / 5000 [ 12%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration:  800 / 5000 [ 16%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration:  800 / 5000 [ 16%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 1200 / 5000 [ 24%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration:  800 / 5000 [ 16%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 1000 / 5000 [ 20%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 1001 / 5000 [ 20%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 1400 / 5000 [ 28%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 1000 / 5000 [ 20%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 1001 / 5000 [ 20%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 1000 / 5000 [ 20%]  (Warmup) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 1001 / 5000 [ 20%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 1600 / 5000 [ 32%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 1200 / 5000 [ 24%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 1800 / 5000 [ 36%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 1400 / 5000 [ 28%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 1200 / 5000 [ 24%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 1600 / 5000 [ 32%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 2000 / 5000 [ 40%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 1200 / 5000 [ 24%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 2200 / 5000 [ 44%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 1800 / 5000 [ 36%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 1400 / 5000 [ 28%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 1400 / 5000 [ 28%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 2400 / 5000 [ 48%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 2000 / 5000 [ 40%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 2600 / 5000 [ 52%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 1600 / 5000 [ 32%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 2200 / 5000 [ 44%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 1600 / 5000 [ 32%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 2400 / 5000 [ 48%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 2800 / 5000 [ 56%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 3000 / 5000 [ 60%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 2600 / 5000 [ 52%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 1800 / 5000 [ 36%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 1800 / 5000 [ 36%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 2800 / 5000 [ 56%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 3200 / 5000 [ 64%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 2000 / 5000 [ 40%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 3000 / 5000 [ 60%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 3200 / 5000 [ 64%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 3400 / 5000 [ 68%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 2000 / 5000 [ 40%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 3600 / 5000 [ 72%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 3400 / 5000 [ 68%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 2200 / 5000 [ 44%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 3600 / 5000 [ 72%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 2200 / 5000 [ 44%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 3800 / 5000 [ 76%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 2400 / 5000 [ 48%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 3800 / 5000 [ 76%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 4000 / 5000 [ 80%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 4000 / 5000 [ 80%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 2600 / 5000 [ 52%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 4200 / 5000 [ 84%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 4400 / 5000 [ 88%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 4600 / 5000 [ 92%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 4800 / 5000 [ 96%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 Iteration: 5000 / 5000 [100%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 3 finished in 432.0 seconds.</span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 2400 / 5000 [ 48%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 4200 / 5000 [ 84%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 4400 / 5000 [ 88%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 4600 / 5000 [ 92%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 4800 / 5000 [ 96%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 Iteration: 5000 / 5000 [100%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 1 finished in 458.4 seconds.</span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 2800 / 5000 [ 56%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 3000 / 5000 [ 60%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 2600 / 5000 [ 52%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 3200 / 5000 [ 64%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 2800 / 5000 [ 56%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 3400 / 5000 [ 68%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 3600 / 5000 [ 72%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 3000 / 5000 [ 60%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 3800 / 5000 [ 76%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 3200 / 5000 [ 64%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 3400 / 5000 [ 68%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 3600 / 5000 [ 72%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 4000 / 5000 [ 80%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 4200 / 5000 [ 84%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 3800 / 5000 [ 76%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 4000 / 5000 [ 80%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 4400 / 5000 [ 88%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 4200 / 5000 [ 84%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 4600 / 5000 [ 92%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 4400 / 5000 [ 88%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 4800 / 5000 [ 96%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 4600 / 5000 [ 92%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 Iteration: 5000 / 5000 [100%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 4 finished in 993.5 seconds.</span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 4800 / 5000 [ 96%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 Iteration: 5000 / 5000 [100%]  (Sampling) </span></span>
+<span><span class="co">#&gt; Chain 2 finished in 1084.8 seconds.</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; All 4 chains finished successfully.</span></span>
+<span><span class="co">#&gt; Mean chain execution time: 742.2 seconds.</span></span>
+<span><span class="co">#&gt; Total execution time: 1085.0 seconds.</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+<div class="cell" data-layout-align="center">
+<details open="" class="code-fold"><summary>Codice</summary><div class="sourceCode" id="cb19"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># Rhat e ESS sintetici</span></span>
+<span><span class="va">fit_hier</span><span class="op">$</span><span class="fu">summary</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="st">"alpha_mu"</span>,<span class="st">"alpha_sigma"</span>,<span class="st">"beta"</span>,<span class="st">"phi"</span>,<span class="st">"sigma_u"</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; # A tibble: 104 × 10</span></span>
+<span><span class="co">#&gt;    variable     mean median    sd   mad    q5   q95  rhat ess_bulk ess_tail</span></span>
+<span><span class="co">#&gt;    &lt;chr&gt;       &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;</span></span>
+<span><span class="co">#&gt;  1 alpha_mu     0.05   0.04  0.09  0.09 -0.09  0.21  1.04    70.90   621.31</span></span>
+<span><span class="co">#&gt;  2 alpha_sigma  0.72   0.70  0.17  0.17  0.43  1.01  1.24    12.32    16.32</span></span>
+<span><span class="co">#&gt;  3 beta[1]      0.59   0.54  0.27  0.17  0.28  1.23  1.11    23.24    17.39</span></span>
+<span><span class="co">#&gt;  4 beta[2]      0.39   0.42  0.23  0.20 -0.01  0.72  1.05    65.17   146.47</span></span>
+<span><span class="co">#&gt;  5 beta[3]      0.45   0.45  0.24  0.19  0.07  0.90  1.14    18.80    19.05</span></span>
+<span><span class="co">#&gt;  6 beta[4]      0.50   0.48  0.23  0.17  0.18  0.94  1.11    22.60    19.38</span></span>
+<span><span class="co">#&gt;  7 beta[5]      0.49   0.50  0.19  0.16  0.19  0.78  1.01   280.73  1748.96</span></span>
+<span><span class="co">#&gt;  8 beta[6]      0.46   0.46  0.22  0.19  0.06  0.80  1.05    57.17    45.99</span></span>
+<span><span class="co">#&gt;  9 beta[7]      0.52   0.50  0.22  0.19  0.21  0.95  1.10    26.31    42.00</span></span>
+<span><span class="co">#&gt; 10 beta[8]      0.54   0.51  0.21  0.18  0.26  0.92  1.04    75.15  2069.58</span></span>
+<span><span class="co">#&gt; # ℹ 94 more rows</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+</section><section id="riepilogo" class="level2" data-number="74.14"><h2 data-number="74.14" class="anchored" data-anchor-id="riepilogo">
+<span class="header-section-number">74.14</span> Riepilogo</h2>
+<ul>
+<li>La <strong>regressione logistica</strong> è un primo passo per le risposte binarie.</li>
+<li>Con <strong>Stan</strong>, possiamo esplicitare un <strong>processo latente dinamico</strong> che genera la risposta.</li>
+<li>Questo approccio è <strong>più vicino</strong> alle teorie psicologiche (stati interni, abitudine, apprendimento) e migliora l’interpretabilità dei parametri.</li>
+<li>Le estensioni gerarchiche permettono di studiare <strong>differenze individuali</strong> in modo naturale.</li>
+</ul>
+<div class="callout callout-style-simple callout-important no-icon callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon no-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Compiti suggeriti agli studenti
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<ol type="1">
+<li>Estendere il modello a <strong>due predittori</strong> (continui) e verificare come cambiano <span class="math inline">\(\beta\)</span> e <span class="math inline">\(\phi\)</span>.</li>
+<li>Sostituire l’AR(1) con una <strong>regola di apprendimento</strong> (p.es. Rescorla–Wagner) che aggiorna uno stato di valore <span class="math inline">\(Q_{t}\)</span>, e usare <span class="math inline">\(\operatorname{logit}^{-1}(Q_t)\)</span> per generare <span class="math inline">\(y_t\)</span>.</li>
+<li>Implementare la variante <strong>gerarchica su <span class="math inline">\(\beta\)</span></strong> e confrontare la varianza tra soggetti (<span class="math inline">\(\beta_\sigma\)</span>) tra condizioni sperimentali.</li>
+</ol>
+</div>
+</div>
+
+
+</section></main><!-- /main --><script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copiato!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copiato!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+        const codeEl = trigger.previousElementSibling.cloneNode(true);
+        for (const childEl of codeEl.children) {
+          if (isCodeAnnotation(childEl)) {
+            childEl.remove();
+          }
+        }
+        return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/ccaudek\.github\.io\/psicometria-r\/intro\.html");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+            // target, if specified
+            link.setAttribute("target", "_blank");
+            if (link.getAttribute("rel") === null) {
+              link.setAttribute("rel", "noopener");
+            }
+            // default icon
+            link.classList.add("external");
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script><nav class="page-navigation"><div class="nav-page nav-page-previous">
+      <a href="../../chapters/glm/03_stan_logistic_regr.html" class="pagination-link" aria-label="Regressione logistica con Stan">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text"><span class="chapter-number">73</span>&nbsp; <span class="chapter-title">Regressione logistica con Stan</span></span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+      <a href="../../chapters/entropy/01_entropy.html" class="pagination-link" aria-label="Entropia e informazione di Shannon">
+        <span class="nav-page-text"><span class="chapter-number">75</span>&nbsp; <span class="chapter-title">Entropia e informazione di Shannon</span></span> <i class="bi bi-arrow-right-short"></i>
+      </a>
+  </div>
+</nav>
+</div> <!-- /content -->
+<footer class="footer"><div class="nav-footer">
+    <div class="nav-footer-left">
+<p><strong>Psicometria</strong> è una risorsa didattica creata per il corso di Scienze e Tecniche Psicologiche dell’Università degli Studi di Firenze.</p>
+</div>   
+    <div class="nav-footer-center">
+      &nbsp;
+    <div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/ccaudek/psicometria-r/blob/main/chapters/glm/03a_stan_logistic_process.qmd" class="toc-action"><i class="bi bi-github"></i>Mostra il codice</a></li><li><a href="https://github.com/ccaudek/psicometria-r/issues/new" class="toc-action"><i class="bi empty"></i>Segnala un problema</a></li></ul></div></div>
+    <div class="nav-footer-right">
+<p>Realizzato con <a href="https://quarto.org/">Quarto</a>.</p>
+</div>
+  </div>
+</footer><script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","descPosition":"bottom","loop":false,"openEffect":"zoom","selector":".lightbox"});
+(function() {
+  let previousOnload = window.onload;
+  window.onload = () => {
+    if (previousOnload) {
+      previousOnload();
+    }
+    lightboxQuarto.on('slide_before_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      const href = trigger.getAttribute('href');
+      if (href !== null) {
+        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+        if (imgEl !== null) {
+          const srcAttr = imgEl.getAttribute("src");
+          if (srcAttr && srcAttr.startsWith("data:")) {
+            slideConfig.href = srcAttr;
+          }
+        }
+      } 
+    });
+  
+    lightboxQuarto.on('slide_after_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(slideNode);
+      }
+    });
+  
+  };
+  
+})();
+          </script>
+
+
+</body></html>
