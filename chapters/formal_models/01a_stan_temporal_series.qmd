@@ -1,0 +1,495 @@
+# Modelli dinamici con Stan {#sec-dynamic-models-stan}
+
+
+::: callout-caution
+## Preparazione del Notebook
+
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+
+suppressPackageStartupMessages({
+  library(cmdstanr)
+  library(bayesplot)
+  library(tidybayes)
+  color_scheme_set("brightblue")
+  library(posterior)
+  library(loo)
+  library(patchwork)
+  library(conflicted)
+})
+
+conflicts_prefer(loo::loo)
+```
+:::
+
+
+## Introduzione {.unnumbered .unlisted}
+
+::: {.lead}
+In psicologia, molti fenomeni cambiano nel tempo: l'umore di una persona nel corso della giornata, il livello di stress in risposta a eventi, le prestazioni in compiti ripetuti.  
+Quando i dati sono raccolti **in ordine temporale**, li chiamiamo *serie temporali*. Un’analisi corretta deve tener conto di questa sequenza: il valore osservato oggi non è indipendente da quello di ieri.
+:::
+
+Questo capitolo introduce un primo esempio di modello dinamico: il **modello autoregressivo** (*autoregressive model*, AR), uno strumento semplice ma potente per descrivere come il passato influenza il presente.
+
+
+### Perché usare modelli autoregressivi?
+
+Immaginiamo di misurare il livello di ansia di una persona ogni giorno per un mese. È ragionevole pensare che:
+
+- il livello di ansia di oggi sia simile a quello di ieri;
+- cambiamenti da un giorno all’altro siano in parte casuali, ma in parte prevedibili dal valore precedente.
+
+I modelli autoregressivi formalizzano proprio questa idea.
+
+
+## L’AR(1): un primo passo
+
+Il modello AR(1) (*autoregressivo di ordine 1*) dice che:
+
+$$
+y_n = \alpha + \beta \, y_{n-1} + \varepsilon_n
+$$
+
+- $y_n$ = valore osservato al tempo $n$  
+- $\alpha$ = intercetta: il valore “medio” attorno a cui oscilla la serie  
+- $\beta$ = coefficiente autoregressivo: quanto il valore precedente influenza quello attuale  
+- $\varepsilon_n$ = rumore casuale, di solito modellato con una distribuzione Normale con deviazione standard $\sigma$
+
+Se $\beta$ è vicino a 1, il processo è molto persistente (il valore di oggi è simile a quello di ieri).  Se $\beta$ è vicino a 0, il passato conta poco.
+
+
+### AR(1) in Stan
+
+```stan
+data {
+  int<lower=0> N;     // numero di osservazioni
+  vector[N] y;        // dati osservati
+}
+parameters {
+  real alpha;         // intercetta
+  real beta;          // coefficiente AR
+  real<lower=0> sigma;// deviazione standard del rumore
+}
+model {
+  for (n in 2:N) {
+    y[n] ~ normal(alpha + beta * y[n-1], sigma);
+  }
+}
+```
+
+> **Nota**: il primo dato `y[1]` non ha un valore precedente, quindi lo usiamo solo per prevedere `y[2]`.
+
+
+## Priors e interpretazione
+
+In questo esempio i *prior* sono impliciti (piatti, cioè senza informazione).
+In applicazioni psicologiche, può essere utile usare **prior debolmente informativi**:
+
+* Ad esempio, se sappiamo che $\beta$ tende a essere compreso tra -1 e 1, possiamo usare `normal(0, 0.5)` come prior.
+
+
+## Slicing per efficienza
+
+La stessa logica si può scrivere in modo più compatto:
+
+```stan
+model {
+  y[2:N] ~ normal(alpha + beta * y[1:(N - 1)], sigma);
+}
+```
+
+Qui:
+
+* `y[2:N]` prende tutti i valori dal secondo in poi,
+* `y[1:(N-1)]` prende tutti i valori tranne l’ultimo.
+
+
+## Estendere l’AR(1)
+
+### Rendere il modello più robusto
+
+Si può sostituire la distribuzione Normale con una Student-t, che tollera meglio valori anomali (*outliers*).
+
+### Modelli gerarchici
+
+Se abbiamo più serie temporali (es. ansia di 30 partecipanti), possiamo stimare $\alpha$ e $\beta$ diversi per ciascun partecipante, ma condividendo un livello gerarchico.
+
+
+## L’AR(2): guardare più indietro nel tempo
+
+In un **AR(2)** il valore attuale dipende dai due valori precedenti:
+
+$$
+y_n = \alpha + \beta \, y_{n-1} + \gamma \, y_{n-2} + \varepsilon_n
+$$
+
+In Stan:
+
+```stan
+parameters {
+  real alpha;
+  real beta;
+  real gamma;
+  real<lower=0> sigma;
+}
+model {
+  for (n in 3:N) {
+    y[n] ~ normal(alpha + beta * y[n-1] + gamma * y[n-2], sigma);
+  }
+}
+```
+
+
+## AR(K): ordine generico
+
+Quando l’ordine del modello (quanti passi indietro guardare) è un input:
+
+```stan
+data {
+  int<lower=0> K;          // ordine del modello
+  int<lower=0> N;          // numero osservazioni
+  array[N] real y;         // dati
+}
+parameters {
+  real alpha;
+  array[K] real beta;
+  real<lower=0> sigma;
+}
+model {
+  for (n in (K+1):N) {
+    real mu = alpha;
+    for (k in 1:K) {
+      mu += beta[k] * y[n-k];
+    }
+    y[n] ~ normal(mu, sigma);
+  }
+}
+```
+
+
+## Collegamenti alla psicologia
+
+Esempi di applicazione in psicologia:
+
+* **EMA sull’umore**: prevedere il punteggio di felicità di oggi in base a ieri (AR(1)) o agli ultimi due giorni (AR(2)).
+* **Prestazioni cognitive**: vedere come il punteggio in un compito dipende dai precedenti.
+* **Misure fisiologiche** (frequenza cardiaca, conduttanza cutanea) registrate nel tempo.
+
+## Esempio numerico
+
+Simulazione dei dati (vero AR(3)).
+
+Scegliamo coefficienti stazionari e fissiamo una media “naturale” attorno a 50.
+Per un AR(p) con costante $c$, la media incondizionata è $\mu = c / (1 - \sum \beta_k)$.
+Impostiamo $\sum \beta_k = 0.6$ e vogliamo $ \mu \approx 50 \Rightarrow c = (1 - 0.6) \cdot 50 = 20$.
+
+```{r}
+set.seed(20250815)
+
+# Parametri "veri"
+beta_true  <- c(0.60, 0.30, -0.25)   # AR(3) forte, con componente oscillatoria
+sum_beta   <- sum(beta_true)
+mu_target  <- 50
+alpha_true <- (1 - sum_beta) * mu_target  # costante coerente con media ~50
+sigma_true <- 2.0
+
+# Simulazione con burn-in per stazionarietà empirica
+N_keep  <- 800     # lunghezza finale che teniamo
+N_burn  <- 1000    # scarti iniziali
+N_total <- N_keep + N_burn
+
+y <- numeric(N_total)
+# inizializziamo i primi 3 valori attorno alla media
+y[1:3] <- rnorm(3, mean = mu_target, sd = 5)
+
+for (n in 4:N_total) {
+  mu_n <- alpha_true +
+    beta_true[1]*y[n-1] +
+    beta_true[2]*y[n-2] +
+    beta_true[3]*y[n-3]
+  y[n] <- rnorm(1, mean = mu_n, sd = sigma_true)
+}
+
+# scarta burn-in
+y <- y[(N_burn + 1):N_total]
+N <- length(y)
+
+# plot rapido
+library(tibble); library(ggplot2)
+tibble(n = 1:N, y = y) |>
+  ggplot(aes(n, y)) +
+  geom_line() +
+  labs(title = "Serie EMA simulata (umore) — vero AR(3) marcato",
+       subtitle = paste0("N=", N, ", beta = (",
+                         paste(beta_true, collapse = ", "),
+                         "), sigma = ", sigma_true),
+       x = "Tempo", y = "Umore")
+```
+
+**Verità generativa**: $\alpha = `r alpha_true`$, $\beta = (`r paste(beta_true, collapse=', ')`)$, $\sigma = `r sigma_true`$.
+
+
+## Modello Stan generico AR(K)
+
+* Priors debolmente informativi:
+
+  * $\alpha \sim \mathcal{N}(0, 50)$
+  * $\beta_k \sim \mathcal{N}(0, 0.5)$
+  * $\sigma \sim \text{Expon}(1/10)$ (media 10; solo positivo)
+
+Il **generated quantities** calcola:
+
+* `log_lik[n]` per $n > K$ (per LOO useremo solo queste colonne),
+* `mu[n]` (one-step-ahead mean),
+* `y_rep[n]` (one-step-ahead draw per PPC).
+
+```{r}
+stan_code <- '
+data {
+  int<lower=1> N;
+  vector[N] y;
+  int<lower=1> K;
+}
+parameters {
+  real alpha;
+  vector[K] beta;
+  real<lower=0> sigma;
+}
+model {
+  // priors (debolmente informativi)
+  alpha ~ normal(0, 50);
+  beta  ~ normal(0, 0.5);
+  sigma ~ exponential(0.1); // mean 10
+
+  for (n in (K+1):N) {
+    real mu = alpha;
+    for (k in 1:K) mu += beta[k] * y[n-k];
+    y[n] ~ normal(mu, sigma);
+  }
+}
+generated quantities {
+  vector[N] log_lik;
+  vector[N] mu;
+  vector[N] y_rep;
+
+  // inizializza
+  for (n in 1:N) {
+    log_lik[n] = negative_infinity();
+    mu[n]      = y[n];       // placeholder per i primi K
+    y_rep[n]   = y[n];       // idem
+  }
+
+  for (n in (K+1):N) {
+    real m = alpha;
+    for (k in 1:K) m += beta[k] * y[n-k];
+    mu[n] = m;
+    log_lik[n] = normal_lpdf(y[n] | m, sigma);
+    y_rep[n] = normal_rng(m, sigma);
+  }
+}
+'
+writeLines(stan_code, "arK.stan")
+mod_arK <- cmdstan_model("arK.stan")
+```
+
+
+```{r}
+data_list_ar3 <- list(N = N, y = as.vector(y), K = 3)
+```
+
+```{r}
+#| output: false
+fit_ar3 <- mod_arK$sample(
+  data = data_list_ar3,
+  seed = 123,
+  chains = 4, parallel_chains = 4,
+  iter_warmup = 1000, iter_sampling = 2000
+)
+```
+
+
+## Adattamento modelli: AR(3) e AR(1)
+
+```{r}
+data_list_ar1 <- list(N = N, y = as.vector(y), K = 1)
+```
+
+
+```{r}
+#| output: false
+
+fit_ar1 <- mod_arK$sample(
+  data = data_list_ar1,
+  seed = 123,
+  chains = 4, parallel_chains = 4,
+  iter_warmup = 1000, iter_sampling = 2000
+)
+```
+
+
+## Diagnostica rapida
+
+```{r}
+summ_ar3 <- fit_ar3$summary(variables = c("alpha","beta","sigma"))
+summ_ar3
+```
+
+```{r}
+summ_ar1 <- fit_ar1$summary(variables = c("alpha","beta","sigma"))
+summ_ar1
+```
+
+* **Rhat** ~ 1 e **ESS** elevati indicano buona esplorazione.
+* Con AR(3) ci aspettiamo stime di $\beta_1, \beta_2, \beta_3$ vicine ai valori veri (0.5, 0.2, -0.1).
+* Con AR(1) la singola $\beta_1$ tenterà di “riassumere” tutte le dipendenze → possibile *bias*.
+
+
+## Posterior Predictive Check (PPC) e “fitted values”
+
+Confrontiamo la serie osservata con la media predittiva one-step-ahead $\mathbb{E}[y_n \mid y_{n-1:n-K}]$ e un intervallo credibile.
+
+```{r}
+draws_ar3 <- fit_ar3$draws(variables = c("mu","y_rep"))
+# Estraggo mu (one-step-ahead mean): array [iter, N]
+mu_ar3 <- posterior::as_draws_array(draws_ar3[,"mu[1]", drop=FALSE]) # trick to get dims
+# Riformattiamo correttamente "mu[*]":
+mu_mat <- posterior::as_draws_matrix(fit_ar3$draws("mu")) |> as.matrix()
+# statistiche per ciascun n
+mu_df <- apply(mu_mat, 2, function(x) c(mean = mean(x), l = quantile(x, 0.05), u = quantile(x, 0.95))) |>
+  t() |>
+  as.data.frame() |>
+  mutate(n = 1:n()) |>
+  as_tibble()
+
+plot_df <- tibble(n = 1:N, y = y) |>
+  left_join(mu_df, by = "n")
+
+ggplot(plot_df, aes(n, y)) +
+  geom_line(color = "grey40") +
+  geom_ribbon(aes(ymin = `l.5%`, ymax = `u.95%`), alpha = 0.2) +
+  geom_line(aes(y = mean), linewidth = 0.8) +
+  labs(title = "AR(3): osservati vs media predittiva (one-step-ahead)",
+       y = "Umore", x = "Tempo",
+       subtitle = "Banda = 90% CI della media one-step-ahead")
+```
+
+Interpretazione:
+
+* La **linea scura** è la media predittiva condizionata al passato osservato;
+* La **banda** è l’incertezza sulla media;
+* Aderenza visiva buona ⇒ il modello cattura la dinamica.
+
+
+## Confronto modelli con LOO
+
+Usiamo i `log_lik[n]` solo per $n > K$.
+
+```{r}
+# helper per LOO
+# sostituisci la vecchia get_loo con questa, che allinea i punti
+get_loo_aligned <- function(fit, K_fit, K_align) {
+  # Estrae la matrice dei log-lik: [iter, N]
+  ll <- fit$draws("log_lik", format = "matrix")
+  # Usa sempre gli indici da (K_align+1):N per allineare i modelli
+  ll <- ll[, (K_align + 1):ncol(ll), drop = FALSE]
+  loo(ll)
+}
+
+K_align <- max(3, 1)  # = 3 nel nostro caso
+
+loo_ar3 <- get_loo_aligned(fit_ar3, K_fit = 3, K_align = K_align)
+loo_ar1 <- get_loo_aligned(fit_ar1, K_fit = 1, K_align = K_align)
+```
+
+```{r}
+loo_ar3
+```
+
+```{r}
+loo_ar1
+```
+
+```{r}
+loo_compare(loo_ar3, loo_ar1)
+```
+
+
+**Lettura dei risultati**:
+
+* **elpd_loo** più alto = migliore capacità predittiva fuori campione.
+* Ci aspettiamo **AR(3) > AR(1)** perché i dati sono stati generati da un AR(3).
+* La differenza **elpd** con il suo errore standard dà un’indicazione dell’ampiezza del vantaggio.
+
+
+## Interpretazione dei coefficienti (AR(3))
+
+```{r}
+fit_ar3$summary(variables = c("alpha", "beta[1]", "beta[2]", "beta[3]", "sigma"))
+```
+
+Guida alla lettura:
+
+* $\alpha$: costante; insieme alle $\beta$ determina la media incondizionata $\alpha / (1 - \sum \beta_k)$.
+* $\beta_1$: dipendenza al *lag 1* (persistenza immediata).
+* $\beta_2$: contributo del *lag 2*.
+* $\beta_3$: contributo del *lag 3* (negativo ⇒ leggere oscillazioni/damping).
+* $\sigma$: variabilità “imprevedibile” (shock) attorno alla media condizionata.
+
+Confronto con i valori veri: ci aspettiamo posteriori centrati vicino a $0.5, 0.2, -0.1$ e un $\sigma$ attorno a 5, con incertezza ragionevole.
+
+
+## Residuali e autocorrelazione (check qualitativo)
+
+I **residui one-step-ahead** dovrebbero essere “bianchi” se la dinamica è ben catturata.
+
+```{r}
+# residui = y - E[y|passato] per n > K
+res_df <- plot_df |>
+  filter(n > 3) |>
+  transmute(resid = y - mean)
+
+par(mfrow = c(1,2))
+plot(res_df$resid, type = "l", main = "Residui (AR(3))", ylab = "residuo", xlab = "tempo")
+acf(res_df$resid, main = "ACF residui (AR(3))")
+par(mfrow = c(1,1))
+```
+
+* ACF “vicina a zero” a tutti i lag ⇒ il modello ha rimosso la dipendenza seriale principale.
+
+
+
+## Conclusioni
+
+* Su dati generati da un **AR(3)**, il modello **AR(3)**:
+
+  * recupera coefficienti coerenti con la verità,
+  * mostra buona aderenza visiva nei PPC,
+  * **vince** su **AR(1)** in termini di **ELPD-LOO**.
+* Didatticamente, il confronto AR(3) vs AR(1) illustra che:
+
+  * modelli troppo semplici (AR(1)) possono sottocatturare la struttura temporale,
+  * **LOO** fornisce un criterio pratico per la scelta del modello basata sulla **predizione**.
+
+### Estensioni suggerite
+
+* Aggiungere regressori esogeni (ARX): p.es., *stress del giorno* → umore.
+* Passare a **modelli gerarchici** per **più partecipanti** (EMA multiserie).
+* Usare **Student-t** per robustezza agli outlier.
+* Confrontare con **GP** o **HMM** quando si sospettano trend non lineari o salti di stato.
+
+---
+
+```
+
+---
+
+Se vuoi, preparo subito una **variante gerarchica** (multi-partecipante) e una **versione robusta Student-t**, mantenendo lo stesso flusso: simulazione → fit → PPC → LOO.
+```
+
+
+
+## Bibliografia {.unnumbered}
+
+
