@@ -1,0 +1,949 @@
+# Introduzione pratica a Stan {#sec-mcmc-stan-intro}
+
+
+::: callout-tip
+## Obiettivi del capitolo
+
+- Capire il funzionamento di Stan.  
+- Scrivere e stimare modelli semplici con `cmdstanr`.  
+- Interpretare i risultati MCMC tramite riassunti e diagnostiche.  
+- Valutare la coerenza del modello con prior e posterior predictive check.  
+:::
+
+::: callout-important
+## Preparazione del Notebook
+
+```{r}
+#| output: false
+
+here::here("code", "_common.R") |> 
+  source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(brms, cmdstanr, posterior, brms, bayestestR, insight, conflicted)
+```
+:::
+
+
+## Introduzione {.unnumbered .unlisted}
+
+::: {.lead}
+[Stan](https://mc-stan.org/) è un linguaggio di programmazione probabilistica (PPL) progettato per l'inferenza bayesiana su modelli complessi. Tra le sue caratteristiche principali, Stan implementa un algoritmo avanzato chiamato *No-U-Turn Sampler* (NUTS), che ottimizza il metodo Hamiltonian Monte Carlo (HMC). Questa tecnica rappresenta un'evoluzione rispetto all'algoritmo di Metropolis (@sec-mcmc-metropolis), tradizionalmente utilizzato per generare campioni da distribuzioni a posteriori. Sebbene entrambi gli approcci producano lo stesso risultato finale, NUTS riduce drasticamente il numero di iterazioni necessarie per raggiungere la convergenza, soprattutto nei modelli ad alta dimensionalità.
+:::
+
+Dal punto di vista concettuale, NUTS e Metropolis mirano a costruire una catena di Markov che converga alla distribuzione a posteriori target. Tuttavia, NUTS lo fa in modo molto più efficiente, rendendolo la scelta preferita quando si analizzano modelli complessi. Stan combina questa efficienza con un'interfaccia flessibile, compatibile con diverse piattaforme come R, Python e Julia. In questo corso, useremo `cmdstanr`, l'interfaccia R per Stan. Oltre a `cmdstanr`, esistono altre interfacce come CmdStanPy per Python e `Stan.jl` per Julia, che facilitano l'integrazione di Stan nei flussi di lavoro di programmazione.
+
+
+### Stan e la programmazione probabilistica
+
+La programmazione probabilistica unisce principi di statistica bayesiana e linguaggi di programmazione, semplificando lo sviluppo di modelli complessi (si veda, ad esempio, @nicenboim2025introduction). In un linguaggio PPL come Stan, l'utente deve solo specificare le distribuzioni a priori e la funzione di verosimiglianza. L'inferenza viene poi gestita automaticamente dal linguaggio, che utilizza metodi avanzati di campionamento come NUTS per produrre campioni dalla distribuzione a posteriori.
+
+Un programma Stan è strutturato in blocchi. Ogni blocco ha una funzione specifica: 
+
+* `data`: definizione dei dati osservati che entrano nel modello,
+* `parameters`: dichiarazione dei parametri da stimare,
+* `model`: specificazione delle distribuzioni (prior e likelihood),
+* `generated quantities`: calcolo di quantità derivate, come previsioni o log-likelihood.
+
+Questa struttura modulare rende Stan intuitivo e adattabile a un'ampia gamma di applicazioni.
+
+In R useremo l’interfaccia `cmdstanr`, che permette di:
+
+1. scrivere il modello in una stringa o file `.stan`,
+2. compilare il modello,
+3. fornire i dati come lista R,
+4. lanciare il campionamento con `sample()`,
+5. analizzare i risultati con pacchetti come `posterior` e `bayesplot`.
+
+Le variabili in Stan devono essere dichiarate con tipi specifici (`int` per interi, `real` per numeri reali, `vector` per vettori, ecc.) e possono avere vincoli, come `lower=0` o `upper=1`, per garantire che i loro valori rispettino determinati limiti. Questo approccio, noto come tipizzazione statica, rende i programmi Stan robusti e meno soggetti a errori.
+
+
+## Dati binari (distribuzione di Bernoulli)
+
+Partiamo da un esempio elementare: *stimare la probabilità di successo in prove Bernoulli indipendenti*. L’esperimento consiste in 1000 lanci di un dado. Registriamo:
+
+* `1` se esce un *6* (successo),
+* `0` altrimenti (fallimento).
+
+L’obiettivo è stimare la probabilità $\theta = P(\text{uscita = 6})$.
+Se il dado è equo ci aspettiamo $\theta = 1/6 \approx 0.167$, ma in un’analisi bayesiana lasciamo che siano i dati a informarci, senza assumere a priori che il dado sia perfettamente bilanciato.
+
+Simulazione dei dati:
+
+```{r}
+n <- 1000
+dice_df <- tibble(res = sample(1:6, size = n, replace = TRUE))
+
+y <- dice_df %>%
+  mutate(is_six = as.integer(res == 6)) %>%
+  pull(is_six)
+
+mean(y)  # frequenza relativa di "6"
+```
+
+
+Il modello è:
+
+* Likelihood: $y_i \sim \text{Bernoulli}(\theta)$
+* Prior: $\theta \sim \text{Beta}(1,1)$ (uniforme in $[0,1]$)
+
+In Stan:
+
+```{r}
+stancode <- "
+data {
+  int<lower=1> N;
+  array[N] int<lower=0, upper=1> y;
+}
+parameters {
+  real<lower=0, upper=1> theta;
+}
+model {
+  theta ~ beta(1, 1);     // prior
+  y ~ bernoulli(theta);   // likelihood
+}
+"
+```
+
+È necessario compilare il modello in un file temporaneo: 
+
+```{r}
+stanmod <- cmdstan_model(write_stan_file(stancode), compile = TRUE)
+```
+
+*Perché si compila?* 
+Stan traduce il codice del modello in un programma C++, lo compila e produce un eseguibile. Questo passaggio iniziale può richiedere qualche secondo, ma ha un grande vantaggio: una volta compilato, il modello può essere riutilizzato più volte in modo molto veloce, anche con dataset diversi.
+
+Preparazione dei dati. 
+
+```{r}
+data_list <- list(N = length(y), y = y)
+```
+
+In Stan, i dati vanno passati come lista R (o dizionario in Python). I nomi e i tipi devono corrispondere a quanto dichiarato nel blocco data del modello.
+
+Campionamento MCMC:
+
+```{r}
+#| output: false
+
+fit <- stanmod$sample(
+  data = data_list,
+  iter_warmup = 1000,
+  iter_sampling = 10000,
+  chains = 4,
+  parallel_chains = 4,
+  seed = 4790
+)
+```
+
+* `iter_warmup` indica le iterazioni iniziali da scartare (fase di adattamento);
+* `iter_sampling` è il numero di campioni da conservare;
+* `chains` specifica quante catene indipendenti avviare.
+
+Risultati:
+
+```{r}
+print(fit$summary())
+```
+
+Stima sintetica della distribuzione a posteriori:
+
+```{r}
+draws <- fit$draws(format = "draws_matrix")
+posterior::summarise_draws(
+  draws, mean, sd, ~quantile(.x, c(0.025, 0.5, 0.975))
+)
+```
+
+
+Diagnostiche:
+
+```{r}
+bayesplot::mcmc_combo(draws, pars = "theta")
+```
+
+*Interpretazione rapida:*
+
+* La media a posteriori di $\theta$ fornisce la probabilità stimata di ottenere un 6.
+* L’intervallo di credibilità (ad es. 95%) quantifica l’incertezza della stima.
+* Valori di $\hat{R} \approx 1$ e un alto numero di campioni efficaci (ESS) indicano una buona convergenza delle catene.
+
+
+::: callout-note
+#### Un confronto utile
+
+La frequenza relativa `mean(y)` è una *stima puntuale*. L’analisi bayesiana restituisce una *distribuzione* di plausibilità per $\theta$. Questo è cruciale quando vogliamo *propagare l’incertezza* in analisi successive (previsioni, decisioni, ecc.).
+:::
+
+### Distribuzione Predittiva Posteriore  
+
+Dopo aver stimato la probabilità $\theta$ che esca un "6" in un lancio di dado, possiamo chiederci: *Quante volte ci aspettiamo di osservare un "6" in $n$ futuri lanci?*  
+
+Condizionatamente a $\theta$, il numero di successi ("6") in $n$ nuovi lanci segue una *distribuzione binomiale*:  
+
+$$
+y_{\text{rep}} \mid \theta \sim \text{Binomiale}(n, \theta) .
+$$
+
+Per ottenere la *distribuzione predittiva posteriore*, integriamo rispetto alla distribuzione a posteriori di $\theta$:  
+
+$$
+p(y_{\text{rep}} \mid y) = \int p(y_{\text{rep}} \mid \theta) \, p(\theta \mid y) \, d\theta .
+$$
+
+In pratica, questo si ottiene campionando valori di $\theta$ dal posterior e simulando $y_{\text{rep}}$ per ciascun valore.  
+
+Ecco come generare e visualizzare la distribuzione predittiva:  
+
+```{r}
+# Numero di futuri lanci da simulare
+n_new <- 1000  
+
+# Campioni dalla distribuzione a posteriori di theta (es. estratti da Stan o MCMC)
+theta_draws <- as.numeric(draws[, "theta"])  
+
+# Simulazione dei conteggi predittivi
+yrep_count <- rbinom(n = length(theta_draws), size = n_new, prob = theta_draws)
+
+# Visualizzazione
+tibble(count = yrep_count) %>%
+  ggplot(aes(x = count)) +
+  geom_histogram(bins = 30, fill = "skyblue", color = "darkblue", alpha = 0.7) +
+  labs(
+    title = "Distribuzione Predittiva Posteriore del numero di '6' in 1000 lanci",
+    x = "Numero di '6' osservati",
+    y = "Frequenza"
+  ) 
+```
+
+#### Interpretazione  
+
+- L’istogramma mostra la variabilità attesa del numero di “6” in 1000 lanci futuri.
+- La distribuzione è centrata intorno a $n \cdot \mathbb{E}[\theta \mid y]$ (~167 per un dado equo).
+- Se il dado fosse perfetto ($\theta=1/6$), il 95% degli intervalli predittivi sarebbe tra ~150 e 185. Deviazioni marcate potrebbero indicare un bias del dado.
+
+*Nota*:  
+
+- Se il dado fosse perfettamente bilanciato ($\theta = 1/6$), il 95% degli intervalli predittivi dovrebbe includere ~150-185 successi.  
+- Deviazioni sostanziali da questo range potrebbero indicare un *bias nel dado*.
+
+
+::: {.callout-note collapse="true"}
+## Stessa inferenza, sintassi esplicita (`target +=`)
+
+La forma compatta
+
+```stan
+theta ~ beta(1,1);
+y ~ bernoulli(theta);
+```
+
+è più leggibile e di solito preferita. Ma in realtà Stan lavora sempre nello stesso modo: somma i logaritmi delle probabilità in una variabile interna chiamata `target`. 
+
+* `target` rappresenta la log-verosimiglianza totale più i contributi dei prior. 
+* Ogni istruzione `target += ...` aggiunge un pezzo di log-densità.
+
+Un po’ come fare un “conto cumulativo”: ad ogni riga aggiungiamo punti a favore (o contro) di certi valori dei parametri, e alla fine Stan sceglie i valori più coerenti con tutti i contributi sommati.
+
+Questa è la versione esplicita:
+
+```{r}
+stancode_explicit <- "
+data {
+  int<lower=1> N;
+  array[N] int<lower=0, upper=1> y;
+}
+parameters {
+  real<lower=0, upper=1> theta;
+}
+model {
+  target += beta_lpdf(theta | 1, 1);          // prior esplicito
+  target += bernoulli_lpmf(y | theta);        // log-massa di probabilità
+}
+"
+```
+
+```{r}
+stanmod2 <- cmdstan_model(write_stan_file(stancode_explicit), compile = TRUE)
+```
+
+```{r}
+#| output: false
+fit2 <- stanmod2$sample(
+  data = list(N = length(y), y = y),
+  iter_warmup = 1000,
+  iter_sampling = 10000,
+  chains = 4,
+  parallel_chains = 4,
+  refresh = 1000,
+  seed = 4790
+)
+```
+
+```{r}
+print(fit2$summary())
+```
+
+
+I risultati coincidono (entro l’errore Monte Carlo) con la versione compatta, come atteso.
+:::
+
+
+## Dati continui: stima della media con $\sigma$ noto
+
+Consideriamo ora un caso leggermente più complesso: stimare la media $\mu$ di una distribuzione normale quando la deviazione standard $\sigma$ è nota. Questa ipotesi – *conoscere $\sigma$ con certezza* – è rara nella pratica, ma molto utile didatticamente: semplifica il modello e permette di concentrare l’attenzione sulla stima della media.
+
+### Simuliamo i dati
+
+Immaginiamo di raccogliere i punteggi QI di 30 persone, con deviazione standard nota pari a 15 punti. I dati simulati hanno media vera 105:
+
+```{r}
+n <- 30
+sigma <- 15
+y_cont <- rnorm(n, mean = 105, sd = sigma) %>% round(0)
+
+tibble(y = y_cont) %>%
+  ggplot(aes(x = y)) +
+  geom_histogram(bins = 15) +
+  labs(title = "Distribuzione simulata di punteggi QI",
+       x = "Punteggio", y = "Frequenza")
+```
+
+### Specificazione del modello
+
+Il modello statistico è:
+
+* *Likelihood*:
+  $y_i \sim \mathcal{N}(\mu, \sigma), \quad i=1,\dots,N$
+  con $\sigma$ noto.
+
+* *Prior su $\mu$*:
+  $\mu \sim \mathcal{N}(\mu_0,\; \tau)$
+  dove $\mu_0 = 100$ e $\tau = 30$ rappresentano la nostra credenza iniziale: la media del QI tende a essere intorno a 100, ma con una larga incertezza.
+
+### Codice Stan
+
+Il file Stan corrispondente è:
+
+```{r}
+stancode_norm <- "
+data {
+  int<lower=0> N;
+  vector[N] y;                 
+  real<lower=0> sigma;         // sd nota
+  real mu0;                    // media del prior su mu
+  real<lower=0> mu_prior_sd;   // sd del prior
+}
+parameters {
+  real mu;                     // parametro di interesse
+}
+model {
+  mu ~ normal(mu0, mu_prior_sd);  // prior
+  y ~ normal(mu, sigma);          // likelihood
+}
+"
+```
+
+### Lancio del modello
+
+```{r}
+#| output: false
+
+stanmod3 <- cmdstan_model(write_stan_file(stancode_norm), compile = TRUE)
+
+data_list3 <- list(
+  N = length(y_cont),
+  y = y_cont,
+  sigma = sigma,
+  mu0 = 100,
+  mu_prior_sd = 30
+)
+
+fit3 <- stanmod3$sample(
+  data = data_list3,
+  iter_warmup = 1000,
+  iter_sampling = 10000,
+  chains = 4,
+  parallel_chains = 4,
+  seed = 4790,
+  refresh = 1000
+)
+```
+
+### Risultati
+
+```{r}
+print(fit3$summary())
+```
+
+```{r}
+draws3 <- fit3$draws(format = "draws_matrix")
+posterior::summarise_draws(
+  draws3, mean, sd, ~quantile(.x, c(0.025, 0.5, 0.975))
+)
+```
+
+
+### Interpretazione
+
+* La *distribuzione a posteriori di $\mu$* è ottenuta combinando:
+
+  * il prior $\mathcal{N}(100, 30)$,
+  * l’informazione dei dati osservati.
+* L’intervallo di credibilità mostra l’incertezza residua: più osservazioni abbiamo, più questo intervallo si restringe.
+* La convergenza del campionamento va sempre controllata con $\hat{R} \approx 1$ e con un numero elevato di campioni effettivi (ESS).
+
+
+### Visualizzazione
+
+Distribuzione a posteriori di $\mu$:
+
+```{r}
+bayesplot::mcmc_hist(fit3$draws("mu"))
+```
+
+Andamento delle catene:
+
+```{r}
+bayesplot::mcmc_trace(fit3$draws("mu"), n_warmup = 1000)
+```
+
+Overlay delle densità per catena:
+
+```{r}
+bayesplot::mcmc_dens_overlay(fit3$draws("mu"))
+```
+
+*In sintesi*: questo modello rappresenta una sorta di “test Bayesiano della media”. A differenza dell’approccio frequentista, non otteniamo solo una stima puntuale e un intervallo di confidenza, ma un’intera distribuzione di plausibilità per $\mu$, che riflette sia l’incertezza dei dati sia le nostre conoscenze a priori.
+
+
+## Approfondimento
+
+Una volta eseguito il campionamento MCMC, possiamo esplorare direttamente i campioni generati per il parametro $\mu$.
+
+
+### Estrarre i campioni
+
+```{r}
+mu_samples <- fit3$draws(variables = "mu", format = "array")
+dim(mu_samples)
+```
+
+L’output di `dim(mu_samples)` mostra la struttura dell’oggetto:
+
+* la *prima dimensione* corrisponde al numero di iterazioni di campionamento (10.000 nel nostro caso),
+* la *seconda* al numero di catene indipendenti (4),
+* la *terza* al numero di parametri monitorati (qui solo 1: $\mu$).
+
+Dunque la forma dell’array è *(iterazioni, catene, variabili)*.
+
+Per dare un’occhiata al contenuto:
+
+```{r}
+mu_samples |> glimpse()
+```
+
+Se vogliamo lavorare con un vettore unico che contenga tutti i campioni a posteriori (senza distinguere per catena), possiamo “appiattire” l’array:
+
+```{r}
+mu_vector <- as.vector(mu_samples)
+length(mu_vector)   # numero totale di campioni
+head(mu_vector)
+```
+
+
+### Visualizzare la distribuzione a posteriori
+
+Possiamo rappresentare la distribuzione dei campioni in diversi modi. Un primo approccio è un istogramma:
+
+```{r}
+ggplot(data.frame(mu = mu_vector), aes(x = mu)) +
+  geom_histogram(bins = 30, fill = "skyblue", color = "black", alpha = 0.5) +
+  labs(
+    title = "Distribuzione a posteriori di mu",
+    x = "mu",
+    y = "Frequenza"
+  )
+```
+
+Lo stesso risultato si ottiene in modo più diretto con *bayesplot*:
+
+```{r}
+mcmc_hist(fit3$draws("mu"))
+```
+
+Il grafico mostra:
+
+* la *modalità* della distribuzione (valore più plausibile di $\mu$),
+* l’*ampiezza* della distribuzione, che riflette l’incertezza della stima,
+* se l’istogramma è *stretto*, significa che i dati hanno fornito una stima precisa di $\mu$,
+* se è *ampio*, l’incertezza è maggiore.
+
+
+### Confronto fra catene e diagnostiche grafiche
+
+Per verificare che le catene abbiano esplorato bene lo spazio dei parametri, possiamo confrontare le densità stimate separatamente per ogni catena:
+
+```{r}
+bayesplot::mcmc_dens_overlay(fit3$draws("mu"))
+```
+
+Possiamo anche guardare il traceplot, che mostra l’andamento delle catene nel tempo:
+
+```{r}
+bayesplot::mcmc_trace(fit3$draws("mu"), n_warmup = 1000)
+```
+
+Un traceplot “a tappeto” (senza trend o pattern sospetti) è indice di buona mescolanza e convergenza.
+
+Infine, è possibile sintetizzare la distribuzione con intervalli di credibilità:
+
+```{r}
+bayesplot::mcmc_intervals(fit3$draws("mu"), prob_outer = 0.94)
+```
+
+
+*In sintesi:*
+
+l’analisi grafica dei campioni è un passaggio cruciale nell’inferenza Bayesiana. Ci permette di:
+
+* verificare la *convergenza* delle catene,
+* valutare l’*incertezza* nelle stime,
+* comunicare visivamente i risultati.
+
+
+## Intervallo di Credibilità
+
+Gli intervalli di credibilità riassumono l’incertezza sui parametri stimati in un’analisi bayesiana. A differenza degli intervalli di confidenza frequentisti, hanno un’interpretazione probabilistica diretta: *dato il modello e i dati, c’è una probabilità specificata (ad esempio 94%) che il parametro cada nell’intervallo calcolato*.
+
+### Due metodi principali
+
+* **Highest Density Interval (HDI)**: l’intervallo più stretto che contiene la probabilità specificata, concentrandosi nelle zone di massima densità.
+* **Equal-tailed Interval (ETI)**: lascia la stessa probabilità nelle due code della distribuzione (es. 2,5% + 2,5% per un intervallo al 95%).
+
+Se la distribuzione a posteriori è simmetrica (es. normale), i due metodi coincidono; se è asimmetrica, l’HDI è in genere più informativo perché più compatto.
+
+#### Esempio in R
+
+```{r}
+# Genera una distribuzione normale
+posterior <- distribution_normal(1000)
+
+# Calcola HDI ed ETI
+ci_hdi <- ci(posterior, method = "HDI")
+ci_eti <- ci(posterior, method = "ETI")
+
+# Visualizza la distribuzione con i limiti degli intervalli
+out <- estimate_density(posterior, extend = TRUE)
+ggplot(out, aes(x = x, y = y)) +
+  geom_area(fill = "orange") +
+  # HDI in blu
+  geom_vline(xintercept = ci_hdi$CI_low, color = "royalblue", linewidth = 3) +
+  geom_vline(xintercept = ci_hdi$CI_high, color = "royalblue", linewidth = 3) +
+  # ETI in rosso
+  geom_vline(xintercept = ci_eti$CI_low, color = "red", linewidth = 1) +
+  geom_vline(xintercept = ci_eti$CI_high, color = "red", linewidth = 1)
+```
+
+**Distribuzione Asimmetrica**
+
+Quando la distribuzione a posteriori è asimmetrica, come una distribuzione beta, l'HDI è generalmente più stretto rispetto all'ETI poiché privilegia le regioni di maggiore densità.
+
+Esempio di calcolo:
+
+```{r}
+# Genera una distribuzione beta
+posterior <- distribution_beta(1000, 6, 2)
+
+# Calcola HDI ed ETI
+ci_hdi <- ci(posterior, method = "HDI")
+ci_eti <- ci(posterior, method = "ETI")
+
+# Visualizza la distribuzione con i limiti degli intervalli
+out <- estimate_density(posterior, extend = TRUE)
+ggplot(out, aes(x = x, y = y)) +
+  geom_area(fill = "orange") +
+  # HDI in blu
+  geom_vline(xintercept = ci_hdi$CI_low, color = "royalblue", linewidth = 3) +
+  geom_vline(xintercept = ci_hdi$CI_high, color = "royalblue", linewidth = 3) +
+  # ETI in rosso
+  geom_vline(xintercept = ci_eti$CI_low, color = "red", linewidth = 1) +
+  geom_vline(xintercept = ci_eti$CI_high, color = "red", linewidth = 1)
+```
+
+#### Funzioni R
+
+- **HDI**:
+
+```{r}
+bayestestR::ci(fit3$draws("mu"), method = "HDI")
+```
+
+- **ETI**:
+
+```{r}
+bayestestR::ci(fit3$draws("mu"), method = "ETI")
+```
+
+Utilizzando il pacchetto `bayesplot` possiamo rappresentare la distribuzione a posteriori con l’HDI:
+
+```{r}
+mcmc_areas(fit3$draws("mu"), 
+           prob = 0.94) +  # Specifica il livello dell'HDI
+  ggtitle("Distribuzione a Posteriori di Mu con HDI al 94%") +
+  xlab(expression(mu)) +
+  ylab("Densità")
+```
+
+### Scelta del Livello dell’Intervallo (89% vs 95%)
+
+Una discussione comune nell’inferenza bayesiana riguarda il livello predefinito degli intervalli. Sebbene il 95% sia un valore convenzionale mutuato dal frequentismo, alcune evidenze suggeriscono che livelli più bassi (ad esempio, 89%) possano essere più stabili per le distribuzioni a posteriori, specialmente con un numero limitato di campioni posteriori (Kruschke, 2014).
+
+- **Vantaggi del 95%**:
+  - Relazione intuitiva con la deviazione standard.
+  - Maggiore probabilità di includere 0, rendendo le analisi più conservative.
+
+- **Vantaggi dell’89%**:
+  - Maggiore stabilità con campioni posteriori limitati.
+  - Evita l’arbitrarietà del valore 95% (McElreath, 2018).
+
+In conclusione, la scelta tra HDI e ETI, così come il livello dell'intervallo, dipende dagli obiettivi e dal contesto dell’analisi. Gli intervalli di credibilità offrono un approccio flessibile e intuitivo per sintetizzare l’incertezza, adattandosi alle esigenze di analisi sia esplorative che confermative.
+
+
+## Test di ipotesi bayesiane
+
+L’inferenza bayesiana permette di rispondere in maniera diretta a domande pratiche del tipo: *qual è la probabilità che un parametro superi una soglia considerata rilevante?*
+
+Riprendiamo l’esempio del QI. Potremmo chiederci: *quanto è plausibile che la **media del QI** in un campione di bambini sia maggiore di 110?* La soglia di 110 viene spesso utilizzata come riferimento per indicare un livello cognitivo superiore alla media. Stimando la distribuzione a posteriori della media \$\mu\$, possiamo calcolare in modo immediato la probabilità:
+
+$$
+P(\mu > 110 \mid y),
+$$
+
+ossia la porzione di distribuzione a posteriori che si trova al di sopra di questo valore soglia. Questa probabilità si ricava direttamente dai campioni posteriori:
+
+```{r}
+fit3$summary("mu", pr_gt_110 = ~ mean(. > 110))
+```
+
+Se, ad esempio, il risultato fosse:
+
+$$
+P(\mu > 130 \mid y) = 0.08,
+$$
+
+ciò significa che, dati il modello e i dati osservati, c’è una probabilità dell’9% che la media del campione superi la soglia di 110.
+
+Questo risultato non è un “sì” o “no” categorico, ma una misura graduale della plausibilità dell’affermazione *“la media del campione è sopra la soglia di 110”*. In questo caso, la probabilità relativamente bassa indica che i dati osservati **non sostengono fortemente** tale affermazione, pur lasciando un margine di possibilità.
+
+In sintesi, il test di ipotesi bayesiano non richiede ipotesi nulle o valori critici: tutto si basa sulla distribuzione a posteriori del parametro. Questo approccio fornisce risposte intuitive e direttamente interpretabili, soprattutto in contesti applicativi come la psicologia clinica e scolastica, dove soglie pratiche (ad esempio QI > 110) hanno un significato concreto.
+
+
+## Diagnostiche di campionamento
+
+Una volta ottenuti i campioni a posteriori, è fondamentale verificarne la *qualità*. Stan fornisce diversi indicatori diagnostici che permettono di capire se le catene MCMC hanno esplorato bene lo spazio dei parametri.
+
+
+### Statistica $\hat{R}$
+
+La prima verifica riguarda la statistica di convergenza $\hat{R}$ (R-hat).
+
+```{r}
+rhats <- rhat(fit3$draws("mu"))
+print(rhats)
+bayesplot::mcmc_rhat(rhats)
+```
+
+Un valore di $\hat{R}$ molto vicino a 1 indica che le catene sono ben mescolate e che la convergenza è stata raggiunta. Valori superiori a 1.01–1.05 possono invece segnalare problemi.
+
+
+### Dimensione del campione effettivo
+
+Oltre alla convergenza, è importante sapere *quanti campioni indipendenti equivalenti* sono stati ottenuti. Questo numero è detto *Effective Sample Size* ($N_{\text{eff}}$).
+
+```{r}
+fit3$summary()
+```
+
+Nell’output di `summary()`, per ciascun parametro vengono riportati:
+
+* *mean* e *median*: la media e la mediana della distribuzione a posteriori. Per $\mu$, media e mediana coincidono quasi perfettamente (106.39), segno che la distribuzione è simmetrica.
+* *sd*: la deviazione standard, misura dell’incertezza residua (2.73 per $\mu$).
+* *mad*: la deviazione assoluta mediana, una misura di dispersione robusta. Per $\mu$ è quasi identica alla sd, confermando l’assenza di code estreme.
+* *q5* e *q95*: quantili al 5% e 95%, che definiscono un intervallo di credibilità al 90%. Per $\mu$, $[101.9,; 110.9]$.
+* *rhat*: la statistica $\hat{R}$, uguale a 1, conferma la convergenza.
+* *ess_bulk* e *ess_tail*: il numero effettivo di campioni indipendenti rispettivamente per la parte centrale e per le code della distribuzione. Valori molto alti (es. >10.000) indicano stime estremamente precise.
+
+In sintesi: la distribuzione di $\mu$ è ben stimata, con campioni abbondanti ed efficienti, e senza problemi di convergenza.
+
+
+### Dimensione del campione effettivo e errore Monte Carlo
+
+Perché serve $N_{\text{eff}}$?
+Nei metodi MCMC, i campioni successivi sono *correlati*. $N_{\text{eff}}$ corregge per questa dipendenza e si calcola come:
+
+$$
+N_{\text{eff}} = \frac{M}{\text{IAT}},
+$$
+
+dove $M$ è il numero di iterazioni totali e $\text{IAT}$ è il tempo di autocorrelazione integrata.
+
+Stan riporta anche l’*errore standard Monte Carlo*:
+
+$$
+\text{mcmc-se} = \frac{\text{sd}[\theta \mid y]}{\sqrt{N_{\text{eff}}}} ,
+$$
+
+che misura la precisione numerica della stima dovuta al campionamento. Con $N_{\text{eff}}$ molto grande, questo errore diventa trascurabile.
+
+
+### Altri indicatori di efficienza
+
+Infine, è utile controllare i report diagnostici più specifici:
+
+```{r}
+fit3$diagnostic_summary()
+```
+
+* *`num_divergent`*: numero di transizioni divergenti. Se è 0, il campionamento non ha incontrato ostacoli numerici.
+* *`num_max_treedepth`*: numero di transizioni che hanno raggiunto la profondità massima consentita dall’algoritmo NUTS. Se è 0, l’esplorazione è stata completa.
+* *`ebfmi`*: *Energy Bayesian Fraction of Missing Information*. Valori >0.3–0.4 sono considerati adeguati. Indicano che lo spazio dei parametri è stato esplorato in modo efficiente.
+
+Nel nostro esempio, i risultati delle diagnostiche sono ottimali:
+
+* $\hat{R} = 1$ per tutti i parametri,
+* $N_{\text{eff}}$ molto alto,
+* nessuna transizione divergente né problemi di profondità,
+* EBFMI ben sopra le soglie di sicurezza.
+
+Possiamo quindi concludere che il campionamento MCMC è stato *stabile, efficiente e affidabile*, e che le stime a posteriori per $\mu$ riflettono bene l’informazione contenuta nei dati e nel prior.
+
+
+
+## Verifica dei prior (Prior Predictive Check)
+
+*Obiettivo.* Prima di guardare i dati, vogliamo chiederci: le nostre assunzioni a priori su $\mu$ sono plausibili?
+In altre parole, il prior scelto produce valori di $y$ che hanno senso rispetto al dominio del problema (qui: punteggi QI)?
+
+### Idea di base
+
+Il nostro modello è:
+
+$$
+y_i \mid \mu \sim \mathcal{N}(\mu,\; \sigma), 
+\qquad
+\mu \sim \mathcal{N}(\mu_0,\; \tau).
+$$
+
+Combinando likelihood e prior, la *distribuzione predittiva a priori* di una singola osservazione è:
+
+$$
+y_i \sim \mathcal{N}\!\Big(\mu_0,\; \sqrt{\sigma^2 + \tau^2}\Big).
+$$
+
+Questa distribuzione descrive quali valori ci aspettiamo *prima di osservare alcun dato*.
+
+* Se produce valori estremi o inverosimili (ad es. QI < 40 o > 160), il prior è troppo *largo* o *spostato*.
+* Se invece produce valori troppo concentrati in un intervallo ristretto, il prior è *eccessivamente informativo*, lasciando poco spazio ai dati.
+
+### Uno *switch* per accendere o spegnere la likelihood
+
+Per implementare un *prior predictive check* possiamo usare lo stesso file Stan dell’inferenza, con una piccola modifica:
+
+1. aggiungiamo una variabile booleana `compute_likelihood`, che ci permette di decidere se includere o meno la riga `y ~ normal(mu, sigma);`,
+2. generiamo repliche $y_{\text{rep}}$ in un blocco `generated quantities`.
+
+Ecco il codice Stan:
+
+```{r}
+#| output: false
+stancode_norm_ppc <- "
+data {
+  int<lower=0> N;
+  vector[N] y;                 // usato solo se compute_likelihood=1
+  real<lower=0> sigma;         // sd nota
+  real mu0;                    // media del prior su mu
+  real<lower=0> mu_prior_sd;   // sd del prior
+  int<lower=0, upper=1> compute_likelihood; // 1 = usa y ~ normal(..), 0 = disattiva
+}
+parameters {
+  real mu;
+}
+model {
+  mu ~ normal(mu0, mu_prior_sd);
+  if (compute_likelihood == 1) {
+    y ~ normal(mu, sigma);
+  }
+}
+generated quantities {
+  vector[N] y_rep;
+  vector[N] log_lik; 
+
+  for (n in 1:N) {
+    y_rep[n] = normal_rng(mu, sigma); // repliche prior/posterior predictive
+    log_lik[n] = normal_lpdf(y[n] | mu, sigma); 
+  }
+}
+"
+stanmod_ppc <- cmdstan_model(write_stan_file(stancode_norm_ppc), compile = TRUE)
+```
+
+### Prior predictive check (senza dati)
+
+Per un controllo *puro* del prior disattiviamo la likelihood (`compute_likelihood = 0`). In questo modo, Stan genera valori $y_{\text{rep}}$ esclusivamente a partire dalle assunzioni a priori.
+
+```{r}
+#| output: false
+N_ppc <- length(y_cont)
+
+stan_data_prior <- list(
+  N = N_ppc,
+  y = rep(0, N_ppc),   # placeholder, non usato quando compute_likelihood = 0
+  sigma = sigma,
+  mu0 = 100,
+  mu_prior_sd = 30,
+  compute_likelihood = 0
+)
+
+fit_prior <- stanmod_ppc$sample(
+  data = stan_data_prior,
+  iter_warmup = 500,
+  iter_sampling = 2000,
+  chains = 4,
+  parallel_chains = 4,
+  seed = 4790,
+  refresh = 500
+)
+```
+
+### Analisi delle repliche
+
+Dopo il campionamento, estraiamo le repliche $y_{\text{rep}}$:
+
+```{r}
+# Estrazione dei dati simulati
+yrep_mat_prior <- posterior::as_draws_matrix(fit_prior$draws("y_rep"))
+
+# Selezione solo delle colonne y_rep[1],...,y_rep[N]
+N_ppc <- length(y_cont)
+yrep_mat_prior <- as.matrix(yrep_mat_prior[, paste0("y_rep[", 1:N_ppc, "]")])
+```
+
+Confrontiamo i dati osservati con alcune repliche generate dal prior:
+
+```{r}
+idx <- sample(seq_len(nrow(yrep_mat_prior)), 100)
+
+bayesplot::ppc_dens_overlay(
+  y = y_cont,
+  yrep = yrep_mat_prior[idx, , drop = FALSE]
+) + ggtitle("Prior predictive vs dati osservati (overlay densità)")
+```
+
+### Interpretazione
+
+* Se le distribuzioni simulate coprono bene la variabilità dei dati reali, il prior è plausibile.
+* Se le simulazioni sono sistematicamente troppo larghe o troppo strette, il prior va ripensato (riducendo o ampliando `mu_prior_sd`).
+
+
+
+### Posterior predictive check (con i dati)
+
+Dopo aver verificato che il *prior* sia ragionevole, possiamo passare alla fase successiva: confrontare il modello *dopo aver visto i dati*.
+
+Per farlo, riattiviamo la verosimiglianza (`compute_likelihood = 1`) e stimiamo la distribuzione a posteriori di $\mu$. Nel blocco `generated quantities`, Stan genera anche delle *repliche posterior predictive* $y_{\text{rep}}$, cioè nuovi dataset simulati sotto l’ipotesi che il modello e i parametri stimati siano corretti.
+
+In altre parole:
+
+* il *prior predictive check* serve a testare le assunzioni *prima* dei dati,
+* il *posterior predictive check* serve a valutare se il modello *dopo i dati* è in grado di riprodurre l’evidenza osservata.
+
+```{r}
+stan_data_post <- list(
+  N = length(y_cont),
+  y = y_cont,
+  sigma = sigma,
+  mu0 = 100,
+  mu_prior_sd = 30,
+  compute_likelihood = 1
+)
+```
+
+Lancio del campionamento:
+
+```{r}
+#| output: false
+fit_post <- stanmod_ppc$sample(
+  data = stan_data_post,
+  iter_warmup = 1000,
+  iter_sampling = 10000,
+  chains = 4,
+  parallel_chains = 4,
+  seed = 4790,
+  refresh = 1000
+)
+```
+
+Estrazione e confronto con i dati reali:
+
+```{r}
+y_rep <- fit_post$draws("y_rep", format = "matrix")
+ppc_dens_overlay(y = stan_data_post$y, yrep = y_rep[1:100, ])
+```
+
+### Come interpretare
+
+* Se la distribuzione delle repliche $y_{\text{rep}}$ *copre bene* la distribuzione osservata $y$, significa che il modello è in grado di spiegare i dati.
+* Se invece ci sono *scostamenti sistematici* (ad es. le repliche hanno media troppo bassa, o varianza troppo alta rispetto ai dati reali), il modello non descrive adeguatamente il fenomeno e potrebbe essere rivisto.
+
+
+### Collegamento con la verifica dei prior
+
+* Un *prior troppo largo* può portare a simulazioni estreme e poco plausibili *prima dei dati*.
+* Un *prior troppo stretto* rischia di imporre eccessiva rigidità al modello, lasciando poca flessibilità ai dati.
+* Nel *posterior predictive check*, quello che conta è verificare che, dopo aver aggiornato il modello con i dati, le simulazioni riflettano in modo realistico il comportamento osservato.
+
+
+### Nota didattica
+
+Con $\sigma$ noto e $\mu \sim \mathcal{N}(\mu_0, \tau)$, la distribuzione predittiva *a priori* della media campionaria $\bar{y}$ è:
+
+$$
+\bar{y} \sim \mathcal{N}\!\big(\mu_0,\; \sqrt{\tau^2 + \tfrac{\sigma^2}{N}}\big).
+$$
+
+Questa formula fornisce un controllo rapido per tarare il prior rispetto alla precisione attesa del campione. Dopo l’aggiornamento con i dati, la distribuzione *a posteriori* restringe l’incertezza, e le repliche posterior predictive permettono di verificarne la coerenza empirica.
+
+
+## Riflessioni conclusive {.unnumbered .unlisted}
+
+Stan, grazie all’algoritmo NUTS, rappresenta oggi uno degli strumenti più potenti e versatili per l’inferenza bayesiana. La sua forza sta nella combinazione di tre elementi:
+
+1. una sintassi chiara per la definizione di modelli probabilistici anche complessi,
+2. un motore di campionamento efficiente e affidabile,
+3. una ricca suite di strumenti diagnostici e grafici che consentono di valutare la qualità del campionamento e l’adeguatezza del modello.
+
+In questo capitolo abbiamo visto come, partendo da esempi semplici, sia possibile costruire modelli bayesiani, verificarne le assunzioni a priori, e confrontare i dati osservati con simulazioni predittive. Strumenti come il pacchetto *bayesplot* rendono queste verifiche intuitive e immediate, facilitando la comprensione dei risultati anche a un livello visivo.
+
+Un aspetto cruciale riguarda la *scelta dello stimatore*:
+
+* la *media* della distribuzione a posteriori è lo stimatore più comune, perché minimizza l’errore quadratico medio;
+* la *mediana* è utile per la sua robustezza rispetto a code o asimmetrie;
+* la *moda* (MAP) può essere interpretata come il valore più plausibile, anche se in pratica è meno usata in analisi bayesiana.
+
+Infine, la corretta interpretazione delle stime passa sempre attraverso il controllo delle *diagnostiche MCMC*: bias, errore Monte Carlo, dimensione del campione effettivo ($N_{\text{eff}}$) e indicatori di convergenza come $\hat{R}$. Solo quando questi strumenti segnalano un campionamento affidabile possiamo trarre conclusioni valide dal nostro modello.
+
+In sintesi, l’approccio bayesiano con Stan non si limita a produrre numeri, ma offre un’intera cornice concettuale e operativa per quantificare l’incertezza, confrontare modelli e integrare in modo coerente conoscenze pregresse e dati osservati.
+
+
+
+## Informazioni sull'ambiente di sviluppo {.unnumbered .unlisted}
+
+```{r}
+sessionInfo()
+```
+
+## Bibliografia {.unnumbered .unlisted}
+

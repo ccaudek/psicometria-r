@@ -54,6 +54,8 @@ names(palette_set1) <- c("uno", "due", "tre")
 
 conflict_prefer("filter", "dplyr") # Always use dplyr::filter
 conflict_prefer("select", "dplyr") # Always use dplyr::select
+conflicts_prefer(posterior::mad)
+conflicts_prefer(posterior::rhat)
 
 ## ─────────────────────────────────────────────────────────────────────
 ## 4. Stile tabelle

@@ -4,10 +4,9 @@
 ::: callout-tip
 ## Obiettivi del capitolo
 
-- Mostrare come un **Probabilistic Programming Language (Stan)** permetta di andare **oltre** un GLM classico.
-- Costruire un **modello processuale** per scelte binarie (es. sì/no, A/B) in psicologia.
-- Eseguire **prior predictive check**, **stima bayesiana** e **posterior predictive check** in **R** (con `cmdstanr` e `brms` opzionale).
-- Estendere il modello in forma **gerarchica** (differenze individuali).
+- Mostrare come un *Probabilistic Programming Language (Stan)* permetta di andare **oltre** un GLM classico.
+- Costruire un *modello processuale* per scelte binarie (es. sì/no, A/B) in psicologia.
+- Eseguire *prior predictive check*, *stima bayesiana* e *posterior predictive check* in R (con `cmdstanr` e `brms` opzionale).
 :::
 
 ::: callout-important
@@ -28,11 +27,10 @@ conflicts_prefer(posterior::mad)
 :::
 
 
-
 ## Introduzione {.unnumbered .unlisted}
 
 ::: {.lead}
-La regressione logistica, introdotta nei capitoli precedenti, è uno strumento fondamentale per analizzare variabili dicotomiche $y \in {0,1}$ (ad esempio: scelta sì/no, risposta corretta/errata, accettazione/rifiuto) in funzione di predittori osservabili $\mathbf{x}$. Tuttavia, questo approccio presenta limiti importanti quando vogliamo descrivere **processi psicologici dinamici**, nei quali la risposta osservata è soltanto la manifestazione finale di meccanismi interni che si sviluppano nel tempo.
+La regressione logistica, introdotta nei capitoli precedenti, è uno strumento fondamentale per analizzare variabili dicotomiche $y \in {0,1}$ (ad esempio: scelta sì/no, risposta corretta/errata, accettazione/rifiuto) in funzione di predittori osservabili $\mathbf{x}$. Tuttavia, questo approccio presenta limiti importanti quando vogliamo descrivere *processi psicologici dinamici*, nei quali la risposta osservata è soltanto la manifestazione finale di meccanismi interni che si sviluppano nel tempo.
 :::
 
 Ad esempio, in un questionario online possiamo usare la regressione logistica per prevedere se uno studente risponde correttamente o erroneamente in base alla difficoltà della domanda. Ma in un compito cognitivo ripetuto, la risposta dello stesso studente al trial 10 dipende anche da come è andato il trial 9 (feedback positivo/negativo, fatica accumulata, ecc.). Il modello statico non “vede” questa dipendenza, mentre un modello processuale la incorpora.
@@ -116,9 +114,9 @@ Ma in psicologia le cose vanno spesso diversamente:
 In tutti questi casi, è naturale immaginare che la variabile latente *$u_{i,t}$ non nasca da zero a ogni prova*, ma *porti memoria del passato*.
 
 
-### Il modello AR(1)
+## Il modello AR(1)
 
-Per rendere esplicita questa memoria, introduciamo un modello *autoregressivo di ordine 1* (AR(1)):
+Per rendere esplicita la dipendenza dal passato, usiamo un modello *autoregressivo di ordine 1* (AR(1); @chatfield2019analysis):
 
 $$
 \begin{aligned}
@@ -160,6 +158,39 @@ Per esempio:
 * $\sigma_u$: cattura la variabilità inspiegata, come distrazioni improvvise.
 
 
+### Che cos’è $u_{i,t}$?
+
+* $u_{i,t}$ non è osservato: è uno *stato latente*.
+* Possiamo pensarlo come il “livello di propensione” di un individuo in un certo istante $t$.
+* L’osservazione $y_{i,t}$ (corretto/errato, sì/no, 1/0) nasce da questo stato: se $u_{i,t}$ è alto, la probabilità di risposta positiva è alta; se è basso, è bassa.
+* Nei modelli Bayesiani o di stato latente, i valori di $u_{i,t}$ non si calcolano direttamente dai dati ma vengono *stimati/inferiti* dal modello. In pratica, otteniamo una distribuzione a posteriori su ciascun $u_{i,t}$, non un singolo valore deterministico.
+
+
+### E il ruolo di $\phi$?
+
+Il coefficiente $\phi$ funziona come un “peso di memoria”:
+
+* Se $\phi = 0$, il passato non conta: $u\_{i,t}$ dipende solo dai predittori e dal rumore.
+* Se $\phi > 0$, c’è *inerzia*: lo stato precedente influenza positivamente quello attuale.
+* Se $\phi < 0$, c’è *compensazione* o alternanza: uno stato alto ieri spinge verso uno basso oggi.
+
+Formalmente, $\phi$ è un coefficiente di regressione come $\alpha$ e $\beta$, ma agisce *sulla variabile latente del tempo precedente*, quindi introduce dipendenza temporale.
+
+
+### Come “si trovano” i valori di $u_{i,t-1}$?
+
+* All’inizio (al tempo $t=1$), bisogna specificare una *condizione iniziale* per $u_{i,0}$, ad esempio assumendo $u_{i,0} \sim \mathcal{N}(0,\sigma_0)$.
+* Per i tempi successivi, ogni $u_{i,t}$ viene costruito ricorsivamente dal precedente: il modello stesso definisce la sequenza degli stati latenti.
+* In fase di stima (ad esempio con Stan), si usano i dati osservati $y_{i,t}$ per inferire a posteriori quali valori plausibili di $u_{i,t}$ rendono il modello coerente con le risposte osservate.
+
+Riassumendo:
+
+* $u_{i,t}$: stato latente, stimato dal modello, non osservato.
+* $\phi$: coefficiente che regola quanto lo stato passato influenza quello presente.
+* $\alpha_i$, $\beta$: intercetta e predittori osservati, come in una regressione logistica.
+* $\sigma_u$: variabilità residua del processo latente.
+
+
 ### Perché è importante?
 
 Con il modello AR(1) facciamo un passo oltre la regressione logistica classica. La probabilità di risposta non è più determinata solo dai *fattori esterni osservati*, ma anche dagli *stati interni accumulati nel tempo*. In altre parole, il comportamento osservato non nasce “da zero” a ogni prova: porta con sé una *traccia del passato*.
@@ -170,6 +201,144 @@ Esempi concreti aiutano a capirlo:
 * *Diario EMA:* un umore negativo oggi aumenta la probabilità di trovarsi in uno stato simile anche domani, a meno che un evento esterno intervenga a interrompere la continuità.
 
 La lezione fondamentale è questa: *le scelte non sono indipendenti, ma intrecciate con la storia recente dell’individuo*. Ed è proprio questa “memoria del passato” che rende i modelli dinamici strumenti più realistici e potenti per descrivere processi psicologici rispetto ai modelli statici.
+
+
+::: {.callout-note collapse="true"}
+### Esempio
+
+Per fare un esempio semplice, consideriamo un modello *continuo* con *un solo predittore continuo*.
+La dipendenza temporale la collochiamo *nei residui*, con una struttura *AR(1)*. In questo modo evitiamo il problema di introdurre variabili latenti non osservabili come $u$.
+
+Per il soggetto $i$ al tempo $t$:
+
+$$
+\begin{aligned}
+y_{i,t} &= \alpha_i + \beta\,x_{i,t} + e_{i,t},\\
+e_{i,t} &= \phi\, e_{i,t-1} + \eta_{i,t}, \qquad \eta_{i,t}\sim\mathcal N(0,\sigma_\eta^2).
+\end{aligned}
+$$
+
+dove:
+
+* $y_{i,t}$ è la *risposta osservata* (continua),
+* $x_{i,t}$ è il *predittore osservato* (continuo),
+* $e_{i,t}$ è l’*errore* con memoria AR(1),
+* $\phi$ è l’*autocorrelazione a lag 1* dei residui,
+* $\sigma_\eta$ controlla l’*ampiezza del rumore “nuovo”* che entra a ogni passo.
+
+In altre parole, il valore osservato $y_{i,t}$ è composto da:
+
+* una parte *sistematicamente spiegata* dal predittore $x_{i,t}$, ponderata da $\beta$,
+* una parte *casuale*, $e_{i,t}$, che però non è indipendente: conserva memoria del residuo precedente ($\phi e_{i,t-1}$).
+  Se ieri il modello ha sovrastimato, è probabile che anche oggi rimanga un residuo positivo; lo stesso vale per una sottostima.
+
+> **Nota su $e_{i,0}$.** Per generare una serie “stazionaria”, inizializziamo il primo residuo dalla distribuzione stazionaria:
+>
+> $$
+> e_{i,0} \sim \mathcal N\!\left(0,\; \frac{\sigma_\eta^2}{1-\phi^2}\right).
+> $$
+
+
+```{r}
+# ---- Funzione di simulazione ----
+simulate_reg_ar1 <- function(alpha, beta = 0.8, phi = 0.7, sigma_eta = 1.0,
+                             T_ = 60, x_sd = 1, seed = 123) {
+  set.seed(seed)
+  n_subj <- length(alpha)
+  rec <- vector("list", n_subj)
+
+  # Varianza stazionaria dei residui AR(1)
+  sigma_e2 <- sigma_eta^2 / (1 - phi^2)
+
+  for (i in seq_len(n_subj)) {
+    e_prev <- rnorm(1, mean = 0, sd = sqrt(sigma_e2))  # e_{i,0}
+    rows <- vector("list", T_)
+    for (t in seq_len(T_)) {
+      x_t <- rnorm(1, 0, x_sd)             # predittore osservato
+      eta <- rnorm(1, 0, sigma_eta)        # innovazione
+      e_t <- phi * e_prev + eta            # residuo AR(1)
+      y_t <- alpha[i] + beta * x_t + e_t   # risposta continua
+      rows[[t]] <- data.frame(
+        subject = i, time = t,
+        x = x_t, e = e_t, y = y_t
+      )
+      e_prev <- e_t
+    }
+    rec[[i]] <- dplyr::bind_rows(rows)
+  }
+  dplyr::bind_rows(rec)
+}
+
+# ---- Parametri e simulazione ----
+alpha <- c(-1, 0, 1)   # intercette soggetto-specifiche
+beta  <- 0.8           # effetto del predittore x
+phi   <- 0.7           # autocorrelazione a lag 1 dei residui
+sigma_eta <- 1.0       # deviazione standard innovazione
+T_    <- 60            # lunghezza serie temporale
+
+df <- simulate_reg_ar1(alpha, beta, phi, sigma_eta, T_)
+
+# ---- Grafico didattico ----
+df <- df %>%
+  group_by(subject) %>%
+  mutate(x_scaled = (x - mean(x)) / sd(x) * sd(y) + mean(y)) %>%
+  ungroup()
+
+ggplot(df, aes(time)) +
+  geom_line(aes(y = y), linewidth = 0.9) +
+  geom_line(aes(y = x_scaled), linetype = "dashed") +
+  geom_hline(aes(yintercept = ave_y),
+             data = df %>% group_by(subject) %>% summarise(ave_y = mean(y)),
+             linewidth = 0.3, color = "grey40") +
+  facet_wrap(~ subject, ncol = 1,
+             labeller = as_labeller(function(s) {
+               i <- as.integer(s)
+               paste0("Soggetto ", s, " (alpha = ", alpha[i], ")")
+             })) +
+  labs(title = "Regressione con residui AR(1): y(t) e x(t) riscalato",
+       subtitle = paste0("phi = ", phi, ", sigma_eta = ", sigma_eta, ", beta = ", beta),
+       y = "y(t)  (x in tratteggio, riscalato)", x = "Tempo")
+```
+
+1. **Struttura del modello**
+
+   * La parte regressiva è $\alpha_i + \beta x_{i,t}$.
+   * La memoria sta nei residui: $e_{i,t} = \phi e_{i,t-1} + \eta_{i,t}$.
+   * Così il predittore $x_{i,t}$ è esogeno e $\phi$ ha un significato chiaro: è l’*autocorrelazione* tra residui consecutivi.
+
+2. **Grafico a pannelli**
+
+   * Linea piena = $y_{i,t}$.
+   * Tratteggio = $x_{i,t}$, riscalato per confrontarlo visivamente con $y$.
+   * Si vede che $y$ segue $x$, ma non cambia bruscamente: la presenza di $\phi=0.7$ rende la traiettoria più “liscia” grazie alla memoria nei residui.
+
+```{r}
+# ---- Verifica dell'AR(1) sui residui (soggetto 1) ----
+df1 <- df %>% filter(subject == 1)
+ols_fit <- lm(y ~ x, data = df1)
+resid_ols <- resid(ols_fit)
+
+par(mfrow = c(1, 2))
+plot(df1$time, resid_ols, type = "l", main = "Residui OLS (soggetto 1)",
+     xlab = "Tempo", ylab = "Residuo")
+acf(resid_ols, main = "ACF residui OLS (soggetto 1)")
+par(mfrow = c(1, 1))
+```
+
+3. **ACF dei residui OLS**
+
+Nel modello di regressione lineare semplice $y \sim x$ si assume che i residui siano indipendenti. Nel nostro esempio, però, i residui hanno memoria AR(1): se ieri erano positivi, oggi tendono a esserlo di nuovo.
+
+L’*ACF (autocorrelation function)* dei residui ci permette di vedere questo effetto:
+
+* misura quanto i residui in tempi diversi sono correlati,
+* il valore a *lag 1* (tra residui consecutivi) è chiaramente positivo e vicino a $\phi$.
+
+Quindi:
+
+* il modello lineare classico che assume residui indipendenti *non descrive bene i dati*,
+* occorre un modello che includa la memoria, come l’AR(1) sui residui o un modello equivalente in stato-spazio.
+:::
 
 
 ## Dall’AR(1) all’AR(K)
@@ -399,7 +568,81 @@ generated quantities{
 stan_file <- write_stan_file(stan_code)
 ```
 
-Preprocess per Stan e stima.
+Focalizziamoci sul blocco di codice che costruisce la *variabile latente dinamica* $u_n$ su cui poi si basa la likelihood logistica dei dati osservati $y_n$.
+
+*Struttura della likelihood.* Il modello assume che la risposta osservata $y_n \in \{0,1\}$ derivi da una regressione logistica:
+
+$$
+y_n \sim \text{Bernoulli}\!\left(\operatorname{logit}^{-1}(u_n)\right),
+$$
+
+dove $u_n$ è il *predittore lineare dinamico* che evolve nel tempo con memoria AR(1).
+In pratica, invece di avere un predittore statico $u_n = \alpha_i + \beta x_n$, qui aggiungiamo una *dipendenza dal passato*: lo stato latente corrente dipende anche da quello precedente.
+
+Costruzione di $u_n$ nel codice:
+
+```stan
+for (n in 1:N){
+  real mean_u = alpha[id[n]] + beta * x[n];
+  if (prev[n] == 0) {
+    // primo trial del soggetto
+    real sd1 = sigma_u / sqrt(1 - square(phi));
+    u[n] = mean_u + sd1 * eps[n];
+  } else {
+    // trial successivi
+    u[n] = mean_u + phi * u[prev[n]] + sigma_u * eps[n];
+  }
+}
+```
+
+* **Linea 1.** Calcoliamo il contributo sistematico del soggetto e del predittore:
+
+  $$
+  \texttt{mean\_u} = \alpha_{id[n]} + \beta x_n.
+  $$
+
+  Qui $\alpha_{id[n]}$ è l’intercetta specifica del soggetto, mentre $\beta x_n$ è l’effetto del predittore osservato.
+
+* **Caso `prev[n]==0`.** È il *primo trial* di quel soggetto. Non abbiamo uno stato precedente a cui agganciarci, quindi inizializziamo $u_n$ assumendo la *condizione stazionaria* del processo AR(1):
+
+  $$
+  u_n \sim \mathcal N\!\left(\texttt{mean\_u}, \; \frac{\sigma_u^2}{1-\phi^2}\right).
+  $$
+
+  Questo è implementato come `mean_u + sd1 * eps[n]`, dove `eps[n] ~ Normal(0,1)` e `sd1 = sigma_u / sqrt{1 - phi^2}`.
+
+* **Caso `prev[n]!=0`.** È un trial successivo. In questo caso $u_n$ dipende *dal valore precedente* $u_{prev[n]}$:
+
+  $$
+  u_n = \texttt{mean\_u} + \phi \, u_{prev[n]} + \sigma_u \, \varepsilon_n,
+  \quad \varepsilon_n \sim \mathcal N(0,1).
+  $$
+
+  Qui $\phi$ è il coefficiente AR(1) che controlla *quanto del passato sopravvive nel presente*.
+
+
+Intuizione:
+
+* *$\alpha_i$:* propensione media del soggetto.
+* *$\beta x_n$:* effetto del predittore osservato al trial $n$.
+* *$\phi u_{prev[n]}$:* memoria: se ieri $u$ era alto, oggi tenderà a restare alto (se $\phi>0$).
+* *$\sigma_u \varepsilon_n$:* rumore nuovo che introduce variabilità tra un trial e l’altro.
+
+Il risultato finale è che la probabilità di risposta positiva è:
+
+$$
+\Pr(y_n=1) = \operatorname{logit}^{-1}(u_n),
+$$
+
+e l’intera likelihood del modello è:
+
+$$
+p(y \mid \alpha, \beta, \phi, \sigma_u) = \prod_{n=1}^N \text{Bernoulli}\!\left(y_n \,\middle|\, \operatorname{logit}^{-1}(u_n)\right),
+$$
+
+dove ciascun $u_n$ è costruito ricorsivamente come sopra.
+
+Generazione dei dati di input:
 
 ```{r}
 stan_dat <- list(
@@ -412,10 +655,14 @@ stan_dat <- list(
 )
 ```
 
+Compilazione del modello:
+
 ```{r}
 #| output: false
 mod <- cmdstanr::cmdstan_model(stan_file)
 ```
+
+Campionamento:
 
 ```{r}
 #| output: false
@@ -518,9 +765,9 @@ summary(fit_glmer)
 ```
 
 
-### Interpretazione dei risultati *brm* (GLMM logit con slope/intercetta casuali)
+### Interpretazione dei risultati *brm* 
 
-Il modello multilevel $\texttt{y ~ x + (x | id)}$ stima:
+Il modello multilevel logit con slope/intercetta casuali, $y \sim x + (x \mid id)$, stima:
 
 * *Intercept = 0.42* (SE ≈ 0.13): log-odds media di risposta 1 quando $x=0$, considerando la variabilità tra soggetti.
 * *$x = 0.50$* (SE ≈ 0.09; 95% CI \[0.32, 0.69]): effetto medio del predittore sulla log-odds, con pooling parziale tra soggetti.
