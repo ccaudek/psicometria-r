@@ -1,208 +1,172 @@
 # Modello di Poisson (1) {#sec-mcmc-poisson-1}
 
-::: callout-note
-## In questo capitolo imparerai a
 
-- utilizzare Stan per modellare dati di Poisson con una distribuzione a priori Gamma coniugata;
-- preparare i dati e configurare un modello in cmdstanr;
-- eseguire campionamenti MCMC e analizzare la distribuzione a posteriori;
-- visualizzare i campioni e confrontarli con densità teoriche;
-- calcolare e interpretare intervalli di credibilità per un parametro stimato.
-:::
-
-::: callout-tip
-## Prerequisiti
-
--
-:::
-
-::: callout-important
-## Preparazione del Notebook
+*Preparazione del Notebook*
 
 ```{r}
 here::here("code", "_common.R") |> 
   source()
 
-# Load packages
 if (!requireNamespace("pacman")) install.packages("pacman")
-pacman::p_load(cmdstanr, posterior)
+pacman::p_load(cmdstanr, posterior, bayesplot, ggplot2, dplyr, tibble)
+conflicts_prefer(posterior::ess_bulk)
+conflicts_prefer(posterior::ess_tail)
 ```
+
+
+## Introduzione {.unnumbered .unlisted}
+
+::: {.lead}
+In questo capitolo affrontiamo un primo esempio di modellazione con *Stan*, il linguaggio di programmazione che useremo per costruire modelli statistici e fare inferenza bayesiana. L’idea di base è di riprendere un problema che abbiamo già studiato con metodi analitici e con il metodo su griglia – il modello *Gamma–Poisson* – e di risolverlo ora attraverso il campionamento MCMC. In questo modo potremo confrontare i risultati e, allo stesso tempo, iniziare a familiarizzare con Stan.
 :::
 
-## Introduzione
 
-Nel @sec-bayes-inference-gamma-poisson, abbiamo analizzato un problema di inferenza bayesiana utilizzando il modello gamma-poisson. La distribuzione a posteriori è stata calcolata sia tramite il metodo basato su griglia, sia attraverso la derivazione analitica, sfruttando la proprietà di coniugatezza tra la distribuzione di Poisson (verosimiglianza) e la distribuzione Gamma (priori). In questo capitolo, introduciamo un approccio più generale e flessibile: utilizzeremo **Stan**, un linguaggio per il calcolo probabilistico, per affrontare lo stesso problema.
+## Dal modello teorico al modello computazionale
 
-Stan consente di modellare distribuzioni complesse, eseguire campionamenti MCMC (Markov Chain Monte Carlo) e ottenere stime robuste dei parametri. A differenza dell'approccio analitico, l'uso di Stan è particolarmente utile quando la coniugatezza non è garantita o il modello diventa troppo complesso per una soluzione esatta.
-
-## Modello di Poisson con Stan
-
-Riconsideriamo il problema già discusso nel @sec-bayes-inference-gamma-poisson. I dati a disposizione rappresentano una sequenza di osservazioni di un processo di conteggio, per esempio il numero di eventi (compulsioni, visite o chiamate) registrati in un determinato intervallo di tempo. Le osservazioni sono le seguenti:
+Supponiamo di avere osservazioni che rappresentano il numero di volte in cui si verifica un certo evento in un intervallo di tempo: ad esempio, il numero di compulsioni registrate da un paziente in otto momenti diversi della giornata, oppure il numero di telefonate ricevute da un centralino in altrettanti turni orari. I dati a nostra disposizione sono i seguenti:
 
 ```{r}
 y <- c(2, 1, 3, 2, 2, 1, 1, 1)
 ```
 
-Questa serie di dati rappresenta $N = 8$ osservazioni del numero di eventi in otto intervalli di tempo. Il nostro obiettivo è stimare il tasso medio di occorrenza, $\lambda$, utilizzando un approccio bayesiano.
-
-Per modellare il processo, assumiamo che le osservazioni seguano una distribuzione di Poisson con parametro $\lambda$, il tasso medio di occorrenza per unità di tempo. La distribuzione di Poisson è definita come:
+Abbiamo quindi $N = 8$ osservazioni. Vogliamo stimare $\lambda$, cioè il tasso medio di occorrenza degli eventi. L’ipotesi di partenza è che i dati seguano una distribuzione di **Poisson**, che è la distribuzione di riferimento per fenomeni di conteggio. La formula della Poisson è:
 
 $$
-P(y_i | \lambda) = \frac{\lambda^{y_i} e^{-\lambda}}{y_i!}, \quad y_i \in \mathbb{N}, \ \lambda > 0
+P(y_i \mid \lambda) = \frac{\lambda^{y_i} e^{-\lambda}}{y_i!}, \quad y_i \in \mathbb{N},\ \lambda > 0.
 $$
 
-A priori, assumiamo che il parametro $\lambda$ segua una distribuzione Gamma, scelta per la sua coniugatezza rispetto alla Poisson. La distribuzione Gamma è definita da due parametri, $\alpha_{\text{prior}}$ e $\beta_{\text{prior}}$, che modellano rispettivamente il tasso medio e la dispersione della distribuzione:
+Questa formula ci dice che la probabilità di osservare un certo numero di eventi dipende da un unico parametro, $\lambda$, che rappresenta proprio il tasso medio.
+
+Per condurre un’analisi bayesiana abbiamo bisogno anche di specificare una distribuzione a priori su $\lambda$. In questo caso scegliamo una *Gamma*, che si combina molto bene con la Poisson perché le due distribuzioni sono coniugate. La densità della Gamma è la seguente:
 
 $$
-p(\lambda) = \frac{\beta_{\text{prior}}^{\alpha_{\text{prior}}}}{\Gamma(\alpha_{\text{prior}})} \lambda^{\alpha_{\text{prior}} - 1} e^{-\beta_{\text{prior}} \lambda}, \quad \lambda > 0
+p(\lambda) = \frac{\beta^{\alpha}}{\Gamma(\alpha)} \lambda^{\alpha - 1} e^{-\beta \lambda}, \quad \lambda > 0.
 $$
 
-Per il nostro modello, scegliamo:
+I due parametri $\alpha$ e $\beta$ regolano rispettivamente la forma e la concentrazione della distribuzione. Nel nostro esempio poniamo $\alpha = 9$ e $\beta = 2$. In questo modo, il valore medio della priori è $\alpha / \beta = 4.5$, cioè la nostra convinzione iniziale è che il numero medio di eventi sia attorno a 4 o 5, pur lasciando spazio all’incertezza.
 
-- $\alpha_{\text{prior}} = 9$: rappresenta la "forza" della nostra conoscenza a priori.
-- $\beta_{\text{prior}} = 2$: rappresenta il livello di concentrazione dei valori attesi attorno a un tasso medio.
 
-### Specifica del Modello in Stan
+## Scrivere il modello in Stan
 
-In Stan, definiamo il modello con una sezione di dati, una sezione per i parametri, e una per il modello stesso:
+Ora traduciamo queste idee in Stan. Un modello in Stan è diviso in blocchi. Nel blocco *data* indichiamo i dati osservati e i parametri noti, nel blocco *parameters* i parametri che vogliamo stimare, e nel blocco *model* specifichiamo la struttura probabilistica del modello, cioè la priori e la verosimiglianza.
 
-```
+Il modello Stan è quindi:
+
+```stan
 data {
-  int<lower=0> N; // numero di osservazioni
-  array[N] int<lower=0> y; // dati osservati
-  real<lower=0> alpha_prior; // parametro alpha della priori Gamma
-  real<lower=0> beta_prior; // parametro beta della priori Gamma
+  int<lower=0> N;                // numero di osservazioni
+  array[N] int<lower=0> y;       // dati osservati
+  real<lower=0> alpha_prior;     // parametro alpha della Gamma
+  real<lower=0> beta_prior;      // parametro beta della Gamma
 }
 parameters {
-  real<lower=0> lambda; // parametro di interesse
+  real<lower=0> lambda;          // parametro di interesse
 }
 model {
-  // Priori
-  lambda ~ gamma(alpha_prior, beta_prior);
-  
-  // Verosimiglianza
-  y ~ poisson(lambda);
+  lambda ~ gamma(alpha_prior, beta_prior);   // priori
+  y ~ poisson(lambda);                       // verosimiglianza
 }
 generated quantities {
-  real alpha_post = alpha_prior + sum(y);
-  real beta_post = beta_prior + N;
+  real alpha_post = alpha_prior + sum(y);    // parametri posteriori teorici
+  real beta_post  = beta_prior + N;
 }
 ```
 
-### Creazione del Modello in R
+In questo esempio aggiungiamo anche una sezione “generated quantities”, dove calcoliamo i parametri della distribuzione a posteriori teorica. Non è strettamente necessario, ma ci serve per fare il confronto con quanto otterremo dal campionamento MCMC.
 
-Per iniziare, utilizziamo `cmdstanr` per compilare il modello Stan. Il file `.stan` è salvato nella directory del progetto.
+
+## Preparare i dati ed eseguire il modello in R
+
+Dopo aver scritto il file Stan e salvato con estensione `.stan`, lo possiamo compilare ed eseguire in R con il pacchetto *cmdstanr*.
 
 ```{r}
 stan_file <- here::here("stan", "gamma_poisson_mcmc.stan")
 mod <- cmdstan_model(stan_file)
-```
 
-A questo punto, il modello è pronto per l'esecuzione con i dati preparati, che includono il numero di osservazioni $N$, i dati stessi $y$, e i parametri della distribuzione a priori.
-
-Sistemiamo i dati nel formato richiesto da Stan.
-
-```{r}
-# Preparazione dei dati in R
 N <- length(y)
 alpha_prior <- 9
 beta_prior <- 2
 
-# Preparazione dei dati per Stan
 stan_data <- list(N = N, y = y, alpha_prior = alpha_prior, beta_prior = beta_prior)
-
-# Stampa del contenuto di stan_data
-print(stan_data)
 ```
 
-#### Campionamento MCMC
-
-Eseguiamo il campionamento.
+Una volta preparati i dati, lanciamo il campionamento:
 
 ```{r}
-#| message: false
-#| warning: false
-#| 
+#| output: false
+
 fit <- mod$sample(
   data = stan_data,
   seed = 123,
   chains = 4,
   parallel_chains = 4,
-  iter_sampling = 3000, 
+  iter_sampling = 3000,
   iter_warmup = 2000,
-  # adapt_delta = 0.99,
   show_messages = FALSE
 )
 ```
 
-#### Distribuzione a Posteriori
+A questo punto Stan ci restituisce una grande quantità di campioni dalla distribuzione a posteriori del parametro $\lambda$. Con questi campioni possiamo fare analisi numeriche e grafiche.
 
-Estraiamo un campione casuale dalla distribuzione a posteriori di `lambda`.
+
+## Analizzare i risultati
+
+Per prima cosa estraiamo i campioni di $\lambda$:
 
 ```{r}
-lambda_samples <- fit$draws(variables = "lambda", format = "array")
+lambda_samples <- as.vector(fit$draws("lambda"))
 ```
 
-Calcoliamo i parametri della Gamma a posteriori teorica.
+In parallelo, possiamo calcolare i parametri della distribuzione Gamma che rappresenta la soluzione analitica a posteriori. Sono:
 
 ```{r}
 alpha_post <- alpha_prior + sum(y)
-beta_post <- beta_prior + N
+beta_post  <- beta_prior + N
 ```
 
-Creiamo un istogramma con i campioni della distribuzione a posteriori di $\lambda$ e sovrapposta la densità teorica della distribuzione a posteriori.
+Per visualizzare i risultati, tracciamo un istogramma dei campioni MCMC e vi sovrapponiamo la curva della distribuzione Gamma a posteriori teorica:
 
 ```{r}
-lambda_samples <- as.vector(lambda_samples)
-
-# Create a dataframe with lambda_samples
 lambda_samples_df <- data.frame(lambda_samples = lambda_samples)
 
-# Generate the plot
 ggplot(lambda_samples_df, aes(x = lambda_samples)) +
-  geom_histogram(aes(y = after_stat(density)), bins = 50, fill = "blue", alpha = 0.7) +
+  geom_histogram(aes(y = after_stat(density)), bins = 50, fill = "skyblue", alpha = 0.7) +
   stat_function(
     fun = function(x) dgamma(x, shape = alpha_post, rate = beta_post),
-    color = "red",
-    linewidth = 1.2
+    color = "red", linewidth = 1.2
   ) +
-  ggtitle("Distribuzione a posteriori di lambda") +
-  xlab("lambda") +
-  ylab("Densità") +
-  annotate(
-    "text",
-    x = max(lambda_samples) * 0.95,
-    y = max(dgamma(lambda_samples, shape = alpha_post, rate = beta_post)) * 0.95,
-    label = paste0("alpha_post = ", round(alpha_post, 2), "\n",
-                   "beta_post = ", round(beta_post, 2)),
-    hjust = 1,
-    vjust = 1,
-    size = 5,
-    color = "black"
-  ) 
+  labs(
+    title = "Distribuzione a posteriori di λ",
+    x = "λ",
+    y = "Densità"
+  )
 ```
 
-Otteniamo un sommario della distribuzione a posteriori dei parametri del modello.
+Il grafico mostra che i campioni prodotti da Stan si distribuiscono esattamente come la curva teorica della distribuzione Gamma, confermando che il nostro modello è stato specificato correttamente.
+
+Possiamo anche calcolare un intervallo di credibilità per $\lambda$. Ad esempio, prendiamo il 94% centrale della distribuzione:
 
 ```{r}
-fit$summary()
+quantile(lambda_samples, probs = c(0.03, 0.97))
 ```
 
-Generiamo l'intervallo di credibilità al 94% per la distribuzione a posteriori del parametro `lambda`.
+Il risultato è che il valore medio stimato di $\lambda$ è circa 2.2, e che con un grado di certezza soggettivo del 94% possiamo dire che si trova tra 1.4 e 3.1.
 
-```{r}
-# Calcolo dell'intervallo di credibilità al 94%
-credibility_interval <- quantile(lambda_samples, probs = c(0.03, 0.97))
 
-# Visualizzazione dell'intervallo
-print(credibility_interval)
-```
 
-In sintesi, analizzando i dati disponibili e utilizzando una distribuzione a priori Gamma(9, 2), possiamo affermare con un grado di certezza soggettivo del 94% che il tasso stimato di occorrenza dell'evento considerato sia di 2.2 compulsioni all'ora, con un intervallo di credibilità compreso tra 1.4 e 3.1.
+## Riflessioni conclusive
 
-## Informazioni sull'Ambiente di Sviluppo {.unnumbered}
+In questo capitolo abbiamo fatto un passo importante: abbiamo visto come tradurre un modello probabilistico relativamente semplice in Stan, come eseguire il campionamento MCMC, e come confrontare i risultati con la soluzione analitica. Questo esempio ci ha permesso di verificare che Stan funziona correttamente, perché in questo caso conoscevamo già la distribuzione a posteriori esatta.
+
+L’aspetto davvero interessante, però, è che la stessa procedura può essere usata anche quando la soluzione analitica non esiste. Nei capitoli successivi incontreremo modelli più complessi, in cui la coniugatezza non ci aiuta più e non abbiamo formule chiuse per la distribuzione a posteriori. In quei casi, il campionamento MCMC sarà lo strumento indispensabile per fare inferenza bayesiana.
+
+
+## Informazioni sull’ambiente di sviluppo {.unnumbered .unlisted}
 
 ```{r}
 sessionInfo()
 ```
+
+
+## Bibliografia {.unnumbered .unlisted}
 

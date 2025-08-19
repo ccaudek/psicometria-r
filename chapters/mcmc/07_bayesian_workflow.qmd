@@ -1,124 +1,106 @@
 # Flusso di lavoro bayesiano {#sec-mcmc-workflow}
 
+
 ::: callout-important
+
 ## In questo capitolo imparerai a
 
-- comprendere il workflow bayesiano, un approccio iterativo che include formulazione, implementazione, verifica e miglioramento continuo dei modelli.
-- comprendere le verifiche predittive, ovvero le simulazioni dei dati a priori e a posteriori per testare la coerenza del modello con i dati osservati.
-- comprendere l'analisi multiverso: un framework per la considerazione congiunta e trasparente di diversi modelli candidati [@steegen2016increasing].
+* capire cos’è un workflow bayesiano e perché è utile nella ricerca;
+* distinguere le principali fasi del processo: formulare, verificare e migliorare un modello;
+* conoscere le verifiche predittive, cioè le simulazioni che ci aiutano a capire se il modello funziona;
+* introdurre l’idea di *analisi multiverso*, un approccio che esplora più modelli alternativi in modo trasparente.
 :::
 
 ::: callout-tip
+
 ## Prerequisiti
 
-- Leggere [A workflow for causal inference in cross-cultural
-psychology](https://www.researchgate.net/profile/Joseph-Bulbulia/publication/361799820_A_workflow_for_causal_inference_in_cross-cultural_psychology_A_workflow_for_causal_inference_in_cross-cultural_psychology/links/62c5cad2f8c0fc18d3ec9798/A-workflow-for-causal-inference-in-cross-cultural-psychology-A-workflow-for-causal-inference-in-cross-cultural-psychology.pdf) [@bulbulia2023workflow].
+Può essere utile aver letto [Bulbulia (2023) su workflow e inferenza causale](https://www.researchgate.net/profile/Joseph-Bulbulia/publication/361799820_A_workflow_for_causal_inference_in_cross-cultural_psychology-A-workflow-for-causal-inference-in-cross-cultural-psychology/links/62c5cad2f8c0fc18d3ec9798/A-workflow-for-causal-inference-in-cross-cultural-psychology-A-workflow-for-causal-inference-in-cross-cultural-psychology.pdf).
 :::
 
-## Introduzione
 
-L'applicazione dell'inferenza bayesiana nella risoluzione di problemi reali richiede un approccio strutturato e multidisciplinare, noto come workflow bayesiano. Questo processo iterativo e complesso va ben oltre la semplice applicazione della regola di Bayes, che pur costituendo il fondamento teorico dell'inferenza bayesiana, rappresenta solo il punto di partenza di un percorso analitico più articolato.
+## Introduzione {.unnumbered .unlisted}
 
-Il workflow bayesiano include molteplici fasi interconnesse, tra cui:
+Fare analisi bayesiana non significa semplicemente applicare la formula di Bayes e ottenere delle stime. Nella pratica della ricerca, serve un approccio più ampio e strutturato: il *workflow bayesiano*. Si tratta di un processo ciclico che aiuta i ricercatori a passare dall’idea di partenza (una domanda di ricerca) a un modello utile e convincente, capace di generare previsioni plausibili e di guidare le conclusioni.
 
-1. **Costruzione iterativa del modello**: Definizione e revisione di modelli probabilistici che rappresentano i processi generativi dei dati.
-2. **Verifica e validazione**: Controllo della qualità delle stime e valutazione delle capacità predittive del modello.
-3. **Risultati e interpretazione**: Confronto tra modelli alternativi per trarre conclusioni solide.
-4. **Gestione di problemi computazionali**: Identificazione e soluzione di eventuali difficoltà nell’adattamento del modello.
+Immaginiamo di voler valutare l’efficacia di un nuovo intervento psicologico. Non basta raccogliere i dati e stimare i parametri: bisogna decidere quali variabili considerare, come trattare le differenze tra individui e gruppi, quali assunzioni fare sulle distribuzioni, e come controllare che il modello davvero rifletta la realtà osservata. Tutto questo richiede un percorso iterativo di costruzione, verifica e revisione.
 
-Per esempio, immaginiamo di voler valutare l'efficacia di un intervento psicologico. Il ricercatore deve affrontare diverse decisioni: quali variabili includere (covariate), come modellare i dati gerarchici (ad esempio, individui e gruppi), e quali distribuzioni utilizzare per rappresentare incertezze (priori). Queste decisioni, lungi dall’essere definitive, richiedono continui aggiustamenti basati sui risultati intermedi.
+In breve: il workflow bayesiano è un *metodo per fare ricerca in modo più consapevole e trasparente*.
 
-Un ulteriore aspetto critico è la gestione di possibili problemi computazionali. Ad esempio, il campionamento MCMC (Markov Chain Monte Carlo) potrebbe non convergere correttamente, richiedendo modifiche al modello o all'approccio algoritmico. Inoltre, il workflow bayesiano non si limita alla stima dei parametri: include la valutazione della capacità del modello di fare previsioni attendibili e il confronto tra modelli alternativi.
 
-Infine, è fondamentale bilanciare la complessità del modello con la rilevanza pratica dei risultati. Modelli troppo semplici possono portare a conclusioni distorte, mentre modelli troppo complessi possono diventare difficili da interpretare. Il workflow bayesiano aiuta i ricercatori a navigare queste sfide, fornendo un quadro metodologico flessibile e iterativo.
+## Il ciclo di Box
 
-## Principi del workflow bayesiano
+Negli anni ’60, lo statistico George Box descrisse la modellizzazione come un ciclo continuo di *costruzione, valutazione e revisione*. Questo approccio, noto come *Ciclo di Box*, è diventato un punto di riferimento anche per il workflow bayesiano.
 
-Un workflow è una sequenza strutturata di passi che definisce cosa costituisce una "buona pratica" in un determinato ambito. Nel contesto dell'inferenza bayesiana, il workflow si ispira a concetti come il Ciclo di Box e le più recenti estensioni proposte da studiosi come Gelman e Riha.
-
-### Il Ciclo di Box
-
-George Box, uno dei pionieri della statistica moderna, ha sviluppato negli anni '60 un approccio ciclico alla modellizzazione statistica, noto come Ciclo di Box. Questo paradigma sottolinea che la modellizzazione non è un processo lineare, ma un ciclo continuo di miglioramento.
+L’idea chiave è semplice: i modelli non sono mai perfetti, ma strumenti che possono essere continuamente migliorati.
 
 ![Figura tratta da @blei2014build.](../../figures/boxes_loop.png)
 
-Il Ciclo di Box si articola in una serie di fasi iterative:
+Il ciclo comprende quattro fasi:
 
-1. **Formulazione del modello:** Si costruisce un modello basato sulle conoscenze disponibili e sui dati osservati.
-2. **Inferenza:** Si stimano i parametri del modello e si valutano le incertezze associate.
-3. **Valutazione del modello:** Si verifica quanto il modello si adatta ai dati.
-4. **Revisione del modello:** Si corregge il modello in base alle discrepanze identificate.
+1. **Formulare un modello** sulla base delle conoscenze disponibili;
+2. **Fare inferenza**, cioè stimare parametri e incertezze;
+3. **Valutare il modello**, controllando quanto descrive bene i dati;
+4. **Rivedere il modello**, correggendo le discrepanze.
 
-Questo approccio iterativo è il cuore del workflow bayesiano. La capacità dell'inferenza bayesiana di aggiornare le credenze a priori alla luce di nuovi dati lo rende particolarmente adatto a essere integrato nel Ciclo di Box. Più recentemente, @gelman2020bayesian hanno proposto una versione estesa del Ciclo di Box, fornendo una guida dettagliata per implementare un workflow bayesiano completo.
+Il flusso di lavoro bayesiano si integra bene con questo ciclo perché le nostre convinzioni possono essere aggiornate man mano che arrivano nuovi dati.
 
-![Figura tratta da @gelman2020bayesian.](../../figures/bayes_workflow.png)
 
-## Costruzione iterativa del modello
+## Le fasi del workflow bayesiano
 
-Il processo di costruzione di un modello bayesiano può essere descritto attraverso i seguenti passaggi:
+Nella pratica, il workflow bayesiano segue alcune tappe principali:
 
-- **Comprensione del fenomeno e formulazione del problema**: Il punto di partenza è definire chiaramente la domanda di ricerca. L'obiettivo non è semplicemente descrivere correlazioni tra variabili, ma comprendere i meccanismi generativi dei dati.
-  
-- **Formulazione matematica**: Si costruisce un modello probabilistico che rappresenti il processo generativo, spesso utilizzando linguaggi probabilistici (PPL) come Stan o PyMC.
+* **Definizione della domanda di ricerca**: partire da un problema chiaro e da un’ipotesi sul processo che genera i dati.
+* **Costruzione del modello**: tradurre l’ipotesi in un modello probabilistico.
+* **Simulazioni a priori**: generare dati fittizi dai soli *priori* per capire se le ipotesi iniziali sono ragionevoli.
+* **Adattamento ai dati**: stimare i parametri del modello sui dati osservati.
+* **Verifiche a posteriori**: confrontare i dati osservati con quelli simulati a partire dal modello stimato.
+* **Diagnostiche**: controllare che il procedimento di stima sia andato a buon fine (per esempio, che le catene MCMC abbiano esplorato bene lo spazio dei parametri).
+* **Iterazione**: tornare indietro e migliorare il modello quando necessario.
 
-- **Implementazione**: Il modello viene tradotto in codice utilizzando interfacce software come R, Python o Julia, che permettono di adattare modelli complessi ai dati.
+Questa sequenza non è lineare: spesso bisogna ripetere più volte alcuni passaggi, fino a raggiungere un equilibrio tra semplicità e capacità esplicativa.
 
-- **Verifiche predittive a priori**: Si simulano dati basandosi sulle distribuzioni a priori per verificare che i parametri scelti siano ragionevoli.
 
-- **Adattamento del modello**: Si utilizza un algoritmo di campionamento per stimare i parametri del modello dai dati osservati (ad esempio, `cmdstanr` o `cmdstanpy`).
+## Verifiche predittive
 
-- **Diagnostiche di convergenza**: Si verifica che le catene MCMC abbiano raggiunto la convergenza, utilizzando strumenti come il valore `R-hat`.
+Uno strumento centrale sono le **verifiche predittive**.
 
-- **Verifiche predittive a posteriori**: Si generano dati simulati a partire dalla distribuzione a posteriori per confrontarli con i dati reali e valutare la bontà del modello.
+* Le **verifiche a priori** controllano che i *priori* scelti non producano scenari irrealistici.
+* Le **verifiche a posteriori** servono per confrontare i dati osservati con i dati che il modello, una volta stimato, sarebbe capace di generare.
 
-- **Iterazione**: Sulla base dei risultati, il modello viene raffinato e migliorato.
+Se il modello produce dati molto diversi da quelli reali, vuol dire che qualcosa va rivisto.
 
-Questo processo iterativo consente di costruire modelli che siano sia robusti sia interpretabili.
+Queste verifiche non sono test statistici “passa/non passa”, ma occasioni di apprendimento: ci dicono dove il modello funziona e dove deve essere migliorato.
 
-## Analisi Multiverso
 
-L'analisi multiverso, introdotta recentemente [@riha2024supporting], amplia il workflow bayesiano, permettendo di esplorare simultaneamente molteplici modelli alternativi. Ogni modello rappresenta una combinazione unica di scelte modellistiche (ad esempio, covariate, distribuzioni a priori, o assunzioni sul processo generativo).
+## Analisi multiverso
 
-I vantaggi principali dell’analisi multiverso includono:
+Un’estensione recente del workflow bayesiano è l’**analisi multiverso** \[@steegen2016increasing; @riha2024supporting].
 
-1. **Trasparenza**: Documenta tutte le scelte di modellizzazione.
-2. **Esplorazione completa**: Riduce il rischio di trascurare ipotesi rilevanti.
-3. **Confronto diretto**: Permette di identificare i modelli più adatti basandosi su criteri come l'Expected Log-Predictive Density (ELPD).
-4. **Robustezza**: Esamina come le conclusioni cambiano tra diversi modelli.
-5. **Replicabilità**: Fornisce informazioni dettagliate per riprodurre l'analisi e i risultati. 
+L’idea è semplice: invece di puntare su un unico modello, esploriamo più modelli possibili, ognuno basato su scelte diverse (per esempio, variabili incluse, tipo di distribuzione, forma della relazione).
 
-Questo approccio incorpora anche verifiche computazionali e analisi di sensibilità. Le prime identificano i modelli che necessitano di ulteriori verifiche per garantire l'affidabilità dei risultati, mentre le seconde esaminano la robustezza delle conclusioni rispetto alle diverse scelte di modellazione e all'influenza delle priori sulle stime posteriori.
+I vantaggi sono:
 
-Tuttavia, la generazione di numerosi modelli può complicare la gestione e l'interpretazione dei risultati. Per affrontare questa sfida, @riha2024supporting propongono un metodo di "iterative filtering" che comprende:
+* maggiore trasparenza sulle scelte fatte;
+* confronto diretto tra alternative;
+* conclusioni più robuste, perché sappiamo quanto dipendono dalle assunzioni iniziali.
 
-1. Creazione di un multiverso iniziale di modelli.
-2. Valutazione delle capacità predittive attraverso controlli predittivi posteriori (PPC) e calcolo dell'expected log point-wise predictive density (elpd).
-3. Verifica della qualità computazionale, esaminando convergenza ed efficienza del campionamento MCMC.
-4. Filtraggio iterativo basato su criteri di qualità predefiniti.
-5. Possibilità di estendere il multiverso e ripetere il processo.
+Ovviamente, più modelli significano anche più complessità. Per gestirla, sono stati proposti approcci di “filtraggio iterativo”: si parte da molti modelli e, passo dopo passo, si scartano quelli che non funzionano bene, fino a concentrarsi su un insieme ristretto e più solido.
 
-Questo approccio mantiene i vantaggi della multiverse analysis riducendo al contempo la complessità attraverso un filtraggio sistematico. Il risultato è un workflow bayesiano più robusto e informativo, che bilancia la necessità di considerare molteplici ipotesi modellistiche con l'esigenza pratica di focalizzarsi sui modelli più promettenti per il problema in esame.
+Un esempio è l’analisi di dati clinici sulle crisi epilettiche (studio di Leppik et al., 1987). In quel caso, decine di modelli sono stati confrontati utilizzando criteri predittivi come l’ELPD (*Expected Log Predictive Density*). Alcuni modelli si sono rivelati poco plausibili, altri molto più predittivi e stabili. Questo dimostra come l’analisi multiverso possa rendere le conclusioni più affidabili, senza ridursi a una sola scelta arbitraria.
 
-Uno dei casi di studio esaminati da @riha2024supporting riguarda l'analisi del numero di crisi epilettiche in relazione a diverse variabili (covariate) e scelte di modellazione. I dati utilizzati provengono dallo studio di @leppik1987controlled e sono disponibili nel pacchetto R `brms`.
 
-Sono stati confrontati 24 modelli statistici, ciascuno con una specifica formulazione matematica (illustrata nella Tabella seguente). La scelta dei modelli ha riguardato diverse combinazioni di covariate e di distribuzioni di probabilità per descrivere il fenomeno in esame.
+## Riflessioni conclusive {.unnumbered .unlisted}
 
-![Tabella 1 ricavata da @riha2024supporting.](../../figures/epilepsy_models.png){ width=70% }
+Il workflow bayesiano è un approccio pratico e flessibile per fare ricerca. Non si tratta di una serie di regole rigide, ma di una guida che incoraggia cicli di costruzione, verifica e revisione dei modelli.
 
-Per valutare la capacità predittiva dei modelli, è stato utilizzato il criterio ELPD (Expected Log-Predictive Density). I risultati sono riportati nel grafico seguente.
+Con strumenti come le verifiche predittive e l’analisi multiverso, i ricercatori possono:
 
-![Figura 12 ricavata da @riha2024supporting.](../../figures/epilepsy_elpd.png){ width=90% }
+* evitare modelli troppo semplici o troppo complicati;
+* rendere trasparenti le proprie scelte;
+* costruire inferenze più solide e replicabili.
 
-Come si può osservare, i modelli presentano performance predittive differenti.
+In altre parole, il workflow bayesiano aiuta a trasformare la teoria in pratica, accompagnando il ricercatore in tutte le fasi del processo analitico.
 
-Oltre all'ELPD, sono stati condotti controlli predittivi posteriori (PPC) per valutare la plausibilità dei modelli rispetto ai dati osservati. I risultati dei PPC sono visualizzati nella figura seguente.
 
-![Figura 13 ricavata da @riha2024supporting.](../../figures/epilepsy_ppc.png){ width=90% }
-
-Il modello selezionato è quello che ha mostrato il miglior valore di ELPD, evidenziando una buona capacità predittiva. Inoltre, i controlli PPC hanno confermato la plausibilità del modello rispetto ai dati osservati. Infine, il modello selezionato non ha presentato problemi computazionali durante la stima dei parametri.
-
-## Riflessioni Conclusive
-
-Il workflow bayesiano rappresenta una strategia strutturata e iterativa per affrontare l'analisi dei dati complessi. Attraverso strumenti come le verifiche predittive e l’analisi multiverso, consente di sviluppare modelli solidi e capaci di adattarsi a nuovi dati e conoscenze. La sua integrazione con linguaggi come Stan o PyMC ne facilita l’applicazione, rendendolo un approccio essenziale per la ricerca moderna.
-
-## Bibliografia {.unnumbered}
+## Bibliografia {.unnumbered .unlisted}

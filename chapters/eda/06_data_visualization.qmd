@@ -34,30 +34,28 @@ pacman::p_load(dslabs, ggrepel, stringr)
 ```
 :::
 
-## Introduzione
 
-In questo capitolo vengono presentati i principi fondamentali della visualizzazione dei dati, accompagnati da una breve descrizione esplicativa. Per approfondimenti, si raccomanda di consultare il capitolo [Data Visualization](http://rafalab.dfci.harvard.edu/dsbook-part-1/dataviz/intro-dataviz.html) del libro *Introduction to Data Science*.  
 
-Verranno inoltre analizzati errori, bias, imprecisioni sistematiche e altre problematiche che possono influenzare l'interpretazione dei dati. Poiché tali problematiche spesso sfuggono a una verifica diretta nel dataset, la visualizzazione diventa uno strumento indispensabile per identificarle e gestirle.
+## Introduzione {.unnumbered .unlisted} 
 
-L’aumento della disponibilità di dataset informativi e di strumenti software ha elevato l’importanza della visualizzazione in numerosi ambiti. Essa non solo facilita la comunicazione dei risultati, ma stimola ulteriori analisi e consente di individuare errori e anomalie in modo immediato.
+::: {.lead}
+In questo capitolo vengono introdotti i principi fondamentali della visualizzazione dei dati, accompagnati da esempi concreti e da una discussione sui principali errori da evitare. La visualizzazione non è soltanto un supporto estetico: è uno strumento essenziale per interpretare, comunicare e validare i risultati delle analisi.
+:::
 
-## Un'Immagine Vale Più di Mille Parole
+Un buon grafico permette di cogliere immediatamente pattern, anomalie e bias che resterebbero nascosti in una semplice tabella di valori. Per chi desidera un approfondimento sistematico, un riferimento utile è il capitolo [Data Visualization](http://rafalab.dfci.harvard.edu/dsbook-part-1/dataviz/intro-dataviz.html) del libro *Introduction to Data Science*..
 
-I numeri e le stringhe che compongono un dataset raramente offrono una visione chiara. Ad esempio, osservando la tabella dei dati relativi agli omicidi con armi da fuoco negli Stati Uniti:
+L’ampia disponibilità di dataset complessi e la diffusione di strumenti software sempre più accessibili hanno reso la visualizzazione un passaggio centrale in molti ambiti scientifici e professionali: non solo facilita la comunicazione dei risultati, ma stimola nuove domande e consente di individuare rapidamente errori o anomalie.
+
+
+## Un'immagine vale più di mille parole
+
+I numeri da soli raramente raccontano una storia chiara. Consideriamo, ad esempio, i dati sugli omicidi con armi da fuoco negli Stati Uniti. Una tabella con i valori grezzi permette di sapere, per ogni stato, popolazione e numero di omicidi. Tuttavia, osservandola è difficile farsi un’idea immediata della distribuzione: quali sono gli stati più popolosi o i meno popolosi? Qual è la dimensione “tipica” di uno stato? Esiste una relazione tra popolazione e numero totale di omicidi? E come si distribuiscono i tassi di omicidio tra le diverse regioni?
 
 ```{r, message=FALSE, warning=FALSE}
 head(murders)
 ```
 
-diventa difficile rispondere a domande quali:  
-
-- Quali stati hanno le popolazioni maggiori o minori?  
-- Qual è la dimensione "tipica" di uno stato?  
-- Esiste una relazione tra popolazione e numero totale di omicidi?  
-- Come variano i tassi di omicidio nelle diverse regioni?  
-
-Al contrario, il grafico seguente rende evidenti tutte queste informazioni:
+Un grafico, al contrario, rende queste relazioni visibili a colpo d’occhio. Nella figura che segue, la scala logaritmica su entrambi gli assi permette di rappresentare in modo compatto sia gli stati più grandi, come California, Texas e New York, sia quelli con popolazioni molto ridotte, come Wyoming, Vermont o Alaska. Si vede subito che la maggior parte degli stati ha una popolazione compresa tra uno e dieci milioni di abitanti, mentre gli stati più popolosi si collocano nettamente a destra del grafico.
 
 ```{r ggplot-example-plot-0, echo=FALSE, message=FALSE, warning=FALSE, fig.asp=1}
 r <- murders |>
@@ -78,59 +76,43 @@ murders |> ggplot(aes(x = population / 10^6, y = total, label = abb)) +
   theme(legend.position = "bottom")
 ```
 
-Il detto "un'immagine vale più di mille parole" si conferma: una buona visualizzazione comunica immediatamente il messaggio e spesso elimina la necessità di ulteriori analisi.
+Allo stesso modo, la relazione tra popolazione e numero di omicidi appare chiara: più abitanti significa, in media, più omicidi. Tuttavia, si notano discrepanze: alcuni stati registrano più omicidi del previsto in rapporto alla popolazione, mentre altri ne hanno meno, segnalando l’influenza di fattori ulteriori. Anche la colorazione per regione rivela differenze interessanti: il Sud tende a registrare tassi più elevati, il Nord-Est valori relativamente bassi, l’Ovest mostra una grande variabilità, e il Midwest si colloca in posizione intermedia o bassa.
 
-### Domande Guidate dalla Visualizzazione
+Il detto “un’immagine vale più di mille parole” trova qui piena conferma: un buon grafico non solo comunica con immediatezza, ma spesso sostituisce lunghe spiegazioni numeriche, guidando lo sguardo verso i pattern più rilevanti e stimolando nuove domande di analisi.
 
-Osservando il grafico, possiamo rispondere rapidamente ad alcune domande:
 
-1. **Stati con popolazioni maggiori:**  
-   Gli stati con le popolazioni più numerose si trovano a destra sull'asse delle ascisse (scala logaritmica), evidenziando, ad esempio, California, Texas e New York.
+## Codificare i dati attraverso segnali visivi
 
-2. **Stati con popolazioni minori:**  
-   Quelli con popolazioni ridotte si posizionano a sinistra, come Wyoming, Vermont e Alaska.
+Ogni visualizzazione si fonda sulla trasformazione dei dati in **segnali visivi** che il nostro sistema percettivo può elaborare con immediatezza. Gli elementi più comuni sono la posizione, la lunghezza, gli angoli, l’area, la luminosità e la tonalità del colore. Non tutti, però, hanno la stessa efficacia.
 
-3. **Dimensione "tipica" di uno stato:**  
-   La densità delle osservazioni suggerisce che la maggior parte degli stati conta intorno a un milione di abitanti, mentre molti raggiungono i 5–10 milioni.
+Il nostro cervello è particolarmente sensibile alle differenze spaziali: per questo la **posizione** e la **lunghezza** sono i canali più potenti per trasmettere informazione quantitativa. Un grafico a barre, ad esempio, permette di confrontare valori in modo rapido e preciso proprio perché sfrutta la lunghezza come segnale visivo. Al contrario, **angoli e aree** sono molto meno intuitivi: grafici a torta o bolle possono risultare accattivanti, ma spesso portano a errori percettivi, soprattutto quando le differenze tra categorie sono ridotte.
 
-4. **Relazione tra popolazione e omicidi:**  
-   È evidente una relazione positiva: stati più popolosi tendono ad avere un numero maggiore di omicidi, pur mostrando alcune discrepanze dovute ad altri fattori.
+Il **colore** gioca un ruolo cruciale quando vogliamo distinguere categorie o rappresentare variabili qualitative. È un elemento indispensabile nelle visualizzazioni multidimensionali, come le heatmap, ma deve essere usato con attenzione. Alcune combinazioni, come il rosso e il verde, possono rendere il grafico illeggibile per persone con daltonismo, e in generale una palette mal progettata può distogliere l’attenzione dai contenuti principali.
 
-5. **Variazione dei tassi di omicidio per regione:**  
-   Il grafico, attraverso la codifica cromatica, indica che:  
-   - Il Sud registra generalmente tassi più elevati.  
-   - Il Nord-Est presenta tassi moderati e relativamente più bassi.  
-   - L'Ovest mostra una grande variabilità, in parte dovuta a grandi popolazioni.  
-   - Il Midwest evidenzia tassi bassi o moderati.
+Infine, è importante distinguere tra strumenti di precisione e strumenti di sintesi. Le **tabelle** sono ideali quando è necessario leggere valori numerici esatti, mentre i grafici diventano insostituibili di fronte a dataset complessi, perché mettono in evidenza pattern, tendenze e anomalie che difficilmente emergerebbero da un elenco di numeri.
 
-## Codificare i Dati Attraverso Segnali Visivi
 
-Le visualizzazioni si basano su segnali visivi come posizione, lunghezza, angoli, area, luminosità e tonalità del colore. Tra questi, **posizione e lunghezza** risultano i più efficaci, in quanto il cervello umano è particolarmente sensibile alle variazioni spaziali. Al contrario, **angoli e aree** – tipici dei pie chart o bubble plot – possono indurre errori interpretativi, soprattutto in presenza di differenze minime.
+## Scelta della visualizzazione più adeguata
 
-Il **colore**, impiegato per rappresentare variabili qualitative o categoriali, è particolarmente utile in visualizzazioni multidimensionali, come le heatmap, ma va usato con attenzione per garantire l’accessibilità (ad es. evitare combinazioni rosso-verde per il daltonismo).
+Non esiste una visualizzazione “migliore” in assoluto: la scelta dipende sempre dalla **natura dei dati** e dallo **scopo comunicativo**. Se l’obiettivo è confrontare valori quantitativi tra diverse categorie, i grafici a barre o i dot plot risultano particolarmente chiari. Quando invece vogliamo descrivere la distribuzione di una variabile continua, strumenti come l’istogramma, il boxplot o i più moderni raincloud plots permettono di cogliere rapidamente forma, variabilità e presenza di outlier. Per indagare relazioni tra due variabili continue, i grafici di dispersione offrono un’immediatezza che difficilmente può essere sostituita da altre rappresentazioni.
 
-Mentre le **tabelle** garantiscono precisione numerica, i grafici (come i barplot) risultano più efficaci per dataset complessi, in quanto facilitano l’individuazione di pattern e tendenze.
+Qualunque sia il tipo di grafico scelto, rimane centrale il principio della **chiarezza**. Una visualizzazione sovraccarica di dettagli, effetti grafici o decorazioni rischia di distrarre e confondere, mentre una rappresentazione essenziale mette in risalto il messaggio principale e guida lo sguardo verso le informazioni rilevanti. In questo senso, un buon grafico non è solo corretto dal punto di vista tecnico, ma è anche uno strumento di comunicazione efficace.
 
-## Scelta della Visualizzazione Più Adeguata
 
-La scelta del tipo di visualizzazione dipende dalla natura dei dati e dall’obiettivo comunicativo. Ad esempio:
 
-- **Barplot e dot plot:** Ideali per confrontare valori quantitativi tra categorie.
-- **Istogrammi, boxplot e raincloud plots:** Efficaci per descrivere la distribuzione di dati continui.
-- **Grafici di dispersione (scatter plot):** Utili per esplorare relazioni tra due variabili continue.
+## Aspetti tecnici della visualizzazione
 
-La chiarezza e la leggibilità sono fondamentali: l’aggiunta di elementi superflui può distrarre e confondere, mentre una rappresentazione essenziale evidenzia il messaggio principale.
+Una buona visualizzazione non dipende soltanto dalla scelta del tipo di grafico, ma anche da una serie di accorgimenti tecnici che ne determinano chiarezza e correttezza percettiva. Alcune regole, spesso sottovalutate, possono fare la differenza tra un grafico informativo e uno fuorviante.
 
-## Aspetti Tecnici della Visualizzazione
 
-### Inclusione dello Zero
+### Inclusione dello zero
 
-Quando la lunghezza è usata come segnale visivo (come nei barplot), è fondamentale far partire l’asse da zero per evitare distorsioni visive. In grafici basati sulla posizione (ad es. scatter plot), invece, l’inclusione dello zero non è sempre necessaria.
+Quando la lunghezza viene utilizzata come segnale visivo – come accade nei grafici a barre – l’asse deve sempre partire da zero. In caso contrario, le differenze appariranno artificialmente amplificate, inducendo interpretazioni scorrette. Nei grafici che si basano sulla posizione, come gli scatter plot, questa regola non è altrettanto stringente: qui l’inclusione dello zero dipende piuttosto dal contesto e dal significato delle variabili rappresentate.
 
-### Prevenire le Distorsioni
 
-L’utilizzo di aree, ad esempio nei bubble plot, può esagerare le differenze tra valori a causa della relazione quadratica tra raggio e area. Per confronti accurati, è preferibile utilizzare la posizione o la lunghezza.
+### Prevenire le distorsioni
 
+Alcuni grafici, come i bubble plot, rischiano di esagerare le differenze fra i valori perché utilizzano l’area come segnale visivo. La superficie di un cerchio cresce infatti con il quadrato del raggio, producendo sproporzioni difficili da cogliere a occhio nudo. Un esempio emblematico è il grafico mostrato durante il Discorso sullo Stato dell’Unione del 2011, in cui il PIL degli Stati Uniti appariva molto più grande di quello cinese o francese. In realtà, la distorsione derivava proprio dall’aver reso il raggio proporzionale al valore, trasformando implicitamente la scala in quadratica. La lezione che se ne ricava è semplice: per confronti accurati, meglio affidarsi a posizione e lunghezza, evitando aree o volumi.
 
 ::: {.callout-tip title="State of the Union" collapse="true"}
 
@@ -140,14 +122,6 @@ L’utilizzo di aree, ad esempio nei bubble plot, può esagerare le differenze t
 **Fonte:** @irizarry2024introduction.
 :::
 
-Durante il *Discorso sullo Stato dell'Unione* del 2011 del Presidente Barack Obama, fu utilizzato il grafico sopra per confrontare il PIL statunitense con quello di quattro nazioni concorrenti.  
-
-**Giudicando dall'area dei cerchi**, gli Stati Uniti sembrerebbero avere un'economia oltre 5 volte più grande di quella cinese e oltre 30 volte superiore a quella francese. Tuttavia, analizzando i dati reali, emergono discrepanze significative: i rapporti effettivi sono rispettivamente **2.6 volte** quello della Cina e **5.8 volte** quello della Francia.  
-
-Questa distorsione visiva nasce dall'avere reso **il raggio** (non l'area) proporzionale al valore economico. Poiché l'area di un cerchio dipende dal quadrato del raggio ($Area = \pi r^2$), le proporzioni vengono amplificate:  
-
-- $2.6^2 = 6.76$ (approssimato a 6.5 nel grafico)  
-- $5.8^2 = 33.64$ (approssimato a 34.1)  
 
 Il confronto sottostante illustra l'impatto della scelta tra raggio e area nella rappresentazione grafica:  
 
@@ -157,7 +131,6 @@ Il confronto sottostante illustra l'impatto della scelta tra raggio e area nella
 **Fonte:** @irizarry2024introduction.
 :::
 
-Non a caso, **ggplot2 utilizza per impostazione predefinita l'area** anziché il raggio. Tuttavia, in casi come questo, la soluzione ottimale sarebbe evitare del tutto i cerchi a favore di strumenti più intuitivi come posizione e lunghezza:  
 
 ::: {#fig-obama3}
 ![](../../figures/barplot-better-than-area-1.png){width="70%"}
@@ -169,13 +142,13 @@ Questo caso dimostra chiaramente come, per evitare distorsioni percettive, sia u
 
 :::
 
-### Ordinamento delle Categorie
+### Ordinamento delle categorie
 
-Disporre le categorie in base al valore della variabile di interesse, anziché in ordine alfabetico, facilita l’interpretazione visiva e mette in luce pattern significativi.
+Nei grafici categoriali, disporre le categorie in ordine alfabetico può sembrare neutrale, ma raramente aiuta la comprensione. Ordinare le categorie in base al valore della variabile di interesse, invece, evidenzia immediatamente pattern e relazioni, rendendo la lettura molto più intuitiva.
 
-### Evitare i Dynamite Plots
+### Mostrare i dati, non solo le sintesi
 
-I dynamite plots, che rappresentano la media e l’errore standard, sono spesso fuorvianti in quanto enfatizzano differenze che potrebbero non essere statisticamente rilevanti. Una rappresentazione tramite dot plot, mostrando tutti i dati, offre una visione più completa della distribuzione [@weissgerber2015beyond].
+I cosiddetti *dynamite plots*, che riportano medie ed errori standard, sono ancora molto diffusi ma comunicano poco e spesso in modo fuorviante. Guardando una semplice barra con un intervallo di errore, non è possibile capire se i dati siano distribuiti in modo simmetrico, se esistano outlier o se i gruppi si sovrappongano. Visualizzazioni che mostrano i singoli dati – ad esempio dot plot arricchiti da tecniche come jitter e trasparenza – permettono invece di cogliere la variabilità interna, facilitano il confronto e raccontano una storia molto più completa.
 
 ::: {.callout-tip title="Mostrare i dati" collapse="true"}
 
@@ -223,9 +196,10 @@ Due miglioramenti chiave:
 In sintesi, strumenti semplici, come jitter e trasparenza, migliorano drasticamente l'interpretazione della distribuzione dei dati.
 :::
 
-### Confronti Coerenti
 
-Quando si comparano distribuzioni (ad es. tramite istogrammi), è essenziale utilizzare gli stessi assi per evitare interpretazioni errate. L’allineamento dei grafici, sia in verticale che in orizzontale, facilita il confronto diretto.
+### Confronti coerenti
+
+Quando si confrontano distribuzioni diverse, ad esempio con istogrammi affiancati, è indispensabile utilizzare la stessa scala sugli assi. Differenze apparenti potrebbero dipendere soltanto da un’incoerenza di rappresentazione. Anche l’allineamento dei grafici gioca un ruolo importante: disporli in verticale o in orizzontale con assi coerenti rende il confronto immediato e riduce il rischio di fraintendimenti.
 
 ::: {.callout-tip title="Facilitare i confronti" collapse="true"}
 
@@ -250,9 +224,10 @@ Negli istogrammi, l’altezza media si riflette in spostamenti orizzontali: valo
 Questo secondo grafico rende molto più evidente che, in media, gli uomini sono più alti delle donne.
 :::
 
-### Trasformazioni Logaritmiche
 
-Le trasformazioni logaritmiche sono particolarmente utili per dati distribuiti su ampi ordini di grandezza o quando le variazioni sono di natura moltiplicativa. Esse riducono le distorsioni visive, rendendo più chiara l’interpretazione dei dati estremi.
+### Trasformazioni logaritmiche
+
+Molti dati reali coprono ordini di grandezza molto ampi. In questi casi, una scala lineare comprime la maggior parte delle osservazioni e rende invisibili le differenze più sottili. Le trasformazioni logaritmiche sono uno strumento efficace per restituire leggibilità a distribuzioni fortemente asimmetriche. Altre trasformazioni, come la logistica o la radice quadrata, sono utili rispettivamente per rappresentare rapporti di probabilità o stabilizzare la varianza in dati di conteggio. La scelta della trasformazione non è mai neutrale, ma può illuminare pattern altrimenti nascosti.
 
 ::: {.callout-tip title="Trasformazioni logaritmiche" collapse="true"}
 Consideriamo questo **grafico a barre**, che mostra la popolazione media dei paesi di ciascun continente nel 2015:  
@@ -286,9 +261,10 @@ Una trasformazione logaritmica migliora la leggibilità di uno **scatter plot** 
 Grazie a questa trasformazione, scopriamo che la mediana della popolazione nei **paesi africani** è in realtà più alta rispetto a quella dei paesi asiatici, un'informazione che il grafico iniziale non rendeva evidente.
 :::
 
-### Codifica di Variabili Aggiuntive
 
-Per rappresentare una terza variabile in un grafico di dispersione, si possono utilizzare dimensioni, colori o forme differenti. È importante scegliere palette cromatiche accessibili e adatte anche a chi ha difficoltà visive.
+### Codifica di variabili aggiuntive
+
+Quando si vogliono rappresentare più di due variabili nello stesso grafico, si possono sfruttare ulteriori canali visivi come colore, forma o dimensione dei punti. È però necessario bilanciare informazione e leggibilità: troppe codifiche simultanee generano confusione. Inoltre, la scelta delle palette cromatiche deve garantire accessibilità, ad esempio evitando combinazioni problematiche per persone con daltonismo.
 
 ::: {.callout-tip title="Codificare una terza variabile" collapse="true"}
 
@@ -303,49 +279,40 @@ Esaminiamo la relazione tra **sopravvivenza infantile** e **reddito medio**. Il 
 Le **variabili categoriali** sono rappresentate attraverso il **colore** e la **forma** dei punti. La forma può essere modificata utilizzando l'argomento **shape**.
 :::
 
-### Evitare Rappresentazioni Tridimensionali Inutili
+### Evitare il 3D superfluo
 
-Grafici 3D, come barre o pie chart tridimensionali, possono essere visivamente accattivanti, ma tendono a distorcere la percezione dei dati. Le visualizzazioni 2D rimangono generalmente più chiare e comprensibili.
-
-### Scelta delle Cifre Significative
-
-Mostrare un numero eccessivo di decimali può confondere il lettore. Generalmente una o due cifre significative sono sufficienti per trasmettere il messaggio in modo accurato.
-
-### Conoscere il Pubblico
-
-Infine, è essenziale adattare la visualizzazione al pubblico di riferimento. Grafici destinati a un'analisi interna possono includere dettagli tecnici, mentre per un pubblico non specializzato è preferibile semplificare e spiegare chiaramente i dati.
+Grafici tridimensionali, come pie chart o barre in prospettiva, attirano l’occhio ma raramente aggiungono informazione. Anzi, introducono distorsioni che complicano la lettura. Nella maggior parte dei casi, una rappresentazione bidimensionale è più chiara, più fedele e più efficace.
 
 
-## Introduzione a ggplot2
+### Cifre significative
 
-R offre strumenti potenti per creare grafici, e tra questi il pacchetto **ggplot2** è uno dei più flessibili e facili da usare.  
+Mostrare un numero eccessivo di decimali non aumenta la precisione, ma rischia di appesantire la lettura. Una o due cifre significative sono quasi sempre sufficienti per trasmettere il messaggio in modo accurato e comprensibile.
 
-### Perché usare ggplot2?  
+### Conoscere il pubblico
 
-Immagina di voler analizzare il livello di ansia di un gruppo di studenti prima di un esame. Hai raccolto i dati, ma leggerli in una tabella può essere poco intuitivo. Con un grafico ben fatto, invece, puoi subito vedere chi ha livelli di ansia molto alti o come varia l’ansia in base all’"intolleranza all'incertezza" (IU), per esempio.  
+Infine, una regola trasversale: ogni visualizzazione deve tenere conto del pubblico di riferimento. Un grafico pensato per un’analisi interna può includere dettagli tecnici e livelli di complessità elevati; al contrario, quando il pubblico non è specializzato, è preferibile semplificare, ridurre il rumore visivo e accompagnare la rappresentazione con spiegazioni chiare.
 
-Simuliamo i dati:
+
+## Introduzione a `ggplot2`
+
+In R esistono diversi strumenti per creare grafici, ma il pacchetto `ggplot2` si distingue per flessibilità e chiarezza. È diventato lo standard per la visualizzazione dei dati in molti ambiti scientifici, inclusa la psicologia, perché consente di tradurre un dataset complesso in rappresentazioni immediate e leggibili.
+
+
+### Perché usare `ggplot2`?
+
+Immaginiamo di voler analizzare i livelli di ansia di un gruppo di studenti prima di un esame. I dati raccolti in una tabella ci danno informazioni preziose, ma difficili da cogliere a colpo d’occhio. Con un grafico, invece, possiamo visualizzare subito quali studenti mostrano livelli di ansia particolarmente elevati e se l’ansia tende a variare in funzione di caratteristiche come l’*intolleranza all’incertezza* (IU).
+
+Per illustrare le potenzialità di ggplot2, costruiamo un piccolo dataset simulato:
 
 ```{r}
-# Imposta il seed per la riproducibilità
 set.seed(123)
 
-# Crea un campione di 200 partecipanti
 n <- 200
-
-# Genera il genere (0 = maschio, 1 = femmina)
 gender <- sample(c(0, 1), n, replace = TRUE)
-
-# Simula l'ansietà con livello più alto per le femmine
 anxiety <- rnorm(n, mean = 50 + 10 * gender, sd = 10)
-
-# Simula ore di studio con correlazione negativa con l'ansietà
 study_hours <- rnorm(n, mean = 30 - 0.3 * anxiety, sd = 5)
-
-# Simula IU (Intolerance of Uncertainty) con correlazione positiva
 IU <- rnorm(n, mean = 50 + 0.5 * anxiety, sd = 10)
 
-# Crea dataframe
 df <- data.frame(
   id = 1:n,
   gender = factor(gender, levels = c(0, 1), labels = c("Male", "Female")),
@@ -354,49 +321,43 @@ df <- data.frame(
   IU = round(IU, 1)
 )
 
-df |>
-  head()
+head(df)
 ```
 
-**ggplot2** permette di creare grafici chiari e visivamente accattivanti, suddividendo ogni grafico in **componenti**:  
 
-1. **Dati** → Il dataset che vogliamo analizzare.  
-2. **Geometrie** → Il tipo di grafico (es. punti, barre, linee).  
-3. **Mappatura estetica** → Il modo in cui i dati vengono rappresentati graficamente (es. colori, posizioni).  
+### La logica di `ggplot2`
 
-### Creare un grafico con ggplot2  
+Alla base di ogni grafico con ggplot2 ci sono tre elementi fondamentali:
 
-Per usare ggplot2, bisogna prima installarlo e attivarlo con:  
+* *i dati*, cioè il dataset da rappresentare;
+* *le geometrie*, ossia il tipo di grafico scelto (punti, barre, linee, boxplot);
+* *la mappatura estetica*, che stabilisce come i dati vengono tradotti in segnali visivi (posizione sugli assi, colore, forma, dimensione).
 
-```r
-library(ggplot2)
-```
+Questa struttura rende il pacchetto molto intuitivo: basta dire a ggplot2 quali dati usare, come rappresentarli e con quali convenzioni grafiche.
 
-Supponiamo di avere un dataset con il livello di ansia di studenti prima di un esame e vogliamo vedere se c’è una relazione con il numero di ore di studio. Creiamo un **grafico a dispersione (scatterplot)**:  
+
+### Un primo esempio
+
+Supponiamo di voler capire se esiste una relazione tra ore di studio e livelli di ansia. Possiamo costruire un semplice *grafico a dispersione*:
 
 ```{r}
+library(ggplot2)
+
 df |>
-  ggplot(
-    aes(x = study_hours, y = anxiety)
-  ) +
+  ggplot(aes(x = study_hours, y = anxiety)) +
   geom_point()
 ```
 
-Qui diciamo a ggplot2:  
+In questo codice stiamo dicendo a ggplot2 di prendere come riferimento il dataset `df`, di mettere le *ore di studio* sull’asse X, i *livelli di ansia* sull’asse Y e di rappresentare ogni osservazione con un punto.
 
-- Usa il dataset **studenti**  
-- Metti **ore_studio** sull'asse X e **livello_ansia** sull'asse Y  
-- Rappresenta i dati con **punti**  
 
-### Personalizzare il grafico  
+### Personalizzare il grafico
 
-Possiamo migliorare il grafico aggiungendo colore e titoli:  
+Un aspetto importante di ggplot2 è la possibilità di arricchire facilmente la rappresentazione. Aggiungiamo, per esempio, un colore che distingua maschi e femmine, rendiamo i punti più visibili e inseriamo un titolo e delle etichette agli assi:
 
 ```{r}
 df |>
-  ggplot(
-    aes(x = study_hours, y = anxiety, color = gender)
-  ) +
+  ggplot(aes(x = study_hours, y = anxiety, color = gender)) +
   geom_point(size = 3) +
   labs(
     title = "Relazione tra ore di studio e ansia",
@@ -406,86 +367,50 @@ df |>
   )
 ```
 
-**Cosa cambia?** 
+Il risultato è un grafico più leggibile, in cui la distinzione per genere appare immediatamente chiara.
 
-- i punti hanno colori diversi in base al **genere**;
-- il grafico ha **titoli chiari** .
 
-#### Altri tipi di grafici  
+### Altri esempi
 
-- **Istogrammi** → Per vedere la distribuzione dei punteggi di ansia 
+Con gli stessi dati possiamo costruire grafici diversi, ciascuno utile a rispondere a domande specifiche. Per esplorare la distribuzione dell’ansia, ad esempio, un *istogramma* è la scelta naturale:
 
-  ```{r}
+```{r}
 df |>
-  ggplot(
-    aes(x = anxiety)
-  ) +
-  geom_histogram(binwidth = 5)
-  ```
-- **Boxplot** → Per confrontare l’ansia tra gruppi diversi  
+  ggplot(aes(x = anxiety)) +
+  geom_histogram(binwidth = 5, fill = "steelblue", color = "white") +
+  labs(x = "Livello di ansia", y = "Frequenza")
+```
 
-  ```{r}
+Se invece vogliamo confrontare i livelli di ansia tra maschi e femmine, un *boxplot* mette in evidenza la mediana, la variabilità e la presenza di eventuali valori estremi:
+
+```{r}
 df |>
-  ggplot(
-    aes(x = gender, y = anxiety)
-  ) +
-  geom_boxplot()
-  ```
+  ggplot(aes(x = gender, y = anxiety, fill = gender)) +
+  geom_boxplot(alpha = 0.7) +
+  labs(x = "Genere", y = "Livello di ansia") +
+  theme(legend.position = "none")
+```
 
-In sintesi, **ggplot2** è un ottimo strumento per visualizzare dati in psicologia. Anche con pochi comandi, possiamo creare grafici utili per interpretare i dati in modo intuitivo. 
-
-## Riflessioni Conclusive
-
-Una visualizzazione ben progettata trasforma informazioni complesse in messaggi immediati e facilmente interpretabili, riducendo il carico cognitivo e favorendo decisioni informate. Seguendo i principi illustrati, è possibile prevenire errori interpretativi e comunicare in modo responsabile i risultati di un’analisi.
-
-**Suggerimenti Chiave per Visualizzazioni Efficaci:**
-
-- **Chiarezza del Messaggio:**  
-  Definire l’obiettivo della visualizzazione e assicurarsi che il grafico trasmetta il messaggio principale in modo inequivocabile.
-
-- **Uso Appropriato del Colore:**  
-  Selezionare una palette limitata (circa cinque o sei colori) e accessibile per garantire coerenza e leggibilità.
-
-- **Guida dell’Attenzione:**  
-  Utilizzare dimensioni, posizionamento e contrasto per mettere in evidenza i dati rilevanti, eventualmente integrando annotazioni esplicative.
-
-- **Gestione del Sovraccarico Visivo:**  
-  Applicare la trasparenza per ridurre il sovrapposizionamento dei dati e, se necessario, ricorrere a tecniche di sottocampionamento.
-
-- **Coerenza degli Elementi Testuali:**  
-  Titoli, etichette e legende devono essere chiari e intuitivi, evitando abbreviazioni eccessive o termini troppo tecnici.
-
-**Ulteriori Accortezze:**
-
-- **Evitare distorsioni:**  
-  Prediligere grafici semplici (ad es. barplot con asse che parte da zero) per non alterare la percezione delle proporzioni.
-
-- **Ordinare le categorie:**  
-  Disporre le categorie in base ai valori, anziché in ordine alfabetico, per facilitare il confronto.
-
-- **Mostrare tutti i dati:**  
-  Preferire rappresentazioni che evidenziano anche i dati grezzi (come dot plot o strip chart) per non occultare informazioni rilevanti.
-
-- **Confronti coerenti:**  
-  Utilizzare assi comuni quando si confrontano distribuzioni diverse, garantendo una valutazione accurata.
-
-- **Trasformazioni logaritmiche:**  
-  Impiegare scale logaritmiche per dati distribuiti su ampi intervalli, migliorando la leggibilità dei valori estremi.
-
-- **Codifica di variabili aggiuntive:**  
-  Integrare informazioni supplementari tramite colore, dimensione o forma dei punti, soprattutto nei grafici a dispersione.
-
-- **Evitare rappresentazioni 3D:**  
-  Mantenere le visualizzazioni in 2D per evitare distorsioni nella percezione dei dati.
-
-- **Limitare le cifre decimali:**  
-  Mostrare solo il numero necessario di cifre significative per garantire chiarezza.
-
-- **Adattare la visualizzazione al pubblico:**  
-  Semplificare i grafici e spiegare chiaramente i dati quando il target è non specializzato.
+In sintesi, con pochi comandi, `ggplot2` consente di costruire grafici chiari e informativi. In psicologia, dove spesso si lavora con dataset complessi, è uno strumento prezioso per *trasformare numeri in intuizioni*: una buona visualizzazione permette non solo di comunicare risultati, ma anche di stimolare nuove domande di ricerca.
 
 
-## Esercizi
+## Riflessioni conclusive {.unnumbered .unlisted}
+
+Una visualizzazione ben progettata ha il potere di trasformare dati complessi in messaggi immediati, riducendo il carico cognitivo e facilitando decisioni più consapevoli. Disegnare un grafico non significa solo scegliere un formato piacevole: implica assumersi la responsabilità di comunicare i risultati in modo corretto, evitando di indurre interpretazioni fuorvianti.
+
+Per raggiungere questo obiettivo, occorre innanzitutto essere chiari sul messaggio che si vuole trasmettere. Un buon grafico è costruito intorno a una domanda precisa e guida lo sguardo del lettore verso gli elementi più rilevanti. Colori, forme e dimensioni non vanno scelti per decorare, ma per orientare l’attenzione: una palette limitata, ben calibrata e accessibile è spesso più efficace di combinazioni cromatiche elaborate. Allo stesso modo, titoli ed etichette devono essere semplici e intuitivi, evitando abbreviazioni o tecnicismi che potrebbero confondere.
+
+È importante anche saper gestire la densità dell’informazione. Quando i dati sono numerosi, tecniche come la trasparenza, il jitter o un eventuale sottocampionamento aiutano a prevenire il sovraccarico visivo e rendono le distribuzioni leggibili. Mostrare i dati grezzi, quando possibile, arricchisce l’interpretazione e riduce il rischio che le sintesi statistiche nascondano pattern interessanti.
+
+Alcune buone pratiche ricorrono in quasi tutte le situazioni: ordinare le categorie in base ai valori, e non alfabeticamente, facilita i confronti; mantenere assi coerenti rende più immediata la comparazione tra grafici; partire da zero negli assi dei barplot evita distorsioni nelle proporzioni; usare trasformazioni logaritmiche quando i valori coprono ordini di grandezza molto diversi permette di restituire visibilità anche ai dati più piccoli.
+
+Altre accortezze riguardano la scelta delle codifiche visive. L’aggiunta di variabili tramite colore, forma o dimensione può arricchire un grafico, ma solo se mantiene un equilibrio tra informazione e leggibilità. Le rappresentazioni tridimensionali, al contrario, raramente offrono un reale vantaggio: sono spesso più fuorvianti che utili. Infine, i numeri stessi vanno comunicati con sobrietà: un eccesso di decimali non rende il dato più preciso, ma soltanto più difficile da leggere.
+
+Tutte queste regole devono sempre essere rapportate al pubblico a cui ci si rivolge. In un’analisi tecnica interna è possibile includere dettagli complessi, mentre per un pubblico non specializzato occorre semplificare, spiegare e accompagnare la visualizzazione con un linguaggio accessibile. In definitiva, progettare una buona visualizzazione non significa soltanto “disegnare un grafico”, ma costruire un ponte tra i dati e chi li interpreta, con l’obiettivo di rendere la conoscenza condivisibile e utile.
+
+
+
+## Esercizi {.unnumbered .unlisted} 
 
 ::: {.callout-tip title="Esercizi" collapse="true"}
 In questo esercizio analizzerai i dati raccolti dagli studenti sulla **Satisfaction With Life Scale (SWLS)** e sulla **Lubben Social Network Scale (LSNS-6)**. Le variabili incluse sono:
@@ -667,4 +592,4 @@ Le visualizzazioni mostrano che:
 - Il numero di uscite settimanali è correlato positivamente con la rete sociale (LSNS-6).
 :::
 
-## Bibliografia {.unnumbered}
+## Bibliografia {.unnumbered .unlisted} 
