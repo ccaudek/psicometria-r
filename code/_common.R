@@ -17,6 +17,7 @@ library(janitor)
 library(conflicted)
 conflicts_prefer(stats::var)
 conflicts_prefer(stats::sd)
+library(sessioninfo)
 
 ## ─────────────────────────────────────────────────────────────────────
 ## 2. Pacchetti per analisi bayesiana
