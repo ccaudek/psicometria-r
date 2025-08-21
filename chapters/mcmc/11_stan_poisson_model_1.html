@@ -1078,9 +1078,8 @@ window.Quarto = {
   <ul class="collapse">
 <li><a href="#dal-modello-teorico-al-modello-computazionale" id="toc-dal-modello-teorico-al-modello-computazionale" class="nav-link active" data-scroll-target="#dal-modello-teorico-al-modello-computazionale"><span class="header-section-number">58.1</span> Dal modello teorico al modello computazionale</a></li>
   <li><a href="#scrivere-il-modello-in-stan" id="toc-scrivere-il-modello-in-stan" class="nav-link" data-scroll-target="#scrivere-il-modello-in-stan"><span class="header-section-number">58.2</span> Scrivere il modello in Stan</a></li>
-  <li><a href="#preparare-i-dati-ed-eseguire-il-modello-in-r" id="toc-preparare-i-dati-ed-eseguire-il-modello-in-r" class="nav-link" data-scroll-target="#preparare-i-dati-ed-eseguire-il-modello-in-r"><span class="header-section-number">58.3</span> Preparare i dati ed eseguire il modello in R</a></li>
-  <li><a href="#analizzare-i-risultati" id="toc-analizzare-i-risultati" class="nav-link" data-scroll-target="#analizzare-i-risultati"><span class="header-section-number">58.4</span> Analizzare i risultati</a></li>
-  <li><a href="#riflessioni-conclusive" id="toc-riflessioni-conclusive" class="nav-link" data-scroll-target="#riflessioni-conclusive"><span class="header-section-number">58.5</span> Riflessioni conclusive</a></li>
+  <li><a href="#sparatorie-mortali" id="toc-sparatorie-mortali" class="nav-link" data-scroll-target="#sparatorie-mortali"><span class="header-section-number">58.3</span> Sparatorie mortali</a></li>
+  <li><a href="#riflessioni-conclusive" id="toc-riflessioni-conclusive" class="nav-link" data-scroll-target="#riflessioni-conclusive"><span class="header-section-number">58.4</span> Riflessioni conclusive</a></li>
   </ul><div class="toc-actions"><ul class="collapse"><li><a href="https://github.com/ccaudek/psicometria-r/blob/main/chapters/mcmc/11_stan_poisson_model_1.qmd" class="toc-action"><i class="bi bi-github"></i>Mostra il codice</a></li><li><a href="https://github.com/ccaudek/psicometria-r/issues/new" class="toc-action"><i class="bi empty"></i>Segnala un problema</a></li></ul></div></nav>
     </div>
 <!-- main -->
@@ -1105,129 +1104,423 @@ window.Quarto = {
 <span>  <span class="kw"><a href="https://rdrr.io/r/base/source.html">source</a></span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
 <span><span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/ns-load.html">requireNamespace</a></span><span class="op">(</span><span class="st">"pacman"</span><span class="op">)</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html">install.packages</a></span><span class="op">(</span><span class="st">"pacman"</span><span class="op">)</span></span>
-<span><span class="fu">pacman</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/pacman/man/p_load.html">p_load</a></span><span class="op">(</span><span class="va">cmdstanr</span>, <span class="va">posterior</span>, <span class="va">bayesplot</span>, <span class="va">ggplot2</span>, <span class="va">dplyr</span>, <span class="va">tibble</span><span class="op">)</span></span>
+<span><span class="fu">pacman</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/pacman/man/p_load.html">p_load</a></span><span class="op">(</span><span class="va">cmdstanr</span>, <span class="va">posterior</span>, <span class="va">bayesplot</span>, <span class="va">ggplot2</span>, <span class="va">tidyverse</span>, <span class="va">tibble</span><span class="op">)</span></span>
 <span><span class="fu">conflicts_prefer</span><span class="op">(</span><span class="fu">posterior</span><span class="fu">::</span><span class="va"><a href="https://mc-stan.org/posterior/reference/ess_bulk.html">ess_bulk</a></span><span class="op">)</span></span>
-<span><span class="fu">conflicts_prefer</span><span class="op">(</span><span class="fu">posterior</span><span class="fu">::</span><span class="va"><a href="https://mc-stan.org/posterior/reference/ess_tail.html">ess_tail</a></span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span><span class="fu">conflicts_prefer</span><span class="op">(</span><span class="fu">posterior</span><span class="fu">::</span><span class="va"><a href="https://mc-stan.org/posterior/reference/ess_tail.html">ess_tail</a></span><span class="op">)</span></span>
+<span><span class="fu">conflicts_prefer</span><span class="op">(</span><span class="fu">dplyr</span><span class="fu">::</span><span class="va"><a href="https://dplyr.tidyverse.org/reference/count.html">count</a></span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <section id="introduzione" class="level2 unnumbered unlisted"><h2 class="unnumbered unlisted anchored" data-anchor-id="introduzione">Introduzione</h2>
 <div class="lead">
-<p>In questo capitolo affrontiamo un primo esempio di modellazione con <em>Stan</em>, il linguaggio di programmazione che useremo per costruire modelli statistici e fare inferenza bayesiana. L’idea di base è di riprendere un problema che abbiamo già studiato con metodi analitici e con il metodo su griglia – il modello <em>Gamma–Poisson</em> – e di risolverlo ora attraverso il campionamento MCMC. In questo modo potremo confrontare i risultati e, allo stesso tempo, iniziare a familiarizzare con Stan.</p>
+<p>In questo capitolo affrontiamo un primo esempio di modellazione con Stan, il linguaggio che useremo per costruire modelli statistici e fare inferenza bayesiana. Riprendiamo un caso già risolto con metodi analitici e con il metodo su griglia — il modello Gamma–Poisson — e lo affrontiamo ora con il campionamento MCMC. In questo modo possiamo confrontare i risultati e, soprattutto, imparare un workflow che useremo anche quando non esistono soluzioni chiuse.</p>
 </div>
 </section><section id="dal-modello-teorico-al-modello-computazionale" class="level2" data-number="58.1"><h2 data-number="58.1" class="anchored" data-anchor-id="dal-modello-teorico-al-modello-computazionale">
 <span class="header-section-number">58.1</span> Dal modello teorico al modello computazionale</h2>
-<p>Supponiamo di avere osservazioni che rappresentano il numero di volte in cui si verifica un certo evento in un intervallo di tempo: ad esempio, il numero di compulsioni registrate da un paziente in otto momenti diversi della giornata, oppure il numero di telefonate ricevute da un centralino in altrettanti turni orari. I dati a nostra disposizione sono i seguenti:</p>
+<p>Supponiamo di osservare, in otto finestre temporali di pari durata, quante volte si verifica un certo evento (per esempio: il numero di compulsioni in otto momenti della giornata, oppure le chiamate ricevute in otto turni orari). I dati sono:</p>
 <div class="cell" data-layout-align="center">
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">y</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="fl">2</span>, <span class="fl">1</span>, <span class="fl">3</span>, <span class="fl">2</span>, <span class="fl">2</span>, <span class="fl">1</span>, <span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>Abbiamo quindi <span class="math inline">\(N = 8\)</span> osservazioni. Vogliamo stimare <span class="math inline">\(\lambda\)</span>, cioè il tasso medio di occorrenza degli eventi. L’ipotesi di partenza è che i dati seguano una distribuzione di <strong>Poisson</strong>, che è la distribuzione di riferimento per fenomeni di conteggio. La formula della Poisson è:</p>
+<p>Abbiamo quindi <span class="math inline">\(N=8\)</span> osservazioni. Vogliamo stimare <span class="math inline">\(\lambda\)</span>, il <em>tasso medio di occorrenza per unità di tempo</em> (qui: per finestra di osservazione). Per fenomeni di conteggio assumiamo una <em>distribuzione di Poisson</em>. In presenza di esposizioni (durate) potenzialmente diverse <span class="math inline">\(t_i&gt;0\)</span>, il modello naturale è</p>
 <p><span class="math display">\[
-P(y_i \mid \lambda) = \frac{\lambda^{y_i} e^{-\lambda}}{y_i!}, \quad y_i \in \mathbb{N},\ \lambda &gt; 0.
+y_i \sim \text{Poisson}(\mu_i),
+\qquad \mu_i = \lambda\, t_i,
 \]</span></p>
-<p>Questa formula ci dice che la probabilità di osservare un certo numero di eventi dipende da un unico parametro, <span class="math inline">\(\lambda\)</span>, che rappresenta proprio il tasso medio.</p>
-<p>Per condurre un’analisi bayesiana abbiamo bisogno anche di specificare una distribuzione a priori su <span class="math inline">\(\lambda\)</span>. In questo caso scegliamo una <em>Gamma</em>, che si combina molto bene con la Poisson perché le due distribuzioni sono coniugate. La densità della Gamma è la seguente:</p>
+<p>ossia</p>
 <p><span class="math display">\[
-p(\lambda) = \frac{\beta^{\alpha}}{\Gamma(\alpha)} \lambda^{\alpha - 1} e^{-\beta \lambda}, \quad \lambda &gt; 0.
+P(y_i \mid \lambda) \;=\; \frac{(\lambda\, t_i)^{y_i} e^{-\lambda\, t_i}}{y_i!},
+\quad y_i \in \mathbb{N},\ \lambda&gt;0.
 \]</span></p>
-<p>I due parametri <span class="math inline">\(\alpha\)</span> e <span class="math inline">\(\beta\)</span> regolano rispettivamente la forma e la concentrazione della distribuzione. Nel nostro esempio poniamo <span class="math inline">\(\alpha = 9\)</span> e <span class="math inline">\(\beta = 2\)</span>. In questo modo, il valore medio della priori è <span class="math inline">\(\alpha / \beta = 4.5\)</span>, cioè la nostra convinzione iniziale è che il numero medio di eventi sia attorno a 4 o 5, pur lasciando spazio all’incertezza.</p>
+<p>Poiché qui tutte le finestre hanno la <em>stessa durata</em> (<span class="math inline">\(t_i=1\)</span>), la formula si semplifica in</p>
+<p><span class="math display">\[
+P(y_i \mid \lambda) \;=\; \frac{\lambda^{y_i} e^{-\lambda}}{y_i!},
+\qquad \mathbb{E}[y_i]=\lambda,\quad \mathrm{Var}(y_i)=\lambda.
+\]</span></p>
+<p>In altre parole, <em><span class="math inline">\(\lambda\)</span> coincide con il numero medio di eventi per finestra</em> (ad es. per turno/ora o per giorno). Da non confondere con i <em>tempi di attesa</em> tra eventi: lì la media è <span class="math inline">\(1/\lambda\)</span>, ma riguarda il modello esponenziale, non i conteggi.</p>
+<p>Per l’analisi bayesiana specifichiamo una <em>prior coniugata Gamma</em> in parametrizzazione <em>shape–rate</em> <span class="math inline">\((\alpha,\beta)\)</span>, con densità</p>
+<p><span class="math display">\[
+p(\lambda) \;=\; \frac{\beta^{\alpha}}{\Gamma(\alpha)}\, \lambda^{\alpha - 1} e^{-\beta \lambda},
+\quad \lambda&gt;0,
+\]</span></p>
+<p>per cui</p>
+<p><span class="math display">\[
+\mathbb{E}[\lambda] = \frac{\alpha}{\beta},
+\qquad \mathrm{Var}(\lambda) = \frac{\alpha}{\beta^{2}},
+\qquad \mathrm{sd}(\lambda)=\frac{\sqrt{\alpha}}{\beta}.
+\]</span></p>
+<p>Nel nostro esempio poniamo <span class="math inline">\(\alpha=9\)</span> e <span class="math inline">\(\beta=2\)</span>: la prior ha media <span class="math inline">\(\alpha/\beta=4{,}5\)</span> (circa 4–5 eventi per finestra) e deviazione standard <span class="math inline">\(\sqrt{\alpha}/\beta \approx 1{,}5\)</span>, che esprime moderata informazione con adeguata incertezza.</p>
 </section><section id="scrivere-il-modello-in-stan" class="level2" data-number="58.2"><h2 data-number="58.2" class="anchored" data-anchor-id="scrivere-il-modello-in-stan">
 <span class="header-section-number">58.2</span> Scrivere il modello in Stan</h2>
-<p>Ora traduciamo queste idee in Stan. Un modello in Stan è diviso in blocchi. Nel blocco <em>data</em> indichiamo i dati osservati e i parametri noti, nel blocco <em>parameters</em> i parametri che vogliamo stimare, e nel blocco <em>model</em> specifichiamo la struttura probabilistica del modello, cioè la priori e la verosimiglianza.</p>
-<p>Il modello Stan è quindi:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode stan code-with-copy"><code class="sourceCode stan"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> {</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int</span>&lt;<span class="kw">lower</span>=<span class="dv">0</span>&gt; N;                <span class="co">// numero di osservazioni</span></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">array</span>[N] <span class="dt">int</span>&lt;<span class="kw">lower</span>=<span class="dv">0</span>&gt; y;       <span class="co">// dati osservati</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span>&lt;<span class="kw">lower</span>=<span class="dv">0</span>&gt; alpha_prior;     <span class="co">// parametro alpha della Gamma</span></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span>&lt;<span class="kw">lower</span>=<span class="dv">0</span>&gt; beta_prior;      <span class="co">// parametro beta della Gamma</span></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="kw">parameters</span> {</span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span>&lt;<span class="kw">lower</span>=<span class="dv">0</span>&gt; lambda;          <span class="co">// parametro di interesse</span></span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="kw">model</span> {</span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>  lambda ~ gamma(alpha_prior, beta_prior);   <span class="co">// priori</span></span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>  y ~ poisson(lambda);                       <span class="co">// verosimiglianza</span></span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="kw">generated quantities</span> {</span>
-<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span> alpha_post = alpha_prior + sum(y);    <span class="co">// parametri posteriori teorici</span></span>
-<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span> beta_post  = beta_prior + N;</span>
-<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>In questo esempio aggiungiamo anche una sezione “generated quantities”, dove calcoliamo i parametri della distribuzione a posteriori teorica. Non è strettamente necessario, ma ci serve per fare il confronto con quanto otterremo dal campionamento MCMC.</p>
-</section><section id="preparare-i-dati-ed-eseguire-il-modello-in-r" class="level2" data-number="58.3"><h2 data-number="58.3" class="anchored" data-anchor-id="preparare-i-dati-ed-eseguire-il-modello-in-r">
-<span class="header-section-number">58.3</span> Preparare i dati ed eseguire il modello in R</h2>
-<p>Dopo aver scritto il file Stan e salvato con estensione <code>.stan</code>, lo possiamo compilare ed eseguire in R con il pacchetto <em>cmdstanr</em>.</p>
+<p>Un modello Stan è diviso in blocchi: <em>data</em> (dati), <em>parameters</em> (incognite), <em>model</em> (priori + verosimiglianza). Aggiungiamo anche <em>generated quantities</em> per quantità derivate utili al confronto con la soluzione analitica (e, volendo, per LOO).</p>
+<p>Per evitare dipendenze da percorsi locali, creiamo e compiliamo il modello direttamente dalla stringa:</p>
 <div class="cell" data-layout-align="center">
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">stan_file</span> <span class="op">&lt;-</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html">here</a></span><span class="op">(</span><span class="st">"stan"</span>, <span class="st">"gamma_poisson_mcmc.stan"</span><span class="op">)</span></span>
-<span><span class="va">mod</span> <span class="op">&lt;-</span> <span class="fu">cmdstan_model</span><span class="op">(</span><span class="va">stan_file</span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">N</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html">length</a></span><span class="op">(</span><span class="va">y</span><span class="op">)</span></span>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">stan_code</span> <span class="op">&lt;-</span> <span class="st">"</span></span>
+<span><span class="st">data {</span></span>
+<span><span class="st">  int&lt;lower=0&gt; N;</span></span>
+<span><span class="st">  array[N] int&lt;lower=0&gt; y;</span></span>
+<span><span class="st">  real&lt;lower=0&gt; alpha_prior;</span></span>
+<span><span class="st">  real&lt;lower=0&gt; beta_prior;</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">parameters {</span></span>
+<span><span class="st">  real&lt;lower=0&gt; lambda;</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">model {</span></span>
+<span><span class="st">  lambda ~ gamma(alpha_prior, beta_prior);</span></span>
+<span><span class="st">  y ~ poisson(lambda);</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">generated quantities {</span></span>
+<span><span class="st">  real alpha_post = alpha_prior + sum(y);</span></span>
+<span><span class="st">  real beta_post  = beta_prior + N;</span></span>
+<span><span class="st">  array[N] real log_lik;</span></span>
+<span><span class="st">  for (i in 1:N) log_lik[i] = poisson_lpmf(y[i] | lambda);</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">"</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Compiliamo:</p>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">mod</span> <span class="op">&lt;-</span> <span class="fu">cmdstan_model</span><span class="op">(</span><span class="fu">write_stan_file</span><span class="op">(</span><span class="va">stan_code</span><span class="op">)</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Prepariamo i dati:</p>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">N</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html">length</a></span><span class="op">(</span><span class="va">y</span><span class="op">)</span></span>
 <span><span class="va">alpha_prior</span> <span class="op">&lt;-</span> <span class="fl">9</span></span>
-<span><span class="va">beta_prior</span> <span class="op">&lt;-</span> <span class="fl">2</span></span>
+<span><span class="va">beta_prior</span>  <span class="op">&lt;-</span> <span class="fl">2</span></span>
 <span></span>
 <span><span class="va">stan_data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html">list</a></span><span class="op">(</span>N <span class="op">=</span> <span class="va">N</span>, y <span class="op">=</span> <span class="va">y</span>, alpha_prior <span class="op">=</span> <span class="va">alpha_prior</span>, beta_prior <span class="op">=</span> <span class="va">beta_prior</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>Una volta preparati i dati, lanciamo il campionamento:</p>
 <div class="cell" data-layout-align="center">
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="va">mod</span><span class="op">$</span><span class="fu">sample</span><span class="op">(</span></span>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="va">mod</span><span class="op">$</span><span class="fu">sample</span><span class="op">(</span></span>
 <span>  data <span class="op">=</span> <span class="va">stan_data</span>,</span>
 <span>  seed <span class="op">=</span> <span class="fl">123</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">4</span>,</span>
 <span>  parallel_chains <span class="op">=</span> <span class="fl">4</span>,</span>
 <span>  iter_sampling <span class="op">=</span> <span class="fl">3000</span>,</span>
 <span>  iter_warmup <span class="op">=</span> <span class="fl">2000</span>,</span>
-<span>  show_messages <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span>  refresh <span class="op">=</span> <span class="fl">0</span></span>
 <span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>A questo punto Stan ci restituisce una grande quantità di campioni dalla distribuzione a posteriori del parametro <span class="math inline">\(\lambda\)</span>. Con questi campioni possiamo fare analisi numeriche e grafiche.</p>
-</section><section id="analizzare-i-risultati" class="level2" data-number="58.4"><h2 data-number="58.4" class="anchored" data-anchor-id="analizzare-i-risultati">
-<span class="header-section-number">58.4</span> Analizzare i risultati</h2>
-<p>Per prima cosa estraiamo i campioni di <span class="math inline">\(\lambda\)</span>:</p>
+<section id="analizzare-i-risultati" class="level3" data-number="58.2.1"><h3 data-number="58.2.1" class="anchored" data-anchor-id="analizzare-i-risultati">
+<span class="header-section-number">58.2.1</span> Analizzare i risultati</h3>
+<p>Estraiamo i campioni di <span class="math inline">\(\lambda\)</span> e i parametri posteriori teorici:</p>
 <div class="cell" data-layout-align="center">
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">lambda_samples</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/vector.html">as.vector</a></span><span class="op">(</span><span class="va">fit</span><span class="op">$</span><span class="fu">draws</span><span class="op">(</span><span class="st">"lambda"</span><span class="op">)</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<p>In parallelo, possiamo calcolare i parametri della distribuzione Gamma che rappresenta la soluzione analitica a posteriori. Sono:</p>
-<div class="cell" data-layout-align="center">
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">alpha_post</span> <span class="op">&lt;-</span> <span class="va">alpha_prior</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html">sum</a></span><span class="op">(</span><span class="va">y</span><span class="op">)</span></span>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">lambda_samples</span> <span class="op">&lt;-</span> <span class="va">fit</span><span class="op">$</span><span class="fu">draws</span><span class="op">(</span><span class="st">"lambda"</span>, format <span class="op">=</span> <span class="st">"df"</span><span class="op">)</span><span class="op">$</span><span class="va">lambda</span></span>
+<span></span>
+<span><span class="va">alpha_post</span> <span class="op">&lt;-</span> <span class="va">alpha_prior</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html">sum</a></span><span class="op">(</span><span class="va">y</span><span class="op">)</span></span>
 <span><span class="va">beta_post</span>  <span class="op">&lt;-</span> <span class="va">beta_prior</span> <span class="op">+</span> <span class="va">N</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>Per visualizzare i risultati, tracciamo un istogramma dei campioni MCMC e vi sovrapponiamo la curva della distribuzione Gamma a posteriori teorica:</p>
+<p>Istogramma dei campioni MCMC + curva Gamma teorica:</p>
 <div class="cell" data-layout-align="center">
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">lambda_samples_df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html">data.frame</a></span><span class="op">(</span>lambda_samples <span class="op">=</span> <span class="va">lambda_samples</span><span class="op">)</span></span>
-<span></span>
-<span><span class="fu">ggplot</span><span class="op">(</span><span class="va">lambda_samples_df</span>, <span class="fu">aes</span><span class="op">(</span>x <span class="op">=</span> <span class="va">lambda_samples</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu">ggplot</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/data.frame.html">data.frame</a></span><span class="op">(</span>lambda <span class="op">=</span> <span class="va">lambda_samples</span><span class="op">)</span>, <span class="fu">aes</span><span class="op">(</span>x <span class="op">=</span> <span class="va">lambda</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu">geom_histogram</span><span class="op">(</span><span class="fu">aes</span><span class="op">(</span>y <span class="op">=</span> <span class="fu">after_stat</span><span class="op">(</span><span class="va">density</span><span class="op">)</span><span class="op">)</span>, bins <span class="op">=</span> <span class="fl">50</span>, fill <span class="op">=</span> <span class="st">"skyblue"</span>, alpha <span class="op">=</span> <span class="fl">0.7</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu">stat_function</span><span class="op">(</span></span>
 <span>    fun <span class="op">=</span> <span class="kw">function</span><span class="op">(</span><span class="va">x</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/stats/GammaDist.html">dgamma</a></span><span class="op">(</span><span class="va">x</span>, shape <span class="op">=</span> <span class="va">alpha_post</span>, rate <span class="op">=</span> <span class="va">beta_post</span><span class="op">)</span>,</span>
 <span>    color <span class="op">=</span> <span class="st">"red"</span>, linewidth <span class="op">=</span> <span class="fl">1.2</span></span>
 <span>  <span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu">labs</span><span class="op">(</span></span>
-<span>    title <span class="op">=</span> <span class="st">"Distribuzione a posteriori di λ"</span>,</span>
-<span>    x <span class="op">=</span> <span class="st">"λ"</span>,</span>
-<span>    y <span class="op">=</span> <span class="st">"Densità"</span></span>
-<span>  <span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span>  <span class="fu">labs</span><span class="op">(</span>title <span class="op">=</span> <span class="st">"Distribuzione a posteriori di λ"</span>, x <span class="op">=</span> <span class="st">"λ"</span>, y <span class="op">=</span> <span class="st">"Densità"</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
-<figure class="figure"><p><a href="11_stan_poisson_model_1_files/figure-html/unnamed-chunk-7-1.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="11_stan_poisson_model_1_files/figure-html/unnamed-chunk-7-1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:70.0%"></a></p>
+<figure class="figure"><p><a href="11_stan_poisson_model_1_files/figure-html/unnamed-chunk-8-1.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="11_stan_poisson_model_1_files/figure-html/unnamed-chunk-8-1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:70.0%"></a></p>
 </figure>
 </div>
 </div>
 </div>
-<p>Il grafico mostra che i campioni prodotti da Stan si distribuiscono esattamente come la curva teorica della distribuzione Gamma, confermando che il nostro modello è stato specificato correttamente.</p>
-<p>Possiamo anche calcolare un intervallo di credibilità per <span class="math inline">\(\lambda\)</span>. Ad esempio, prendiamo il 94% centrale della distribuzione:</p>
+<p>Intervallo di credibilità (94% centrale, ad es.):</p>
 <div class="cell" data-layout-align="center">
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/stats/quantile.html">quantile</a></span><span class="op">(</span><span class="va">lambda_samples</span>, probs <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="fl">0.03</span>, <span class="fl">0.97</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    3%   97% </span></span>
 <span><span class="co">#&gt; 1.422 3.177</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>Il risultato è che il valore medio stimato di <span class="math inline">\(\lambda\)</span> è circa 2.2, e che con un grado di certezza soggettivo del 94% possiamo dire che si trova tra 1.4 e 3.1.</p>
-</section><section id="riflessioni-conclusive" class="level2" data-number="58.5"><h2 data-number="58.5" class="anchored" data-anchor-id="riflessioni-conclusive">
-<span class="header-section-number">58.5</span> Riflessioni conclusive</h2>
+<p>Diagnostica essenziale:</p>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu">posterior</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/posterior/reference/draws_summary.html">summarise_draws</a></span><span class="op">(</span><span class="va">fit</span><span class="op">$</span><span class="fu">draws</span><span class="op">(</span><span class="st">"lambda"</span><span class="op">)</span>, <span class="va">rhat</span>, <span class="va">ess_bulk</span>, <span class="va">ess_tail</span><span class="op">)</span></span>
+<span><span class="co">#&gt; # A tibble: 1 × 4</span></span>
+<span><span class="co">#&gt;   variable  rhat ess_bulk ess_tail</span></span>
+<span><span class="co">#&gt;   &lt;chr&gt;    &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;</span></span>
+<span><span class="co">#&gt; 1 lambda    1.00  4666.65  6265.97</span></span>
+<span></span>
+<span><span class="fu">bayesplot</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/bayesplot/reference/MCMC-traces.html">mcmc_trace</a></span><span class="op">(</span><span class="va">fit</span><span class="op">$</span><span class="fu">draws</span><span class="op">(</span><span class="st">"lambda"</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">ggtitle</span><span class="op">(</span><span class="st">"Traceplot di lambda"</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure"><p><a href="11_stan_poisson_model_1_files/figure-html/unnamed-chunk-10-1.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2"><img src="11_stan_poisson_model_1_files/figure-html/unnamed-chunk-10-1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:70.0%"></a></p>
+</figure>
+</div>
+</div>
+</div>
+</section></section><section id="sparatorie-mortali" class="level2" data-number="58.3"><h2 data-number="58.3" class="anchored" data-anchor-id="sparatorie-mortali">
+<span class="header-section-number">58.3</span> Sparatorie mortali</h2>
+<p>Nella sezione precedente abbiamo esaminato il processo di derivazione della distribuzione a posteriori per i parametri della distribuzione Gamma, la quale viene impiegata quando si adotta un prior Gamma per una verosimiglianza di Poisson. In questo esempio, useremo tale metodo per affrontare una questione relativa all’analisi di un set di dati reali.</p>
+<section id="domanda-della-ricerca" class="level3" data-number="58.3.1"><h3 data-number="58.3.1" class="anchored" data-anchor-id="domanda-della-ricerca">
+<span class="header-section-number">58.3.1</span> Domanda della ricerca</h3>
+<p>Come spiegato <a href="https://github.com/washingtonpost/data-police-shootings">qui</a>, i dati che esamineremo sono raccolti dal Washington Post con lo scopo di registrare ogni sparatoria mortale negli Stati Uniti ad opera di agenti di polizia, a partire dal 1° gennaio 2015. Il Washington Post ha adottato un approccio sistematico e accurato nella raccolta di queste informazioni, fornendo dati che possono essere utili per valutare i problemi legati alla violenza delle forze di polizia negli Stati Uniti.</p>
+<p><strong>Obiettivo.</strong> Stimare, per il periodo 2015–<em>ultimo anno completo disponibile</em>, il <em>tasso medio annuo</em> e l’<em>incertezza</em> associata. Poiché il <em>2025</em> è incompleto, lo escludiamo.</p>
+</section><section id="importazione-e-pre-processing-dei-dati" class="level3" data-number="58.3.2"><h3 data-number="58.3.2" class="anchored" data-anchor-id="importazione-e-pre-processing-dei-dati">
+<span class="header-section-number">58.3.2</span> Importazione e pre-processing dei dati</h3>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># URL del dataset</span></span>
+<span><span class="va">url</span> <span class="op">&lt;-</span> <span class="st">"https://raw.githubusercontent.com/washingtonpost/data-police-shootings/master/v2/fatal-police-shootings-data.csv"</span></span>
+<span></span>
+<span><span class="co"># Importa i dati</span></span>
+<span><span class="va">fps_dat</span> <span class="op">&lt;-</span> <span class="fu">read_csv</span><span class="op">(</span><span class="va">url</span>, show_col_types <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Conversione colonna date</span></span>
+<span><span class="va">fps_dat</span> <span class="op">&lt;-</span> <span class="va">fps_dat</span> <span class="op">%&gt;%</span></span>
+<span>  <span class="fu">mutate</span><span class="op">(</span>date <span class="op">=</span> <span class="fu">ymd</span><span class="op">(</span><span class="va">date</span><span class="op">)</span>,</span>
+<span>         year <span class="op">=</span> <span class="fu">year</span><span class="op">(</span><span class="va">date</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Esamina le colonne disponibili</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/colnames.html">colnames</a></span><span class="op">(</span><span class="va">fps_dat</span><span class="op">)</span></span>
+<span><span class="co">#&gt;  [1] "id"                         "date"                      </span></span>
+<span><span class="co">#&gt;  [3] "threat_type"                "flee_status"               </span></span>
+<span><span class="co">#&gt;  [5] "armed_with"                 "city"                      </span></span>
+<span><span class="co">#&gt;  [7] "county"                     "state"                     </span></span>
+<span><span class="co">#&gt;  [9] "latitude"                   "longitude"                 </span></span>
+<span><span class="co">#&gt; [11] "location_precision"         "name"                      </span></span>
+<span><span class="co">#&gt; [13] "age"                        "gender"                    </span></span>
+<span><span class="co">#&gt; [15] "race"                       "race_source"               </span></span>
+<span><span class="co">#&gt; [17] "was_mental_illness_related" "body_camera"               </span></span>
+<span><span class="co">#&gt; [19] "agency_ids"                 "year"</span></span>
+<span></span>
+<span><span class="co"># Filtra eliminando i casi con year == 2025</span></span>
+<span><span class="va">fps</span> <span class="op">&lt;-</span> <span class="va">fps_dat</span> <span class="op">%&gt;%</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/stats/filter.html">filter</a></span><span class="op">(</span><span class="va">year</span> <span class="op">!=</span> <span class="fl">2025</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Conta le occorrenze per anno</span></span>
+<span><span class="va">year_counts</span> <span class="op">&lt;-</span> <span class="va">fps</span> <span class="op">%&gt;%</span></span>
+<span>  <span class="fu">count</span><span class="op">(</span><span class="va">year</span>, name <span class="op">=</span> <span class="st">"events"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Mostra i risultati</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html">print</a></span><span class="op">(</span><span class="va">year_counts</span><span class="op">)</span></span>
+<span><span class="co">#&gt; # A tibble: 10 × 2</span></span>
+<span><span class="co">#&gt;     year events</span></span>
+<span><span class="co">#&gt;    &lt;dbl&gt;  &lt;int&gt;</span></span>
+<span><span class="co">#&gt;  1  2015    995</span></span>
+<span><span class="co">#&gt;  2  2016    959</span></span>
+<span><span class="co">#&gt;  3  2017    984</span></span>
+<span><span class="co">#&gt;  4  2018    992</span></span>
+<span><span class="co">#&gt;  5  2019    993</span></span>
+<span><span class="co">#&gt;  6  2020   1021</span></span>
+<span><span class="co">#&gt;  7  2021   1050</span></span>
+<span><span class="co">#&gt;  8  2022   1097</span></span>
+<span><span class="co">#&gt;  9  2023   1164</span></span>
+<span><span class="co">#&gt; 10  2024   1175</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section><section id="modello-di-poisson-pooling-completo" class="level3" data-number="58.3.3"><h3 data-number="58.3.3" class="anchored" data-anchor-id="modello-di-poisson-pooling-completo">
+<span class="header-section-number">58.3.3</span> Modello di Poisson (pooling completo)</h3>
+<p>Assumiamo <span class="math inline">\(y_t \sim \text{Poisson}(\lambda)\)</span> con <span class="math inline">\(\lambda\)</span> costante sul periodo:</p>
+<p><span class="math display">\[
+y_t \,\sim\, \text{Poisson}(\lambda), \quad t=1,\dots,n.
+\]</span></p>
+<p>Il supporto di <span class="math inline">\(\lambda\)</span> è <span class="math inline">\([0,\infty)\)</span>.</p>
+<p>Si noti che abbiamo considerato i dati come iid. Guardando la serie temporale, però, è ovvio che le cose non stanno così: i valori aumentano nel tempo.</p>
+</section><section id="prior" class="level3" data-number="58.3.4"><h3 data-number="58.3.4" class="anchored" data-anchor-id="prior">
+<span class="header-section-number">58.3.4</span> Prior</h3>
+<p>Usiamo una <em>prior coniugata Gamma</em> su <span class="math inline">\(\lambda\)</span>, scelta in modo <em>debolmente informativo</em>. Un’ipotesi ragionevole (da verificare e discutere in aula) è una media a priori di <em>600</em> eventi/anno, con <em>deviazione standard 200</em>. In termini Gamma(shape, rate):</p>
+<p><span class="math display">\[
+\alpha = (\mu/\sigma)^2,\qquad \beta = \mu/\sigma^2.
+\]</span></p>
+<p>Visualizziamo la prior (campionando in R):</p>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">mu</span>    <span class="op">&lt;-</span> <span class="fl">600</span></span>
+<span><span class="va">sigma</span> <span class="op">&lt;-</span> <span class="fl">200</span></span>
+<span></span>
+<span><span class="co"># Parametrizzazione Gamma(shape = k, scale = theta) per la simulazione</span></span>
+<span><span class="va">theta</span> <span class="op">&lt;-</span> <span class="va">sigma</span><span class="op">^</span><span class="fl">2</span> <span class="op">/</span> <span class="va">mu</span></span>
+<span><span class="va">k</span>     <span class="op">&lt;-</span> <span class="va">mu</span> <span class="op">/</span> <span class="va">theta</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/Random.html">set.seed</a></span><span class="op">(</span><span class="fl">2</span><span class="op">)</span></span>
+<span><span class="va">x_draws</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/GammaDist.html">rgamma</a></span><span class="op">(</span><span class="fl">50000</span>, shape <span class="op">=</span> <span class="va">k</span>, scale <span class="op">=</span> <span class="va">theta</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">ggplot</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/data.frame.html">data.frame</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">x_draws</span><span class="op">)</span>, <span class="fu">aes</span><span class="op">(</span>x <span class="op">=</span> <span class="va">x</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">geom_histogram</span><span class="op">(</span>bins <span class="op">=</span> <span class="fl">30</span>, color <span class="op">=</span> <span class="st">"white"</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">labs</span><span class="op">(</span></span>
+<span>    x <span class="op">=</span> <span class="st">"Tasso (eventi/anno)"</span>,</span>
+<span>    y <span class="op">=</span> <span class="st">"Frequenza"</span>,</span>
+<span>    title <span class="op">=</span> <span class="st">"Prior Gamma su λ (mu = 600, sigma = 200)"</span></span>
+<span>  <span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure"><p><a href="11_stan_poisson_model_1_files/figure-html/unnamed-chunk-12-1.png" class="lightbox" data-gallery="quarto-lightbox-gallery-3"><img src="11_stan_poisson_model_1_files/figure-html/unnamed-chunk-12-1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:70.0%"></a></p>
+</figure>
+</div>
+</div>
+</div>
+</section><section id="modello-di-poisson-con-stan" class="level3" data-number="58.3.5"><h3 data-number="58.3.5" class="anchored" data-anchor-id="modello-di-poisson-con-stan">
+<span class="header-section-number">58.3.5</span> Modello di Poisson con Stan</h3>
+<p>Qui stimiamo <span class="math inline">\(\lambda\)</span> assumendo lo <em>stesso tasso</em> per tutti gli anni (pooling completo). Con prior Gamma in <em>parametrizzazione (shape, rate)</em>:</p>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">stan_code</span> <span class="op">&lt;-</span> <span class="st">"</span></span>
+<span><span class="st">data {</span></span>
+<span><span class="st">  int&lt;lower=1&gt; N;                 // numero di anni</span></span>
+<span><span class="st">  array[N] int&lt;lower=0&gt; y;        // conteggi annuali</span></span>
+<span><span class="st">  real&lt;lower=0&gt; alpha_prior;      // shape</span></span>
+<span><span class="st">  real&lt;lower=0&gt; beta_prior;       // rate</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">parameters {</span></span>
+<span><span class="st">  real&lt;lower=0&gt; lambda;           // tasso medio annuo</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">model {</span></span>
+<span><span class="st">  lambda ~ gamma(alpha_prior, beta_prior); // prior Gamma(shape, rate)</span></span>
+<span><span class="st">  y ~ poisson(lambda);                     // verosimiglianza</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">generated quantities {</span></span>
+<span><span class="st">  real log_lik = poisson_lpmf(y | lambda);</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">"</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># Dati (usa i conteggi 2015...2024 ordinati)</span></span>
+<span><span class="va">y_vec</span> <span class="op">&lt;-</span> <span class="va">year_counts</span><span class="op">$</span><span class="va">events</span>  <span class="co"># ordine per anno; per Poisson i.i.d. l'ordine non incide</span></span>
+<span></span>
+<span><span class="co"># Prior: coerente con la sezione precedente</span></span>
+<span><span class="va">alpha_prior</span> <span class="op">&lt;-</span> <span class="op">(</span><span class="va">mu</span> <span class="op">/</span> <span class="va">sigma</span><span class="op">)</span><span class="op">^</span><span class="fl">2</span></span>
+<span><span class="va">beta_prior</span>  <span class="op">&lt;-</span> <span class="va">mu</span> <span class="op">/</span> <span class="va">sigma</span><span class="op">^</span><span class="fl">2</span></span>
+<span></span>
+<span><span class="va">stan_data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html">list</a></span><span class="op">(</span></span>
+<span>  N <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html">length</a></span><span class="op">(</span><span class="va">y_vec</span><span class="op">)</span>,</span>
+<span>  y <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/integer.html">as.integer</a></span><span class="op">(</span><span class="va">y_vec</span><span class="op">)</span>,</span>
+<span>  alpha_prior <span class="op">=</span> <span class="va">alpha_prior</span>,</span>
+<span>  beta_prior  <span class="op">=</span> <span class="va">beta_prior</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">stan_data</span></span>
+<span><span class="co">#&gt; $N</span></span>
+<span><span class="co">#&gt; [1] 10</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $y</span></span>
+<span><span class="co">#&gt;  [1]  995  959  984  992  993 1021 1050 1097 1164 1175</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $alpha_prior</span></span>
+<span><span class="co">#&gt; [1] 9</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $beta_prior</span></span>
+<span><span class="co">#&gt; [1] 0.015</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Compilazione ed esecuzione:</p>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">mod</span> <span class="op">&lt;-</span> <span class="fu">cmdstan_model</span><span class="op">(</span><span class="fu">write_stan_file</span><span class="op">(</span><span class="va">stan_code</span><span class="op">)</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="va">mod</span><span class="op">$</span><span class="fu">sample</span><span class="op">(</span></span>
+<span>  data <span class="op">=</span> <span class="va">stan_data</span>,</span>
+<span>  iter_warmup <span class="op">=</span> <span class="fl">1000</span>,</span>
+<span>  iter_sampling <span class="op">=</span> <span class="fl">4000</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">4</span>,</span>
+<span>  seed <span class="op">=</span> <span class="fl">123</span>,</span>
+<span>  refresh <span class="op">=</span> <span class="fl">0</span></span>
+<span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Riassunto dei parametri:</p>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">fit</span><span class="op">$</span><span class="fu">summary</span><span class="op">(</span><span class="st">"lambda"</span><span class="op">)</span></span>
+<span><span class="co">#&gt; # A tibble: 1 × 10</span></span>
+<span><span class="co">#&gt;   variable    mean  median    sd   mad      q5     q95  rhat ess_bulk</span></span>
+<span><span class="co">#&gt;   &lt;chr&gt;      &lt;dbl&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt;</span></span>
+<span><span class="co">#&gt; 1 lambda   1042.41 1042.35 10.27 10.36 1025.69 1059.53  1.00  6110.78</span></span>
+<span><span class="co">#&gt;   ess_tail</span></span>
+<span><span class="co">#&gt;      &lt;dbl&gt;</span></span>
+<span><span class="co">#&gt; 1  8233.18</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu">posterior</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/posterior/reference/draws_summary.html">summarise_draws</a></span><span class="op">(</span></span>
+<span>  <span class="va">fit</span><span class="op">$</span><span class="fu">draws</span><span class="op">(</span><span class="st">"lambda"</span><span class="op">)</span>,</span>
+<span>  <span class="va">mean</span>, <span class="va">sd</span>, <span class="op">~</span><span class="fu"><a href="https://rdrr.io/r/stats/quantile.html">quantile</a></span><span class="op">(</span><span class="va">.x</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="fl">0.025</span>, <span class="fl">0.5</span>, <span class="fl">0.975</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; # A tibble: 1 × 6</span></span>
+<span><span class="co">#&gt;   variable    mean    sd  `2.5%`   `50%` `97.5%`</span></span>
+<span><span class="co">#&gt;   &lt;chr&gt;      &lt;dbl&gt; &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;</span></span>
+<span><span class="co">#&gt; 1 lambda   1042.41 10.27 1022.54 1042.35 1062.58</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Visualizzazione:</p>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu">bayesplot</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/bayesplot/reference/MCMC-distributions.html">mcmc_hist</a></span><span class="op">(</span><span class="va">fit</span><span class="op">$</span><span class="fu">draws</span><span class="op">(</span><span class="st">"lambda"</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">ggtitle</span><span class="op">(</span><span class="st">"Posterior di λ (tasso annuo)"</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure"><p><a href="11_stan_poisson_model_1_files/figure-html/unnamed-chunk-19-1.png" class="lightbox" data-gallery="quarto-lightbox-gallery-4"><img src="11_stan_poisson_model_1_files/figure-html/unnamed-chunk-19-1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:70.0%"></a></p>
+</figure>
+</div>
+</div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu">bayesplot</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/bayesplot/reference/MCMC-intervals.html">mcmc_areas</a></span><span class="op">(</span><span class="va">fit</span><span class="op">$</span><span class="fu">draws</span><span class="op">(</span><span class="st">"lambda"</span><span class="op">)</span>, prob <span class="op">=</span> <span class="fl">0.95</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">ggtitle</span><span class="op">(</span><span class="st">"Posterior di λ (ICr 95%)"</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure"><p><a href="11_stan_poisson_model_1_files/figure-html/unnamed-chunk-20-1.png" class="lightbox" data-gallery="quarto-lightbox-gallery-5"><img src="11_stan_poisson_model_1_files/figure-html/unnamed-chunk-20-1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:70.0%"></a></p>
+</figure>
+</div>
+</div>
+</div>
+<p>Il grafico mostra che il tasso di sparatorie fatali ha una media annuale di 1042 con CI [1022, 1062].</p>
+<p>In sintesi, analizzando i dati compresi tra il 2015 e il 2025 e basandoci su una distribuzione a priori che presuppone una sparatoria mortale al mese per stato, possiamo concludere con un grado di certezza soggettivo del 95% che il tasso stimato di sparatorie fatali da parte della polizia negli Stati Uniti sia di 1028 casi all’anno, con un intervallo di credibilità compreso tra 1022 e 1062.</p>
+<p>Diagnostica essenziale:</p>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># Indicatori numerici chiave: Rhat ~ 1, ESS adeguati</span></span>
+<span><span class="fu">posterior</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/posterior/reference/draws_summary.html">summarize_draws</a></span><span class="op">(</span></span>
+<span>  <span class="va">fit</span><span class="op">$</span><span class="fu">draws</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="st">"lambda"</span><span class="op">)</span><span class="op">)</span>, <span class="st">"rhat"</span>, <span class="st">"ess_bulk"</span>, <span class="st">"ess_tail"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; # A tibble: 1 × 4</span></span>
+<span><span class="co">#&gt;   variable  rhat ess_bulk ess_tail</span></span>
+<span><span class="co">#&gt;   &lt;chr&gt;    &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;</span></span>
+<span><span class="co">#&gt; 1 lambda    1.00  6110.78  8233.18</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># Traceplot di controllo su OR</span></span>
+<span><span class="fu">bayesplot</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/bayesplot/reference/MCMC-traces.html">mcmc_trace</a></span><span class="op">(</span><span class="va">fit</span><span class="op">$</span><span class="fu">draws</span><span class="op">(</span><span class="st">"lambda"</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">ggtitle</span><span class="op">(</span><span class="st">"Traceplot di lambda"</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure"><p><a href="11_stan_poisson_model_1_files/figure-html/unnamed-chunk-22-1.png" class="lightbox" data-gallery="quarto-lightbox-gallery-6"><img src="11_stan_poisson_model_1_files/figure-html/unnamed-chunk-22-1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:70.0%"></a></p>
+</figure>
+</div>
+</div>
+</div>
+</section><section id="derivazione-analitica-gammapoisson" class="level3" data-number="58.3.6"><h3 data-number="58.3.6" class="anchored" data-anchor-id="derivazione-analitica-gammapoisson">
+<span class="header-section-number">58.3.6</span> Derivazione analitica (Gamma–Poisson)</h3>
+<p>Con prior <span class="math inline">\(\lambda \sim \text{Gamma}(\alpha,\beta)\)</span> e dati <span class="math inline">\(y_1,\dots,y_n\)</span> i.i.d. Poisson(<span class="math inline">\(\lambda\)</span>), il posteriore è:</p>
+<p><span class="math display">\[
+\lambda \mid \mathbf{y} \;\sim\; \text{Gamma}\!\left(\alpha + \sum_{t=1}^n y_t,\;\; \beta + n\right).
+\]</span></p>
+<p>Quindi:</p>
+<ul>
+<li>
+<em>media posteriore</em> <span class="math inline">\(\mathbb{E}[\lambda\mid y] = \dfrac{\alpha + \sum y_t}{\beta + n}\)</span>;</li>
+<li>
+<em>ICr 95%</em> con i quantili Gamma al 2.5% e 97.5%.</li>
+</ul>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># Dati e prior come nella sezione Stan</span></span>
+<span><span class="va">data_vec</span> <span class="op">&lt;-</span> <span class="va">year_counts</span><span class="op">$</span><span class="va">events</span></span>
+<span><span class="va">n</span>        <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html">length</a></span><span class="op">(</span><span class="va">data_vec</span><span class="op">)</span></span>
+<span><span class="va">sum_y</span>    <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html">sum</a></span><span class="op">(</span><span class="va">data_vec</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">mu</span>    <span class="op">&lt;-</span> <span class="fl">600</span></span>
+<span><span class="va">sigma</span> <span class="op">&lt;-</span> <span class="fl">200</span></span>
+<span><span class="va">alpha_prior</span> <span class="op">&lt;-</span> <span class="op">(</span><span class="va">mu</span> <span class="op">/</span> <span class="va">sigma</span><span class="op">)</span><span class="op">^</span><span class="fl">2</span></span>
+<span><span class="va">beta_prior</span>  <span class="op">&lt;-</span> <span class="va">mu</span> <span class="op">/</span> <span class="va">sigma</span><span class="op">^</span><span class="fl">2</span></span>
+<span></span>
+<span><span class="co"># Posterior coniugato</span></span>
+<span><span class="va">alpha_post</span> <span class="op">&lt;-</span> <span class="va">alpha_prior</span> <span class="op">+</span> <span class="va">sum_y</span></span>
+<span><span class="va">beta_post</span>  <span class="op">&lt;-</span> <span class="va">beta_prior</span>  <span class="op">+</span> <span class="va">n</span></span>
+<span></span>
+<span><span class="va">post_mean</span> <span class="op">&lt;-</span> <span class="va">alpha_post</span> <span class="op">/</span> <span class="va">beta_post</span></span>
+<span><span class="va">ci95</span>      <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/GammaDist.html">qgamma</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="fl">0.025</span>, <span class="fl">0.975</span><span class="op">)</span>, shape <span class="op">=</span> <span class="va">alpha_post</span>, rate <span class="op">=</span> <span class="va">beta_post</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html">cat</a></span><span class="op">(</span><span class="st">"Posterior mean λ:"</span>, <span class="fu"><a href="https://rdrr.io/r/base/Round.html">round</a></span><span class="op">(</span><span class="va">post_mean</span>, <span class="fl">2</span><span class="op">)</span>, <span class="st">"\n"</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Posterior mean λ: 1042</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html">cat</a></span><span class="op">(</span><span class="st">"95% CrI: ["</span>, <span class="fu"><a href="https://rdrr.io/r/base/Round.html">round</a></span><span class="op">(</span><span class="va">ci95</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span>, <span class="fl">2</span><span class="op">)</span>, <span class="st">", "</span>, <span class="fu"><a href="https://rdrr.io/r/base/Round.html">round</a></span><span class="op">(</span><span class="va">ci95</span><span class="op">[</span><span class="fl">2</span><span class="op">]</span>, <span class="fl">2</span><span class="op">)</span>, <span class="st">"]\n"</span><span class="op">)</span></span>
+<span><span class="co">#&gt; 95% CrI: [ 1022 ,  1062 ]</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>La derivazione <em>analitica</em> e i risultati <em>MCMC</em> coincidono (entro l’errore Monte Carlo).</p>
+</section></section><section id="riflessioni-conclusive" class="level2" data-number="58.4"><h2 data-number="58.4" class="anchored" data-anchor-id="riflessioni-conclusive">
+<span class="header-section-number">58.4</span> Riflessioni conclusive</h2>
 <p>In questo capitolo abbiamo fatto un passo importante: abbiamo visto come tradurre un modello probabilistico relativamente semplice in Stan, come eseguire il campionamento MCMC, e come confrontare i risultati con la soluzione analitica. Questo esempio ci ha permesso di verificare che Stan funziona correttamente, perché in questo caso conoscevamo già la distribuzione a posteriori esatta.</p>
 <p>L’aspetto davvero interessante, però, è che la stessa procedura può essere usata anche quando la soluzione analitica non esiste. Nei capitoli successivi incontreremo modelli più complessi, in cui la coniugatezza non ci aiuta più e non abbiamo formule chiuse per la distribuzione a posteriori. In quei casi, il campionamento MCMC sarà lo strumento indispensabile per fare inferenza bayesiana.</p>
 </section><section id="informazioni-sullambiente-di-sviluppo" class="level2 unnumbered unlisted"><h2 class="unnumbered unlisted anchored" data-anchor-id="informazioni-sullambiente-di-sviluppo">Informazioni sull’ambiente di sviluppo</h2>
 <div class="cell" data-layout-align="center">
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/sessionInfo.html">sessionInfo</a></span><span class="op">(</span><span class="op">)</span></span>
+<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/sessionInfo.html">sessionInfo</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="co">#&gt; R version 4.5.1 (2025-06-13)</span></span>
 <span><span class="co">#&gt; Platform: aarch64-apple-darwin20</span></span>
-<span><span class="co">#&gt; Running under: macOS Sequoia 15.6</span></span>
+<span><span class="co">#&gt; Running under: macOS Sequoia 15.6.1</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Matrix products: default</span></span>
 <span><span class="co">#&gt; BLAS:   /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRblas.0.dylib </span></span>
@@ -1243,44 +1536,48 @@ p(\lambda) = \frac{\beta^{\alpha}}{\Gamma(\alpha)} \lambda^{\alpha - 1} e^{-\bet
 <span><span class="co">#&gt; [1] stats     graphics  grDevices utils     datasets  methods   base     </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; other attached packages:</span></span>
-<span><span class="co">#&gt;  [1] cmdstanr_0.9.0        pillar_1.11.0         tinytable_0.11.0     </span></span>
-<span><span class="co">#&gt;  [4] patchwork_1.3.1       ggdist_3.3.3          tidybayes_3.0.7      </span></span>
-<span><span class="co">#&gt;  [7] bayesplot_1.13.0      ggplot2_3.5.2         reliabilitydiag_0.2.1</span></span>
-<span><span class="co">#&gt; [10] priorsense_1.1.0      posterior_1.6.1       loo_2.8.0            </span></span>
-<span><span class="co">#&gt; [13] rstan_2.32.7          StanHeaders_2.32.10   brms_2.22.0          </span></span>
-<span><span class="co">#&gt; [16] Rcpp_1.1.0            conflicted_1.2.0      janitor_2.2.1        </span></span>
-<span><span class="co">#&gt; [19] matrixStats_1.5.0     modelr_0.1.11         tibble_3.3.0         </span></span>
-<span><span class="co">#&gt; [22] dplyr_1.1.4           tidyr_1.3.1           rio_1.2.3            </span></span>
-<span><span class="co">#&gt; [25] here_1.0.1           </span></span>
+<span><span class="co">#&gt;  [1] lubridate_1.9.4       forcats_1.0.0         stringr_1.5.1        </span></span>
+<span><span class="co">#&gt;  [4] purrr_1.1.0           readr_2.1.5           tidyverse_2.0.0      </span></span>
+<span><span class="co">#&gt;  [7] cmdstanr_0.9.0        pillar_1.11.0         tinytable_0.11.0     </span></span>
+<span><span class="co">#&gt; [10] patchwork_1.3.1       ggdist_3.3.3          tidybayes_3.0.7      </span></span>
+<span><span class="co">#&gt; [13] bayesplot_1.13.0      ggplot2_3.5.2         reliabilitydiag_0.2.1</span></span>
+<span><span class="co">#&gt; [16] priorsense_1.1.0      posterior_1.6.1       loo_2.8.0            </span></span>
+<span><span class="co">#&gt; [19] rstan_2.32.7          StanHeaders_2.32.10   brms_2.22.0          </span></span>
+<span><span class="co">#&gt; [22] Rcpp_1.1.0            sessioninfo_1.2.3     conflicted_1.2.0     </span></span>
+<span><span class="co">#&gt; [25] janitor_2.2.1         matrixStats_1.5.0     modelr_0.1.11        </span></span>
+<span><span class="co">#&gt; [28] tibble_3.3.0          dplyr_1.1.4           tidyr_1.3.1          </span></span>
+<span><span class="co">#&gt; [31] rio_1.2.3             here_1.0.1           </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; loaded via a namespace (and not attached):</span></span>
-<span><span class="co">#&gt;  [1] svUnit_1.0.6         tidyselect_1.2.1     farver_2.1.2        </span></span>
-<span><span class="co">#&gt;  [4] fastmap_1.2.0        TH.data_1.1-3        tensorA_0.36.2.1    </span></span>
-<span><span class="co">#&gt;  [7] pacman_0.5.1         digest_0.6.37        estimability_1.5.1  </span></span>
-<span><span class="co">#&gt; [10] timechange_0.3.0     lifecycle_1.0.4      processx_3.8.6      </span></span>
-<span><span class="co">#&gt; [13] survival_3.8-3       magrittr_2.0.3       compiler_4.5.1      </span></span>
-<span><span class="co">#&gt; [16] rlang_1.1.6          tools_4.5.1          yaml_2.3.10         </span></span>
-<span><span class="co">#&gt; [19] data.table_1.17.8    knitr_1.50           labeling_0.4.3      </span></span>
-<span><span class="co">#&gt; [22] bridgesampling_1.1-2 htmlwidgets_1.6.4    pkgbuild_1.4.8      </span></span>
-<span><span class="co">#&gt; [25] curl_6.4.0           RColorBrewer_1.1-3   abind_1.4-8         </span></span>
-<span><span class="co">#&gt; [28] multcomp_1.4-28      withr_3.0.2          purrr_1.1.0         </span></span>
-<span><span class="co">#&gt; [31] grid_4.5.1           stats4_4.5.1         xtable_1.8-4        </span></span>
-<span><span class="co">#&gt; [34] colorspace_2.1-1     inline_0.3.21        emmeans_1.11.2      </span></span>
-<span><span class="co">#&gt; [37] scales_1.4.0         MASS_7.3-65          cli_3.6.5           </span></span>
-<span><span class="co">#&gt; [40] mvtnorm_1.3-3        rmarkdown_2.29       generics_0.1.4      </span></span>
-<span><span class="co">#&gt; [43] RcppParallel_5.1.10  cachem_1.1.0         stringr_1.5.1       </span></span>
-<span><span class="co">#&gt; [46] splines_4.5.1        parallel_4.5.1       vctrs_0.6.5         </span></span>
-<span><span class="co">#&gt; [49] V8_6.0.5             Matrix_1.7-3         sandwich_3.1-1      </span></span>
-<span><span class="co">#&gt; [52] jsonlite_2.0.0       arrayhelpers_1.1-0   glue_1.8.0          </span></span>
-<span><span class="co">#&gt; [55] ps_1.9.1             codetools_0.2-20     distributional_0.5.0</span></span>
-<span><span class="co">#&gt; [58] lubridate_1.9.4      stringi_1.8.7        gtable_0.3.6        </span></span>
-<span><span class="co">#&gt; [61] QuickJSR_1.8.0       htmltools_0.5.8.1    Brobdingnag_1.2-9   </span></span>
-<span><span class="co">#&gt; [64] R6_2.6.1             rprojroot_2.1.0      evaluate_1.0.4      </span></span>
-<span><span class="co">#&gt; [67] lattice_0.22-7       backports_1.5.0      memoise_2.0.1       </span></span>
-<span><span class="co">#&gt; [70] broom_1.0.9          snakecase_0.11.1     rstantools_2.4.0    </span></span>
-<span><span class="co">#&gt; [73] coda_0.19-4.1        gridExtra_2.3        nlme_3.1-168        </span></span>
-<span><span class="co">#&gt; [76] checkmate_2.3.2      xfun_0.52            zoo_1.8-14          </span></span>
-<span><span class="co">#&gt; [79] pkgconfig_2.0.3</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span><span class="co">#&gt;  [1] gridExtra_2.3        inline_0.3.21        sandwich_3.1-1      </span></span>
+<span><span class="co">#&gt;  [4] rlang_1.1.6          magrittr_2.0.3       multcomp_1.4-28     </span></span>
+<span><span class="co">#&gt;  [7] snakecase_0.11.1     ggridges_0.5.6       compiler_4.5.1      </span></span>
+<span><span class="co">#&gt; [10] reshape2_1.4.4       vctrs_0.6.5          crayon_1.5.3        </span></span>
+<span><span class="co">#&gt; [13] pkgconfig_2.0.3      arrayhelpers_1.1-0   fastmap_1.2.0       </span></span>
+<span><span class="co">#&gt; [16] backports_1.5.0      labeling_0.4.3       utf8_1.2.6          </span></span>
+<span><span class="co">#&gt; [19] rmarkdown_2.29       tzdb_0.5.0           ps_1.9.1            </span></span>
+<span><span class="co">#&gt; [22] bit_4.6.0            xfun_0.52            cachem_1.1.0        </span></span>
+<span><span class="co">#&gt; [25] jsonlite_2.0.0       broom_1.0.9          parallel_4.5.1      </span></span>
+<span><span class="co">#&gt; [28] R6_2.6.1             stringi_1.8.7        RColorBrewer_1.1-3  </span></span>
+<span><span class="co">#&gt; [31] estimability_1.5.1   knitr_1.50           zoo_1.8-14          </span></span>
+<span><span class="co">#&gt; [34] pacman_0.5.1         Matrix_1.7-3         splines_4.5.1       </span></span>
+<span><span class="co">#&gt; [37] timechange_0.3.0     tidyselect_1.2.1     abind_1.4-8         </span></span>
+<span><span class="co">#&gt; [40] yaml_2.3.10          codetools_0.2-20     curl_6.4.0          </span></span>
+<span><span class="co">#&gt; [43] processx_3.8.6       pkgbuild_1.4.8       plyr_1.8.9          </span></span>
+<span><span class="co">#&gt; [46] lattice_0.22-7       withr_3.0.2          bridgesampling_1.1-2</span></span>
+<span><span class="co">#&gt; [49] coda_0.19-4.1        evaluate_1.0.4       survival_3.8-3      </span></span>
+<span><span class="co">#&gt; [52] RcppParallel_5.1.10  tensorA_0.36.2.1     checkmate_2.3.2     </span></span>
+<span><span class="co">#&gt; [55] stats4_4.5.1         distributional_0.5.0 generics_0.1.4      </span></span>
+<span><span class="co">#&gt; [58] vroom_1.6.5          rprojroot_2.1.0      hms_1.1.3           </span></span>
+<span><span class="co">#&gt; [61] rstantools_2.4.0     scales_1.4.0         xtable_1.8-4        </span></span>
+<span><span class="co">#&gt; [64] glue_1.8.0           emmeans_1.11.2       tools_4.5.1         </span></span>
+<span><span class="co">#&gt; [67] data.table_1.17.8    mvtnorm_1.3-3        grid_4.5.1          </span></span>
+<span><span class="co">#&gt; [70] QuickJSR_1.8.0       colorspace_2.1-1     nlme_3.1-168        </span></span>
+<span><span class="co">#&gt; [73] cli_3.6.5            svUnit_1.0.6         Brobdingnag_1.2-9   </span></span>
+<span><span class="co">#&gt; [76] V8_6.0.5             gtable_0.3.6         digest_0.6.37       </span></span>
+<span><span class="co">#&gt; [79] TH.data_1.1-3        htmlwidgets_1.6.4    farver_2.1.2        </span></span>
+<span><span class="co">#&gt; [82] memoise_2.0.1        htmltools_0.5.8.1    lifecycle_1.0.4     </span></span>
+<span><span class="co">#&gt; [85] bit64_4.6.0-1        MASS_7.3-65</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section><section id="bibliografia" class="level2 unnumbered unlisted"><h2 class="unnumbered unlisted anchored" data-anchor-id="bibliografia">Bibliografia</h2>
 
