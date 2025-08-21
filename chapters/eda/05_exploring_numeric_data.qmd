@@ -29,12 +29,12 @@ pacman::p_load(ggbeeswarm, dslabs, gridExtra, ggpubr, cowplot, viridis)
 :::
 
 
-
 ## Introduzione {.unnumbered .unlisted}
 
 ::: {.lead}
 In questo capitolo ci concentreremo sull'analisi dei dati numerici. In particolare, esamineremo le distribuzioni di frequenza e i quantili, insieme alle tecniche di visualizzazione più comuni, come l'istogramma, l'istogramma smussato e il box-plot. Tratteremo sia gli aspetti computazionali che quelli interpretativi di queste misure, fornendo strumenti utili non solo per una comprensione personale, ma anche per la comunicazione efficace dei risultati, in particolare con chi utilizza questi dati per prendere decisioni pratiche nel mondo reale.
 :::
+
 
 ## I dati sulle aspettative negative nella depressione
 
@@ -45,6 +45,7 @@ Importiamo i dati:
 ```{r}
 df <- rio::import(here::here("data", "data.mood.csv"))
 ```
+
 
 ### Data Wrangling
 
@@ -93,6 +94,7 @@ Otteniamo così il DataFrame finale per gli scopi presenti (66 righe e 3 colonne
 ```{r}
 dim(df)
 ```
+
 
 ### Anteprima dei dati  
 
@@ -308,7 +310,6 @@ ggplot(df, aes(x = bdi)) +
   geom_histogram(
     breaks = c(0, 13.5, 19.5, 28.5, 63),
     aes(y = after_stat(density)),  # oppure after_stat(count / sum(count))
-    fill = palette_set1["due"],    # usa un colore coerente dal tuo setup
     color = "white",               # bordi bianchi per leggibilità
     linewidth = 0.5
   ) +
@@ -325,7 +326,6 @@ Anche se nel caso presente è sensato usare ampiezze diverse per gli intervalli 
 ggplot(df, aes(x = bdi)) +
   geom_histogram(
     aes(y = after_stat(density)),
-    fill = palette_set1["due"],
     color = "white"
   ) +
   labs(
@@ -378,7 +378,7 @@ Di seguito esaminiamo un esempio che mostra la costruzione passo dopo passo di i
 # Istogramma con bin di ampiezza 1
 ggplot(heights |> dplyr::filter(sex == "Male"), aes(height)) +
   geom_histogram(
-    binwidth = 1, color = "white", fill = palette_set1["due"]
+    binwidth = 1, color = "white"
   )
 ```
 
@@ -387,7 +387,7 @@ ggplot(heights |> dplyr::filter(sex == "Male"), aes(height)) +
 ggplot(heights |> dplyr::filter(sex == "Male"), aes(height)) +
   geom_histogram(
     aes(y = after_stat(density)), 
-    binwidth = 1, color = "white", fill = palette_set1["due"]
+    binwidth = 1, color = "white"
   ) +
   geom_line(stat = 'density')
 ```
@@ -400,7 +400,6 @@ p <- ggplot(heights |> filter(sex == "Male"), aes(x = height)) +
   geom_histogram(
     aes(y = after_stat(density)),
     binwidth = 1,
-    fill = palette_set1["due"],
     color = "white"
   ) +
   labs(
@@ -411,12 +410,12 @@ p <- ggplot(heights |> filter(sex == "Male"), aes(x = height)) +
 
 # Più ondulato (banda piccola)
 p1 <- p +
-  geom_line(stat = "density", adjust = 0.5, color = palette_set1["uno"]) +
+  geom_line(stat = "density", adjust = 0.5) +
   labs(subtitle = "Smoothing accentuato (adjust = 0.5)")
 
 # Più liscio (banda larga)
 p2 <- p +
-  geom_line(stat = "density", adjust = 2, color = palette_set1["uno"]) +
+  geom_line(stat = "density", adjust = 2) +
   labs(subtitle = "Smoothing attenuato (adjust = 2)")
 
 # Composizione coerente con patchwork
@@ -468,11 +467,10 @@ tmp <- data.frame(height = d$x, density = d$y)
 
 # Plot coerente con il tema globale e la palette definita
 ggplot(tmp, aes(x = height, y = density)) +
-  geom_line(color = palette_set1["due"], linewidth = 1) +
+  geom_line(linewidth = 1) +
   geom_area(
     data = dplyr::filter(tmp, between(height, 65, 68)),
     aes(x = height, y = density),
-    fill = palette_set1["due"],
     alpha = 0.3
   ) +
   labs(
@@ -498,8 +496,6 @@ heights |>
   dplyr::filter(sex == "Male") |> 
   ggplot(aes(x = height)) + 
   geom_density(
-    fill = palette_set1["due"],
-    color = palette_set1["due"],
     alpha = 0.3
   ) +
   labs(
@@ -626,12 +622,22 @@ La figura seguente (creata usando il codice fornito da @schubert2025improving) m
 #| fig-width: 7  
 #| out-width: 100%  
 #| 
-# Palette coerente con i livelli di df$group
-palette_group <- setNames(palette_set1[c("uno", "due")], c("ctl", "mdd"))
+# --- Palette Okabe–Ito (già definita in _common.R); qui selezioniamo 2 colori ---
+palette_group <- setNames(
+  c(okabe_ito["blue"], okabe_ito["vermillion"]),
+  c("ctl", "mdd")
+)
 
 # Rendi group un fattore con livelli coerenti (importante!)
 df <- df |>
-  mutate(group = factor(group, levels = c("ctl", "mdd")))
+  dplyr::mutate(group = factor(group, levels = c("ctl", "mdd")))
+
+# Helper: media ± SE (errore standard), non ± SD
+mean_se <- function(x, mult = 1) {
+  m  <- mean(x, na.rm = TRUE)
+  se <- stats::sd(x, na.rm = TRUE) / sqrt(sum(!is.na(x)))
+  data.frame(y = m, ymin = m - mult*se, ymax = m + mult*se)
+}
 
 # (A) Barplot con media e errore standard
 bar_plot <- ggplot(df, aes(x = group, y = bdi)) +
@@ -642,14 +648,14 @@ bar_plot <- ggplot(df, aes(x = group, y = bdi)) +
     width = 0.7
   ) +
   stat_summary(
-    fun.data = mean_sdl,
-    fun.args = list(mult = 1),
+    fun.data = mean_se,         # <-- SE, non SD
+    fun.args = list(mult = 1),  # 1 * SE
     geom = "errorbar",
     width = 0.2,
     color = "black",
     linewidth = 0.7
   ) +
-  scale_fill_manual(values = palette_group) +
+  scale_fill_manual(values = palette_group, drop = FALSE) +
   labs(
     x = "Gruppo",
     y = "BDI-II",
@@ -660,7 +666,7 @@ bar_plot <- ggplot(df, aes(x = group, y = bdi)) +
 # (B) Boxplot
 box_plot <- ggplot(df, aes(x = group, y = bdi, fill = group)) +
   geom_boxplot() +
-  scale_fill_manual(values = palette_group) +
+  scale_fill_manual(values = palette_group, drop = FALSE) +
   labs(
     x = "Gruppo",
     y = "BDI-II",
@@ -671,7 +677,7 @@ box_plot <- ggplot(df, aes(x = group, y = bdi, fill = group)) +
 # (C) Violin plot
 violin_plot <- ggplot(df, aes(x = group, y = bdi, fill = group)) +
   geom_violin() +
-  scale_fill_manual(values = palette_group) +
+  scale_fill_manual(values = palette_group, drop = FALSE) +
   labs(
     x = "Gruppo",
     y = "BDI-II",
@@ -698,8 +704,8 @@ raincloud_plot <- ggplot(df, aes(x = group, y = bdi, fill = group)) +
     width = 0.15,
     outlier.size = 1
   ) +
-  scale_fill_manual(values = palette_group) +
-  scale_color_manual(values = palette_group) +
+  scale_fill_manual(values = palette_group, drop = FALSE) +
+  scale_color_manual(values = palette_group, drop = FALSE) +
   labs(
     x = "Gruppo",
     y = "BDI-II",
@@ -709,6 +715,7 @@ raincloud_plot <- ggplot(df, aes(x = group, y = bdi, fill = group)) +
 
 # Composizione finale con patchwork
 (bar_plot + box_plot) / (violin_plot + raincloud_plot)
+
 ```
 
 Il raincloud plot (D) supera queste limitazioni integrando tre elementi chiave: una "nuvola" che rappresenta la densità dei dati (simile a un violin plot), una "pioggia" di punti che mostra i valori osservati, e un boxplot orizzontale ("suolo") che riassume le statistiche principali. Questa combinazione lo rende particolarmente utile nell’analisi esplorativa, poiché permette di identificare a colpo d’occhio skewness, cluster e outliers, soprattutto quando si confrontano diversi gruppi.

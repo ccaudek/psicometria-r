@@ -1,7 +1,7 @@
 # Analisi bayesiana dell'odds ratio {#sec-bayes-odds-ratio}
 
 ::: callout-note
-*Obiettivo.* Stimare e interpretare l’*odds ratio (OR)* tra due proporzioni con Stan, quantificando l’incertezza tramite la distribuzione a posteriori e un intervallo di credibilità.
+*Obiettivo.* Stimare e interpretare l’*odds ratio* (OR) tra due proporzioni con Stan, partendo da un esperimento classico di etologia, quantificando l’incertezza tramite la distribuzione a posteriori e un intervallo di credibilità.
 :::
 
 *Prerequisiti*
@@ -19,6 +19,8 @@
 *Preparazione del Notebook*
 
 ```{r}
+#| output: false
+
 here::here("code", "_common.R") |> 
   source()
 
@@ -32,299 +34,193 @@ conflicts_prefer(posterior::ess_tail)
 ## Introduzione {.unnumbered .unlisted}
 
 ::: {.lead}
-In questo capitolo applicheremo gli strumenti statistici presentati precedentemente all'analisi bayesiana del confronto tra due proporzioni. La trattazione si articolerà in tre fasi fondamentali:
-
-1. Introduzione dei concetti teorici di odds, odds ratio e trasformazione logit
-2. Presentazione del framework bayesiano per il confronto tra proporzioni
-3. Applicazione pratica degli strumenti analitici
+Nelle scienze psicologiche e sociali ci interessa spesso capire se esiste un’associazione tra due variabili dicotomiche. Per esempio: *gli studenti che hanno seguito un corso di preparazione hanno più probabilità di superare l’esame rispetto a chi non lo ha seguito?*  
 :::
 
-L'odds ratio (OR) rappresenta una misura statistica fondamentale per quantificare l'associazione tra una variabile espositiva (o condizione di interesse) e un outcome binario. Nello specifico, l'OR compara la probabilità relativa del verificarsi dell'evento nei gruppi a confronto, fornendo quindi una misura di effetto particolarmente utile in ambito epidemiologico.
+Un modo naturale per quantificare questo tipo di relazione è l’*odds ratio*. È una misura intuitiva, perché confronta due probabilità trasformandole in termini di *odds* (rapporti di chance).  
+
+In questo capitolo vedremo:
+
+- come si definiscono probabilità, odds e odds ratio;  
+- come si interpreta l’odds ratio in contesti psicologici;  
+- come stimarlo in ottica bayesiana, implementando un modello in *Stan*;  
+- come presentare i risultati con intervalli di credibilità.  
 
 
-## Odds: definizione e interpretazione
+## Il contesto sperimentale 
+  
+Nella prima metà del Novecento, Karl von Frisch si chiese se le api possedessero la *visione dei colori*. Per verificarlo, progettò esperimenti in cui le api potevano associare un colore a una ricompensa. Ispirandoci a una ricostruzione di @hoffmann2022bayesian, immaginiamo un disegno sperimentale semplificato:
+  
+* *Gruppo sperimentale*: api addestrate ad associare un disco blu a una soluzione zuccherina.
+* *Gruppo di controllo*: api che non ricevono alcun addestramento.
 
-### Concetto fondamentale
+Nella fase di *test*, la soluzione zuccherina viene rimossa, e si osserva quante volte le api si avvicinano al disco blu (evento critico).
 
-Nell’analisi statistica, gli *odds* rappresentano un modo alternativo rispetto alla probabilità per quantificare la verosimiglianza di un evento. La loro definizione formale è data dal rapporto tra la probabilità che l’evento si verifichi ($\pi$) e la probabilità che non si verifichi ($1-\pi$):
+I risultati osservati sono:
+  
+  | Gruppo       | Successi (scelta blu) | Totale |
+  | ------------ | --------------------- | ------ |
+  | Sperimentale | 130                   | 200    |
+  | Controllo    | 100                   | 200    |
+  
+La domanda è chiara: *le api addestrate hanno odds maggiori di preferire il disco blu rispetto alle api non addestrate?*
+
+
+## Da probabilità a odds
+  
+La probabilità di successo (scelta blu) nel gruppo sperimentale è:
+  
+$$
+p\_1 = \frac{130}{200} = 0.65.
+$$
+  
+Gli *odds* corrispondenti sono:
+  
+$$
+\text{odds}\_1 = \frac{p\_1}{1-p\_1} = \frac{0.65}{0.35} \approx 1.86.
+$$
+  
+  Per il gruppo di controllo:
+  
+$$
+p\_2 = \frac{100}{200} = 0.50, \quad \text{odds}\_2 = \frac{0.5}{0.5} = 1.
+$$
+  
+## Odds ratio
+  
+L’odds ratio (OR) confronta i due odds:
+  
+$$
+\text{OR} = \frac{\text{odds}\_1}{\text{odds}\_2} = \frac{1.86}{1} \approx 1.86.
+$$
+  
+**Interpretazione:** le api addestrate hanno odds circa 1.9 volte maggiori di scegliere il disco blu rispetto alle api non addestrate. Questo non significa che la loro probabilità sia il doppio, ma che il rapporto tra successi e insuccessi è quasi raddoppiato.
+
+Ma quanto è credibile questa stima? È qui che l’approccio bayesiano diventa utile: invece di fermarci a una stima puntuale, otteniamo un’intera distribuzione a posteriori per l’OR.
+
+
+## Approccio bayesiano
+
+Con l’approccio frequentista, l’odds ratio viene stimato come rapporto di stime puntuali, con un intervallo di confidenza ottenuto tramite approssimazioni asintotiche.  Con l’approccio bayesiano, invece, otteniamo direttamente la *distribuzione a posteriori dell’odds ratio*. Questo ci permette di calcolare:  
+
+- la probabilità che l’OR sia maggiore di 1;  
+- la probabilità che cada in un intervallo di equivalenza (ROPE);  
+- intervalli di credibilità (ETI o HDI).  
+
+In questo modo il risultato non solo è più intuitivo, ma ci permette anche di rispondere a domande in termini probabilistici, ad esempio: qual è la probabilità che l’OR sia maggiore di 1?.
+
+
+### Relazione con la regressione logistica
+
+Il collegamento chiave è la *regressione logistica*. Se modelliamo la probabilità di successo $p_i$ come:
 
 $$
-\text{odds} = \frac{\pi}{1-\pi}.
+\text{logit}(p_i) = \alpha + \beta x_i,
 $$
 
-Mentre la probabilità è sempre compresa tra 0 e 1, gli odds possono variare da 0 a infinito. Questa proprietà conferisce agli odds una maggiore ampiezza di scala, rendendoli particolarmente utili per descrivere situazioni in cui un evento è molto raro o quasi certo.
+dove $x_i$ è una variabile dicotomica (0 = controllo, 1 = trattamento), allora:  
 
-### Esempi illustrativi
+- $\exp(\beta)$ è proprio l’*odds ratio* tra i due gruppi.  
 
-Il legame tra odds e probabilità può essere chiarito attraverso alcuni esempi. Se la probabilità di successo è pari a due terzi, gli odds risultano uguali a 2: ciò significa che l’evento è due volte più probabile che si verifichi rispetto a non verificarsi. Se invece la probabilità è pari a un terzo, gli odds valgono 0.5, e dunque l’evento ha metà della probabilità di verificarsi rispetto al non verificarsi. Infine, nel caso in cui la probabilità sia esattamente pari a un mezzo, gli odds risultano uguali a 1: l’evento è cioè ugualmente probabile che accada o meno.
+Questo significa che stimare un modello logistico equivale a stimare l’odds ratio, con il vantaggio di poter estendere facilmente il modello a più predittori.  
 
-### Proprietà e utilità degli odds
 
-Gli odds hanno una scala intrinsecamente asimmetrica: valori inferiori a 1 corrispondono a probabilità inferiori al 50%, un valore pari a 1 rappresenta la situazione di equiprobabilità, mentre valori superiori a 1 indicano probabilità maggiori della metà. Questa caratteristica rende gli odds molto sensibili quando ci si avvicina agli estremi della distribuzione, cioè a probabilità molto basse o molto alte. In tali contesti, anche piccole variazioni di probabilità producono grandi differenze negli odds, offrendo quindi una maggiore capacità discriminativa.
+### Versione logistica
 
-Un’altra proprietà cruciale è la loro trasformabilità. La funzione logit, definita come
-
-$$
-\log \left( \frac{\pi}{1-\pi} \right),
-$$
-
-permette di trasformare gli odds in una scala simmetrica che copre l’intero asse reale. Questa trasformazione è alla base della regressione logistica e di molte altre applicazioni statistiche, poiché consente di trattare quantità limitate tra 0 e 1 (le probabilità) attraverso un modello lineare illimitato.
-
-
-## Odds Ratio: concetto e applicazioni
-
-### Definizione
-
-L’*odds ratio* (OR) è una misura statistica che consente di confrontare la probabilità relativa di un evento tra due gruppi. È definito come il rapporto tra gli odds del gruppo 1 e quelli del gruppo 2:
-
-$$
-OR = \frac{\text{odds}_1}{\text{odds}_2} = \frac{p_1/(1-p_1)}{p_2/(1-p_2)},
-$$
-
-dove $p_1$ e $p_2$ rappresentano le probabilità dell’evento nei due gruppi considerati.
-
-### Interpretazione
-
-Un valore di OR pari a 1 indica assenza di associazione, cioè l’evento è ugualmente probabile in entrambi i gruppi. Se l’OR è maggiore di 1, l’evento risulta più probabile nel gruppo 1 rispetto al gruppo 2. Viceversa, se l’OR è inferiore a 1, l’evento è meno probabile nel gruppo 1. Maggiore è la distanza dall’unità, più forte è l’associazione: valori estremi, come 10 o 0.1, segnalano legami molto marcati, mentre valori vicini a 1 corrispondono ad associazioni deboli.
-
-### Esempio applicativo
-
-Immaginiamo uno studio clinico volto a verificare l’efficacia di una terapia comportamentale nel trattamento dell’ansia. Nel gruppo trattato, costituito da 100 pazienti, 60 mostrano miglioramenti ($p_1 = 0.6$). Nel gruppo di controllo, anch’esso di 100 pazienti, i miglioramenti riguardano 40 persone ($p_2 = 0.4$). Gli odds del gruppo trattato sono pari a $0.6/0.4 = 1.5$, mentre quelli del gruppo di controllo sono $0.4/0.6 \approx 0.67$. L’odds ratio risulta quindi $1.5/0.67 \approx 2.24$. L’interpretazione è immediata: i pazienti trattati hanno circa 2.24 volte più probabilità di migliorare rispetto ai controlli.
-
-
-## Log-Odds Ratio: trasformazione e vantaggi
-
-### Motivazione e formula
-
-Sebbene l’odds ratio sia una misura intuitiva, esso ha una natura moltiplicativa che può complicare le analisi statistiche. Per questo motivo, è comune applicare la trasformazione logaritmica, ottenendo il log-odds ratio:
-
-$$
-\log(OR) = \log\left(\frac{\text{odds}_1}{\text{odds}_2}\right).
-$$
-
-Questa trasformazione rende simmetrical la scala, estendendola da meno infinito a più infinito e  normalizza le distribuzioni in molti contesti empirici.
-
-### Interpretazione
-
-Un valore di log-odds ratio pari a zero indica assenza di differenza tra i gruppi (equivalente a un OR pari a 1). Valori positivi indicano che l’evento è più probabile nel gruppo 1, mentre valori negativi segnalano il contrario. Riprendendo l’esempio precedente, il log-odds ratio corrisponde a $\log(2.24) \approx 0.81$. Questo valore può essere interpretato come un incremento di circa 0.81 unità nei log-odds del risultato associato alla condizione sperimentale.
-
-
-### Confronto con l’OR
-
-L’odds ratio vive su una scala positiva e va interpretato in termini moltiplicativi (“due volte più probabile”). Il log-odds ratio, invece, vive su una scala simmetrica e permette un’interpretazione additiva (“+0.81 unità nei log-odds”). Questo passaggio dalla moltiplicazione all’addizione è un vantaggio cruciale nei modelli multivariati, dove gli effetti dei predittori vengono combinati in modo lineare.
-
-
-**In sintesi,** gli odds offrono una misura alternativa alla probabilità, particolarmente utile per descrivere eventi rari o molto frequenti. L’odds ratio rappresenta lo strumento principale per confrontare due gruppi, fornendo una misura relativa dell’associazione. La trasformazione logaritmica del rapporto, ossia il log-odds ratio, consente di superare i limiti della scala moltiplicativa e di integrare facilmente queste quantità nei modelli statistici, come la regressione logistica. In questo modo, concetti apparentemente semplici come odds e odds ratio si rivelano fondamentali non solo per l’interpretazione dei dati, ma anche per la costruzione di modelli predittivi complessi in psicologia, medicina e scienze sociali.
-
-
-## Analisi bayesiana delle proporzioni
-
-Dopo aver introdotto i concetti di odds, odds ratio e logit, possiamo affrontare l’analisi bayesiana delle proporzioni. Questo approccio consente di confrontare le probabilità di due gruppi stimando direttamente la distribuzione a posteriori delle quantità di interesse, come l’odds ratio, e di rappresentare in modo esplicito l’incertezza delle stime attraverso intervalli di credibilità.
-
-Il cuore dell’approccio bayesiano è il teorema di Bayes, che permette di aggiornare le conoscenze iniziali, espresse sotto forma di distribuzione a priori, con l’evidenza fornita dai dati osservati. In questo modo si ottiene una distribuzione a posteriori che integra sia l’informazione empirica sia le assunzioni iniziali.
-
-Per illustrare la procedura useremo un set di dati fittizio ispirato a un classico esperimento di etologia descritto da Von Frisch (1914) e ripreso da @hoffmann2022bayesian. L’obiettivo dell’esperimento era verificare se le api fossero in grado di distinguere i colori. Nella fase di addestramento, le api del gruppo sperimentale venivano esposte a un disco blu e a un disco verde: soltanto il disco blu era ricoperto da una soluzione zuccherina, altamente appetibile. Il gruppo di controllo non riceveva alcun addestramento.
-
-Nella fase di test la soluzione zuccherina veniva rimossa e si osservava il comportamento delle api. Qualora le api avessero effettivamente appreso l'associazione colore-ricompensa, ci si sarebbe attesi una preferenza persistente per il disco blu. I dati raccolti mostrano che nel gruppo sperimentale 130 api su 200 si sono avvicinate al disco blu, mentre nel gruppo di controllo la stessa scelta si è verificata in 100 casi su 200.
-
-
-## Calcoli preliminari: proporzioni e odds
-
-Nel gruppo sperimentale la proporzione di api che hanno scelto il disco blu è
-
-$$
-p_e = \frac{130}{200} = 0.65,
-$$
-
-corrispondente a odds pari a
-
-$$
-\text{odds}_e = \frac{0.65}{1-0.65} \approx 1.86.
-$$
-
-Questo valore indica che, per ogni scelta del disco verde, nel gruppo sperimentale si osservano circa 1.86 scelte del disco blu.
-
-Nel gruppo di controllo la proporzione è invece
-
-$$
-p_c = \frac{100}{200} = 0.50,
-$$
-
-che corrisponde a odds pari a
-
-$$
-\text{odds}_c = \frac{0.50}{1-0.50} = 1.00.
-$$
-
-In questo caso, le scelte si distribuiscono equamente tra i due colori.
-
-Il confronto tra i due gruppi fornisce l’odds ratio:
-
-$$
-\text{OR} = \frac{\text{odds}_e}{\text{odds}_c} = \frac{1.86}{1.00} = 1.86.
-$$
-
-L’interpretazione è chiara: le api addestrate hanno odds di scelta del disco blu circa 1.86 volte maggiori rispetto a quelle non addestrate.
-
-
-## Analisi bayesiana dell’odds ratio
-
-Finora abbiamo ottenuto una stima puntuale dell’OR, ma l’analisi bayesiana ci consente di andare oltre, valutando l’intera distribuzione a posteriori dell’odds ratio e quindi la nostra incertezza. Il modello bayesiano che utilizziamo è basato su due distribuzioni binomiali, una per ciascun gruppo:
-
-$$
-y_1 \sim \text{Binomiale}(N_1, \theta_1), \qquad 
-y_2 \sim \text{Binomiale}(N_2, \theta_2),
-$$
-
-dove $\theta_1$ e $\theta_2$ rappresentano le probabilità di scelta del disco blu nei due gruppi. Per entrambi i parametri adottiamo priori debolmente informative, ad esempio
-
-$$
-\theta_1 \sim \text{Beta}(2,2), \qquad 
-\theta_2 \sim \text{Beta}(2,2).
-$$
-
-Una volta osservati i dati, il teorema di Bayes aggiorna queste distribuzioni, producendo le posteriori di $\theta_1$ e $\theta_2$. Nel blocco `generated quantities` del modello Stan possiamo calcolare sia la differenza dei logit sia l’odds ratio corrispondente:
-
-$$
-\log(\text{OR}) = \operatorname{logit}(\theta_1) - \operatorname{logit}(\theta_2), \qquad 
-\text{OR} = \exp\{\log(\text{OR})\}.
-$$
-
-L’inferenza si basa quindi sulla distribuzione posteriore di OR. Da essa possiamo derivare, ad esempio, l’intervallo di credibilità al 90%. Se questo intervallo non comprende il valore 1, concludiamo che vi è un’evidenza consistente di una differenza tra i gruppi; in caso contrario, i dati non forniscono supporto sufficiente per affermare che l’effetto sia reale a livello di popolazione.
-
-
-## Modello e scelte di prior
-
-Formalmente, modelliamo i conteggi di “successi” (scelta del blu) con due binomiali indipendenti:
-
-$$
-y_1 \sim \text{Binomiale}(N_1,\theta_1), \qquad
-y_2 \sim \text{Binomiale}(N_2,\theta_2),
-$$
-
-dove $\theta_1$ e $\theta_2$ sono le probabilità di successo nei due gruppi. Usiamo prior debolmente informativi $\theta_1,\theta_2 \sim \text{Beta}(2,2)$, che esprimono una moderata preferenza per valori centrali pur rimanendo sufficientemente diffusi. L’OR si ottiene via
-
-$$
-\log(\text{OR})=\operatorname{logit}(\theta_1)-\operatorname{logit}(\theta_2), 
-\qquad \text{OR}=\exp\{\log(\text{OR})\}.
-$$
-
-L’inferenza si conduce sulla distribuzione a posteriori di OR: l’ampiezza e la posizione dell’intervallo di credibilità riflettono la forza dell’evidenza nei dati.
-
-
-### Codice Stan 
+Rappresentiamo i dati individuali: ogni ape è codificata come 1 (ha scelto il blu) o 0 (non ha scelto il blu).
 
 ```{r}
-# Codice Stan come stringa: due binomiali con prior Beta(2,2).
-stancode <- "
+# Dati individuali
+y <- c(rep(1, 130), rep(0, 70),  # gruppo sperimentale
+       rep(1, 100), rep(0, 100)) # gruppo controllo
+x <- c(rep(1, 200), rep(0, 200)) # 1 = sperimentale, 0 = controllo
+
+data_list <- list(N = length(y), y = y, x = x)
+glimpse(data_list)
+```
+
+
+
+### Modello Stan 
+
+```{r}
+stancode_or <- "
 data {
-  int<lower=0> N1;  int<lower=0> y1;
-  int<lower=0> N2;  int<lower=0> y2;
+  int<lower=1> N;                  
+  array[N] int<lower=0,upper=1> y; // esiti 0/1
+  vector[N] x;                     // gruppo (0/1)
 }
 parameters {
-  real<lower=0, upper=1> theta1;
-  real<lower=0, upper=1> theta2;
+  real alpha;    // log-odds nel controllo
+  real beta;     // differenza di log-odds (sperimentale vs controllo)
 }
 model {
-  // Priors debolmente informativi
-  theta1 ~ beta(2, 2);
-  theta2 ~ beta(2, 2);
-
-  // Likelihood
-  y1 ~ binomial(N1, theta1);
-  y2 ~ binomial(N2, theta2);
+  alpha ~ normal(0, 5);
+  beta  ~ normal(0, 5);
+  y ~ bernoulli_logit(alpha + beta * x);
 }
 generated quantities {
-  // Log-odds ratio e odds ratio derivati dai parametri
-  real log_or     = logit(theta1) - logit(theta2);
-  real oddsratio  = exp(log_or);
+  real OR = exp(beta);
 }
 "
 ```
 
-
-### Setup in R e compilazione
-
-```{r}
-# Scrive il file .stan su disco (opzionale: cambia percorso/cartella a piacere)
-stan_file <- cmdstanr::write_stan_file(stancode)
-
-# Compila il modello Stan
-mod <- cmdstan_model(stan_file)
-mod$print()  # controllo veloce della compilazione
-```
-
-### Dati ed esecuzione del campionamento
+Compilazione ed esecuzione
 
 ```{r}
 #| output: false
 
-# Dati: conteggi per sperimentale (gruppo 1) e controllo (gruppo 2)
-N1 <- 200; y1 <- 130
-N2 <- 200; y2 <- 100
+stanmod_or <- cmdstanr::cmdstan_model(write_stan_file(stancode_or))
 
-stan_data <- list(N1 = N1, y1 = y1, N2 = N2, y2 = y2)
-
-# Campionamento MCMC: impostazioni robuste e riproducibili
-fit <- mod$sample(
-  data = stan_data,
+fit_or <- stanmod_or$sample(
+  data = data_list,
+  iter_warmup = 1000,
+  iter_sampling = 4000,
+  chains = 4,
   seed = 123,
-  chains = 4, parallel_chains = 4,
-  iter_warmup = 1500, iter_sampling = 4000,
-  adapt_delta = 0.99,
-  show_messages = FALSE
+  refresh = 0
 )
 ```
 
-*Commento.* Le iterazioni sono generose per garantire stime stabili; `adapt_delta` elevato riduce il rischio di divergenze. Su dataset di questa semplicità, convergenza e mescolamento sono in genere eccellenti.
+### Interpretazione dei risultati
 
-
-### Riassunti a posteriori e quantità didattiche chiave
+Riassunto dei parametri:
 
 ```{r}
-# Estrazione dei draw in formato comodo
-draws_or   <- as_draws_df(fit$draws("oddsratio"))
-draws_log  <- as_draws_df(fit$draws("log_or"))
-draws_th   <- as_draws_df(fit$draws(c("theta1","theta2")))
+print(fit_or$summary(c("alpha","beta","OR")), n = Inf)
+```
 
-# Riassunti sintetici (mediana e CrI 90%)
-post_summ <- tibble(
-  quantity = c("theta1", "theta2", "log_or", "oddsratio"),
-  median   = c(median(draws_th$theta1),
-               median(draws_th$theta2),
-               median(draws_log$log_or),
-               median(draws_or$oddsratio)),
-  cri90_l  = c(quantile(draws_th$theta1, .05),
-               quantile(draws_th$theta2, .05),
-               quantile(draws_log$log_or, .05),
-               quantile(draws_or$oddsratio, .05)),
-  cri90_u  = c(quantile(draws_th$theta1, .95),
-               quantile(draws_th$theta2, .95),
-               quantile(draws_log$log_or, .95),
-               quantile(draws_or$oddsratio, .95))
+* $\alpha$ = log-odds di successo nel gruppo di controllo;
+* $\beta$ = differenza di log-odds tra i due gruppi;
+* $\exp(\beta)$ = odds ratio.
+
+Distribuzione a posteriori dell’OR:
+
+```{r}
+posterior::summarise_draws(
+  fit_or$draws("OR"),
+  mean, sd, ~quantile(.x, c(0.025, 0.5, 0.975))
 )
-post_summ
+```
+
+Questo riassume la media, la mediana e l’intervallo di credibilità (es. 95%) dell’odds ratio.
+
+Visualizzazione:
+
+```{r}
+bayesplot::mcmc_hist(fit_or$draws("OR")) +
+  ggtitle("Distribuzione a posteriori dell’odds ratio")
 ```
 
 ```{r}
-# Probabilità a posteriori che l'effetto sia nella direzione ipotizzata (OR > 1)
-pr_or_gt1 <- mean(draws_or$oddsratio > 1)
-pr_or_gt1
+bayesplot::mcmc_areas(fit_or$draws("OR"), prob = 0.95) +
+  ggtitle("Intervallo di credibilità al 95% per l’odds ratio")
 ```
 
-*Lettura didattica.* $\theta_1$ e $\theta_2$ sono le probabilità nei due gruppi; $\log(\text{OR})$ è centrato su scala simmetrica (0 equivale a nessuna differenza); $\text{OR}>1$ indica odds maggiori nel gruppo sperimentale. Il CrI 90% per OR quantifica l’incertezza e $\Pr(\text{OR}>1)$ esprime quanto è plausibile, a posteriori, un effetto nella direzione attesa.
+Il grafico mostra che l’odds ratio è ben sopra 1, con alta probabilità.
 
+**Interpretazione:** è molto plausibile che l’addestramento aumenti le probabilità che le api scelgano il disco blu rispetto al gruppo di controllo.
 
-### Visualizzazione della distribuzione di OR
-
-```{r}
-# Densità posteriore di OR con intervallo di credibilità al 90%
-bayesplot::mcmc_areas(fit$draws("oddsratio"), prob = 0.90) +
-  ggtitle("Distribuzione a posteriori di OR (CrI 90%)") +
-  xlab("Odds Ratio (OR)")
-```
-
-*Interpretazione.* La massa della distribuzione concentrata sopra 1, con un CrI 90% che non include 1, indica evidenza consistente che l’addestramento aumenti le odds di scelta del disco blu. In termini sostantivi, le api addestrate mostrano una preferenza più marcata per il blu rispetto al controllo.
 
 
 ### Diagnostica essenziale 
@@ -332,25 +228,149 @@ bayesplot::mcmc_areas(fit$draws("oddsratio"), prob = 0.90) +
 ```{r}
 # Indicatori numerici chiave: Rhat ~ 1, ESS adeguati
 posterior::summarize_draws(
-  fit$draws(c("theta1","theta2","log_or","oddsratio")),
+  fit_or$draws(c("alpha","beta","OR")),
   "rhat", "ess_bulk", "ess_tail"
 )
 ```
 
 ```{r}
 # Traceplot di controllo su OR
-bayesplot::mcmc_trace(fit$draws("oddsratio")) +
+bayesplot::mcmc_trace(fit_or$draws("OR")) +
   ggtitle("Traceplot di OR")
 ```
 
 Se emergono problemi (Rhat > 1.01, ESS basso, divergenze riportate in output), conviene aumentare `iter_warmup`/`iter_sampling`, alzare `adapt_delta` o, in ultima istanza, riconsiderare i prior se sono eccessivamente stretti.
 
 
+## Versione binomiale con prior Beta
+
+Finora abbiamo stimato l’odds ratio tramite la regressione logistica: $\exp(\beta)$ fornisce direttamente l’OR tra i due gruppi. Un’alternativa altrettanto corretta — spesso preferita quando i dati sono naturalmente riassumibili in una tabella 2×2 — è modellare *separatamente* le due proporzioni $(\theta_1,\theta_2)$ con una *binomiale* e prior *Beta* debolmente informativi, e calcolare l’OR come trasformazione dei due parametri:
+
+$$
+\text{OR} \;=\; \frac{\theta_1/(1-\theta_1)}{\theta_2/(1-\theta_2)} \;=\; \exp\!\big(\operatorname{logit}(\theta_1)-\operatorname{logit}(\theta_2)\big).
+$$
+
+Questa formulazione è didatticamente trasparente: stimiamo le due probabilità di successo e poi traduciamo il risultato nell’odds ratio. Con prior *Beta(2,2)* manteniamo coerenza con le impostazioni del capitolo (prior debolmente informativi).
+
+### Stan: due binomiali + prior Beta(2,2)
+
+```{r}
+stancode_or_beta <- "
+data {
+  int<lower=0> k1; int<lower=1> n1; // successi, prove sperimentale
+  int<lower=0> k2; int<lower=1> n2; // successi, prove controllo
+}
+parameters {
+  real<lower=0,upper=1> theta1;
+  real<lower=0,upper=1> theta2;
+}
+model {
+  theta1 ~ beta(2, 2);
+  theta2 ~ beta(2, 2);
+  k1 ~ binomial(n1, theta1);
+  k2 ~ binomial(n2, theta2);
+}
+generated quantities {
+  real logOR = logit(theta1) - logit(theta2);
+  real OR    = exp(logOR);
+}
+"
+```
+
+```{r}
+data_list_beta <- list(
+  k1 = 130, n1 = 200,
+  k2 = 100, n2 = 200
+)
+data_list_beta
+```
+
+
+Compilazione e campionamento:
+
+```{r}
+#| output: false
+
+stanmod_or_beta <- cmdstanr::cmdstan_model(write_stan_file(stancode_or_beta))
+
+fit_or_beta <- stanmod_or_beta$sample(
+  data = data_list_beta,
+  iter_warmup   = 1000,
+  iter_sampling = 4000,
+  chains        = 4,
+  parallel_chains = 4,
+  seed = 123,
+  refresh = 0
+)
+```
+
+**Riassunti posteriori e confronto con la logistica.**
+
+Cominciamo dai riassunti posteriori dell’OR nel modello Beta–Binomiale:
+
+```{r}
+posterior::summarise_draws(
+  fit_or_beta$draws(c("theta1","theta2","logOR","OR")),
+  mean, sd, ~quantile(.x, c(0.025, 0.5, 0.975))
+)
+```
+
+Ora affianchiamo i risultati dei *due* modelli (logistico vs Beta–Binomiale). In primo luogo, confrontiamo gli *intervalli di credibilità* dell’OR:
+
+```{r}
+summ_logit <- posterior::summarise_draws(
+  fit_or$draws("OR"),
+  mean, sd, ~quantile(.x, c(0.025, 0.5, 0.975))
+)
+summ_beta <- posterior::summarise_draws(
+  fit_or_beta$draws("OR"),
+  mean, sd, ~quantile(.x, c(0.025, 0.5, 0.975))
+)
+
+list(logistico = summ_logit, beta_binomiale = summ_beta)
+```
+
+Per una *verifica visiva*, sovrapponiamo le densità posteriori dell’OR:
+
+```{r}
+OR_logit <- as.numeric(fit_or$draws("OR"))
+OR_beta  <- as.numeric(fit_or_beta$draws("OR"))
+
+tibble(
+  OR = c(OR_logit, OR_beta),
+  modello = rep(c("Logistico", "Beta–Binomiale"), 
+                c(length(OR_logit), length(OR_beta)))
+) |>
+  ggplot(aes(x = OR, fill = modello)) +
+  geom_density(alpha = 0.35) +
+  labs(title = "Posteriori dell'odds ratio: Logistico vs Beta–Binomiale",
+       x = "Odds Ratio", y = "Densità")
+```
+
+Infine, verifichiamo che la *probabilità a posteriori* di OR>1 sia sostanzialmente la stessa in entrambe le specificazioni:
+
+```{r}
+c(
+  P_OR_gt_1_logistico   = mean(OR_logit > 1),
+  P_OR_gt_1_betaBinom   = mean(OR_beta  > 1)
+)
+```
+
+**Cosa aspettarsi?**
+
+I due approcci devono produrre risultati *coerenti* (entro le ovvie fluttuazioni Monte Carlo). Entrambi stimano, in modi diversi ma equivalenti sul piano inferenziale, la stessa quantità di interesse: l’odds ratio tra i due gruppi. La scelta pratica dipende dalla struttura dei dati e dagli obiettivi comunicativi:
+
+* Se hai dati *individuali* (successo/insuccesso per soggetto) e vuoi estendere a covariate, *la regressione logistica* è naturale e scalabile.
+* Se lavori con *conteggi* per cella (tabella 2×2) e vuoi la via più *diretta* alla misura d’effetto, il *modello Beta–Binomiale* è compatto e trasparente.
+
+Entrambe le vie portano, correttamente, alla *stessa conclusione* sul valore di OR e sulla sua incertezza.
+
+
 ## Riflessioni conclusive {.unnumbered .unlisted}
 
 In questo capitolo, abbiamo esplorato come applicare un approccio bayesiano per analizzare e interpretare l'odds ratio tra due proporzioni. Attraverso l'uso del modello statistico, siamo stati in grado di stimare la distribuzione a posteriori dell'odds ratio e di calcolare l'intervallo di credibilità.
 
-I risultati ottenuti, supportati da un controllo diagnostico delle catene Markoviane, indicano che la differenza osservata tra i due gruppi è credibile e supportata dai dati. L'odds ratio stimato e il relativo intervallo di credibilità escludono il valore 1, suggerendo una differenza coerente tra i gruppi analizzati. L'approccio bayesiano si è dimostrato efficace, non solo per stimare i parametri di interesse, ma anche per quantificare l'incertezza associata a tali stime. 
+I risultati ottenuti, supportati da un controllo diagnostico delle catene Markoviane, indicano che la differenza osservata tra i due gruppi è credibile e supportata dai dati. L'odds ratio stimato e il relativo intervallo di credibilità si collocano sopra il valore 1, indicando che, dati i nostri assunti, è altamente probabile che il gruppo sperimentale abbia odds maggiori rispetto al gruppo di controllo. L'approccio bayesiano si è dimostrato efficace, non solo per stimare i parametri di interesse, ma anche per quantificare l'incertezza associata a tali stime. 
 
 In sintesi, l'analisi bayesiana dell'odds ratio ha permesso di rispondere alla domanda di ricerca, confermando che le api mostrano comportamenti coerenti con una capacità di distinzione cromatica. L'approccio presentato in questo capitolo può essere esteso ad altre applicazioni, offrendo una struttura versatile per il confronto tra proporzioni in diversi contesti sperimentali.
 

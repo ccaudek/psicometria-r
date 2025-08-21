@@ -23,6 +23,7 @@
 ## Preparazione del Notebook
 
 ```{r}
+#| output: false
 here::here("code", "_common.R") |> 
   source()
 
@@ -357,129 +358,293 @@ Il metodo basato su griglia si estende anche ad altri modelli, come il caso dell
 4. combinare prior e verosimiglianza punto per punto,
 5. normalizzare i risultati per ottenere una distribuzione a posteriori.
 
-
 **Esempio: Stima bayesiana della media del QI.**
 
-Immaginiamo di condurre uno studio su bambini ad alto potenziale cognitivo. Per semplicità, ipotizziamo che il QI in questa popolazione segua una distribuzione normale con deviazione standard nota pari a 5, mentre la media $\mu$ è incognita e rappresenta il parametro di interesse.
+Immaginiamo di condurre uno studio su bambini ad alto potenziale cognitivo. Supponiamo che i loro punteggi di QI siano distribuiti secondo una *normale* con deviazione standard nota $\sigma = 5$.
+La media $\mu$ è incognita e rappresenta il *parametro di interesse*.
 
-Supponiamo di osservare i seguenti 10 punteggi di QI (simulati da una normale con media 130 e sd = 5):
+**Dati osservati.** Abbiamo raccolto un piccolo campione (10 bambini):
 
 ```{r}
 set.seed(123)
 campione <- round(rnorm(10, mean = 130, sd = 5))
+campione
 ```
 
-Definizione della griglia per $\mu$:
+**La verosimiglianza congiunta.** La *verosimiglianza* esprime quanto un certo valore del parametro $\mu$ renda *plausibili i dati osservati*.
+
+Se osserviamo un singolo punteggio di QI $y_i$, la sua densità sotto una distribuzione normale con media $\mu$ e deviazione standard $\sigma=5$ è:
+
+$$
+p(y_i \mid \mu) = \text{Normal}(y_i \mid \mu, \sigma).
+$$
+
+Quando abbiamo più osservazioni indipendenti, la plausibilità complessiva si ottiene *moltiplicando* le singole densità. La verosimiglianza congiunta diventa quindi:
+
+$$
+L(\mu) = \prod_{i=1}^n p(y_i \mid \mu, \sigma).
+$$
+
+In altre parole, $L(\mu)$ è alta se tutti i dati sono coerenti con un certo valore della media $\mu$, mentre è bassa se i dati sono difficilmente spiegabili da quel valore.
+
+**Implementazione in R.** 
+
+Per stimare la distribuzione a posteriori $p(\mu \mid y)$ useremo il *metodo della griglia*. Definiamo prima una griglia di valori possibili per $\mu$:
 
 ```{r}
-mu_griglia <- seq(110, 150, length.out = 100)
+mu_griglia <- seq(120, 150, length.out = 100)
+head(mu_griglia)
 ```
 
-La verosimiglianza per ciascun valore di $\mu$ è il prodotto delle densità normali dei dati osservati, assumendo $\sigma = 5$:
+Poi calcoliamo la verosimiglianza congiunta per ciascun valore di $\mu$. Per chiarezza usiamo un *ciclo esplicito*:
 
 ```{r}
-likelihood <- sapply(mu_griglia, function(mu) {
-  prod(dnorm(campione, mean = mu, sd = 5))
-})
+likelihood <- numeric(length(mu_griglia))  # vettore vuoto
+for (j in seq_along(mu_griglia)) {
+  mu <- mu_griglia[j]
+  likelihood[j] <- prod(dnorm(campione, mean = mu, sd = 5))
+}
 ```
 
-Supponiamo ora di avere una convinzione iniziale secondo cui $\mu$ è centrata intorno a 140, con una deviazione standard pari a 3. Questa informazione può essere rappresentata con una distribuzione a priori gaussiana $\mathcal{N}(140, 3^2)$:
+Nell’istruzione:
+
+```r
+likelihood[j] <- prod(dnorm(campione, mean = mu, sd = 5))
+```
+
+accade quanto segue:
+
+* `dnorm(campione, mean = mu, sd = 5)` calcola la densità normale per ciascuna delle 10 osservazioni del campione (ad es. 127, 129, 138, …).
+* `prod(...)` moltiplica tutte queste densità, costruendo la *verosimiglianza congiunta* per quel valore specifico di $\mu$.
+* Questo procedimento viene ripetuto per ogni valore della griglia `mu_griglia`, così otteniamo una versione *discretizzata della funzione di verosimiglianza*.
+
+Supponiamo di credere, prima di osservare i dati, che la media sia centrata su 140, con incertezza (deviazione standard 3). Formalmente: $\mu \sim \mathcal{N}(140, 3^2)$.
 
 ```{r}
 prior <- dnorm(mu_griglia, mean = 140, sd = 3)
 ```
 
-Combinando questa prior con la verosimiglianza calcolata in precedenza, otteniamo la distribuzione a posteriori:
+Il teorema di Bayes ci dice che la distribuzione a posteriori di $\mu$, dato il campione osservato $y$, è proporzionale al prodotto tra *verosimiglianza* e *prior*:
+
+$$
+p(\mu \mid y) \propto p(y \mid \mu) \cdot p(\mu).
+$$
+
+In pratica, ogni valore di $\mu$ riceve un “peso” che riflette sia la sua plausibilità secondo i dati (verosimiglianza), sia la sua plausibilità iniziale (prior).
+
+Nel nostro approccio basato su griglia, otteniamo una versione *discretizzata e non ancora normalizzata* della distribuzione a posteriori:
 
 ```{r}
 posterior <- likelihood * prior
-posterior <- posterior / sum(posterior)  # Normalizzazione
 ```
 
-Infine, possiamo generare un campione dalla distribuzione a posteriori discreta per calcolare quantità riassuntive e costruire intervalli di credibilità:
+Per trasformarla in una vera *distribuzione di probabilità discreta* (cioè una distribuzione che somma a 1), normalizziamo dividendo per la somma totale di tutti i valori:
 
 ```{r}
+posterior <- posterior / sum(posterior)
+```
+
+Dopo questa operazione, `posterior` rappresenta una distribuzione di massa di probabilità sulla griglia di valori considerati per $\mu$:
+
+* ogni elemento di `posterior` indica la probabilità a posteriori associata a un certo valore della griglia;
+* la somma di tutte queste probabilità è esattamente pari a 1.
+
+
+**Campionamento dalla posterior (Monte Carlo).** 
+
+Una volta ottenuta la *posterior discreta* sulla griglia (`mu_griglia`) — cioè `posterior` con somma = 1 — possiamo stimare media e intervalli estraendo campioni *proporzionali* a tali probabilità.
+
+```{r}
+# Sicurezza: la posterior deve sommare a 1
+stopifnot(abs(sum(posterior) - 1) < 1e-10)
+
 set.seed(123)
 samples <- sample(mu_griglia, size = 10000, replace = TRUE, prob = posterior)
+
+# Sommari Monte Carlo
+mc_mean <- mean(samples)                       # media a posteriori (MC)
+mc_ci94 <- quantile(samples, c(0.03, 0.97))    # intervallo di credibilità al 94%
+
+mc_mean
+mc_ci94
 ```
 
-Quantità riassuntive:
+* La *media a posteriori* è la stima puntuale di $\mu$ che integra dati e prior.
+* L’*intervallo di credibilità* al 94% (code uguali) contiene i valori di $\mu$ che, a posteriori, coprono il 94% della probabilità.
+
+> Nota: essendo un metodo stocastico, i risultati variano leggermente a ogni estrazione (il seme stabilizza l’esempio). Con più campioni Monte Carlo, la variabilità si riduce.
+
+**Sommari a posteriori tramite integrazione su griglia (somme pesate).**
+
+In modo *deterministico*, possiamo calcolare media, varianza e quantili direttamente dalla griglia usando i *pesi* `w = posterior` (già normalizzati).
 
 ```{r}
-mean(samples)                         # media a posteriori
-quantile(samples, c(0.03, 0.97))      # intervallo di credibilità al 94%
+# Pesi e ascisse
+w     <- posterior          # massa discreta sulla griglia (somma = 1)
+theta <- mu_griglia
+
+# Moda (MAP sulla griglia)
+mode_hat <- theta[ which.max(w) ]
+
+# Media e varianza (somme pesate)
+mean_hat <- sum(theta * w)
+var_hat  <- sum((theta - mean_hat)^2 * w)
+
+# Intervallo al 94% per code uguali dalla CDF discreta
+cdf  <- cumsum(w)
+# Quantili come primi punti della griglia che raggiungono le probabilità target
+q_lower <- theta[ which(cdf >= 0.03)[1] ]
+q_upper <- theta[ which(cdf >= 0.97)[1] ]
+ci94_det <- c(q_lower, q_upper)
+
+data.frame(
+  Stima  = c("Moda", "Media", "Varianza", "CI94_lower", "CI94_upper"),
+  Valore = c(mode_hat, mean_hat, var_hat, ci94_det[1], ci94_det[2])
+)
 ```
 
-Visualizzazione: 
+* Poiché la griglia è *equispaziata* e `posterior` è già *normalizzata*, non serve alcun fattore $\delta$.
+* L’uso della CDF discreta (`cumsum`) rende i quantili trasparenti senza bisogno di interpolazione.
+
+**Verifica dell’equivalenza (MC vs. griglia).**
+
+I due approcci devono dare risultati coerenti (a parte il rumore Monte Carlo):
 
 ```{r}
+abs(mean_hat - mc_mean)          # differenza media (attesa piccola)
+ci94_det
+mc_ci94
+```
+
+**Visualizzazione.**
+
+Per capire *come prior, verosimiglianza e posterior si combinano*, è utile metterle *sullo stesso grafico*. Ricorda però che la *verosimiglianza non è una distribuzione* (non somma a 1): per il *solo confronto visivo* la *normalizziamo* (ad esempio dividendo per la somma). 
+
+```{r}
+# Normalizzazione SOLO per il confronto grafico
 likelihood_std <- likelihood / sum(likelihood)
+```
 
+Questo non influisce in alcun modo sui calcoli dei sommari, che si basano unicamente sulla *posterior*.
+
+```{r, fig.asp=1}
 dat <- tibble(
   mu = mu_griglia,
-  Prior = prior / sum(prior),
-  Verosimiglianza = likelihood_std,
-  Posteriori = posterior
+  Prior = prior / sum(prior),        # normalizzata solo per il grafico
+  Verosimiglianza = likelihood_std,  # "finta densità" per confronto visivo
+  Posteriori = posterior             # già massa discreta (somma = 1)
 )
 
-# Riorganizzazione in formato lungo
 long_data <- dat |>
-  pivot_longer(cols = c("Prior", "Verosimiglianza", "Posteriori"),
-               names_to = "Distribuzione",
-               values_to = "Densità")
-```
+  pivot_longer(
+    cols = c("Prior", "Verosimiglianza", "Posteriori"),
+    names_to = "Distribuzione",
+    values_to = "Densità"
+  )
 
-```{r}
+# Alcuni riferimenti utili sul grafico
+mu_prior   <- 140
+mu_sample  <- mean(campione)
+mu_post    <- sum(mu_griglia * posterior)  # media a posteriori sulla griglia
+
 ggplot(long_data, aes(x = mu, y = Densità, color = Distribuzione)) +
   geom_line(size = 1.2) +
+  geom_vline(xintercept = mu_prior,  linetype = "dotted") +
+  geom_vline(xintercept = mu_sample, linetype = "dashed") +
+  geom_vline(xintercept = mu_post,   linetype = "dotdash") +
+  annotate("text", x = mu_prior,  y = 0.06, label = "media prior",    vjust = 1.3, angle = 90, size = 3) +
+  annotate("text", x = mu_sample, y = 0.06, label = "media campione", vjust = 1.3, angle = 90, size = 3) +
+  annotate("text", x = mu_post,   y = 0.06, label = "media posterior",vjust = 1.3, angle = 90, size = 3) +
   labs(
-    title = "Confronto tra Prior, Verosimiglianza e Posteriori",
+    title = "Prior, verosimiglianza (normalizzata per confronto)\ne posterior",
     x = expression(mu),
-    y = "Densità (normalizzata)",
+    y = "Densità\n(normalizzata per confronto)",
     color = NULL
   ) +
-  theme(legend.position = "bottom")
+  theme(legend.position = "bottom") 
 ```
 
-**Interpretazione:**
+**Interpretazione del grafico**
 
-* *La prior* riflette una credenza iniziale centrata su $\mu = 140$, coerente con l’ipotesi che i bambini siano plusdotati.
-* *La verosimiglianza* riflette i dati osservati, tendendo a concentrare la densità intorno alla media campionaria.
-* *La posterior* media tra queste due fonti di informazione, spostandosi più o meno verso la prior a seconda del numero di osservazioni e della forza dei dati.
+* *Prior*: rappresenta la convinzione iniziale (qui centrata su 140).
+* *Verosimiglianza (normalizzata)*: mostra dove i *dati* sono più plausibili; tende a concentrarsi vicino alla *media campionaria*.
+* *Posterior**: è il **compromesso* tra prior e verosimiglianza. Con *campioni più grandi* e/o dati più informativi, la posterior si concentra maggiormente intorno ai valori suggeriti dai dati e diventa più *stretta* (minore incertezza).
+
+> Nota: la normalizzazione grafica rende confrontabili le *forme* delle curve (non le altezze assolute). I *sommari numerici* (media, varianza, intervalli) *non* usano questa normalizzazione: si basano solo su `posterior`.
 
 
-**Nota su stabilità numerica: uso dei logaritmi.**
+**Nota sulla stabilità numerica.**
 
-Per evitare problemi di underflow, è possibile calcolare i logaritmi delle densità:
+Poiché la verosimiglianza è un prodotto di molte probabilità molto piccole, il calcolo diretto può portare a valori quasi zero (problema di *underflow*). Per evitarlo, conviene lavorare con i *logaritmi*: il prodotto diventa una somma, più stabile numericamente.
 
 ```{r}
-log_likelihood <- sapply(mu_griglia, function(mu) {
-  sum(dnorm(campione, mean = mu, sd = 5, log = TRUE))
-})
+log_likelihood <- numeric(length(mu_griglia))
+for (j in seq_along(mu_griglia)) {
+  mu <- mu_griglia[j]
+  log_likelihood[j] <- sum(dnorm(campione, mean = mu, sd = 5, log = TRUE))
+}
+
 log_prior <- dnorm(mu_griglia, mean = 140, sd = 3, log = TRUE)
 
+# log-posterior non normalizzata
 log_posterior <- log_likelihood + log_prior
-log_posterior <- log_posterior - max(log_posterior)  # stabilizzazione
-posterior <- exp(log_posterior) / sum(exp(log_posterior))
+
+# stabilizzazione numerica (log-sum-exp trick)
+log_posterior_stab <- log_posterior - max(log_posterior)
+
+# posterior normalizzata su scala naturale
+posterior_log <- exp(log_posterior_stab)
+posterior_log <- posterior_log / sum(posterior_log)
 ```
 
-Le quantità riassuntive che otteniamo in questo modo coincidono con quelle trovate in precedenza:
+Il risultato finale coincide con quello ottenuto senza logaritmi, ma in modo molto più sicuro dal punto di vista computazionale:
 
 ```{r}
 set.seed(123)
-samples <- sample(mu_griglia, size = 10000, replace = TRUE, prob = posterior)
-mean(samples)                         # media a posteriori
-quantile(samples, c(0.03, 0.97))      # intervallo di credibilità al 94%
+samples_log <- sample(mu_griglia, size = 10000, replace = TRUE, prob = posterior_log)
+set.seed(123)
+samples_dir <- sample(mu_griglia, size = 10000, replace = TRUE, prob = posterior)
+
+c(mean_log = mean(samples_log), mean_dir = mean(samples_dir))
+rbind(
+  log = quantile(samples_log, c(0.03, 0.97)),
+  dir = quantile(samples_dir, c(0.03, 0.97))
+)
 ```
 
-**Estensione: parametri multipli.**
+**Perché i logaritmi sono importanti?** (intuizione numerica)
 
-Nel caso in cui anche $\sigma$ sia ignota, possiamo estendere la griglia a due dimensioni:
+Con 10 osservazioni l’underflow può *non* manifestarsi, ma i prodotti diventano *numeri minuscoli*:
 
-* $\mu \in [110, 150]$
-* $\sigma \in [1, 10]$
+```{r}
+range(likelihood)
+```
 
-e calcolare la verosimiglianza e la prior su ciascuna coppia $(\mu, \sigma)$. Tuttavia, il numero di combinazioni cresce rapidamente, evidenziando la *maledizione della dimensionalità*. In tali casi, è consigliabile usare metodi di approssimazione come l’MCMC.
+```{r}
+formatC(min(likelihood), format = "e", digits = 2)  # notazione scientifica
+```
+
+Se aumentiamo il numero di osservazioni (ad es. replicando il campione per illustrazione), il prodotto può diventare *0* in aritmetica floating-point:
+
+```{r}
+# Esempio illustrativo: campione "grande" replicando i dati (solo per mostrare l'effetto numerico)
+campione_big <- rep(campione, 5)  # ~50 osservazioni
+
+lik_big <- numeric(length(mu_griglia))
+for (j in seq_along(mu_griglia)) {
+  mu <- mu_griglia[j]
+  lik_big[j] <- prod(dnorm(campione_big, mean = mu, sd = 5))
+}
+
+any(lik_big == 0)                 # può risultare TRUE (underflow)
+formatC(min(lik_big), "e", 2)     # estremamente piccolo o 0
+```
+
+Con i *logaritmi* questo problema sparisce, perché:
+
+* il *prodotto* diventa una *somma*: $\sum \log p(y_i \mid \mu)$;
+* evitiamo l'overflow quando esponenziamo;
+* la normalizzazione finale su scala naturale restituisce una *posterior ben definita*.
 :::
 
 
