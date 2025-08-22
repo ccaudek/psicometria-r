@@ -3,7 +3,7 @@
 ::: callout-note
 ## In questo capitolo imparerai a
 
-- condurre un confronto bayesiano tra le medie di due gruppi utilizzando la  funzione `brm()` del pacchetto **brms**.
+- condurre un confronto bayesiano tra le medie di due gruppi utilizzando la  funzione `brm()` del pacchetto `brms`.
 :::
 
 ::: callout-tip
@@ -25,7 +25,7 @@ pacman::p_load(cmdstanr, posterior, brms, bayestestR, insight)
 ```
 :::
 
-## Introduzione
+## Introduzione {.unnumbered .unlisted} 
 
 Uno degli obiettivi fondamentali nella ricerca psicologica è comprendere se e quanto due gruppi differiscano tra loro. Ad esempio, potremmo chiederci se un trattamento ha prodotto un cambiamento nel comportamento, se un gruppo clinico mostra livelli più elevati di ansia rispetto a un gruppo di controllo, o se due condizioni sperimentali generano risposte differenti. In tutti questi casi, l’interesse non riguarda soltanto la presenza di una differenza, ma anche la sua grandezza e l’incertezza con cui possiamo stimarla.
 
@@ -39,45 +39,200 @@ Mentre il metodo frequentista si limita a valutare la compatibilità dei dati co
 
 In questo capitolo esploreremo come modellare la differenza tra due medie utilizzando un modello di regressione con variabile indicatrice, un approccio formalmente equivalente al classico t-test ma che, nell'ambito bayesiano, permette una stima più flessibile e informativa. Vedremo come l'inferenza bayesiana fornisca strumenti più intuitivi per interpretare l'incertezza e supportare decisioni fondate nella ricerca psicologica, superando molti dei limiti dell'approccio tradizionale.
 
-## Regressione bayesiana per confrontare due gruppi
 
-Per confrontare due gruppi in un'ottica bayesiana, possiamo utilizzare un semplice modello di regressione lineare. Questo approccio, concettualmente simile al classico t-test, ci permette però di ottenere stime probabilistiche più ricche e interpretabili. Immaginiamo di voler verificare se un nuovo trattamento psicologico (gruppo sperimentale) sia più efficace di un trattamento standard (gruppo di controllo). Possiamo modellare i punteggi osservati come:
+## Regressione bayesiana per due gruppi
+
+Consideriamo il modello
 
 $$
-y_i = \alpha + \gamma D_i + \varepsilon_i,
+y_i=\alpha+\gamma D_i+\varepsilon_i,\qquad \varepsilon_i\sim\mathcal N(0,\sigma).
 $$
 
-dove:
+Definiamo le due *medie di gruppo*
 
-* $y_i$ è il punteggio osservato per l’individuo $i$;
-* $D_i$ è una variabile dummy: 0 per il gruppo di riferimento (es. controllo), 1 per il gruppo sperimentale;
-* $\alpha$ rappresenta la media del gruppo di riferimento;
-* $\gamma$ è la differenza tra le medie (l’effetto che ci interessa stimare);
-* $\varepsilon_i$ è un errore casuale con deviazione standard $\sigma$.
+$$
+\mu_0 \equiv \mathbb E[y\mid D=0],\qquad 
+\mu_1 \equiv \mathbb E[y\mid D=1].
+$$
 
-A differenza dell’approccio frequentista, che tratta $\alpha$, $\gamma$ e $\sigma$ come valori fissi da stimare, il metodo bayesiano li considera variabili aleatorie, a cui assegniamo distribuzioni iniziali (prior) basate su conoscenze pregresse o su assunzioni poco informative. Dopo aver osservato i dati, queste distribuzioni vengono aggiornate, producendo le distribuzioni a posteriori, che riflettono la nostra incertezza sui parametri alla luce dell’evidenza empirica.
+Sostituendo $D=0$ e $D=1$ nel modello otteniamo immediatamente:
 
-La distribuzione a posteriori di $\gamma$ è particolarmente informativa, perché ci dice quanto sia plausibile ogni possibile valore della differenza tra i gruppi. Questo ci permette di:
+$$
+\mu_0=\alpha,\qquad \mu_1=\alpha+\gamma.
+$$
 
-- calcolare direttamente la probabilità che l’effetto sia positivo, negativo o superiore a una soglia rilevante (ad esempio, "Qual è la probabilità che il trattamento sperimentale sia almeno 5 punti migliore del controllo?");
-- ottenere intervalli di credibilità (es. 95%), che indicano un intervallo di valori in cui, con alta probabilità, cade il vero effetto;
-- confrontare i risultati con le nostre aspettative teoriche, verificando se i dati supportano, indeboliscono o ribaltano le ipotesi iniziali.
+Quindi:
 
-A differenza del p-value, che fornisce solo una misura di "quanto estremi sono i dati sotto l’ipotesi nulla", l’approccio bayesiano ci dà una misura diretta della plausibilità delle nostre ipotesi, in un linguaggio probabilistico più intuitivo e meno vincolato a soglie arbitrarie.
+$$
+\begin{align}
+\gamma &=\mu_1-\mu_0 \quad\text{(differenza tra le medie)},\notag\\
+\alpha &=\mu_0 \quad\text{(media del gruppo di riferimento)}.
+\end{align}
+$$
 
-### L’approccio frequentista e bayesiano a confronto  
+Questo è il “ponte” concettuale: *il coefficiente $\gamma$ è la differenza tra medie*, l’intercetta $\alpha$ è *la media del gruppo con $D=0$*, e $\sigma$ è la deviazione standard comune (assunzione di omoscedasticità).
 
-Mentre il metodo bayesiano tratta i parametri come variabili aleatorie e quantifica l’incertezza attraverso distribuzioni di probabilità, l’**approccio frequentista** adotta una prospettiva radicalmente diversa. In questa visione, i dati sono considerati variabili (frutto di un campionamento casuale), mentre i parametri (come la differenza tra medie) sono fissi ma sconosciuti. L’inferenza si basa sul comportamento delle statistiche in un ipotetico universo di esperimenti ripetuti all’infinito.  
+Forma a “medie di cella”. La stessa relazione si può scrivere come $y_i \sim \mathcal N(\mu_{D_i},\sigma)$ con $\mu_{D_i}=\mu_0(1-D_i)+\mu_1 D_i$. È equivalente: $\mu_0=\alpha,\ \mu_1=\alpha+\gamma$.
 
-Un esempio emblematico è l’**intervallo di confidenza al 95%**: nella logica frequentista, esso non rappresenta la probabilità che il parametro vero cada in un certo range, ma indica che, se ripetessimo l’esperimento infinite volte, il 95% di tali intervalli *conterrebbe* il valore vero. Questo concetto, però, è spesso frainteso: nel singolo studio, non possiamo dire che abbiamo il 95% di fiducia nell’intervallo calcolato. Allo stesso modo, il **p-value** non è la probabilità che l’ipotesi nulla sia vera, ma solo la probabilità di osservare dati altrettanto estremi *ammesso che l’ipotesi nulla sia corretta*.  
 
-Nel confronto tra due gruppi, il frequentista calcola una statistica *t* e la confronta con una distribuzione teorica, chiedendosi: *"Se non ci fosse alcun effetto, quanto sarebbero rari i dati che ho osservato?"*. La risposta, però, non ci dice nulla sulla *grandezza pratica dell’effetto* né sulla sua **plausibilità reale**.  
+## Effetti centrati
+
+Se trasformiamo il predittore in $D_c=D-\tfrac12\in\{-\tfrac12,+\tfrac12\}$, il modello
+
+$$
+y_i=\alpha+\gamma D_{c,i}+\varepsilon_i
+$$
+
+ha:
+
+$$
+\begin{align}
+\alpha &=\frac{\mu_0+\mu_1}{2}\quad\text{(media complessiva)},\notag\\
+\gamma &=\mu_1-\mu_0\quad\text{(differenza tra medie)}.
+\end{align}
+$$
+
+Così l’intercetta è la *grand mean* e $\gamma$ è *direttamente* la differenza. È spesso una parametrizzazione didatticamente più pulita e aiuta a dare *prior* con significato immediato (una prior su $\alpha$ come media complessiva e su $\gamma$ come differenza attesa).
+
+
+## Codice `brms`
+
+Poniamoci il problema di ottenere $\mu_0,\ \mu_1,\ \mu_1-\mu_0$ con `brm`.
+
+**1) Codifica dummy $D\in\{0,1\}$.**
+
+Supponiamo df con colonne: y, D (numeric 0/1 oppure factor con riferimento il gruppo "0").
+
+```r
+fit <- brm(
+  y ~ 1 + D,
+  data = df,
+  family = gaussian(),
+  prior = c(
+    prior(student_t(3, 0, 10), class = "Intercept"),
+    prior(student_t(3, 0, 10), class = "b"),     # prior su gamma
+    prior(student_t(3, 0, 10), class = "sigma")  # half-t implicita
+  ),
+  backend = "cmdstanr",
+  chains = 4, iter = 2000, seed = 123
+)
+
+draws <- as_draws_df(fit)
+
+# mappatura esplicita dai parametri del modello alle medie di gruppo
+post <- draws %>%
+  transmute(
+    mu0    = b_Intercept,         # = α
+    mu1    = b_Intercept + b_D,   # = α + γ    (se D è numerica 0/1)
+    delta  = b_D,                 # = γ        (differenza tra medie)
+    sigma  = sigma
+  )
+
+# Riassunti posteriori
+posterior::summarise_draws(post[, c("mu0","mu1","delta","sigma")])
+```
+
+**Nota:** se `D` è un *fattore* con codifica “treatment” (default), il coefficiente si chiamerà `b_D<livello>`; per due livelli, ad es. `b_D1`. In tal caso usa `b_Intercept + b_D1` al posto di `b_Intercept + b_D`.
+
+**2) Effetti centrati $D_c=D-1/2$.**
+
+```r
+df <- df %>% mutate(Dc = D - 0.5)  # Dc ∈ {-0.5, +0.5}
+
+fit_c <- brm(
+  y ~ 1 + Dc,
+  data = df,
+  family = gaussian(),
+  prior = c(
+    prior(normal(0, 10), class = "Intercept"),   # prior sulla grand mean
+    prior(normal(0, 10), class = "b"),           # prior sulla differenza
+    prior(student_t(3, 0, 10), class = "sigma")
+  ),
+  backend = "cmdstanr",
+  chains = 4, iter = 2000, seed = 123
+)
+
+draws_c <- as_draws_df(fit_c)
+
+post_c <- draws_c %>%
+  transmute(
+    grand_mean = b_Intercept,     # = (μ0+μ1)/2
+    delta      = b_Dc,            # = μ1 - μ0
+    mu0        = b_Intercept - 0.5 * b_Dc,
+    mu1        = b_Intercept + 0.5 * b_Dc,
+    sigma      = sigma
+  )
+
+posterior::summarise_draws(post_c[, c("grand_mean","mu0","mu1","delta","sigma")])
+```
+
+Qui *il coefficiente sul predittore è già la differenza tra le medie*. L’intercetta è la media complessiva. È spesso la scelta migliore per esposizione e per specificare prior informative.
+
+**3) Parametrizzazione a *medie di cella* (senza intercetta).**
+
+Se trattiamo il gruppo come fattore e togliamo l’intercetta (`0 + group`), i coefficienti *sono direttamente* le medie $\mu_0$ e $\mu_1$.
+
+```r
+df <- df %>% mutate(group = factor(D, levels = c(0,1), labels = c("G0","G1")))
+
+fit_cells <- brm(
+  y ~ 0 + group,                # niente intercetta: stimi direttamente μ0 e μ1
+  data = df, family = gaussian(),
+  prior = c(
+    prior(normal(0, 10), class = "b", coef = "groupG0"),  # prior su μ0
+    prior(normal(0, 10), class = "b", coef = "groupG1"),  # prior su μ1
+    prior(student_t(3, 0, 10), class = "sigma")
+  ),
+  backend = "cmdstanr",
+  chains = 4, iter = 2000, seed = 123
+)
+
+draws_cells <- as_draws_df(fit_cells)
+
+post_cells <- draws_cells %>%
+  transmute(
+    mu0   = b_groupG0,
+    mu1   = b_groupG1,
+    delta = b_groupG1 - b_groupG0,
+    sigma = sigma
+  )
+
+posterior::summarise_draws(post_cells[, c("mu0","mu1","delta","sigma")])
+```
+
+Questa forma è molto trasparente e ci consente, se vogliamo, di assegnare *prior indipendenti* alle due medie. 
+
+**Osservazione tecnica:** se poniamo *prior* indipendenti su $\alpha$ e $\gamma$ nella parametrizzazione con intercetta, le prior indotte su $\mu_0$ e $\mu_1$ risultano *correlate*: $\mu_0=\alpha,\ \mu_1=\alpha+\gamma$ ⇒ $\mathrm{Cov}(\mu_0,\mu_1)=\mathrm{Var}(\alpha)$. Se desideriamo *davvero* indipendenza a priori tra le due medie, la forma “medie di cella” è più naturale.
+
+
+### Interpretazione operativa (cosa leggere nelle posteriori)
+
+* Con codifica $D\in\{0,1\}$, l’intercetta posteriore è la *media del gruppo $D=0$*; la distribuzione posteriore del coefficiente su $D$ è *la differenza $\mu_1-\mu_0$*.
+* Con codifica centrata $D_c$, l’intercetta è la *grand mean*, il coefficiente è ancora *$\mu_1-\mu_0$*; è spesso la scelta didatticamente più pulita.
+* Con “medie di cella”, i coefficienti *sono* $\mu_0$ e $\mu_1$; la differenza si ottiene come combinazione lineare a posteriori.
+
+
+### Confronto tra approccio bayesiano e frequentista 
+
+L'analisi statistica dei dati può essere condotta secondo due paradigmi fondamentalmente diversi: l'approccio frequentista e quello bayesiano. Queste due prospettive differiscono radicalmente nella concezione della natura dei parametri, nell'interpretazione della probabilità e nel modo di quantificare l'incertezza.
+
+Nell'*approccio frequentista*, i parametri del modello (come la differenza tra medie dei gruppi, indicata con γ) sono considerati quantità fisse ma sconosciute. I dati, al contrario, sono visti come realizzazioni di variabili aleatorie, frutto di un processo di campionamento casuale. L'inferenza si basa sul comportamento delle statistiche calcolate sui campioni in un ipotetico universo di esperimenti ripetuti infinite volte sotto identiche condizioni. 
+
+Un esempio emblematico è rappresentato dall'*intervallo di confidenza al 95%*: nella logica frequentista, esso non esprime la probabilità che il parametro vero cada in un determinato range, ma indica piuttosto che, se ripetessimo l'esperimento infinite volte, il 95% di tali intervalli conterrebbe il valore vero del parametro. Allo stesso modo, il *p-value* non rappresenta la probabilità che l'ipotesi nulla sia vera, ma esprime la probabilità di osservare dati almeno altrettanto estremi di quelli effettivamente osservati, nell'ipotesi che l'ipotesi nulla sia corretta. Nel contesto del confronto tra due gruppi, il frequentista calcola una statistica test e la confronta con una distribuzione teorica di riferimento, chiedendosi essenzialmente: "Se non ci fosse alcun effetto, quanto sarebbero rari i dati che ho osservato?".
+
+L'*approccio bayesiano*, al contrario, tratta i parametri come variabili aleatorie, a cui assegna distribuzioni di probabilità che rappresentano il grado di incertezza circa i loro valori. A differenza del metodo frequentista, che considera α, γ e σ come valori fissi da stimare, il metodo bayesiano assegna a questi parametri distribuzioni iniziali (prior) basate su conoscenze pregresse o su assunzioni poco informative. Dopo aver osservato i dati, queste distribuzioni vengono aggiornate secondo il teorema di Bayes, producendo le distribuzioni a posteriori che riflettono la nostra incertezza sui parametri alla luce dell'evidenza empirica.
+
+La distribuzione a posteriori di γ risulta particolarmente informativa, in quanto permette di quantificare direttamente la plausibilità di diversi valori dell'effetto tra i gruppi. Questo consente di: calcolare la probabilità che l'effetto sia positivo, negativo o superiore a una soglia clinicamente rilevante; ottenere intervalli di credibilità (es. al 95%) che indicano un range di valori in cui, con alta probabilità, cade il vero effetto; confrontare i risultati con le aspettative teoriche, verificando se i dati supportano, indeboliscono o ribaltano le ipotesi iniziali.
+
+Mentre il p-value frequentista fornisce solo una misura di "quanto estremi sono i dati sotto l'ipotesi nulla", l'approccio bayesiano offre una misura diretta della plausibilità delle ipotesi, in un linguaggio probabilistico più intuitivo e meno vincolato a soglie arbitrarie di significatività. Questa differenza epistemologica fondamentale rende l'inferenza bayesiana particolarmente adatta a rispondere a domande di ricerca che richiedono una quantificazione diretta dell'incertezza sui parametri e sulle ipotesi di interesse.
+
 
 ## Un esempio illustrativo: il ruolo dell’istruzione materna
 
-Dopo aver discusso le differenze tra approccio frequentista e bayesiano, vediamo ora come questi due modi di inferire si comportano su un caso reale. Utilizzeremo un dataset classico in psicologia dello sviluppo, che riporta i punteggi di **quoziente intellettivo (QI)** di bambini, insieme a informazioni sul **livello di istruzione della madre**.
+Dopo aver discusso le differenze tra approccio frequentista e bayesiano, vediamo ora come questi due modi di inferire si comportano su un caso reale. Utilizzeremo un dataset classico in psicologia dello sviluppo, che riporta i punteggi di *quoziente intellettivo (QI)* di bambini, insieme a informazioni sul *livello di istruzione della madre*.
 
 La domanda che ci poniamo è semplice, ma rilevante: *i figli di madri diplomate (che hanno completato la scuola superiore) mostrano in media un QI diverso rispetto ai figli di madri non diplomate?*
+
 
 ### Esplorazione iniziale dei dati
 
@@ -100,15 +255,14 @@ kidiq |>
   )
 ```
 
-Vediamo così che il campione include **93 bambini** con madri non diplomate e **341 con madri diplomate**, con una differenza apparente nei punteggi medi di QI. Ma questa differenza è solo un effetto casuale, o riflette una tendenza reale nella popolazione?
+Vediamo così che il campione include 93 bambini con madri non diplomate e 341 con madri diplomate, con una differenza apparente nei punteggi medi di QI. Ma questa differenza è solo un effetto casuale, o riflette una tendenza reale nella popolazione?
 
 Per rispondere, analizziamo il problema utilizzando entrambi gli approcci.
 
-## Due strade per lo stesso problema
 
-### Approccio frequentista
+#### Approccio frequentista
 
-Per valutare se la differenza osservata è compatibile con l’ipotesi che non ci sia alcuna differenza nella popolazione, applichiamo il **t-test per campioni indipendenti**:
+Per valutare se la differenza osservata è compatibile con l’ipotesi che non ci sia alcuna differenza nella popolazione, applichiamo il *t-test per campioni indipendenti*:
 
 ```{r}
 t.test(
@@ -118,14 +272,14 @@ t.test(
 )
 ```
 
-Questa funzione restituisce la stima della differenza media, l'intervallo di confidenza al 95%, e il valore del **p-value**. Il p-value rappresenta la probabilità di osservare una differenza almeno così grande *se* non ci fosse alcuna differenza reale nella popolazione (cioè sotto l’ipotesi nulla $\mu_1 = \mu_2$).
+Questa funzione restituisce la stima della differenza media, l'intervallo di confidenza al 95%, e il valore del *p-value*. Il p-value rappresenta la probabilità di osservare una differenza almeno così grande *se* non ci fosse alcuna differenza reale nella popolazione (cioè sotto l’ipotesi nulla $\mu_1 = \mu_2$).
 
 È una misura indiretta dell’evidenza contro l’ipotesi nulla: più è piccolo il p-value, meno plausibile appare l’ipotesi di assenza di differenza. Ma, come abbiamo visto nei capitoli precedenti, questo tipo di inferenza è vincolato da assunzioni forti e da interpretazioni spesso controintuitive.
 
 Nel prossimo paragrafo, analizzeremo lo stesso problema con l’approccio bayesiano, per ottenere una visione più continua e informativa dell’incertezza sulla differenza tra i gruppi.
 
 
-### Approccio bayesiano
+#### Approccio bayesiano
 
 A differenza dell’approccio frequentista, che parte da un’ipotesi nulla e valuta la compatibilità dei dati con essa, il paradigma bayesiano si concentra direttamente sull’effetto che vogliamo stimare. Non ci si chiede se la differenza tra gruppi "esiste", ma quanto è plausibile e quanto è incerta.
 
@@ -143,7 +297,8 @@ dove:
 * $\gamma$ rappresenta la differenza tra i gruppi,
 * $\sigma$ è la deviazione standard residua.
 
-#### Stima del modello con `brms`
+
+##### Stima del modello con `brms`
 
 Stimiamo il modello utilizzando il pacchetto `brms`, che permette di ottenere direttamente la distribuzione a posteriori dei parametri:
 
@@ -166,13 +321,14 @@ mean(posterior_samples$b_mom_hs > 5)
 
 Questo valore non è un p-value, ma una vera probabilità condizionata ai dati osservati. Ad esempio, un risultato pari a 0.96 può essere interpretato come: *"dato il nostro modello e i dati disponibili, c’è una probabilità del 96% che i figli di madri diplomate abbiano in media un QI superiore di almeno 5 punti"*.
 
-### Visualizzare la variabilità nei dati
+
+##### Visualizzare la variabilità nei dati
 
 Un grafico aiuta a rappresentare non solo le medie, ma anche la distribuzione dei punteggi all’interno di ciascun gruppo:
 
 ```{r}
 ggplot(kidiq, aes(x = as.factor(mom_hs), y = kid_score)) +
-  geom_violin(trim = FALSE, fill = "skyblue") +
+  geom_violin(trim = FALSE, fill = okabe_ito["sky"]) +
   geom_boxplot(width = 0.1, outlier.shape = NA, fill = "white", color = "black") +
   labs(
     x = "Istruzione materna",
@@ -184,7 +340,7 @@ ggplot(kidiq, aes(x = as.factor(mom_hs), y = kid_score)) +
 
 Il grafico evidenzia che, pur in presenza di una differenza tra le medie, esiste una notevole sovrapposizione tra i gruppi. Questo riflette la naturale variabilità dei dati psicologici e rende evidente perché la sola media non basta: è l’intera distribuzione che ci interessa comprendere.
 
-## Cosa cambia davvero tra i due approcci?
+### Cosa cambia davvero tra i due approcci?
 
 Entrambi gli approcci usano gli stessi dati e, in presenza di campioni ampi e modelli lineari semplici, spesso portano a conclusioni numericamente simili. Tuttavia, ciò che cambia profondamente è il significato dei risultati.
 
@@ -201,19 +357,19 @@ Il bayesianesimo, in questo contesto, non è solo una tecnica alternativa, ma un
 Nel prossimo paragrafo, estenderemo questa analisi esplorando la sensibilità del modello bayesiano rispetto alla scelta dei prior e approfondiremo strumenti diagnostici che ci aiutano a valutare quanto il modello rifletta davvero i dati.
 
 
-## Approfondimenti bayesiani: dalla flessibilità alla coerenza
+## Approfondimenti bayesiani
 
-Il confronto tra i gruppi sul QI ci ha già mostrato i vantaggi dell’inferenza bayesiana: la possibilità di quantificare direttamente l’incertezza sulla differenza tra le medie e di stimare probabilità a posteriori interpretabili. In questa sezione vediamo come l’approccio bayesiano permetta di **raffinare il modello** e **verificare la coerenza delle ipotesi** con i dati, prima e dopo l’osservazione.
+Il confronto tra i gruppi sul QI ci ha già mostrato i vantaggi dell’inferenza bayesiana: la possibilità di quantificare direttamente l’incertezza sulla differenza tra le medie e di stimare probabilità a posteriori interpretabili. In questa sezione vediamo come l’approccio bayesiano permetta di *raffinare il modello* e *verificare la coerenza delle ipotesi* con i dati, prima e dopo l’osservazione.
 
 ### Intervallo di credibilità e verifica predittiva
 
-Una volta stimato il modello, possiamo calcolare un **intervallo di credibilità all’89%**, una soglia suggerita in ambito didattico per sottolineare che non si tratta di una soglia “speciale”, ma di un’espressione quantitativa dell’incertezza residua:
+Una volta stimato il modello, possiamo calcolare un *intervallo di credibilità all’89%*, una soglia suggerita in ambito didattico per sottolineare che non si tratta di una soglia “speciale”, ma di un’espressione quantitativa dell’incertezza residua:
 
 ```{r}
 bayestestR::hdi(fit_1, parameters = "mom_hs", ci = 0.89)
 ```
 
-Per valutare se il modello riproduce adeguatamente i dati, possiamo utilizzare la **verifica predittiva a posteriori**:
+Per valutare se il modello riproduce adeguatamente i dati, possiamo utilizzare la *verifica predittiva a posteriori*:
 
 ```{r}
 pp_check(fit_1)
@@ -222,9 +378,9 @@ pp_check(fit_1)
 Nel nostro caso, il modello riproduce bene la forma generale della distribuzione osservata, ma si notano leggere discrepanze nelle code. Questo suggerisce che la distribuzione normale, pur efficace, potrebbe essere migliorata per catturare l’asimmetria presente nei dati.
 
 
-### Flessibilità modellistica: usare una distribuzione skew-normal
+### Flessibilità modellistica
 
-Per rappresentare meglio la **variabilità asimmetrica**, possiamo utilizzare una **distribuzione skew-normal**, che generalizza la normale consentendo una coda più estesa da un lato:
+Per rappresentare meglio la *variabilità asimmetrica*, possiamo utilizzare una *distribuzione skew-normal*, che generalizza la normale consentendo una coda più estesa da un lato:
 
 ```{r}
 #| output: false
@@ -242,11 +398,9 @@ Il modello skew-normal migliora l’adattamento ai dati, come evidenziato da `pp
 pp_check(fit_2)
 ```
 
-## Verifica predittiva a priori (Prior Predictive Check)
+### Verifica predittiva a priori 
 
-Un passaggio fondamentale nella costruzione di modelli bayesiani consiste nel chiedersi: **quali dati ci aspetteremmo di vedere, se avessimo solo i prior e nessun dato reale?**
-
-Con il **prior predictive check**, simuliamo dati fittizi basati unicamente sulle distribuzioni a priori, per verificare se le nostre ipotesi iniziali sono **compatibili con la scala e la natura del fenomeno psicologico in esame**.
+Un passaggio fondamentale nella costruzione di modelli bayesiani consiste nel chiedersi: *quali dati ci aspetteremmo di vedere, se avessimo solo i prior e nessun dato reale?* Con il *prior predictive check*, simuliamo dati fittizi basati unicamente sulle distribuzioni a priori, per verificare se le nostre ipotesi iniziali sono *compatibili con la scala e la natura del fenomeno psicologico in esame*.
 
 Per esempio, possiamo specificare prior debolmente informativi ma plausibili:
 
@@ -257,7 +411,7 @@ prior_gaussian <-
   prior(cauchy(0, 20), class = "sigma")
 ```
 
-Poi stimiamo un modello basato **solo su questi prior**, ignorando i dati:
+Poi stimiamo un modello basato *solo su questi prior*, ignorando i dati:
 
 ```{r}
 #| output: false
@@ -279,7 +433,7 @@ pp_check(fit_prior, ndraws = 100) + xlim(10, 180)
 
 possiamo verificare se i prior generano predizioni realistiche. In questo caso, vediamo che i valori simulati si distribuiscono su un intervallo ampio ma plausibile, coerente con ciò che sappiamo sul QI. Questo indica che i prior non sono né troppo restrittivi né irrealistici.
 
-## Incorporare conoscenza pregressa: prior informativi
+### Incorporare conoscenza pregressa
 
 Quando disponiamo di evidenze precedenti (ad esempio, studi che indicano un effetto medio dell’istruzione materna di circa 10 punti QI), possiamo formalizzarle con un prior informativo:
 
@@ -297,11 +451,11 @@ fit_3 <- brm(
 summary(fit_3)
 ```
 
-Se i dati confermano il pattern, la distribuzione a posteriori sarà **simile a quella ottenuta con prior deboli**. Ma in campioni piccoli o più rumorosi, questo tipo di informazione può fare una grande differenza, aiutando a stabilizzare l’inferenza.
+Se i dati confermano il pattern, la distribuzione a posteriori sarà *simile a quella ottenuta con prior deboli*. Ma in campioni piccoli o più rumorosi, questo tipo di informazione può fare una grande differenza, aiutando a stabilizzare l’inferenza.
 
-## Test di ipotesi bayesiano
+### Test di ipotesi bayesiano
 
-Infine, possiamo formulare **ipotesi probabilistiche direttamente interpretabili**, come:
+Infine, possiamo formulare *ipotesi probabilistiche direttamente interpretabili*, come:
 
 *Qual è la probabilità che la differenza tra i gruppi superi i 5 punti?*
 
@@ -309,13 +463,13 @@ Infine, possiamo formulare **ipotesi probabilistiche direttamente interpretabili
 hypothesis(fit_1, "mom_hs > 5")
 ```
 
-A differenza del *p*-value, il risultato fornisce una risposta diretta: ad esempio, una probabilità del 98% che l’effetto sia maggiore di 5. Questo è il tipo di affermazione che possiamo portare **nella discussione scientifica o clinica**, senza bisogno di traduzioni arbitrarie.
+A differenza del *p*-value, il risultato fornisce una risposta diretta: ad esempio, una probabilità del 98% che l’effetto sia maggiore di 5. Questo è il tipo di affermazione che possiamo portare *nella discussione scientifica o clinica*, senza bisogno di traduzioni arbitrarie.
 
 
-::: {.callout-tip}
+::: {.callout-note collapse="true"}
 ## Approfondimento statistico (opzionale)
 
-Consideriamo ora le basi statistiche su cui si basa l'approccio frequentista. Nel paradigma frequentista, l’inferenza sulla differenza tra due gruppi si basa sulla **distribuzione campionaria** della differenza tra le medie. L’idea di fondo è che, se ripetessimo il campionamento molte volte, otterremmo valori diversi per la differenza tra le medie campionarie, e questa variabilità può essere descritta attraverso una distribuzione probabilistica.
+Consideriamo ora le basi statistiche su cui si basa l'approccio frequentista. Nel paradigma frequentista, l’inferenza sulla differenza tra due gruppi si basa sulla *distribuzione campionaria* della differenza tra le medie. L’idea di fondo è che, se ripetessimo il campionamento molte volte, otterremmo valori diversi per la differenza tra le medie campionarie, e questa variabilità può essere descritta attraverso una distribuzione probabilistica.
 
 Supponiamo di avere due popolazioni normali e indipendenti:
 
@@ -327,25 +481,21 @@ e di osservare due campioni indipendenti, rispettivamente di dimensione $n_1$ e 
 
 Se assumiamo inoltre che le varianze siano uguali ($\sigma_1^2 = \sigma_2^2 = \sigma^2$), possiamo utilizzare una versione semplificata del modello.
 
-### Statistica di interesse
-
-Il nostro obiettivo è stimare la **differenza tra le medie** delle due popolazioni, ovvero:
+**Statistica di interesse.** Il nostro obiettivo è stimare la *differenza tra le medie* delle due popolazioni, ovvero:
 
 $$
 \mu_1 - \mu_2.
 $$
 
-La stima di questa quantità è data dalla **differenza tra le medie campionarie**:
+La stima di questa quantità è data dalla *differenza tra le medie campionarie*:
 
 $$
 \bar{Y}_1 - \bar{Y}_2.
 $$
 
-### Proprietà della statistica campionaria
+**Proprietà della statistica campionaria.**
 
-#### Valore atteso
-
-Nel caso di due campioni indipendenti:
+**Valore atteso.** Nel caso di due campioni indipendenti:
 
 $$
 E(\bar{Y}_1 - \bar{Y}_2) = \mu_1 - \mu_2.
@@ -361,9 +511,7 @@ $$
 
 :::
 
-#### Varianza
-
-La varianza della differenza tra le medie campionarie è:
+**Varianza.** La varianza della differenza tra le medie campionarie è:
 
 $$
 \operatorname{Var}(\bar{Y}_1 - \bar{Y}_2) = \frac{\sigma_1^2}{n_1} + \frac{\sigma_2^2}{n_2}.
@@ -391,7 +539,7 @@ $$
 \operatorname{Var}(\bar{Y}_1 - \bar{Y}_2) = \sigma^2 \left( \frac{1}{n_1} + \frac{1}{n_2} \right).
 $$
 
-Poiché $\sigma^2$ è sconosciuta, la si stima tramite la **varianza pooled**:
+Poiché $\sigma^2$ è sconosciuta, la si stima tramite la *varianza pooled*:
 
 $$
 s_p^2 = \frac{(n_1 - 1)s_1^2 + (n_2 - 1)s_2^2}{n_1 + n_2 - 2},
@@ -403,15 +551,13 @@ $$
 s_j^2 = \frac{1}{n_j - 1} \sum_{i=1}^{n_j} (y_{j,i} - \bar{y}_j)^2, \quad j = 1,2.
 $$
 
-### Distribuzione della statistica
-
-Sotto l’ipotesi di normalità e indipendenza, e assumendo varianze uguali, la statistica $\bar{Y}_1 - \bar{Y}_2$ segue (almeno approssimativamente) una distribuzione normale:
+**Distribuzione della statistica.** Sotto l’ipotesi di normalità e indipendenza, e assumendo varianze uguali, la statistica $\bar{Y}_1 - \bar{Y}_2$ segue (almeno approssimativamente) una distribuzione normale:
 
 $$
 \bar{Y}_1 - \bar{Y}_2 \sim \mathcal{N} \left( \mu_1 - \mu_2,\ \sigma \sqrt{ \frac{1}{n_1} + \frac{1}{n_2} } \right).
 $$
 
-Questa proprietà permette di costruire un **intervallo di confidenza al 95%** per la differenza tra le medie, oppure di effettuare un **test t per due campioni indipendenti**, basato sulla seguente statistica:
+Questa proprietà permette di costruire un *intervallo di confidenza al 95%* per la differenza tra le medie, oppure di effettuare un *test t di Student per due campioni indipendenti*, basato sulla seguente statistica:
 
 $$
 t = \frac{(\bar{Y}_1 - \bar{Y}_2) - (\mu_1 - \mu_2)}{s_p \sqrt{ \frac{1}{n_1} + \frac{1}{n_2} }}.
@@ -420,7 +566,8 @@ $$
 Questa statistica segue, sotto l’ipotesi nulla $\mu_1 = \mu_2$, una distribuzione t di Student con $n_1 + n_2 - 2$ gradi di libertà.
 :::
 
-## Riflessioni conclusive  
+
+## Riflessioni conclusive  {.unnumbered .unlisted} 
 
 Il confronto tra medie rappresenta una procedura statistica fondamentale in psicologia, ma la sua apparente semplicità nasconde complessità interpretative spesso trascurate. Tradizionalmente, l'analisi frequentista ci ha abituati a valutare le differenze attraverso il prisma del p-value, un approccio che risulta doppiamente limitante: non solo per la sua natura binaria, ma soprattutto per la sua intrinseca incapacità di cogliere la dinamica individuale dei processi psicologici. Come evidenziato da recenti sviluppi nella scienza dell'intervento [@hayes2022evolving], l'applicazione predittiva di risultati normativi agli individui poggia sul presupposto insostenibile dell'ergodicità - l'idea che lo stesso modello dinamico si applichi uniformemente a tutti i partecipanti (omogeneità) e che le caratteristiche dei dati rimangano stabili nel tempo (stazionarietà).  
 
@@ -432,19 +579,19 @@ Le implicazioni sono profonde sia per la ricerca che per la pratica clinica. In 
 
 In definitiva, il confronto tra medie rimane uno strumento prezioso per domande a livello di popolazione, ma non può costituire il fondamento di una psicologia matura. Come disciplina, ci troviamo a un bivio: continuare a produrre stime aggregate di dubbia rilevanza individuale, o impegnarci nella sfida più complessa ma necessaria di sviluppare:  
 
-1) **misure sensibili ai processi dinamici**,  
-2) **disegni longitudinali ad alta risoluzione temporale**,  
-3) **modelli analitici in grado di cogliere non-linearità e interazioni contestuali**.  
+1) misure sensibili ai processi dinamici,  
+2) disegni longitudinali ad alta risoluzione temporale,  
+3) modelli analitici in grado di cogliere non-linearità e interazioni contestuali.  
 
 La statistica bayesiana rappresenta un passo avanti importante, ma il vero progresso epistemologico risiederà nella nostra capacità di conciliare rigore metodologico con pluralismo analitico - riconoscendo che nessun singolo valore (p-value, BF o effect size) potrà mai catturare la complessità del divenire psicologico individuale. Solo abbracciando strumenti all'altezza di questa complessità potremo costruire una psicologia realmente informativa, replicabile e utile - sia per comprendere la mente umana che per promuoverne il benessere.  
 
 La sfida che ci attende non è tanto tecnica quanto culturale: imparare a convivere con la complessità senza rinunciare al rigore, a comunicare l'incertezza senza scivolare nel relativismo, a valorizzare l'unicità senza abbandonare la generalizzazione. In questo cammino, la statistica non dovrà essere il letto di Procuste che riduce la realtà alla misurabilità, ma la bussola che ci guida nell'esplorazione innovativa della diversità psicologica umana.  
 
-## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
+## Informazioni sull'ambiente di sviluppo {.unnumbered .unlisted} 
 
 ```{r}
 sessionInfo()
 ```
 
-## Bibliografia {.unnumbered}
+## Bibliografia {.unnumbered .unlisted} 
 

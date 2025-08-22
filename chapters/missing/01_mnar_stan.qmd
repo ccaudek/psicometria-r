@@ -33,8 +33,10 @@ here::here("code", "_common.R") |>
 # Additional packages
 if (!requireNamespace("pacman")) install.packages("pacman")
 pacman::p_load(brms, posterior, loo, cmdstanr, stringr, tidyr)
+conflicts_prefer(dslabs::heights)
 ```
 :::
+
 
 
 ## Introduzione {.unnumbered .unlisted}
@@ -271,7 +273,9 @@ data_ignore <- list(
 )
 ```
 
+
 Stima:
+
 
 ```{r}
 #| output: false
@@ -296,43 +300,64 @@ summ_ignore <- fit_ignore$summary(variables = c("mu", "sigma"))
 ```
 
 
-## Modello 2 — Selection model (MNAR esplicito)
+### Modello 2 — Selection Model (per dati MNAR esplicito)
 
-Nel *selection model* la probabilità di osservare un dato *non è costante*, ma dipende dal valore stesso di $y$. Questo legame è descritto dal parametro *$\beta$*:
+Il *Selection Model* è un approccio per modellare dati *Mancanti Non In Modo Casuale (MNAR)*, in cui la probabilità che un dato sia osservato (*missingness*) dipende dal valore (mancante o osservato) della variabile stessa $y$.
 
-* *$\beta$ positivo* → valori più alti di $y$ hanno *maggiore* probabilità di essere osservati.
-* *$\beta$ negativo* → valori più alti di $y$ hanno *minore* probabilità di essere osservati (es. soggetti con punteggi elevati evitano di rispondere).
-* *$\beta$ = 0* → la probabilità di osservazione non dipende da $y$ (condizionatamente alle altre variabili incluse nel modello).
-
-Ad esempio, se $y$ misura il livello di umore depresso, un $\beta$ negativo significherebbe che, all’aumentare del punteggio (maggiore sintomatologia), cala la probabilità di risposta — un tipico caso di *missing not at random* per evitamento.
-
-**Interpretazione sulla scala logit.**
-Ogni unità di aumento in $y$ modifica il *log-odds* di osservazione di $\beta$ unità. Per questo motivo è utile centrare e scalare $y$: una scala interpretabile rende la prior di $\beta$ più chiara e confrontabile tra studi.
-
-**Idea chiave.**
-Trattiamo i valori mancanti $y_{\text{mis}}$ come *parametri latenti* e, per ciascuna unità statistica, usiamo lo stesso valore (osservato o imputato dal modello) all’interno dell’equazione logistica per $R$. In questo modo, il meccanismo di mancanza “vede” sia i dati osservati sia quelli stimati.
+Questo legame è modellato esplicitamente attraverso un parametro, indicato come $\beta$, all'interno di un modello di regressione logistica che regola la probabilità di osservazione $R$.
 
 
-### Modello 2A — Prior informativa sul parametro beta
+#### Interpretazione del parametro beta
 
-In questo modello adottiamo una *prior informativa* sul parametro $\beta$, che nel *selection model* controlla *quanto* e in quale *direzione* il valore dell’outcome $y$ influenza la probabilità di essere osservato ($R=1$).
+Il coefficiente $\beta$ quantifica la direzione e l'intensità della dipendenza tra $y$ e la probabilità di essere osservato:
 
-Nel nostro scenario simulato, sappiamo per costruzione che:
+*   *$\beta > 0$ (Positivo):* Valori più alti di $y$ hanno una **maggiore probabilità** di essere osservati.
+*   *$\beta < 0$ (Negativo):* Valori più alti di $y$ hanno una **minore probabilità** di essere osservati. Questo è uno scenario comune, noto come *avoidance* (es. in un questionario sul reddito, gli individui con entrate molto alte potrebbero essere più reticenti a rispondere).
+*   *$\beta = 0$:* La probabilità di osservazione **non dipende** da $y$. In questo caso, il meccanismo di missingness ricade nelle categorie MCAR o MAR (condizionatamente ad altre covariate nel modello).
 
-* il meccanismo è *MNAR*,
-* $\beta$ è *negativo* (valori alti di $y$ sono meno probabili da osservare).
+**Esempio:** Se $y$ rappresenta il punteggio di depressione, un $\beta$ negativo indica che all'aumentare della sintomatologia depressiva (valore di $y$ più alto), la probabilità di rispondere al questionario diminuisce. Questo è un tipico caso di MNAR.
 
-Questa conoscenza a priori ci permette di formulare una *prior centrata su un valore negativo plausibile*, fondata sia sulla struttura simulata sia su ipotesi teoriche comuni in psicologia (es. soggetti con punteggi elevati su certi tratti tendono a evitare la risposta).
 
-**Perché usare una prior informativa su $\beta$?**
+#### L'idea fondamentale del modello
 
-1. **Stabilizzare la stima.**
-   Se il campione è piccolo o il segnale nei dati è debole, la prior riduce l’incertezza a posteriori e aiuta a evitare stime erratiche.
-2. **Integrare conoscenza pregressa.**
-   Studi precedenti o considerazioni teoriche possono fornire un’idea credibile della direzione e dell’ordine di grandezza di $\beta$, migliorando l’identificabilità del meccanismo MNAR.
+L'approccio del Selection Model combina due componenti in un unico modello statistico:
 
-In sintesi, il modello 2A è un esempio di strategia “assistita” dalla teoria: non lasciamo che $\beta$ sia determinato solo dal dato, ma lo orientiamo con un’informazione a priori motivata e trasparente.
+1.  *Modello dei dati:* Un modello che descrive la distribuzione della variabile di interesse $y$ (es. un modello lineare: $y_i \sim N(\mu_i, \sigma^2)$).
+2.  *Modello della selezione (missingness):* Un modello (es. regressione logistica) che descrive la probabilità che $y$ sia osservato in funzione del suo stesso valore: $\text{logit}(P(R_i = 1)) = \alpha + \beta y_i$.
 
+La soluzione elegante e potente di questo framework è di trattare i valori mancanti $y_{\text{mis}}$ non come semplici "assenti", ma come *parametri latenti* da stimare simultaneamente al modello. In questo modo, per ogni unità statistica, il modello di selezione "vede" e utilizza il valore di $y$ (osservato o stimato) per determinare la probabilità di osservazione.
+
+
+#### Nota sull'interpretazione e sulla scala
+
+Nel modello di selezione logistico, $\beta$ si interpreta sulla *scala logit*: un incremento di una unità in $y$ è associato a una variazione di $\beta$ unità nel *log-odds* di osservazione.
+
+Per facilitare l'interpretazione e rendere la scelta di una distribuzione a priori per $\beta$ più sensata e generalizzabile, è *fortemente consigliato centrare e scalare* la variabile $y$. In questo modo, $\beta$ rappresenterà l'effetto di uno scostamento di un deviazione standard dalla media, rendendo il parametro più confrontabile tra diversi studi e diverse variabili.
+
+
+### Modello 2A — Incorporare una prior informativa sul parametro beta
+
+Il Modello 2A estende il *Selection Model* base introducendo una *distribuzione a priori informativa* sul parametro chiave $\beta$. Ricordiamo che $\beta$ quantifica il legame tra il valore della variabile $y$ e la probabilità che questo venga osservato.
+
+Mentre nel *selection model* potevamo usare una prior vaga (es. $\beta \sim N(0, 100)$), in questo scenario vogliamo incorporare nella nostra analisi una conoscenza pregressa credibile sul probabile meccanismo di missingness.
+
+**Giustificazione per l'uso di una prior informativa**
+
+Nel nostro esempio simulato, il meccanismo è costruito per essere MNAR con un $\beta$ negativo. Anche in contesti reali, spesso possiamo formulare ipotesi teoriche robuste su questo meccanismo:
+
+*   **In psicologia:** Soggetti con sintomatologia molto elevata (valori alti di $y$ in scale di depressione o ansia) potrebbero avere una minore probabilità di completare un questionario.
+*   **In economia:** Individui con redditi molto alti o molto bassi potrebbero essere più reticenti a rivelare le proprie finanze.
+
+Queste ipotesi si traducono in un'aspettativa sulla *direzione* (segno di $\beta$) e su un *intervallo plausibile* di valori per la sua grandezza.
+
+**Vantaggi di questo approccio:**
+
+1.  **Maggior Stabilità e Identificabilità:** La stima del parametro $\beta$ in un *selection model* può essere spesso instabile, specialmente con campioni piccoli o quando il pattern di dati mancanti è limitato. Una prior informativa agisce da "regolarizzatore", ancorando la stima a un valore plausibile e prevenendo conclusioni estreme o erratiche guidate dal rumore nei dati.
+2.  **Incorporazione Trasparente della Conoscenza:** Questo approccio ci permette di integrare in modo esplicito e quantificabile evidenza precedente (di letteratura o teorica) all'interno del nostro modello, spostandoci da un'analisi puramente guidata dai dati a una *analisi guidata da dati* e *teoria*.
+
+In sintesi, l Modello 2A rappresenta una strategia analitica più sofisticata e potente. Non ci limitiamo a chiedere ai dati *"C'è un effetto MNAR?"* usando un'ipotesi neutra (prior vaga). Piuttosto, chiediamo: *"Alla luce della nostra convinzione che il meccanismo sia MNAR con un effetto negativo di una certa entità, cosa ci dicono i dati?"*. Questo rende l'analisi più robusta e teoricamente fondata.
+
+Codice Stan:
 
 ```{r}
 #| label: write-stan-selection-informative
@@ -380,6 +405,7 @@ generated quantities {
 writeLines(stan_selection_inf, "selection_mnar_informative.stan")
 ```
 
+Dati:
 
 ```{r}
 #| label: fit-selection-informative
@@ -397,12 +423,14 @@ data_sel <- list(
 )
 ```
 
-Compila il modello Selection MNAR:
+Compilazione del modello:
 
 ```{r}
 #| output: false
 mod_sel_inf <- cmdstan_model("selection_mnar_informative.stan")
 ```
+
+Campionamento:
 
 ```{r}
 #| output: false
@@ -422,43 +450,39 @@ Riassunto dei parametri principali:
 summ_sel_inf <- fit_sel_inf$summary(variables = c("mu","sigma","alpha","beta"))
 ```
 
-Direi che la struttura del testo è già molto buona, ma si può renderlo più incisivo e scorrevole migliorando tre aspetti:
 
-1. **Ridurre la ridondanza** nelle spiegazioni di cosa significhi $\beta$ (già spiegato nel modello 2A, qui basta un richiamo breve).
-2. **Esplicitare il razionale pedagogico**: perché in un contesto didattico è utile confrontare un modello con prior informativa e uno con prior ampia.
-3. **Rafforzare la metafora della “prova di forza”** rendendo chiaro il legame con l’identificabilità e la robustezza dei risultati.
+### Modello 2B — Uno studio di robustezza: Prior ampia su beta con outcome ancorato
 
+Il Modello 2B è progettato come uno *studio di robustezza e sensibilità* per testare la forza del segnale MNAR presente nei dati. Combina strategicamente due scelte opposte riguardo le prior:
 
-### Modello 2B — Prior “wide” su beta e outcome ancorato
+1.  *Una prior fortemente informativa sui parametri della distribuzione di $y$* ($\mu$ e $\sigma$).
+2.  *Una prior ampia e neutrale sul parametro del meccanismo MNAR* ($\beta$).
 
-Questa variante del *selection model* combina due scelte di prior mirate:
+**1. Ancoraggio della scala dell'outcome:**
+Assumiamo a priori che la variabile $y$ sia già standardizzata, imponendo dei forti vincoli bayesiani:
+*   *Media ($\mu$):* $\sim \mathcal{N}(0, 0.2)$
+    *   *Interpretazione:* Siamo molto certi che la vera media della popolazione sia vicina a 0.
+*   *Deviazione Standard ($\sigma$):* $\sim \mathcal{N}(1, 0.1)$ (troncata ai positivi)
+    *   *Interpretazione:* Siamo molto certi che la vera deviazione standard sia vicina a 1.
 
-1. **Outcome fortemente ancorato sulla scala z**
+**2. Prior neutrale sul meccanismo MNAR:**
+Sul parametro cruciale $\beta$ usiamo invece una prior deliberatamente ampia e neutrale:
+*   *Effetto MNAR ($\beta$):* $\sim \mathcal{N}(0, 2)$
+    *   *Interpretazione:* Pur ipotizzando che l'effetto più plausibile sia nullo (priore centrata su 0), ammettiamo un'ampia gamma di valori sia positivi che negativi come possibili. Il dato ha massima libertà di rivelarci la direzione e l'intensità del vero meccanismo.
 
-   * $\mu \sim \mathcal{N}(0, 0.2)$
-   * $\sigma \sim \mathcal{N}(1, 0.1)$ troncata a valori positivi
+#### La logica strategica del modello 2B
 
-   Prima di vedere i dati, assumiamo che l’outcome sia già centrato (media vicina a 0) e scalato (deviazione standard vicina a 1). Questo ancoraggio forte riduce l’incertezza su $\mu$ e $\sigma$ e rende più stabile la stima degli altri parametri, incluso $\beta$.
+Questa combinazione apparentemente contraddittoria ha uno scopo preciso: *isolare e testare il segnale del meccanismo MNAR.*
 
-2. **Prior ampia su $\beta$**
+*   *Perché ancorare $\mu$ e $\sigma$?*
+    L'incertezza sulla posizione e sulla scala della distribuzione sottostante $y$ è intrinsecamente legata alla stima di $\beta$. "Bloccando" strategicamente $\mu$ e $\sigma$ a valori plausibili, riduciamo il rumore nel modello. Questo impedisce che l'incertezza su questi parametri "contagini" e oscuri la stima di $\beta$, permettendoci di vedere più chiaramente l'effetto che i dati hanno su di esso.
 
-   * $\beta \sim \mathcal{N}(0, 2)$
+*   *Perché usare una prior ampia su $\beta$?*
+    È un atto di umiltà epistemologica. Stiamo dicendo: "So già come è fatta la distribuzione di y (perché l'ho standardizzata), ma *non voglio pregiudicare* la direzione o l'esistenza del meccanismo mancante. Voglio che siano i dati, il più liberamente possibile, a dimostrarmi se c'è un effetto MNAR e quanto è forte."
 
-   Lasciamo quasi completa libertà al dato di determinare segno e ampiezza dell’effetto del meccanismo di mancanza. A differenza del modello 2A, qui *non forniamo alcuna indicazione a priori* sulla direzione attesa di $\beta$.
+*In sintesi, il Modello 2B risponde a una domanda cruciale:*
 
-**Richiamo rapido su $\beta$.**
-Il parametro $\beta$ è il coefficiente logit che collega $y$ alla probabilità di essere osservato: valori negativi indicano che i punteggi alti tendono a mancare, valori positivi l’opposto, valori vicini a zero indicano assenza di relazione.
-
-
-**Perché questa scelta?**
-
-Questo setup funziona come *test di robustezza*:
-
-* **Ancoriamo fortemente** la parte dell’outcome, per evitare che incertezza su $\mu$ e $\sigma$ si propaghi a $\beta$.
-* **Allentiamo il vincolo su $\beta$** per vedere se il segnale nei dati, senza alcun “aiuto” teorico, è sufficiente a rivelare il meccanismo MNAR.
-* **Confronto didattico**: se il campione è grande e il meccanismo forte, ci aspettiamo che la stima di $\beta$ sia simile a quella del modello 2A, ma con intervalli credibili più ampi; se invece i dati non contengono abbastanza informazione, la stima sarà più incerta o ambigua.
-
-In altre parole, il modello 2B è una “prova di forza” per il dato: tolta la stampella della prior informativa, riusciamo ancora a vedere la stessa storia?
+> "Se rimuoviamo il supporto di un'ipotesi teorica forte (la prior informativa del Modello 2A) e controlliamo per altre fonti di incertezza, *il segnale MNAR nei dati è ancora sufficientemente robusto da emergere da solo?*"
 
 
 ```{r}

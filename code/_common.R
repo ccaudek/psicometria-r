@@ -23,7 +23,6 @@ conflict_prefer("var", "stats")
 conflict_prefer("sd", "stats")
 conflict_prefer("filter", "dplyr")
 conflict_prefer("select", "dplyr")
-conflicts_prefer(dslabs::heights)
 
 ## ─────────────────────────────────────────────────────────────────────
 ## 2. Pacchetti per analisi bayesiana
@@ -219,6 +218,12 @@ scale_color_okabe_ito <- function(...)
   scale_color_manual(values = okabe_ito, ...)
 scale_fill_okabe_ito <- function(...) scale_fill_manual(values = okabe_ito, ...)
 
+# Uso tipico:
+#   ggplot(df, aes(x, y, color = gruppo)) +
+#   geom_line() +
+#   scale_color_okabe_ito() +
+#   labs(caption = "Nota: intervalli al 95% basati su posteriori gerarchici.")
+
 # Etichette numeriche in stile italiano
 label_it <- function(accuracy = NULL) {
   scales::label_number(accuracy = accuracy, decimal.mark = ",", big.mark = ".")
@@ -249,6 +254,12 @@ guides_top <- guides(
 )
 thin_ygrid <- theme(panel.grid.major.x = element_blank())
 thin_xgrid <- theme(panel.grid.major.y = element_blank())
+
+# se vuoi legenda compatta sempre senza toccare i singoli plot:
+theme_update(
+  legend.spacing.y = unit(2, "pt"),
+  legend.text = element_text(margin = margin(b = 2))
+)
 
 ## ─────────────────────────────────────────────────────────────────────
 ## 8. Riproducibilità

@@ -25,7 +25,7 @@ here::here("code", "_common.R") |>
 
 # Load packages
 if (!requireNamespace("pacman")) install.packages("pacman")
-pacman::p_load(cmdstanr, posterior, bayestestR, brms, ggdist, conflicted)
+pacman::p_load(cmdstanr, posterior, bayestestR, brms, ggdist)
 
 conflicts_prefer(stats::sd)
 ```
@@ -105,7 +105,7 @@ Una prima esplorazione visiva ci aiuta a capire la forma della distribuzione oss
 
 ```{r}
 ggplot(df, aes(x = height)) +
-  geom_histogram(binwidth = 5, color = "black", fill = "lightblue") +
+  geom_histogram(binwidth = 5, color = "white", fill = okabe_ito["sky"]) +
   labs(title = "Distribuzione dell'altezza (cm)", x = "Altezza", y = "Frequenza") +
   theme(plot.title = element_text(hjust = 0.5))
 ```
@@ -567,7 +567,195 @@ Il test permette di costruire un intervallo di confidenza, ma non di fare afferm
 | Estensione a modelli complessi | Limitata                             | Flessibile                          |
 | Trasparenza delle assunzioni   | Implicita                            | Esplicita                           |
 
-## Riflessioni conclusive: dalla variabilità all’incertezza
+
+## Replicare l’analisi con `cmdstanr`
+
+Ora replichiamo con *cmdstanr* (Stan esplicito) l'analisi ottenuta con `brm` e salvata nell'oggetto `fm3`.
+
+Il modello è:
+
+$$
+y_i \sim \mathrm{Normal}(\mu,\sigma), \qquad
+\mu \sim \mathcal{N}(181, 30), \qquad
+\sigma \sim \mathcal{N}^+(0, 20),
+$$
+
+dove $\mathcal{N}^+$ indica la normale troncata ai valori positivi.
+
+Il modello Stan equivalente è
+
+```{r}
+#| label: stan-code-fm3
+#| echo: true
+#| message: false
+#| warning: false
+
+stancode <- "
+data {
+  int<lower=1> N;
+  vector[N] y;
+}
+parameters {
+  real mu;
+  real<lower=0> sigma;
+}
+model {
+  // Priors equivalenti a brms:
+  mu    ~ normal(181, 30);
+  sigma ~ normal(0, 20); // con <lower=0> diventa automaticamente Half-Normal(0,20)
+
+  // Likelihood
+  y ~ normal(mu, sigma);
+}
+generated quantities {
+  vector[N] y_rep;
+  for (n in 1:N) y_rep[n] = normal_rng(mu, sigma);
+}
+"
+```
+
+Compiliamo:
+
+```{r}
+#| output: false
+
+stan_file <- write_stan_file(stancode, dir = "stan", basename = "one_mean_fm3.stan")
+mod       <- cmdstan_model(stan_file)
+```
+
+Prepariamo i dati:
+
+```{r}
+stan_data <- list(N = nrow(df), y = as.numeric(df$height))
+glimpse(stan_data)
+```
+
+Eseguiamo il campionamento:
+
+```{r}
+#| output: false
+
+fit_stan <- mod$sample(
+  data = stan_data,
+  seed = 1234,
+  chains = 4, 
+  iter_warmup = 1000, 
+  iter_sampling = 4000, 
+  parallel_chains = 4,
+  adapt_delta = 0.95
+)
+```
+
+Esaminiamo i risultati:
+
+```{r}
+fit_stan$summary(variables = c("mu","sigma"))
+```
+
+
+### Confronto delle posterior (*brms* vs *Stan*)
+
+```{r}
+#| label: compare-fm3
+#| message: false
+#| warning: false
+
+draws_brm  <- as_draws_df(fm3) |>
+  transmute(mu = b_Intercept, sigma = sigma)
+draws_stan <- as_draws_df(fit_stan$draws(variables = c("mu","sigma")))
+
+summ_brm  <- posterior::summarise_draws(draws_brm)  |> mutate(modello = "brms")
+summ_stan <- posterior::summarise_draws(draws_stan) |> mutate(modello = "stan")
+
+dplyr::bind_rows(summ_brm, summ_stan) |>
+  dplyr::select(modello, variable, mean, sd, q5, q95, rhat, ess_bulk) |>
+  dplyr::arrange(variable, modello)
+```
+
+
+### Visualizzazione delle densità posteriori
+
+```{r}
+#| label: plot-fm3
+#| message: false
+#| warning: false
+
+# brms = sky, stan = vermillion (Okabe–Ito)
+col_brms <- okabe_ito["sky"]
+col_stan <- okabe_ito["vermillion"]
+
+post_long <- dplyr::bind_rows(
+  draws_brm  |> dplyr::mutate(modello = "brms"),
+  draws_stan |> dplyr::mutate(modello = "stan")
+) |>
+  tidyr::pivot_longer(c(mu, sigma), names_to = "parametro", values_to = "value")
+
+p <- ggplot() +
+  # brms
+  geom_density(
+    data = dplyr::filter(post_long, modello == "brms"),
+    aes(x = value),
+    fill = scales::alpha(col_brms, 0.25),
+    color = col_brms, linewidth = 0.9
+  ) +
+  # stan
+  geom_density(
+    data = dplyr::filter(post_long, modello == "stan"),
+    aes(x = value),
+    fill = scales::alpha(col_stan, 0.25),
+    color = col_stan, linewidth = 0.9
+  ) +
+  facet_wrap(~ parametro, scales = "free", ncol = 1) +
+  labs(x = NULL, y = "Densità",
+       title = "Posteriori: confronto brms (sky) vs Stan (vermillion)") +
+  theme(legend.position = "none")
+
+# mediane (stesso trucco, due layer distinti)
+med_brm  <- post_long |> dplyr::filter(modello=="brms") |> dplyr::group_by(parametro) |> dplyr::summarise(x0=median(value), .groups="drop")
+med_stan <- post_long |> dplyr::filter(modello=="stan") |> dplyr::group_by(parametro) |> dplyr::summarise(x0=median(value), .groups="drop")
+
+p +
+  geom_vline(data = med_brm,  aes(xintercept = x0), color = col_brms,  linetype = 2, linewidth = 0.8) +
+  geom_vline(data = med_stan, aes(xintercept = x0), color = col_stan, linetype = 2, linewidth = 0.8)
+```
+
+Se le aree colorate e le linee dei due modelli si sovrappongono quasi perfettamente in ciascun pannello, le *posterior* coincidono entro il rumore Monte Carlo.
+
+
+### Posterior predictive check
+
+```{r}
+#| label: ppc-fm3
+#| message: false
+#| warning: false
+
+draws_yrep <- fit_stan$draws("y_rep")
+arr <- posterior::as_draws_array(draws_yrep)
+M <- dim(arr)[1] * dim(arr)[2]
+N <- dim(arr)[3]
+
+yrep_df  <- as.data.frame(matrix(arr, nrow = M, ncol = N))
+obs_mean <- mean(df$height)
+yrep_mean <- rowMeans(as.matrix(yrep_df))
+
+ppc_df <- data.frame(stat = yrep_mean)
+
+base_col  <- if (exists("okabe_ito")) okabe_ito["sky"]       else "#56B4E9"
+line_col  <- if (exists("okabe_ito")) okabe_ito["vermillion"] else "#D55E00"
+
+ggplot(ppc_df, aes(x = stat)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 50, color = "white", fill = base_col) +
+  geom_vline(xintercept = obs_mean, color = line_col, linewidth = 1) +
+  labs(x = "Media(y_rep)", y = "Densità",
+       title = "Posterior predictive check: media osservata vs replicate")
+```
+
+### Nota sulle prior
+
+Con il vincolo $\sigma>0$ in Stan, la specifica `sigma ~ normal(0, 20);` implementa automaticamente una *Half-Normal* con scala 20, coerente con `prior(normal(0, 20), class = "sigma")` in `brms`. Questa equivalenza assicura che i risultati dei due approcci coincidano entro l’errore Monte Carlo, a parità di dati e impostazioni MCMC.
+
+
+## Riflessioni conclusive {.unnumbered .unlisted}
 
 In questo capitolo ci siamo concentrati su un caso semplice ma essenziale: la stima della media di una variabile quantitativa. Questo esempio ci ha permesso di mettere a confronto due approcci fondamentali all’inferenza statistica — quello frequentista e quello bayesiano — evidenziandone le differenze concettuali e pratiche.
 
