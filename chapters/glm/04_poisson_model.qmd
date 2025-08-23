@@ -1,0 +1,493 @@
+# Modello di Poisson
+
+::: callout-important
+## In questo capitolo imparerai a
+
+- utilizzare `cmdstanr` per adattare ai dati un modello di regressione di Poisson.
+:::
+
+::: callout-tip
+## Prerequisiti
+
+- Leggere [Racial Disparities in Police Use of Deadly Force Against Unarmed Individuals Persist After Appropriately Benchmarking Shooting Data on Violent Crime Rates](https://journals.sagepub.com/doi/full/10.1177/1948550620916071) per ottenere una panoramica approfondita su questo fenomeno e sul relativo ambito di ricerca.
+:::
+
+::: callout-important
+## Preparazione del Notebook
+
+```{r}
+#| output: false
+here::here("code", "_common.R") |> 
+  source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(cmdstanr, HDInterval, lubridate, brms, bayesplot, tidybayes, posterior, tidyr)
+```
+:::
+
+
+## Introduzione  {.unnumbered .unlisted} 
+
+::: {.lead}
+In questo tutorial, approfondiremo l'utilizzo di CmdStan per condurre un'analisi di [regressione di Poisson](https://it.wikipedia.org/wiki/Regressione_di_Poisson). La regressione di Poisson rappresenta una forma di modello lineare generalizzato impiegato nell'analisi di regressione per modellare dati di conteggio. Essa si basa sull'assunzione che la variabile di risposta $Y$ segua una distribuzione di Poisson, con il logaritmo del suo valore atteso modellabile attraverso una combinazione lineare di parametri sconosciuti.
+:::
+
+In questo capitolo, dopo aver investigato il calcolo della media a posteriori e dell'incertezza correlata al tasso di sparatorie fatali da parte della polizia negli Stati Uniti per ogni anno, ci interrogheremo se vi siano evidenze di una tendenza all'aumento di tale tasso nel corso del tempo. Per contestualizzare il fenomeno si suggerisce di leggere l’articolo *Racial Disparities in Police Use of Deadly Force Against Unarmed Individuals Persist After Appropriately Benchmarking Shooting Data on Violent Crime Rates* [@ross2021racial]. Non è obbligatorio per seguire il capitolo, ma fornisce lo sfondo sociale e metodologico dei dati che stiamo per analizzare.
+
+
+## Regressione di Poisson 
+
+La regressione di Poisson è un caso di GLM per variabili di risposta *di conteggio* (0, 1, 2, …). Denoteremo con $\lambda_i$ il *valore atteso* (e, sotto il modello di Poisson, anche la varianza) del conteggio $Y_i$ alla $i$-esima osservazione.
+
+
+### Distribuzione di base
+
+Una variabile casuale di Poisson ha funzione di massa
+
+$$
+\Pr(Y=y)=\frac{\lambda^{\,y}e^{-\lambda}}{y!},\qquad y\in\{0,1,2,\dots\},
+$$
+
+dove $\lambda>0$ è sia media sia varianza: $\mathbb{E}[Y]=\lambda,\ \mathrm{Var}(Y)=\lambda$.
+
+Nel contesto del modello di regressione,
+
+$$
+Y_i \mid \mathbf{x}_i \sim \text{Poisson}(\lambda_i),
+\qquad \lambda_i>0 .
+$$
+
+### Forma GLM e funzione di legame
+
+Per garantire $\lambda_i>0$ si usa il *link logaritmico* (naturale):
+
+$$
+\log \lambda_i = \eta_i
+\quad\text{con}\quad
+\eta_i = \alpha + \mathbf{x}_i^\top \boldsymbol{\beta}.
+$$
+
+Equivalente a:
+
+$$
+\lambda_i = \exp(\alpha + \mathbf{x}_i^\top \boldsymbol{\beta}).
+$$
+
+> Nota terminologica: il *link* è $\log(\cdot)$; l’esponenziale è la sua *inversa*. Non è corretto chiamare “link esponenziale”.
+
+
+### Conteggi e predittori
+
+Nel modello di regressione di Poisson assumiamo che ciascun conteggio $Y_i$ segua una distribuzione di Poisson con media $\lambda_i$. Il legame tra la media $\lambda_i$ e le variabili esplicative è dato dalla funzione logaritmica:
+
+$$
+\log \lambda_i = \alpha + \mathbf{x}_i^\top \boldsymbol{\beta}.
+$$
+
+In questo modo il numero medio di eventi attesi $\lambda_i$ viene sempre stimato come un valore positivo:
+
+$$
+\lambda_i = \exp(\alpha + \mathbf{x}_i^\top \boldsymbol{\beta}).
+$$
+
+Questa formulazione è adatta quando tutti i conteggi si riferiscono a intervalli di osservazione uguali (per esempio, il numero di episodi aggressivi in un anno per ciascuno studente). In tal caso non serve introdurre ulteriori correzioni: il modello lavora direttamente sui conteggi osservati.
+
+
+### Interpretazione dei coefficienti
+
+Nel modello di regressione di Poisson ogni osservazione $Y_i$ segue
+
+$$
+Y_i \sim \text{Poisson}(\lambda_i), 
+\qquad \log \lambda_i = \alpha + \mathbf{x}_i^\top \boldsymbol{\beta}.
+$$
+
+Qui $\lambda_i$ è il numero medio di eventi attesi per l’osservazione $i$.
+
+Per il j-esimo predittore $x_{ij}$, il rapporto tra i valori attesi quando $x_{ij}$ aumenta di 1 unità è
+
+$$
+\frac{\lambda_i(x_{ij}+1)}{\lambda_i(x_{ij})} = \exp(\beta_j).
+$$
+
+Questo significa che $\exp(\beta_j)$ è il *fattore moltiplicativo* atteso sul numero medio di eventi per un incremento unitario di $x_{ij}$.
+
+* Se $\beta_j = 0$, non c’è effetto ($\exp(\beta_j)=1$).
+* Se $\beta_j > 0$, i conteggi attesi crescono moltiplicati per $\exp(\beta_j)$.
+* Se $\beta_j < 0$, i conteggi attesi diminuiscono, divisi per $\exp(|\beta_j|)$.
+
+Per variabili binarie, $\exp(\beta_j)$ confronta direttamente i due gruppi (1 contro 0).
+
+---
+
+Esempio: se studiamo il *numero di episodi aggressivi in un anno* per ciascuno studente, il modello può essere scritto come
+
+$$
+\log \lambda_i = \beta_0 + \beta_1 \,\text{Stress}_i + \beta_2 \,\text{Supporto}_i + \beta_3 \,\text{Depressione}_i.
+$$
+
+Qui $\exp(\beta_1)$ indica di quanto si moltiplica il numero medio di episodi aggressivi attesi quando lo stress aumenta di 1 unità, a parità delle altre variabili.
+
+
+### Assunzioni di base
+
+Per usare la regressione di Poisson facciamo alcune ipotesi semplici:
+
+1. **Risposta a conteggio**: la variabile dipendente è un numero intero non negativo (0, 1, 2, …).
+2. **Indipendenza**: le osservazioni sono considerate indipendenti tra loro.
+3. **Media = varianza**: nella distribuzione di Poisson la media e la varianza coincidono. Se nei dati la varianza è molto più grande della media, il modello di Poisson può non essere adatto.
+4. **Relazione log-lineare**: il logaritmo del numero medio di eventi è una combinazione lineare dei predittori.
+
+
+### Come il modello rappresenta lambda
+
+Nella regressione di Poisson non stimiamo direttamente il valore medio $\lambda_i$, ma il suo logaritmo:
+
+$$
+\eta_i = \log \lambda_i = \alpha + \mathbf{x}_i^\top \boldsymbol{\beta}.
+$$
+
+* **Caso senza predittori**: il modello stima solo l’intercetta $\alpha$. In questo caso
+
+  $$
+  \lambda = \exp(\alpha).
+  $$
+
+* **Caso con predittori**: dati i valori delle variabili esplicative $\mathbf{x}_i$, il numero medio di eventi per l’osservazione $i$ è
+
+  $$
+  \lambda_i = \exp\big(\alpha + \mathbf{x}_i^\top \boldsymbol{\beta}\big).
+  $$
+
+In altre parole, il modello lavora sempre sulla scala logaritmica (più semplice da trattare matematicamente), e poi si passa alla scala naturale dei conteggi applicando l’esponenziale.
+
+
+## La domanda di ricerca
+
+Grazie all’archivio pubblico del *Washington Post* disponiamo di tutti i casi di sparatorie fatali accadute negli Stati Uniti dal 2015 in poi. L’interesse è stimare quante se vi siano evidenze di una tendenza all'aumento di tale tasso nel corso del tempo.
+
+Importiamo e prepariamo i dati:
+
+```{r}
+url <- "https://raw.githubusercontent.com/washingtonpost/data-police-shootings/master/v2/fatal-police-shootings-data.csv"
+raw <- read.csv(url, stringsAsFactors = FALSE)
+raw$date <- as.Date(raw$date)
+raw$year <- lubridate::year(raw$date)
+
+# Escludiamo il 2025 perché l’anno è ancora in corso e i dati sarebbero incompleti
+shootings <- subset(raw, year < 2025)
+
+df <- shootings %>%
+  dplyr::count(year, name = "events")
+df
+```
+
+Per facilitare l'interpretazione, centriamo la colonna `year`. In questo modo, l'intercetta si riferità all'anno 2019.
+
+```{r}
+df <- df |> 
+  mutate(year = year - 2019)
+df
+```
+
+A questo punto abbiamo una tabella `df` con due colonne: `year` (centrato), che va dal -4 (2015) a 5 (2024), ed `events`, che contiene il numero di sparatorie fatali registrate in ciascun anno.
+
+
+### Modello Stan
+
+Definiamo il seguente modello 
+
+```{r}
+stan_code <- '
+data {
+  int<lower=1> N;
+  array[N] int<lower=0> y;   // conteggi
+  vector[N] year;            // -4, -3, ..., 5 (non standardizzato)
+}
+
+parameters {
+  real alpha;                // log media per anno 0
+  real beta;                 // effetto per 1 anno (log-IRR per anno)
+}
+
+model {
+  // Priors coerenti con: lambda ~ 600 circa, 400–900 plausibile
+  alpha ~ normal(6.4, 0.25);   // oppure 0.30 se preferisci più ampia
+  beta  ~ normal(0, 0.05);     // oppure 0.10 se vuoi più permissiva
+
+  // Poisson con link log
+  y ~ poisson_log(alpha + beta * year);
+}
+
+generated quantities {
+  vector[N] eta = alpha + beta * year;
+  vector[N] lambda = exp(eta);
+  array[N] int<lower=0> y_rep;
+  for (n in 1:N) y_rep[n] = poisson_log_rng(eta[n]);
+}
+'
+```
+
+Specificare la distribuzione a priori: 
+
+* **Intercetta**: $\alpha=\log\lambda$. Poiché riteniamo plausibile, *prima dei dati*, una media annua $\lambda$ centrata attorno a 600, con intervallo \~400–900, imponiamo
+  $\alpha \sim \mathcal N(6.40,\ 0.25)$ (oppure $0.30$ per un intervallo un po’ più ampio).
+* **Pendenza**: $\beta$ è il log-IRR *per anno*. Attese variazioni annue piccole ⇒
+  $\beta \sim \mathcal N(0,\ 0.05)$ (più prudente) oppure $\mathcal N(0,\ 0.10)$ (più ampia).
+
+Dati:
+
+```{r}
+dat <- data.frame(
+  year   = -4:5,
+  events = c(995, 959, 984, 992, 993, 1021, 1050, 1097, 1164, 1175)
+)
+
+stan_data <- list(
+  N = nrow(dat),
+  y = dat$events,
+  year = dat$year
+)
+glimpse(stan_data)
+```
+
+Compiliamo il modello e avviamo il campionamento MCMC.
+
+```{r}
+#| output: false
+mod  <- cmdstan_model(write_stan_file(stan_code))
+```
+
+
+```{r}
+#| output: false
+fit <- mod$sample(
+  data = stan_data, seed = 1234,
+  chains = 4, parallel_chains = 4
+)
+```
+
+Estraiamo le quantità derivate di maggiore interesse:
+
+```{r}
+fit$summary(variables = c("alpha", "beta", "lambda"))
+```
+
+### Interpretazione
+
+Il parametro `alpha` rappresenta il logaritmo del numero medio atteso di eventi *nell’anno di riferimento* $x=0$. Nel nostro modello l’anno 0 è semplicemente il punto centrale della sequenza di anni osservata (−4,…,5).
+
+Il valore stimato è $\alpha \approx 6.94$, con un intervallo di credibilità al 95% compreso tra 6.92 e 6.95. Trasformando sulla scala naturale, otteniamo:
+
+$$
+\exp(\alpha) \approx 1\,030
+$$
+
+cioè circa *1030 eventi attesi* nell’anno di riferimento.
+
+Il parametro `beta` misura la variazione logaritmica attesa per ogni anno aggiuntivo. La stima $\beta \approx 0.022$ (ICr 95%: 0.017–0.028) indica una crescita positiva.
+
+Per interpretare questo effetto sulla scala dei conteggi:
+
+$$
+\exp(\beta) \approx 1.022 ,
+$$
+
+ossia ogni anno in più corrisponde a un aumento atteso di circa *+2.2%* degli eventi rispetto all’anno precedente.
+
+Se traduciamo questa percentuale in termini assoluti, partendo dal valore base $\exp(\alpha)\approx 1\.030$, otteniamo:
+
+$$
+\exp(\alpha)\times(\exp(\beta)-1) \;\approx\; 23
+$$
+
+quindi in media *circa 23 eventi in più per ogni anno successivo*.
+
+```{r}
+# Anni da predire (quelli del dataset)
+years <- -4:5
+
+# Estrai i draw posteriori di alpha e beta da cmdstanr
+# (se vuoi in formato data frame "largo")
+draws <- as_draws_df(fit$draws(variables = c("alpha", "beta")))
+
+# Costruisci predizioni posteriori di lambda per ogni anno
+pred <- lapply(years, function(y) {
+  tibble(
+    year   = y,
+    lambda = exp(draws$alpha + draws$beta * y)
+  )
+}) |>
+  bind_rows()
+
+# Riassumi: media e intervallo di credibilità 95%
+pred_sum <- pred |>
+  group_by(year) |>
+  summarise(
+    lambda_mean = mean(lambda),
+    lambda_q05  = quantile(lambda, 0.05),
+    lambda_q95  = quantile(lambda, 0.95),
+    .groups = "drop"
+  )
+
+# (opzionale) unisci i dati osservati
+dat <- tibble(
+  year   = -4:5,
+  events = c(995, 959, 984, 992, 993, 1021, 1050, 1097, 1164, 1175)
+)
+
+# Grafico: banda 90% (5%-95%), linea media e punti osservati
+ggplot(pred_sum, aes(x = year)) +
+  geom_ribbon(aes(ymin = lambda_q05, ymax = lambda_q95), alpha = 0.2) +
+  geom_line(aes(y = lambda_mean), linewidth = 1) +
+  geom_point(data = dat, aes(y = events), size = 2) +
+  labs(
+    x = "Anno (codifica -4 … 5)",
+    y = "Numero atteso di eventi",
+    title = "Regressione di Poisson: predizioni posteriori con IC 90%"
+  ) 
+
+```
+
+Il modello di regressione di Poisson mostra che il numero medio di eventi segue una *crescita regolare nel tempo*. L’intercetta indica che nell’anno di riferimento ($x=0$) ci si attendono circa *1030 eventi*, mentre la pendenza suggerisce un incremento annuo di circa *+2%*, pari a una ventina di eventi in più ogni anno.
+
+La banda di credibilità attorno alla curva stimata conferma che l’incertezza sulle previsioni è contenuta e che l’andamento crescente è chiaramente supportato dai dati. In termini sostantivi, il modello descrive bene una *tendenza di crescita graduale ma costante* negli anni osservati.
+
+
+### Posterior predictive check
+
+```{r}
+# Dati osservati
+dat <- tibble::tibble(
+  year   = -4:5,
+  events = c(995, 959, 984, 992, 993, 1021, 1050, 1097, 1164, 1175)
+)
+
+# Estrai i draw di y_rep in matrice (draws x N)
+yrep_mat <- fit$draws(variables = "y_rep") |>
+  as_draws_matrix()
+# Seleziona solo le colonne y_rep[...] mantenendo l'ordine
+cols <- grep("^y_rep\\[", colnames(yrep_mat))
+yrep_mat <- yrep_mat[, cols, drop = FALSE]
+
+# Calcola quantili per colonna (per ogni anno)
+qs <- colQuantiles(yrep_mat, probs = c(0.05, 0.50, 0.95))
+pred_sum <- tibble::tibble(
+  year = dat$year,
+  q05  = qs[, 1],
+  q50  = qs[, 2],
+  q95  = qs[, 3]
+)
+
+# Grafico PPC: banda 90% + mediana + punti osservati
+ggplot(pred_sum, aes(x = year)) +
+  geom_ribbon(aes(ymin = q05, ymax = q95), alpha = 0.2) +
+  geom_line(aes(y = q50), linewidth = 1) +
+  geom_point(data = dat, aes(y = events), size = 2) +
+  labs(
+    x = "Anno (codifica -4 … 5)",
+    y = "Conteggio",
+    title = "PPC: bande predittive (90%) e dati osservati"
+  ) +
+  theme_minimal(base_size = 13)
+```
+
+* La *banda* ombreggiata rappresenta il *90%* della distribuzione predittiva del conteggio per ciascun anno (5%–95%).
+* La *linea* è la *mediana* predittiva; i *punti* sono i conteggi osservati.
+* Se i punti stanno per lo più *dentro* le bande, il modello riproduce bene i livelli di conteggio anno per anno.
+* Se molti punti cadono *fuori* (o tutti da un lato), il modello potrebbe essere troppo rigido o mancare di struttura (p.es. overdispersione, forma non lineare nel tempo, effetti non inclusi).
+
+
+```{r}
+# Media/varianza osservate
+mean_obs <- mean(dat$events)
+var_obs  <- var(dat$events)
+
+# Media/varianza delle repliche (per draw)
+mean_rep <- rowMeans(yrep_mat)
+var_rep  <- apply(yrep_mat, 1, var)
+
+# p-value predittivi (proporzione di repliche >= osservato)
+p_mean <- mean(mean_rep >= mean_obs)
+p_var  <- mean(var_rep  >= var_obs)
+
+tibble::tibble(
+  stat      = c("media", "varianza"),
+  osservato = c(mean_obs, var_obs),
+  media_rep = c(mean(mean_rep), mean(var_rep)),
+  p_pred    = c(p_mean, p_var)
+)
+```
+
+```{r}
+p1 <- ggplot(data.frame(mean_rep), aes(x = mean_rep)) +
+  geom_histogram(bins = 30, fill = okabe_ito["sky"], color = "white") +
+  geom_vline(xintercept = mean_obs, linetype = 2) +
+  labs(title = "PPC media", x = "Media (repliche)", y = "Frequenza")
+
+p2 <- ggplot(data.frame(var_rep), aes(x = var_rep)) +
+  geom_histogram(bins = 30, fill = okabe_ito["sky"], color = "white") +
+  geom_vline(xintercept = var_obs, linetype = 2) +
+  labs(title = "PPC varianza", x = "Varianza (repliche)", y = "Frequenza")
+
+p1
+```
+
+```{r}
+p2
+```
+
+Il controllo predittivo mostra che i conteggi osservati ricadono interamente entro le bande di credibilità del modello. Inoltre, la media e la varianza osservate sono molto vicine a quelle prodotte dalle repliche simulate (p-value predittivi ~0.5), il che indica che il modello non sottostima né sovrastima la variabilità dei dati. Nel complesso, questi risultati suggeriscono che la regressione di Poisson con legame log e trend lineare nel tempo fornisce una rappresentazione adeguata dei dati osservati.
+
+
+#### Incidence Rate Ratio (IRR)
+
+```{r}
+irr <- draws |>
+  transmute(
+    IRR = exp(beta)
+  ) |>
+  summarise(
+    mean = mean(IRR),
+    q05  = quantile(IRR, 0.05),
+    q95  = quantile(IRR, 0.95)
+  )
+irr
+```
+
+Il valore medio stimato dell’IRR è *1.022*, con un intervallo di credibilità al 90% compreso tra 1.017 e 1.028. Questo significa che, a ogni anno in più, il numero medio di eventi attesi aumenta di circa il 2.2%, con un margine di incertezza che va da circa +1.7% a +2.8%.
+
+Poiché l’intero intervallo si colloca *sopra 1*, il modello suggerisce con elevata credibilità che la tendenza temporale sia effettivamente *crescente*: non stiamo osservando fluttuazioni casuali, ma un aumento sistematico anno dopo anno.
+
+**Interpretazione dell’IRR in termini assoluti**
+
+Il valore medio dell’IRR è 1.022: questo equivale a un incremento di circa +2.2% per anno.
+
+* In termini assoluti, partendo da una media di circa 1030 eventi, un aumento del 2.2% corrisponde a circa +23 eventi all’anno.
+* L’intervallo di credibilità (1.017–1.028) implica che l’aumento medio sia compreso tra circa +18 e +29 eventi per anno.
+
+In altre parole, il modello suggerisce che il fenomeno osservato cresce in modo *regolare e consistente*: ogni anno si verificano in media da *una ventina a una trentina di eventi in più* rispetto all’anno precedente.
+
+
+## Riflessioni conclusive  {.unnumbered .unlisted}
+
+In questo esempio abbiamo visto come la regressione di Poisson permetta di modellare dati di conteggio che variano nel tempo. Alcuni punti chiave da sottolineare:
+
+* La *funzione di legame logaritmica* garantisce che i conteggi previsti restino sempre positivi e rende l’interpretazione dei coefficienti naturale in termini di *fattori moltiplicativi* (IRR).
+* L’intercetta `alpha` corrisponde al logaritmo della media nel punto di riferimento della variabile esplicativa, mentre la pendenza `beta` rappresenta l’effetto percentuale di un incremento unitario.
+* Attraverso la trasformazione esponenziale, i parametri stimati possono essere riportati sulla scala dei conteggi, rendendo l’interpretazione immediata in termini di numero di eventi.
+* La combinazione tra analisi numerica (parametri, intervalli di credibilità) e visualizzazione grafica (curve con bande di incertezza) fornisce un quadro completo e didatticamente chiaro.
+
+Questo caso mostra come, anche con un set di dati relativamente piccolo, sia possibile trarre *conclusioni interpretabili e predittive* usando un modello statistico appropriato.
+
+
+## Informazioni sull'ambiente di sviluppo {.unnumbered .unlisted} 
+
+```{r}
+sessionInfo()
+```
+
+## Bibliografia  {.unnumbered .unlisted} 
+
+
