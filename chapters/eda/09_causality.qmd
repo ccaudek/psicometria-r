@@ -19,552 +19,528 @@
 - Leggere *Telling Stories with Data* [@alexander2023telling]. Concentrati sul capitolo 15 *Causalit$Y$ from observational data*.
 :::
 
+::: callout-caution
+## Preparazione del Notebook
+
+```{r}
+#| output: false
+here::here("code", "_common.R") |> 
+  source()
+```
+:::
+
+
 ## Introduzione {.unnumbered .unlisted}
 
-La pura osservazione dei dati può rivelare correlazioni e pattern nei dati, ma senza un'indagine sulle cause che stanno alla base di tali correlazioni, le conclusioni tratte possono essere fuorvianti o incomplete.
+Quando in psicologia ci chiediamo *perché* un fenomeno si verifica, stiamo entrando nel territorio della *causalità*. Per esempio: l’esposizione a situazioni di stress causa davvero un aumento dei sintomi depressivi? Oppure si tratta solo di una correlazione, magari dovuta a un terzo fattore che non abbiamo considerato?
 
-Richard McElreath, nel suo libro "Statistical Rethinking" [@McElreath_rethinking], utilizza l'analogia dei Golem - creature potenti ma prive di saggezza - per descrivere un approccio metodologico che è stato a lungo predominante in psicologia. Questo approccio si basa esclusivamente sull'analisi delle **associazioni statistiche** tra variabili, trascurando considerazioni più profonde sulla causalità.
+Questa distinzione tra *correlazione* e *causalità* è fondamentale: 
 
-Il metodo in questione si concentra principalmente sul test delle ipotesi nulle, senza stabilire una chiara **connessione tra le domande di ricerca riguardanti le relazioni causali e i test statistici** impiegati. Questa disconnessione è evidente nella figura successiva, tratta da un manuale di analisi dati di impostazione frequentista, che illustra la procedura raccomandata dai sostenitori di questo approccio per descrivere le associazioni tra variabili. 
+- la correlazione ci dice che due variabili variano insieme;  
+- la causalità implica invece che una variabile *produce* un cambiamento nell’altra.  
 
-![**Esempio di albero decisionale per la selezione di una procedura statistica appropriata.** Iniziando dall'alto, l'utente risponde a una serie di domande riguardanti la misurazione e l'intento, arrivando infine al nome di una procedura. Sono possibili molti alberi decisionali simili. (Figura tratta da @McElreath_rethinking).](../../figures/mcelreath_golem.png){ width=95% }
+In psicologia e nelle scienze sociali non possiamo quasi mai fare esperimenti perfettamente controllati, come avviene in laboratorio nelle scienze naturali. Per questo motivo, abbiamo bisogno di strumenti teorici e statistici che ci aiutino a ragionare in termini causali anche quando i dati provengono da studi osservativi.
 
-È importante notare come tale procedura non fornisca strumenti utili per identificare le effettive cause sottostanti ai fenomeni osservati. Questa limitazione metodologica è stata identificata come uno dei fattori principali che hanno contribuito alla **crisi di replicabilità** nella ricerca psicologica, come approfondito nel @sec-crisis-replication. L'approccio descritto sopra, pur essendo potente nell'individuare correlazioni, manca della "saggezza" necessaria per distinguere tra semplici associazioni e vere relazioni causali, analogamente ai Golem della metafora di McElreath.
+### Un esempio concreto
 
-Un problema evidenziato da @McElreath_rethinking è che processi causali completamente distinti possono generare la stessa distribuzione di risultati osservati. Pertanto, un approccio focalizzato esclusivamente sull'analisi delle associazioni mediante il test dell'ipotesi nulla non è in grado di distinguere tra questi diversi scenari.
+Immaginiamo di osservare che studenti che dormono poco tendono a riportare più ansia.  
 
-L'approccio frequentista, che si limita a descrivere le associazioni tra le variabili, ha una scarsa capacità di rilevare le caratteristiche cruciali dei fenomeni studiati e tende a produrre un **alto tasso di falsi positivi** [@van2023new]. È invece necessario utilizzare una metodologia che non si limiti a confutare ipotesi nulle, ma sia in grado di sviluppare modelli causali che rispondano direttamente alle domande di ricerca. In questo capitolo, ci concentreremo sull'introduzione dei concetti fondamentali dell'analisi causale.
+- Possiamo dire che *dormire poco causa ansia*?  
+- Oppure è possibile che *l’ansia causi insonnia*?  
+- O magari entrambe le variabili sono influenzate da un terzo fattore, ad esempio *periodi di esami universitari*?
 
-## Cos'è la causalità?
+Questo semplice esempio mostra che i dati da soli non bastano: dobbiamo avere un modello teorico che ci guidi nell’interpretazione.
 
-@hardt2022patterns introducono il concetto di causalità distinguendo tra osservazione e azione. Ciò che vediamo nell'osservazione passiva è il modo in cui le persone seguono i loro comportamenti abituali, le loro inclinazioni naturali, proiettando lo stato del mondo su un insieme di caratteristiche che abbiamo scelto di evidenziare. Tuttavia, le domande più importanti spesso non riguardano semplici osservazioni.
 
-- Non ci basta sapere che le persone che praticano regolarmente attività fisica soffrono meno d'ansia; vogliamo capire se l'attività fisica riduce effettivamente i livelli d'ansia.
-- Non ci accontentiamo di osservare che chi segue una terapia cognitivo-comportamentale (CBT) presenta meno sintomi depressivi; desideriamo verificare se la CBT riduce realmente questi sintomi.
-- Non ci limitiamo a constatare che l'uso frequente dei social media è associato a un calo del benessere mentale; vogliamo determinare se l'uso intensivo dei social media causa effettivamente una diminuzione del benessere mentale.
+### Il ruolo dei modelli
 
-Alla base, il ragionamento causale è un quadro concettuale per affrontare domande sugli **effetti di azioni** o interventi ipotetici. Una volta compreso quale sia l'effetto di un'azione, possiamo invertire la domanda e chiederci quale azione plausibile abbia causato un determinato evento.
+I modelli statistici ci aiutano a formalizzare queste ipotesi causali:
 
-## Effetto Causale
+- un modello puramente descrittivo si limita a dire che due variabili sono associate;  
+- un modello causale, invece, esplicita ipotesi su *come* e *perché* una variabile influenza un’altra.
 
-La causalità è un concetto fondamentale in molte discipline, ma non esiste una definizione univoca universalmente accettata. Tuttavia, possiamo adottare una definizione operativa utile per l’analisi empirica.
+Lo scopo di questo capitolo è introdurre alcuni strumenti concettuali di base per distinguere tra correlazione e causalità e per capire come i modelli possano essere usati in psicologia per affrontare domande causali.
 
-::: {#def-causalita}
-Diciamo che **$X$ causa $Y$** se, intervenendo e modificando il valore di $X$ (il trattamento), la distribuzione di $Y$ cambia di conseguenza.
+## Correlazione non significa causalità
+
+Uno degli errori più comuni in psicologia è confondere la correlazione con la causalità.  Se due variabili si muovono insieme, non significa necessariamente che una sia la causa dell’altra.
+
+### Esempio classico
+
+Supponiamo di osservare che, durante l’estate, aumenta sia il consumo di gelati sia il numero di persone che hanno colpi di calore.  
+
+- È forse il *consumo di gelati* a causare i colpi di calore?  
+- Oppure sono i *colpi di calore* a spingere le persone a mangiare più gelati?  
+
+La risposta, ovviamente, è che entrambe le variabili sono influenzate da un *fattore esterno*: la temperatura. Il caldo estivo aumenta sia la voglia di gelato sia il rischio di colpo di calore.  
+
+
+### Un esempio psicologico
+
+Durante i periodi d’esame universitari aumentano sia lo *stress* sia i *disturbi del sonno*.  
+
+- Dobbiamo concludere che lo stress causa direttamente insonnia?  
+- Oppure che l’insonnia genera stress?  
+
+La spiegazione più plausibile è che entrambe le variabili dipendano da un *fattore esterno comune*: la pressione del contesto degli esami.  
+
+Questa situazione, in cui due variabili sono legate da una causa comune, si chiama *confondimento*.
+
+### Perché è importante in psicologia
+
+Negli studi psicologici, spesso osserviamo correlazioni interessanti: ad esempio, tra uso dei social media e benessere psicologico.  Ma senza un *modello causale*, non possiamo dire se:  
+
+- sono i social media a ridurre il benessere,  
+- se chi ha meno benessere tende a usare di più i social,  
+- oppure se entrambe le cose dipendono da un terzo fattore, come la solitudine.
+
+### La lezione da ricordare
+
+La correlazione è un punto di partenza utile, ma non basta per stabilire una relazione di causa-effetto. Per andare oltre, dobbiamo introdurre strumenti che ci aiutino a *rappresentare e testare ipotesi causali*, come vedremo nelle sezioni successive.
+
+
+## Rappresentare le relazioni causali
+
+Per ragionare in modo chiaro sulle relazioni di causa-effetto è utile avere un linguaggio formale.  Uno degli strumenti più potenti a questo scopo è rappresentare le relazioni tra variabili con un *grafo causale*.
+
+### Che cos’è un grafo causale
+
+Un grafo causale è un diagramma formato da:  
+
+- *nodi*, che rappresentano le variabili di interesse (ad esempio: stress, ansia, sonno);  
+- *frecce*, che indicano ipotesi di influenza causale (ad esempio: lo stress → ansia).
+
+Questi grafi non sono semplici figure illustrative: sono veri e propri *modelli* che esplicitano le nostre ipotesi su come le variabili si influenzano.
+
+
+### Un esempio psicologico
+
+Immaginiamo di voler studiare il legame tra stress e rendimento universitario.  Possiamo proporre un grafo causale come questo:
+
+- Stress → Qualità del sonno → Rendimento agli esami  
+
+Qui stiamo ipotizzando che lo stress riduca la qualità del sonno, e che a sua volta un sonno peggiore abbassi il rendimento. In altre parole, il sonno agisce da *variabile mediatore*.
+
+
+### Perché è utile
+
+Rappresentare i dati in questo modo ci permette di: 
+
+1. distinguere tra relazioni dirette e indirette.  
+2. chiarire il ruolo di possibili variabili di confondimento.  
+3. progettare meglio i nostri studi (per esempio, decidere quali variabili misurare per testare una certa ipotesi).
+
+### Un avvertimento
+
+Un grafo causale non ci dice automaticamente quale ipotesi è vera: rappresenta solo ciò che *crediamo* sia plausibile.  Sta poi ai dati e alle analisi statistiche confermare o mettere in discussione queste ipotesi.
+
+
+## Confondimento, mediazione e altre relazioni causali
+
+Nei modelli causali non tutte le variabili hanno lo stesso ruolo. È importante distinguere tra diversi tipi di relazioni, perché ognuna porta a interpretazioni diverse.
+
+
+### Variabili di confondimento
+
+Una *variabile di confondimento* è una variabile che influenza sia la presunta causa sia l’effetto.  Se non la consideriamo, rischiamo di attribuire una relazione causale dove in realtà non c’è.
+
+**Esempio.**
+Osserviamo che gli studenti che usano più spesso i social media riportano più sintomi depressivi.  Potremmo pensare che siano i social media a causare depressione.  Ma un possibile *confondente* è la *solitudine*: gli studenti più soli potrebbero usare di più i social e allo stesso tempo sentirsi più depressi.  Se non teniamo conto della solitudine, rischiamo di trarre conclusioni errate.
+
+
+### Variabili mediatrici
+
+Una *variabile mediatrice* è invece un “anello di passaggio” nella catena causale. Non distorce la relazione, ma la spiega.
+
+**Esempio.**
+Stress → Qualità del sonno → Ansia.  Qui il sonno media l’effetto dello stress sull’ansia: lo stress peggiora il sonno, e il cattivo sonno aumenta l’ansia.
+
+
+### Variabili moderatrici
+
+Un’altra distinzione utile è quella delle *variabili moderatrici*: fattori che non spiegano la relazione, ma ne modificano la forza o la direzione.
+
+**Esempio.**
+L’effetto dello stress sull’ansia potrebbe essere più forte negli studenti al primo anno rispetto a quelli degli anni successivi.  Qui l’“anno di corso” agisce da moderatore.
+
+---
+
+Capire se una variabile è un confondente, un mediatore o un moderatore è fondamentale per interpretare correttamente i dati psicologici e per costruire modelli causali realistici.
+
+
+### Le quattro configurazioni fondamentali nei DAG
+
+Per capire bene come funzionano i grafi causali, è utile conoscere le *quattro strutture di base* con cui due variabili possono essere collegate attraverso una terza.
+
+1. **Catena (chain)**  
+   $X \rightarrow Z \rightarrow Y$  
+   Qui $Z$ è un *mediatore*: trasmette l’effetto di $X$ su $Y$.  
+   - Se non controlliamo per $Z$, $X$ e $Y$ appaiono correlati.  
+   - Se controlliamo per $Z$, l’effetto di $X$ su $Y$ “scompare”, perché passa interamente da $Z$.
+
+2. **Biforcazione (fork)**  
+   $X \leftarrow Z \rightarrow Y$  
+   Qui $Z$ è un *confondente*: causa sia $X$ che $Y$.  
+   - Se non controlliamo per $Z$, vediamo una correlazione spuriosa tra $X$ e $Y$.  
+   - Se controlliamo per $Z$, la correlazione spuria scompare.
+
+3. **Collider**  
+   $X \rightarrow Z \leftarrow Y$  
+   Qui $Z$ è un *effetto comune* di $X$ e $Y$.  
+   - Se non controlliamo per $Z$, $X$ e $Y$ sono indipendenti.  
+   - Se invece controlliamo per $Z$ (o per un suo discendente), creiamo artificialmente una correlazione spuriosa.
+
+4. **Discendente**  
+   $X \rightarrow Y \rightarrow Z$  
+   Qui $Z$ è un *discendente* di $Y$: porta informazioni sull’effetto di $X$, ma non va confuso con un confondente.  
+   - Controllare un discendente può introdurre bias, perché significa “tagliare” il percorso naturale della causalità.  
+
+---
+
+#### Perché è importante
+
+Queste quattro configurazioni sono le “mattonelle di base” con cui si costruiscono tutti i DAG più complessi. Capire quando conviene controllare una variabile (catena, fork) e quando invece *non bisogna farlo* (collider, discendente) è essenziale per evitare errori nell’inferenza causale.
+
+
+## Dai grafi causali all’inferenza statistica
+
+Finora abbiamo visto che i grafi causali servono a rappresentare le nostre ipotesi.  Ma come possiamo collegarli ai dati e verificare se un modello causale è plausibile?
+
+### Indipendenze e dipendenze
+
+Un’idea chiave è che un grafo causale non descrive solo “chi influenza chi”, ma implica anche certe *relazioni di indipendenza* tra le variabili.  
+Queste relazioni sono importanti perché ci permettono di confrontare il grafo con i dati: se le indipendenze predette non si verificano, il grafo non può essere corretto.
+
+
+#### Esempio 1: Catena (mediazione)
+
+Supponiamo di ipotizzare che:  Stress → Sonno → Ansia. Qui il sonno media l’effetto dello stress sull’ansia.  Se *non* conosciamo il livello di sonno, stress e ansia risulteranno correlati.  Ma *condizionando* sul sonno, lo stress non ci dà più informazioni aggiuntive sull’ansia.  
+
+In termini statistici:
+
+$$
+\text{Ansia} \;\perp\!\!\!\perp\; \text{Stress} \mid \text{Sonno}
+$$
+
+
+#### Esempio 2: Fork (causa comune)
+
+Consideriamo ora:  Sonno → Stress; Sonno → Ansia. Qui il sonno è un *confondente*: influenza sia stress che ansia.  Se non controlliamo per il sonno, vediamo una correlazione spuriosa tra stress e ansia.  Se invece condizioniamo sul sonno, questa correlazione scompare.  
+
+Formalmente anche qui:  
+
+$$
+\text{Ansia} \;\perp\!\!\!\perp\; \text{Stress} \mid \text{Sonno}
+$$
+
+
+#### Esempio 3: Collider (effetto comune)
+
+Ora immaginiamo:  Stress → Ansia ← Sonno. Qui l’ansia è un *collider*, cioè un effetto comune di stress e sonno.  In questo caso accade l’opposto:  
+
+- senza condizionare su ansia, stress e sonno sono indipendenti;  
+- se invece controlliamo per ansia (o per una sua conseguenza), introduciamo artificialmente una correlazione spuriosa.  
+
+Formalmente:  
+
+$$
+\text{Stress} \;\perp\!\!\!\perp\; \text{Sonno} \quad \text{ma non} \quad \text{Stress} \;\perp\!\!\!\perp\; \text{Sonno} \mid \text{Ansia}
+$$
+
+
+### Tabella riassuntiva
+
+| Struttura | Forma | Relazione tra $X$ e $Y$ | Dopo aver controllato $Z$ |
+|-----------|-------|-------------------------|---------------------------|
+| **Catena** (mediazione) | $X \to Z \to Y$ | Dipendenti | Indipendenti |
+| **Fork** (causa comune) | $X \leftarrow Z \to Y$ | Dipendenti (spuria) | Indipendenti |
+| **Collider** (effetto comune) | $X \to Z \leftarrow Y$ | Indipendenti | Dipendenti (spuri) |
+
+
+### Le quattro configurazioni nei DAG 
+
+Di seguito trovi quattro figure minime che illustrano *Catena*, *Fork*, *Collider* e *Discendente*.  
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+library(ggdag)
+library(dplyr)
+library(patchwork)
+library(grid)      # per unit()
+
+# --- DAGs (come prima) ---
+dag_chain <- dagify(
+  Y ~ Z,
+  Z ~ X,
+  coords = list(x = c(X = 0, Z = 1, Y = 2),
+                y = c(X = 0, Z = 0, Y = 0)),
+  labels = c(X = "X", Z = "Z (mediatore)", Y = "Y")
+)
+
+dag_fork <- dagify(
+  X ~ Z,
+  Y ~ Z,
+  coords = list(x = c(Z = 1, X = 0, Y = 2),
+                y = c(Z = 0.6, X = 0, Y = 0)),
+  labels = c(Z = "Z (confondente)", X = "X", Y = "Y")
+)
+
+dag_collider <- dagify(
+  Z ~ X,
+  Z ~ Y,
+  coords = list(x = c(X = 0, Z = 1, Y = 2),
+                y = c(X = 0, Z = 0.6, Y = 0)),
+  labels = c(X = "X", Z = "Z (collider)", Y = "Y")
+)
+
+dag_desc <- dagify(
+  Y ~ X,
+  W ~ Y,
+  coords = list(x = c(X = 0, Y = 1, W = 2),
+                y = c(X = 0, Y = 0, W = 0)),
+  labels = c(X = "X", Y = "Y", W = "W (discendente)")
+)
+
+# --- Helper per stile pulito e niente tagli ---
+dag_plot <- function(dag, title = NULL,
+                     xlim = c(-0.2, 2.2), ylim = c(-0.25, 0.9)) {
+  ggdag(dag, layout = "manual") +
+    coord_cartesian(xlim = xlim, ylim = ylim, clip = "off") + # evita il taglio dei nodi
+    theme_void(base_size = 12) +                               # niente assi/griglie
+    theme(
+      legend.position = "none",
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 12),
+      plot.margin = unit(rep(6, 4), "pt")                      # margini uniformi
+    ) +
+    ggtitle(title)
+}
+```
+
+
+```{r}
+#| label: fig-dag-quad
+#| fig-cap: "Quattro configurazioni base dei DAG: Catena, Fork, Collider, Discendente."
+#| fig-width: 8
+#| fig-height: 6
+#| message: false
+#| warning: false
+#| echo: false
+p1 <- dag_plot(dag_chain, "Catena: X → Z → Y")
+p2 <- dag_plot(dag_fork, "Fork: X ← Z → Y")
+p3 <- dag_plot(dag_collider, "Collider: X → Z ← Y")
+p4 <- dag_plot(dag_desc, "Discendente: X → Y → W")
+
+(p1 | p2) / (p3 | p4)
+```
+
+
+::: {.callout-warning}
+## Errore comune: controllare i collider!
+
+- **Collider**: struttura $X \to Z \leftarrow Y$.  
+  - Senza controllare $Z$: $X$ e $Y$ sono *indipendenti*.  
+  - *Controllando $Z$* (o un suo *discendente*): si *crea* una correlazione spuriosa tra $X$ e $Y$.
+
+**Morale pratica**:  
+- Con *catena* e *fork* conviene spesso controllare $Z$ (per rimuovere associazioni non causali o isolare l’effetto diretto).  
+- Con i *collider* (e loro discendenti) *non* bisogna controllare $Z$: si introduce bias invece di rimuoverlo.
 :::
 
-Questa definizione enfatizza il ruolo centrale dell’**intervento** nel determinare una relazione causale. A differenza della correlazione, che si basa sull’osservazione passiva, la causalità implica un’azione attiva che modifica il sistema in esame.
 
-### Effetto Medio del Trattamento
+### Perché è importante
 
-Se $X$ è una variabile binaria, rappresentante la presenza ($X=1$) o l’assenza ($X=0$) del trattamento, l’effetto dell’intervento è misurato tramite l’**effetto medio del trattamento** (Average Treatment Effect, ATE):
+Questi esempi mostrano che il significato di *indipendenza condizionata* dipende dalla struttura del grafo.  In pratica:  
 
-$$ ATE = \mathbb{E}[Y \mid X=1] - \mathbb{E}[Y \mid X=0] .$$
+- con catene e fork, condizionare “rompe” la correlazione;  
+- con i collider, condizionare la crea.  
 
-Questo valore rappresenta quanto, in media, il trattamento modifica l’attesa di $Y$. È essenziale notare che gli effetti causali sono definiti a livello di **popolazione** e possono variare tra individui o gruppi, dando origine a **effetti di trattamento eterogenei**.
+Sapere in quali casi conviene controllare una variabile e in quali no è essenziale per fare inferenza causale corretta.
 
-### Esempio: Terapia Cognitivo-Comportamentale e Ansia
 
-Consideriamo un esempio concreto: supponiamo di voler studiare l’efficacia della terapia cognitivo-comportamentale (CBT) nella riduzione dell’ansia. Se un gruppo di persone ansiose non riceve alcun trattamento, il loro livello d’ansia rimarrà invariato in media. Se invece **interveniamo** introducendo la CBT (modificando $X$ da 0 a 1), il livello medio d’ansia nel gruppo tenderà a diminuire (modificando così la distribuzione di $Y$).
+### Come si verifica l’indipendenza condizionata?
 
-Questo esempio chiarisce la distinzione tra **correlazione** e **causalità**:
+Con i dati, possiamo testare questa ipotesi in diversi modi:
 
-- Se osserviamo che le persone che fanno CBT hanno meno ansia, potremmo erroneamente concludere che la CBT è efficace. Tuttavia, la riduzione dell’ansia potrebbe essere dovuta a fattori confondenti, come la maggiore motivazione delle persone che scelgono la terapia.
-- Solo un intervento controllato (ad esempio, un esperimento randomizzato in cui è presente un **gruppo di controllo**) permette di stabilire con certezza l’effetto causale della CBT.
+- *Correlazioni parziali*: calcoliamo la correlazione tra stress e ansia *tenendo costante* il sonno.  
+  Se il modello è corretto, questa correlazione dovrebbe essere vicina a zero.  
+- *Regressioni multiple*: stimiamo una regressione dell’ansia sia sullo stress che sul sonno.  
+  Se il grafo è corretto, una volta incluso il sonno nel modello, lo stress non dovrebbe più avere un effetto significativo sull’ansia.  
+- *Test di indipendenza condizionata* (nei metodi più avanzati): procedure statistiche apposite che verificano se due variabili sono indipendenti, dati certi controlli.
 
-### Causalità Diretta e Indiretta
 
-In alcuni casi, un effetto causale può non essere **diretto**, ma manifestarsi attraverso un meccanismo intermedio. Ad esempio, l’**autoefficacia** potrebbe non influenzare direttamente le **prestazioni accademiche**, ma se un intervento aumenta l’autoefficacia, potremmo osservare un miglioramento nell’**impegno allo studio**, che a sua volta porta a migliori prestazioni. In questo caso, possiamo dire che l’autoefficacia ha un **effetto causale indiretto** sulle prestazioni accademiche.
+### Perché è importante
 
-### Causalità Probabilistica
+Questo collegamento tra *grafi causali* e *indipendenze nei dati* è il cuore dell’inferenza causale:  
 
-È importante sottolineare che una relazione causale tra $X$ e $Y$ non implica necessariamente che ogni cambiamento in $X$ porti a un cambiamento immediato o deterministico in $Y$. In molti contesti, specialmente in psicologia, le relazioni causali sono **probabilistiche**: l’intervento su $X$ altera la distribuzione di probabilità di $Y$, senza garantire un esito certo per ogni individuo. Questo approccio probabilistico è cruciale per comprendere le dinamiche causali in sistemi complessi e multifattoriali.
+- i grafi rappresentano le nostre *ipotesi teoriche*, 
+- le indipendenze condizionali ci dicono se i dati sono *compatibili* con quelle ipotesi.  
 
-**In sintesi**, l’analisi causale è uno strumento essenziale per la ricerca empirica, permettendo di andare oltre la semplice correlazione e comprendere i meccanismi che regolano i fenomeni osservati. La chiave per stabilire una relazione causale solida risiede nella progettazione di esperimenti o nell’uso di metodi statistici avanzati per identificare e correggere i possibili bias derivanti da fattori confondenti.
+Se un grafo predice un’indipendenza che nei dati non si verifica, dobbiamo concludere che il grafo (cioè la nostra ipotesi causale) è sbagliato o incompleto.
 
 
-## I Limiti dell'Osservazione
+### Da ricordare
 
-Per comprendere i limiti dell'osservazione passiva e la necessità di indagare le relazioni causali sottostanti, @hardt2022patterns citano il celebre esempio delle ammissioni ai corsi di laurea dell'Università della California, Berkeley, nel 1973. In quell'anno, 12,763 candidati furono considerati per l'ammissione in uno dei 101 dipartimenti o major interdipartimentali. Di questi, 4,321 erano donne e 8,442 erano uomini. I dati aggregati mostrano che circa il 35% delle donne fu ammesso, rispetto al 44% degli uomini. Test statistici indicano che questa differenza non è attribuibile al caso, **suggerendo una disparità nei tassi di ammissione tra i generi**.
+Quando diciamo che servono *metodi statistici appropriati*, intendiamo proprio questi strumenti (correlazioni parziali, regressioni multiple, test di indipendenza) che ci permettono di confrontare le previsioni del grafo con i dati.  In questo modo, il linguaggio dei DAG non resta un esercizio astratto, ma diventa un *ponte concreto* tra teoria psicologica e analisi empirica. In pratica, per gli psicologi, questo significa imparare a usare strumenti come regressioni multiple, correlazioni parziali e modelli di equazioni strutturali: tutti metodi che mettono alla prova le previsioni implicite dei grafi causali.
 
-Un’analisi simile si osserva considerando le decisioni **aggregate** di ammissione nei sei principali dipartimenti di UC Berkeley. Il tasso di ammissione complessivo per gli uomini era del 44%, mentre per le donne solo del 30%, una differenza statisticamente credibile.
 
-Tuttavia, poiché ogni dipartimento ha autonomia nelle decisioni di ammissione, è utile esaminare il possibile bias di genere **a livello di singolo dipartimento** (dati disaggregati).
+## Come studiare la causalità in psicologia
 
-### Analisi dei Dati Disaggregati
+Abbiamo visto che i grafi causali aiutano a rappresentare le ipotesi e che i dati possono confermarle o metterle in dubbio.  Ma come si fa, concretamente, a studiare la causalità in psicologia?
 
-**Uomini**
+### Esperimenti controllati
 
-| Dipartimento | Candidati | Ammessi (%) |
-|--------------|-----------|-------------|
-| A            | 825       | 62          |
-| B            | 520       | 60          |
-| C            | 325       | 37          |
-| D            | 417       | 33          |
-| E            | 191       | 28          |
-| F            | 373       | 6           |
+Il metodo più forte per stabilire una relazione causale è l’*esperimento*.  In un esperimento:
 
-**Donne**
+- i partecipanti vengono assegnati in modo casuale a due o più gruppi (randomizzazione);  
+- solo alcuni gruppi ricevono la manipolazione sperimentale (per esempio: una tecnica di rilassamento);
+- si confrontano i risultati nei diversi gruppi.  
 
-| Dipartimento | Candidati | Ammessi (%) |
-|--------------|-----------|-------------|
-| A            | 108       | 82          |
-| B            | 25        | 68          |
-| C            | 593       | 34          |
-| D            | 375       | 35          |
-| E            | 393       | 24          |
-| F            | 341       | 7           |
+Grazie alla randomizzazione, eventuali differenze iniziali tra i gruppi vengono “bilanciate”. In questo modo, se emergono differenze negli esiti, possiamo attribuirle con buona sicurezza alla manipolazione.
 
-Dall'analisi dei dati disaggregati emerge che, tra i sei dipartimenti più grandi, **quattro** presentano un tasso di ammissione più alto per le **donne**, mentre **due** favoriscono gli **uomini**. Tuttavia, questi due dipartimenti da soli non possono spiegare la grande differenza nei tassi di ammissione osservata nei dati aggregati. Questo suggerisce che la tendenza generale di un **tasso di ammissione più alto per gli uomini** si **inverte** quando si analizzano i dati suddivisi per dipartimento.
 
-### La Vera Ragione della Differenza nei Tassi di Ammissione
+### Quasi-esperimenti
 
-L'analisi di questi dati suggerisce che l'apparente svantaggio per le donne **non derivava da una discriminazione diretta nei criteri di selezione**, ma piuttosto da una **scelta differente dei corsi di studio**. In generale, le donne tendevano a candidarsi per dipartimenti con un numero elevato di concorrenti e tassi di ammissione più bassi (come lettere o psicologia), mentre gli uomini erano più propensi a fare domanda per dipartimenti con tassi di accettazione più alti (come ingegneria o fisica).
+Spesso però, in psicologia, non possiamo randomizzare i partecipanti.  Per esempio: non possiamo decidere chi subisce un trauma o chi sviluppa un disturbo.  In questi casi si ricorre ai *quasi-esperimenti*, in cui cerchiamo di avvicinarci il più possibile alla logica sperimentale usando:
 
-Questa dinamica riflette **differenze sistemiche e strutturali** nei percorsi educativi e professionali, più che una discriminazione esplicita nei criteri di ammissione. Lo studio originale evidenzia che **le donne erano spesso indirizzate, fin dalla scuola, verso campi di studio con meno finanziamenti, prospettive di carriera più limitate e tassi di completamento inferiori**.
+- gruppi di confronto selezionati con attenzione,  
+- misure ripetute prima e dopo un evento,  
+- tecniche statistiche per ridurre le differenze iniziali tra gruppi.
 
-La vera forma di discriminazione, dunque, non risiedeva nelle politiche di ammissione di UC Berkeley, ma in una **cultura che alimentava aspettative diverse in base al genere**, influenzando le scelte accademiche e professionali delle donne sin dall’infanzia.
 
-### Perché il Paradosso di Simpson Inganna?
+### Studi osservativi
 
-Il **paradosso di Simpson** (che si manifesta nei dati sulle ammissioni ai corsi di laurea dell’Università della California, Berkeley, nel 1973) mette in luce un errore comune: **assumere che una tendenza osservata nei dati aggregati sia necessariamente valida a livello di sottogruppi**. L'intuizione ci porta a credere che, se nel complesso le donne hanno un tasso di ammissione più basso, questo debba essere vero anche per ciascun dipartimento. In realtà, il paradosso dimostra che **le statistiche aggregate possono essere fuorvianti** se non si tiene conto della distribuzione interna dei dati.
+Infine, gran parte della ricerca psicologica si basa su *studi osservativi*, in cui registriamo ciò che accade naturalmente, senza manipolare nulla.  Qui il problema del confondimento è particolarmente serio: dobbiamo usare modelli statistici e controlli accurati per cercare di distinguere tra correlazione e causalità.
 
-Questo caso ci ricorda anche l'importanza di distinguere tra **correlazione e causalità**. Osservare un dato (meno donne ammesse) non implica automaticamente una causa (discriminazione diretta). Solo un'analisi più approfondita, che consideri le scelte individuali e le strutture socio-culturali di riferimento, può portare a conclusioni più accurate.
+---
 
-**In sintesi**, i dati delle ammissioni a UC Berkeley **non dimostrano necessariamente una discriminazione di genere diretta**, ma sollevano questioni più ampie sulle differenze nei percorsi accademici di uomini e donne. Per comprendere realmente il fenomeno, servirebbero studi più approfonditi, capaci di analizzare le cause profonde di queste scelte educative. L’**inferenza causale** è uno strumento fondamentale in questo processo, poiché permette non solo di selezionare le variabili chiave da analizzare, ma anche di formulare spiegazioni più solide e plausibili.
+In sintesi, possiamo dire che:  
 
-## Come Scoprire le Relazioni Causali?
+- gli esperimenti sono lo strumento più solido per l’inferenza causale,  
+- i quasi-esperimenti sono un compromesso utile quando la randomizzazione non è possibile,  
+- gli studi osservativi richiedono grande cautela e modelli ben costruiti per trarre conclusioni causali.  
 
-Il metodo più rigoroso per identificare relazioni causali è rappresentato dagli **studi randomizzati controllati** (RCT, Randomized Controlled Trials). La randomizzazione, ovvero l'assegnazione casuale dei partecipanti ai gruppi di trattamento e controllo, assicura che l’influenza di eventuali **variabili confondenti** sia equamente distribuita tra i gruppi. Di conseguenza, se dopo l'intervento si osserva una differenza sistematica tra i gruppi, questa può essere attribuita con elevata probabilità all’effetto del **trattamento**, poiché tutte le altre fonti di variazione sono state bilanciate grazie alla randomizzazione.
 
-Gli RCT sono considerati il **gold standard** per l’inferenza causale, ma presentano alcuni limiti. In molti casi, l'implementazione di un esperimento controllato è impossibile per **vincoli etici o pratici**. Ad esempio, non si può randomizzare l'esposizione a fattori di rischio nocivi o imporre determinate condizioni di vita ai partecipanti. Inoltre, le condizioni sperimentali sono spesso **artificiali**, il che pone un problema di **validità esterna**: i risultati ottenuti in un contesto controllato potrebbero non generalizzarsi a contesti reali.
+## Strategie statistiche per affrontare il confondimento
 
-Quando gli RCT non sono praticabili, i ricercatori ricorrono a **disegni osservazionali**, che offrono maggiore flessibilità e adattabilità ai contesti naturali. Tuttavia, il principale limite di questi studi è la difficoltà nell’**identificazione causale**, poiché l’assenza di randomizzazione espone i risultati al rischio di **bias da confondimento**. Per affrontare questa sfida, vengono adottate tecniche statistiche avanzate che permettono di avvicinarsi a stime causali più affidabili.
+Quando non possiamo condurre esperimenti, dobbiamo cercare di “imitare” le condizioni sperimentali con strumenti statistici.  Queste tecniche non eliminano del tutto il problema del confondimento, ma ci aiutano a ridurne l’impatto.
 
-### Variabili Confondenti
+### Regressione
 
-Le **variabili confondenti** rappresentano uno degli ostacoli principali nell'analisi causale. Una variabile confondente è un fattore che influenza sia la variabile indipendente ($X$) sia la variabile dipendente ($Y$), generando un'associazione spuria tra le due. In altre parole, la relazione osservata tra $X$ e $Y$ potrebbe non riflettere un nesso causale diretto, ma essere il risultato dell’influenza esercitata da una terza variabile.
+Il metodo più semplice e diffuso è la *regressione*.  Inserendo nella regressione variabili che potrebbero agire come confondenti, possiamo stimare l’effetto di una variabile indipendente “a parità di” altre condizioni.  
 
-Negli studi osservazionali, se le variabili confondenti non vengono adeguatamente identificate e controllate, possono introdurre **bias** nelle stime degli effetti, portando a conclusioni errate. In assenza di un disegno sperimentale controllato, **ciò che si osserva nei dati potrebbe non corrispondere a ciò che accadrebbe se si potesse manipolare direttamente $X$ in un esperimento randomizzato**.
+**Esempio**: se vogliamo studiare l’effetto dell’uso dei social media sul benessere psicologico, possiamo includere anche la solitudine come predittore. In questo modo, l’effetto stimato dei social media sarà corretto per le differenze di solitudine tra le persone.
 
-### Approcci per il Controllo delle Variabili Confondenti
+### Matching
 
-Per stabilire relazioni causali affidabili, è fondamentale distinguere gli effetti della variabile indipendente ($X$) da quelli delle **variabili confondenti** ($Z$), che potrebbero generare associazioni spurie. Se le variabili confondenti non vengono adeguatamente controllate, possono introdurre bias nelle stime degli effetti e compromettere la validità delle conclusioni tratte dai dati osservazionali. Esistono due approcci principali per affrontare questo problema:
+Un’altra strategia è il *matching*: si confrontano persone simili tra loro per tutte le caratteristiche rilevanti, tranne che per la variabile di interesse.  Per esempio, possiamo confrontare studenti che usano molto i social con altri che li usano poco, ma che sono simili per età, genere, rendimento scolastico e livello di solitudine.
 
-1. **Controllo sperimentale**: Questo metodo viene implementato attraverso il disegno dello studio e si basa sulla **randomizzazione**, che assicura una distribuzione casuale delle variabili confondenti tra il gruppo di trattamento e il gruppo di controllo. In questo modo, ogni differenza osservata tra i gruppi dopo il trattamento può essere attribuita con maggiore certezza all’intervento, poiché tutte le altre fonti di variazione sono bilanciate in media.
-2. **Controllo statistico**: Quando la randomizzazione non è possibile, è necessario applicare tecniche statistiche per correggere il bias da confondimento. Questo approccio mira a stimare l’effetto causale di $X$ su $Y$ eliminando l’influenza di eventuali variabili confondenti attraverso modelli appropriati.
+### Variabili strumentali
 
-#### Controllo Statistico e le sue Sfide
+Quando una variabile di confondimento non è osservata o non può essere misurata, anche i metodi di regressione non bastano.  In questi casi, una possibile strategia è usare una *variabile strumentale* (IV, *instrumental variable*).
 
-Uno dei metodi più comuni per il controllo statistico delle variabili confondenti è il **condizionamento** su $Z$. Questo implica stimare l'effetto di $X$ su $Y$ all'interno di ciascun livello della variabile confondente $Z$, per poi calcolare una media ponderata dell’effetto su tutta la popolazione. Tuttavia, questo approccio presenta due sfide fondamentali:
+#### Cos’è una variabile strumentale?
 
-1. **Identificazione delle variabili confondenti**: È necessario conoscere e includere tutte le possibili variabili confondenti nel modello. Tuttavia, alcune potrebbero essere sconosciute o latenti, rendendo incompleto il controllo del confondimento.
-2. **Accuratezza della misurazione**: Anche quando le variabili confondenti sono note, la loro misurazione potrebbe essere imprecisa o soggetta a errori, compromettendo la validità dell’analisi e introducendo ulteriore bias.
+Una variabile $Z$ è un buon strumento per stimare l’effetto di $X$ su $Y$ se rispetta due condizioni:
 
-Per ovviare a questi problemi, vengono impiegate tecniche avanzate di controllo statistico, come:
+1. *Rilevanza*: $Z$ influenza $X$.  
+2. *Esogeneità*: $Z$ non influenza $Y$ direttamente, né è correlata con i confondenti di $X$ e $Y$.
 
-- **Regressione multipla**: Include le variabili confondenti come covariate in un modello di regressione per stimare l'effetto netto di $X$ su $Y$.
-- **Propensity Score Matching (PSM)**: Confronta individui con caratteristiche simili nei gruppi di trattamento e controllo, riducendo il bias da confondimento.
-- **Stratificazione**: Suddivide il campione in sottogruppi omogenei rispetto alle variabili confondenti e stima l'effetto del trattamento all’interno di ciascun sottogruppo.
+In altre parole, lo strumento agisce come una “fonte di variazione casuale” di $X$, che possiamo sfruttare per stimare il suo effetto su $Y$.
 
-#### Inferenza Causale nei Dati Osservazionali
+#### Perché serve?
 
-L’assenza di randomizzazione negli studi osservazionali ha portato alla famosa affermazione **"la correlazione non implica causalità"**. Tuttavia, questo non significa che l'inferenza causale sia impossibile senza esperimenti controllati. Esistono metodi statistici che permettono di affrontare il problema del confondimento e avvicinarsi a stime causali più affidabili. Tra questi:
+Immagina di voler stimare l’effetto delle *ore di sonno* ($X$) sul *rendimento a un test* ($Y$).  Il problema è che la motivazione ($U$) è un confondente: studenti più motivati tendono a dormire meglio *e* a ottenere voti più alti. Se non possiamo misurare la motivazione, la regressione non ci aiuta.
 
-- **Grafi Aciclici Diretti (DAG)**: Strumenti grafici che rappresentano le relazioni causali tra variabili e aiutano a identificare le variabili confondenti che devono essere controllate.
-- **Modelli Causali Strutturali (SCM)**: Formalismi matematici che descrivono le relazioni causali e stabiliscono le condizioni necessarie per l’identificazione degli effetti.
-- **Differenze-differenze (DiD)**: Metodo che confronta l’evoluzione di $Y$ prima e dopo il trattamento in gruppi esposti e non esposti, controllando per le tendenze temporali comuni.
-- **Variabili strumentali (IV)**: Tecnica che utilizza una variabile esogena correlata con $X$ ma non direttamente con $Y$, per isolare la parte di variazione di $X$ non influenzata da confondenti.
-- **Regressione discontinua (RD)**: Metodo che sfrutta soglie arbitrarie per identificare effetti causali in situazioni quasi-sperimentali.
+#### Come interviene lo strumento
 
-**In sintesi**, le variabili confondenti rappresentano una delle principali sfide nell'inferenza causale da dati osservazionali. Tuttavia, lo sviluppo di tecniche avanzate di analisi causale consente di ridurre il rischio di bias e migliorare l’affidabilità delle stime. Sebbene nessun metodo osservazionale possa replicare perfettamente i benefici della randomizzazione, l’utilizzo di strumenti come DAG, SCM e tecniche di identificazione causale permette di ottenere risultati più solidi e interpretabili. L’adozione di questi approcci è fondamentale per garantire che le conclusioni tratte dai dati osservazionali siano quanto più possibile accurate e prive di distorsioni.
+Supponiamo di scoprire che il *rumore notturno vicino alla residenza universitaria* ($Z$) influenza quante ore di sonno gli studenti riescono a fare ($X$), ma non influisce direttamente sul loro rendimento ($Y$).  
 
-## Modelli Causali Strutturali
+- $Z$ → influenza il sonno ($X$).  
+- $Z$ non ha effetti diretti su rendimento, né è legato alla motivazione ($U$).  
 
-I **modelli causali strutturali** (*Structural Causal Models*, SCM) sono strumenti fondamentali per l'inferenza causale nei dati osservazionali. Essi permettono di rappresentare il processo generativo sottostante a un fenomeno e di prevedere gli effetti di un intervento. Oltre a descrivere le relazioni causali tra variabili, gli SCM consentono di esplorare scenari **controfattuali**, ovvero ipotetiche alternative a ciò che è stato osservato, offrendo un quadro formale per rispondere a domande del tipo *cosa sarebbe successo se...?*
+In questo caso, il rumore agisce come *strumento*: possiamo usare la variazione di sonno “indotta dal rumore” per stimare l’effetto causale del sonno sul rendimento.
 
-### Struttura di un Modello Causale Strutturale
 
-Un SCM è definito da un insieme di equazioni strutturali che descrivono come ciascuna variabile dipende causalmente dalle altre. Il modello è composto da:
+#### Da ricordare
 
-- **Variabili esogene**: Fonti di variazione esterne al sistema modellato, che non dipendono da nessuna altra variabile del modello.
-- **Variabili endogene**: Determinate dalle equazioni del modello e influenzate da altre variabili all’interno dello stesso.
-- **Relazioni causali esplicite**: Specificate attraverso funzioni matematiche che descrivono i meccanismi di generazione dei dati.
+- Le variabili strumentali sono molto potenti, ma *difficili da trovare*: serve una variabile che influenzi solo la causa e non l’effetto.  
+- Quando c’è, però, ci permette di “simulare” un esperimento naturale, isolando una fonte quasi-casuale di variazione nella variabile di interesse.
 
-Il processo di costruzione di un SCM segue una logica ben definita: si parte dalle variabili esogene e, attraverso una serie di assegnazioni, si generano le variabili endogene, costruendo progressivamente una distribuzione congiunta delle variabili osservate.
+Nella pratica psicologica, strumenti così puliti sono rari: l’idea serve più a capire il principio che a trovare sempre uno strumento perfetto.
 
-### Vantaggi degli SCM
+---
 
-Uno degli aspetti distintivi degli SCM è la loro duplice funzione:
+Queste tecniche non sostituiscono l’esperimento, ma rappresentano strumenti preziosi per trarre conclusioni causali quando siamo limitati a dati osservativi.
 
-1. **Descrivono il processo generativo** dei dati, rendendo esplicite le ipotesi sui meccanismi causali.
-2. **Inducono una distribuzione probabilistica congiunta**, consentendo l’analisi sia delle relazioni statistiche tra le variabili sia delle connessioni causali sottostanti.
 
-Questa struttura consente di superare i limiti dei modelli puramente correlazionali, offrendo un framework solido per distinguere tra causalità e semplice associazione.
+## Un esempio numerico di confondimento
 
-### Rappresentazione Grafica: DAG
+Immaginiamo di voler stimare se lo *studio pomeridiano* ($X$) migliora il *rendimento a un test* ($Y$). Supponiamo però che esista una variabile di confondimento: la *motivazione* ($U$).
 
-Gli SCM sono spesso rappresentati graficamente tramite **Grafi Aciclici Diretti** (*Directed Acyclic Graphs*, DAG). Un DAG è una rete di nodi (variabili) e archi direzionati che indicano relazioni causali. Questa rappresentazione:
+- Gli studenti molto motivati tendono sia a studiare più spesso nel pomeriggio ($X$), sia ad avere voti più alti ($Y$).  
+- Se non controlliamo per la motivazione, potremmo concludere che il semplice studiare nel pomeriggio causi voti migliori.
 
-- facilita l’individuazione delle variabili confondenti e dei percorsi di causalità indiretti;
-- aiuta a identificare strategie per il controllo del confondimento, come il criterio di separazione (*d-separation*);
-- permette di determinare se un effetto causale è identificabile o se è necessario raccogliere dati aggiuntivi.
+Ecco dei dati simulati:
 
-**In sintesi**, gli SCM rappresentano un’evoluzione rispetto ai modelli statistici tradizionali, poiché incorporano esplicitamente informazioni sulle relazioni causali. L'uso combinato di equazioni strutturali e rappresentazioni grafiche tramite DAG consente di affrontare problemi di confondimento, identificare effetti causali e analizzare scenari controfattuali con maggiore rigore rispetto a modelli puramente correlazionali. 
+```{r}
+set.seed(123)
+n <- 200
+motivazione <- rbinom(n, 1, 0.5) # 0 = bassa, 1 = alta
+studio <- rbinom(n, 1, 0.3 + 0.4*motivazione) # più motivati studiano più spesso
+rendimento <- rbinom(n, 1, 0.2 + 0.5*motivazione) # motivazione influenza il voto
 
-L’adozione di SCM è particolarmente utile nei dati osservazionali, dove la mancanza di randomizzazione rende necessaria una modellazione esplicita delle relazioni causali per ottenere inferenze affidabili.
+table(studio, rendimento)
+```
 
-## Bias da Variabile Omessa
+Se confrontiamo il rendimento *senza considerare la motivazione*, otteniamo:
 
-L'**omissione di variabili confondenti** rappresenta una delle principali fonti di distorsione nelle stime statistiche. Il *bias da variabile omessa* [*Omitted Variable Bias*, OVB; @wilms2021omitted] si verifica quando una variabile confondente, nota ma non misurata, o sconosciuta, viene esclusa dall’analisi, alterando la stima dell’effetto causale. Come evidenziato da @byrnes2024causal, l'OVB può portare a stime distorte della magnitudine degli effetti, inversioni del segno delle stime, correlazioni spurie e al mascheramento di reali relazioni causali.
+```{r}
+prop.table(table(studio, rendimento), 1)
+```
 
-Un’illustrazione di questa problematica è mostrata nella @fig-byrnes-dee-1, che rappresenta tre scenari diversi in cui una variabile non osservata ($U$) può influenzare un modello causale:
+Sembra che chi studia nel pomeriggio abbia risultati migliori. Ma in realtà, l’effetto non dipende dallo studio, bensì dalla *motivazione*, che è il vero fattore causale. Solo controllando per $U$ (ad esempio con una regressione) possiamo separare l’effetto reale da quello spurio.
 
-- **Pannello di sinistra**: La variabile non osservata $U$ non è correlata con la variabile indipendente $X$, quindi la sua omissione non introduce bias nella stima dell'effetto di $X$ su $Y$, ma può ridurre la precisione del modello aumentando l'errore standard della stima.
-- **Pannello centrale**: La variabile non osservata $U$ è una variabile confondente, poiché influenza sia $X$ che $Y$. La sua omissione causa bias nella stima dell’effetto di $X$ su $Y$, alterando le conclusioni causali.
-- **Pannello di destra**: $U$ e $X$ sono entrambi influenzati da un fattore comune $Z$, generando un **confondimento indiretto**. In questo caso, omettere $U$ introduce distorsione nella stima dell’effetto di $X$ su $Y$.
+### Cosa impariamo
 
-::: {#fig-byrnes-dee-1}
-![](../../figures/byrnes_dee_fig1.png){width="80%"}
+Questo esempio numerico mostra in pratica ciò che i *DAG* ci aiutano a visualizzare:  
 
-La figura mostra come l’omissione di una variabile confondente possa o meno introdurre bias nella stima dell’effetto di $X$ su $Y$. Nel **pannello di sinistra**, $X$ e $U$ sono indipendenti, quindi la mancata inclusione di $U$ non altera la stima dell'effetto di $X$ su $Y$, ma riduce la precisione del modello. Nel **pannello centrale**, $U$ influenza sia $X$ che $Y$, generando un bias da variabile omessa. Nel **pannello di destra**, $X$ e $U$ sono correlati tramite un fattore comune $Z$, creando un confondimento indiretto. In entrambi questi ultimi casi, il controllo delle variabili confondenti è essenziale per effettuare inferenze causali affidabili. La figura è ispirata da @byrnes2024causal.
-:::
+- quando esiste una *variabile di confondimento* (come la motivazione), si crea un percorso “indiretto” tra la causa ipotizzata ($X$, lo studio) e l’effetto ($Y$, il rendimento);  
+- questo percorso indiretto può dare l’illusione di un effetto causale anche quando non c’è.  
 
-### Superare il Bias da Variabile Omessa con gli SCM
+In letteratura, questi percorsi indesiderati sono chiamati *percorsi back-door*: collegamenti che partono “da dietro” la variabile di interesse ($X$) e portano a $Y$ passando per un’altra variabile.  
 
-Affrontare il bias da variabile omessa è una delle sfide principali nell’inferenza causale dai dati osservazionali. A differenza dell’errore di misurazione nelle variabili predittive, che tende a ridurre l’ampiezza delle stime senza necessariamente invertirne il segno [@McElreath_rethinking; @schennach2016recent], il bias da variabile omessa può alterare in modo imprevedibile le stime, rendendole fuorvianti.
+Per ottenere una stima corretta dell’effetto causale, dobbiamo *bloccare* questi percorsi, cioè tenerne conto nell’analisi. Possiamo farlo in diversi modi: 
 
-Nonostante queste difficoltà, i dati osservazionali possono comunque essere utilizzati per l’inferenza causale, a condizione che vengano applicate strategie adeguate. L’adozione dei **modelli causali strutturali (SCM)** consente di esplicitare il meccanismo generativo sottostante ai dati, permettendo di modellare le relazioni tra variabili e di controllare il confondimento in modo più rigoroso.
+- includendo la variabile di confondimento in una regressione,  
+- selezionando gruppi di confronto simili (matching),  
+- oppure, idealmente, usando la randomizzazione sperimentale, che rende i gruppi equivalenti su fattori non osservati.
 
-### Il Ruolo della Modellazione Esplicita
-
-L’uso degli SCM non elimina del tutto il problema delle variabili omesse, ma offre un quadro concettuale per affrontarlo. Questo approccio ha due vantaggi principali:
-
-1. **Esplicitazione del modello generativo**: Un SCM rende trasparente la struttura causale ipotizzata e permette di individuare le variabili mancanti che potrebbero influenzare le stime.
-2. **Possibilità di affinamento progressivo**: Ogni nuova evidenza empirica può essere utilizzata per migliorare il modello, testando ipotesi alternative e perfezionando la comprensione dei meccanismi causali sottostanti.
-
-**In sintesi**, l’inferenza causale non può basarsi esclusivamente su correlazioni osservate tra variabili, poiché il confondimento dovuto a variabili omesse può distorcere le stime. L’utilizzo di modelli causali strutturali, supportati dall’analisi tramite DAG, consente di ridurre questi problemi e di formulare inferenze più affidabili. Sebbene nessun modello possa garantire conclusioni definitive, la costruzione di un quadro causale esplicito favorisce il progresso scientifico, permettendo di testare, correggere e affinare le ipotesi sui meccanismi che regolano i fenomeni psicologici.
-
-## Grafi Aciclici Diretti
-
-I **Grafi Aciclici Diretti** (*Directed Acyclic Graphs*, DAG) sono strumenti fondamentali per rappresentare e analizzare relazioni causali. Offrono una rappresentazione visiva chiara delle ipotesi sui meccanismi causali e aiutano a identificare le variabili confondenti da controllare per ottenere stime causali affidabili.
-
-Un **DAG** è un grafo in cui:
-
-- i **nodi** rappresentano le variabili coinvolte nel fenomeno studiato;
-- le **frecce direzionate** tra i nodi indicano relazioni causali;
-- il grafo è **aciclico**, il che significa che non si possono formare cicli: non esiste un percorso chiuso che permetta di tornare a un nodo di partenza seguendo le frecce.
-
-### Terminologia nei DAG
-
-- Un nodo $X$ con una freccia diretta verso un altro nodo $Y$ indica che **$X$ causa $Y$**.
-- Il nodo che origina una freccia è detto **genitore**, mentre quello di destinazione è detto **figlio**.
-- Se esiste un percorso tra un nodo $A$ e un nodo $B$, $A$ è detto **antenato** di $B$, e $B$ è un **discendente** di $A$.
-
-Questa struttura permette di distinguere tra **cause dirette e indirette**: una causa diretta è un nodo genitore, mentre una causa indiretta è un qualsiasi antenato lungo un percorso nel grafo.
-
-I DAG sono particolarmente utili per l'**identificazione delle variabili confondenti** e per stabilire quali variabili devono essere controllate per ottenere inferenze causali non distorte.
-
-### La d-separazione
-
-La **d-separazione** è una regola che ci permette di capire se due variabili in un DAG sono **indipendenti** una volta che si è controllato per un insieme di altre variabili. In termini semplici, ci aiuta a rispondere alla domanda: *possiamo dire che due variabili non sono collegate dopo aver considerato certe informazioni?*
-
-Immaginiamo un DAG come un sistema di **percorsi attraverso cui scorre l’informazione**. Se due variabili sono collegate da un percorso aperto, significa che possono influenzarsi a vicenda, direttamente o indirettamente. Se invece il percorso è bloccato, l’informazione non può passare e possiamo considerarle indipendenti. La d-separazione ci indica quando un percorso è aperto e quando è bloccato.
-
-Per determinare se due variabili sono indipendenti, si deve controllare il percorso che le collega nel DAG e verificare se ci sono **ostacoli** che ne impediscono il flusso informativo. Un percorso può essere bloccato in tre modi principali:
-
-1. **Catena ($X$ → $Z$ → $Y$)**: Il nodo intermedio ($Z$) è un **mediatore**. Se si controlla per $Z$, il flusso di informazioni tra $X$ e $Y$ viene interrotto, rendendole indipendenti.
-2. **Fork ($X$ ← $Z$ → $Y$)**: $Z$ è una **causa comune** di $X$ e $Y$. Se si controlla per $Z$, si elimina la correlazione spuria tra $X$ e $Y$, bloccando il percorso.
-3. **Collider ($X$ → $Z$ ← $Y$)**: $Z$ è un **effetto comune** di $X$ e $Y$. Se non si controlla per $Z$, il percorso è già bloccato e $X$ e $Y$ sono indipendenti. **Attenzione!** Controllare per $Z$ (o per una sua conseguenza) apre il percorso e introduce una correlazione spuria tra $X$ e $Y$.
-
-La d-separazione è cruciale perché ci permette di **leggere direttamente dal DAG quali variabili dobbiamo controllare per ottenere inferenze causali affidabili**, senza dover fare complessi calcoli probabilistici. 
-
-### Il Criterio del Back-Door e la d-separazione
-
-Il **criterio del back-door** è strettamente legato alla d-separazione e serve a identificare un insieme di variabili da controllare per ottenere una stima non distorta dell'effetto causale di $X$ su $Y$.
-
-Un **back-door path** è un percorso tra $X$ e $Y$ che inizia con una freccia entrante in $X$. Questo tipo di percorso rappresenta una **fonte di confondimento** che deve essere bloccata per stimare correttamente l'effetto causale di $X$ su $Y$.
-
-#### Come bloccare i percorsi back-door
-
-1. **Se il percorso contiene una catena ($X$ ← $A$ → $B$ → $Y$), si blocca condizionando su una delle variabili intermedie ($A$ o $B$).**
-2. **Se il percorso contiene un collider ($X$ → $Z$ ← $Y$), il percorso è già bloccato e non bisogna condizionare su $Z$.**
-3. **Se il percorso contiene un fork ($X$ ← $Z$ → $Y$), il percorso si blocca condizionando su $Z$.**
-
-### Relazione tra d-separazione e il criterio del back-door
-
-La d-separazione ci permette di determinare se esiste un **percorso aperto** tra $X$ e $Y$. Se vogliamo stimare un effetto causale, dobbiamo assicurarci che tra $X$ e $Y$ **esista solo il percorso causale diretto** e che tutti gli altri percorsi (in particolare i back-door paths) siano bloccati. 
-
-Quindi:
-
-- se due variabili risultano **d-separate dopo aver condizionato su un insieme di variabili di controllo**, significa che ogni percorso non causale tra di esse è stato bloccato, permettendo un’interpretazione causale dell’effetto stimato;
-- se invece esistono percorsi back-door non bloccati, la stima dell’effetto causale sarà distorta a causa della presenza di confondimento.
-
-**In sintesi**, l’uso dei **DAG** consente di visualizzare in modo chiaro le relazioni causali tra le variabili e di determinare quali percorsi devono essere chiusi per ottenere inferenze non distorte. Strumenti come la **d-separazione** e il **criterio del back-door** permettono di evitare errori comuni nell’analisi causale e di migliorare la validità delle stime statistiche. L'adozione di questi metodi è essenziale per garantire che le conclusioni tratte dai dati osservazionali siano affidabili e prive di bias.
-
-### Applicazioni
-
-Consideriamo la struttura causale illustrata nella @fig-byrnes-dee-1, pannello centrale. Dopo aver costruito un **DAG** come descritto nella sezione precedente, possiamo identificare le possibili fonti di bias da variabili omesse, incluse quelle **non misurate** (ad esempio, $U$). Se una variabile confondente non viene inclusa nell'analisi, si apre un **back-door path**, permettendo alla variazione confondente di influenzare la relazione tra la variabile causale e la variabile di risposta attraverso un percorso non controllato [@pearl2009causality].
-
-In altre parole, omettere una variabile confondente come $U$ nella @fig-byrnes-dee-1 (pannello centrale) implica che la sua influenza venga incorporata nel termine di errore del modello statistico, insieme ad altre fonti di errore casuali. Questo può distorcere la stima dell'effetto causale di $X$ su $Y$.
-
-La @fig-byrnes-dee-2 illustra le conseguenze di un confondente $U$ che ha un effetto positivo su $X$ ma un effetto negativo su $Y$:
-
-- **Se controlliamo per $U$**, come mostrato nella @fig-byrnes-dee-2 (Bi), l'effetto stimato di $X$ su $Y$ riflette la relazione causale effettiva.
-- **Se non controlliamo per $U$**, come mostrato nella @fig-byrnes-dee-2 (Bii), $U$ viene inglobato nel termine di errore, creando una correlazione spuriosa tra l'errore e $X$ (@fig-byrnes-dee-2, Biii). Questo induce una stima distorta dell'effetto di $X$ su $Y$, evidenziata in blu.
-
-L'omissione di una variabile indipendente che è correlata con altre variabili indipendenti nel modello e che ha un effetto diretto su $Y$ costituisce un **errore di specificazione**. Nei modelli lineari, questa omissione **viola un'ipotesi fondamentale del teorema di Gauss-Markov**, secondo cui il termine di errore deve essere incorrelato con le variabili esplicative. Di conseguenza, la stima dell'effetto causale di $X$ su $Y$ risulta distorta, compromettendo l'affidabilità dell'analisi.
-
-
-::: {#fig-byrnes-dee-2}
-
-![](../../figures/fig-byrnes-dee-2.png){width="100%"}
-
-**Una visualizzazione del bias da variabile omessa e delle conseguenze per l'inferenza causale.** (A) mostra un DAG di un sistema in cui $X$ ha un effetto positivo su $Y$, e una variabile confondente U ha un effetto positivo su $Y$ ma un effetto negativo su $X$. Le variabili non osservate (cioè non misurate) sono rappresentate in ellissi, come la variabile U e il termine di errore e nel pannello B. (B) illustra diverse stime del DAG in (A) utilizzando un'analisi del percorso. Vedi Bo$X$ 1 per una breve spiegazione delle principali differenze tra DAG e diagrammi dei percorsi. Presumiamo che U non sia misurata. In (Bi), presumiamo di poter misurare e controllare U, rappresentata dalla freccia a doppia testa tra U e $X$, che rappresenta la correlazione tra le due variabili considerata dal modello. La variabile non misurata e è la fonte residua di variazione che si presume non sia correlata con nessun predittore. La freccia rossa rappresenta il percorso stimato. Al contrario, (Bii) e (Biii) rappresentano la realtà, dove non abbiamo una misurazione di U e non la controlliamo nel modello dei percorsi. Il ricercatore pensa di adattare il modello in (Bii) ma in realtà sta adattando il modello in (Biii), dove il termine di errore non è solo e, ma la somma di e e la variazione dovuta alla variabile omessa U. A causa di ciò, c'è un percorso diretto dal termine di errore del modello a $X$ (e quindi $X$ è endogeno). (C) mostra le relazioni stimate risultanti dai modelli in (Bi) rispetto a (Bii). Le linee rappresentano la relazione stimata tra $X$ e $Y$ dai rispettivi modelli. La linea rossa è la vera relazione causale, stimata da (Bi), mentre la linea blu contiene il bias da variabile omessa, poiché non si tiene conto della variabile confondente U, come stimato dal modello in Bii/Biii (Figura tratta da @byrnes2024causal).
-:::
-
-## Le Pratiche Scientifiche per Inferire la Causalità
-
-In qualsiasi sistema complesso, possiamo osservare la distribuzione congiunta di due variabili, $X$ e $Y$, ma determinare se $X$ causa $Y$, se $Y$ causa $X$, o se una terza variabile $Z$ influenza entrambe, è un problema complesso (Salmon, 1984). Questa difficoltà è alla base del dibattito filosofico sulla causalità e ha stimolato lo sviluppo di metodi scientifici rigorosi per decifrare i meccanismi causali. Ad esempio, per stabilire se la terapia cognitivo-comportamentale (CBT) riduce i sintomi di ansia o se l'attivazione di un neurone influenza il comportamento, è necessario adottare pratiche scientifiche che distinguano la correlazione dalla causalità.
-
-### Il Framework Interventista di Judea Pearl
-
-Il lavoro di Judea Pearl ha rivoluzionato la formalizzazione dell'inferenza causale introducendo l'operatore *"do"*, che distingue tra correlazione osservata e causalità determinata da un **intervento attivo** [ricordiamo il punto di vista di @hardt2022patterns descritto in precedenza]. La probabilità condizionale tradizionale, $p(Y \mid X)$, descrive l'associazione tra due variabili, ma non implica necessariamente causalità. L'operatore *do*, invece, introduce il concetto di intervento forzato: $p(Y \mid do(X))$ rappresenta la probabilità di $Y$ quando $X$ viene manipolato direttamente [@pearl2009causality].
-
-Ad esempio, osservare che i pazienti che partecipano alla CBT tendono a mostrare una riduzione dell'ansia non è sufficiente per concludere che la CBT ne sia la causa. Il problema è che la decisione di seguire la CBT potrebbe dipendere da fattori come il livello di gravità dell'ansia, lo stato socioeconomico o la predisposizione genetica, che possono influenzare sia la scelta di intraprendere la terapia sia la variazione nei sintomi.
-
-Utilizzando un modello causale strutturale (SCM) completo, possiamo esprimere formalmente le relazioni tra le variabili e determinare se l'effetto di $X$ su $Y$ può essere identificato, ovvero stimato correttamente dai dati. L'operatore *do* ci consente di rispondere alla domanda: "Cosa accadrebbe se tutti i pazienti seguissero la CBT indipendentemente da altri fattori?". In pratica, uno SCM ben specificato permette di controllare statisticamente le variabili di disturbo e di rimuovere i percorsi di confondimento, simulando una condizione sperimentale in cui l’assegnazione al trattamento è indipendente da fattori che influenzano sia la terapia sia l’outcome.
-
-Questa capacità di simulare interventi e stimare effetti causali è ciò che distingue i modelli causali strutturali dagli approcci puramente correlazionali e permette di ottenere inferenze più affidabili **anche in assenza di esperimenti randomizzati**.
-
-### Tre Fonti di Conoscenza Causale
-
-Alla luce delle considerazioni precedenti, possiamo individuare tre fonti fondamentali per inferire la causalità. 
-
-1. **Esperimenti Randomizzati Controllati (RCT).** Gli RCT rappresentano il metodo più affidabile per stabilire relazioni causali, assegnando casualmente i partecipanti a gruppi di trattamento e controllo. Questo processo minimizza l'influenza di confondenti e garantisce stime non distorte dell'effetto di un intervento. Ad esempio, per verificare se il sonno migliora la memoria, possiamo assegnare casualmente alcuni volontari a dormire 8 ore e altri a restare svegli prima di un test cognitivo. Questo approccio elimina l'influenza di fattori come l'età o il livello di stress, consentendo di attribuire le differenze di performance esclusivamente alla quantità di sonno.
-
-2. **Conoscenza Specifica del Dominio.** In discipline come la psicologia e le neuroscienze, la conoscenza specialistica permette di formulare ipotesi causali informate. Ad esempio, sebbene un semplice movimento della mano non causi direttamente l'accensione di una luce, sappiamo che chiudere un interruttore completa un circuito elettrico. Questa comprensione ci guida nella progettazione di esperimenti e nell'interpretazione dei risultati. Un esempio in neuroscienze è il ruolo dell'amigdala nella risposta alla paura. Studi su pazienti con danni all'amigdala mostrano una ridotta capacità di riconoscere espressioni di paura, suggerendo un legame causale tra l'attività dell'amigdala e la regolazione della paura. Allo stesso modo, la scoperta dell’afasia di Broca ha dimostrato il ruolo causale dell’area di Broca nella produzione del linguaggio. Questa conoscenza permette di formulare ipotesi precise anche in assenza di RCT, come nel caso di studi clinici su pazienti con condizioni neurologiche rare.
-
-3. **Prove Cumulative e Consenso Scientifico.**  La conoscenza scientifica avanza attraverso la validazione collettiva dei risultati. Quando numerosi studi indipendenti convergono su una relazione causale, la comunità scientifica acquisisce una comprensione più solida del fenomeno. Ad esempio, molteplici studi indicano che relazioni sociali positive aumentano il benessere psicologico. Anche se nessuno studio singolo può offrire una prova definitiva, la convergenza di evidenze rafforza l’ipotesi causale.
-
-Si noti che, mentre nel primo caso l'inferenza causale deriva direttamente da esperimenti randomizzati controllati (RCT), nei secondi due la conoscenza causale si basa su studi osservazionali e sulla convergenza di evidenze empiriche. La validità di queste inferenze dipende dall'uso di modelli adeguati, dal controllo delle variabili confondenti e dalla replicabilità dei risultati.
-
-## Conciliare Pragmatismo con Scetticismo Filosofico
-
-Nonostante l’efficacia degli RCT e degli strumenti teorici come l’operatore *do*, il problema epistemologico della causalità, sollevato da filosofi come Hume, rimane aperto. Hume sosteneva che la causalità non è direttamente osservabile, ma è inferita dall’esperienza e dalla regolarità delle osservazioni. Questo scetticismo ci ricorda che la nostra comprensione causale è sempre mediata da modelli, assunzioni e interpretazioni.
-
-Tuttavia, l’approccio pragmatico alla causalità non richiede una dimostrazione metafisica assoluta, ma si concentra sulla sua utilità pratica: se un intervento produce risultati coerenti e prevedibili, allora possiamo considerarlo una causa per tutti gli scopi pratici. 
-
-Ad esempio, la nostra fiducia nel volo aereo non deriva da una prova definitiva della causalità tra il design di un aereo e la sua capacità di volare, ma dall'affidabilità e replicabilità delle leggi dell'aerodinamica. Analogamente, la CBT è riconosciuta come trattamento efficace per l'ansia non perché possiamo dimostrare una causalità assoluta, ma perché numerosi studi, tra cui RCT e analisi basate su modelli causali, ne confermano ripetutamente l’efficacia in diversi contesti.
-
-**In sintesi**, l’inferenza causale è una delle sfide centrali della scienza, ma strumenti come gli RCT, i modelli causali strutturali, la conoscenza del dominio e le prove cumulative forniscono metodi robusti per affrontarla. L’approccio pragmatico ci consente di superare il problema filosofico della causalità, concentrandoci sulla replicabilità, sull’affidabilità e sull’applicabilità pratica dei risultati. Sebbene il dibattito sulla natura ultima della causalità rimanga aperto, le pratiche scientifiche ci permettono di prendere decisioni informate e mettere in atti interventi efficaci.
+In sintesi: senza controllare per la motivazione, i dati ci ingannano; includendo la motivazione, possiamo distinguere tra *correlazione spuria* e *relazione causale reale*.
 
 
 ## Riflessioni conclusive {.unnumbered .unlisted}
 
-Il dibattito filosofico sulla causalità resta aperto, ma i progressi metodologici degli ultimi decenni hanno trasformato l’inferenza causale in una disciplina rigorosa e applicabile. L'uso di esperimenti randomizzati controllati (RCT), diagrammi causali (DAG) e l’operatore *do* di Judea Pearl ha reso possibile analizzare le relazioni causali in modo più trasparente e sistematico, senza dover risolvere le questioni metafisiche sulla natura ultima della causalità. La scienza, dunque, procede non con certezze assolute, ma con modelli sempre più raffinati e verificabili.
+Studiare la causalità non è solo un esercizio teorico. Ogni volta che uno psicologo legge un articolo, progetta un esperimento o valuta un trattamento, deve chiedersi: ‘Questa relazione che osservo è davvero causale o è il frutto di un confondimento?’ Imparare a distinguere questi casi significa fare scienza psicologica più solida e utile.
 
-I DAG si sono affermati come strumenti essenziali per visualizzare e analizzare i rapporti causali, permettendo di esplicitare le assunzioni e di individuare le fonti di bias. Tuttavia, la loro validità dipende strettamente dalla qualità delle conoscenze del dominio: un DAG ben costruito può guidare verso inferenze affidabili, ma un DAG con specificazioni errate o incomplete rischia di produrre conclusioni distorte. Per questa ragione, la loro applicazione richiede non solo competenza metodologica, ma anche un solido ancoraggio alla realtà empirica.
+In questo capitolo abbiamo visto che studiare la causalità in psicologia è complesso, ma non impossibile.  Abbiamo distinto tra *correlazione* e *causalità*, imparato a rappresentare le nostre ipotesi con i *grafi causali*, e discusso il ruolo di concetti come *confondimento*, *mediazione* e *moderazione*.  
 
-L’approccio pragmatico alla causalità si fonda su un equilibrio tra fiducia nei modelli empirici e consapevolezza dei loro limiti. La nostra capacità di fare previsioni e intervenire sui fenomeni — dall'ingegneria aeronautica all'efficacia delle terapie psicologiche — non si basa su una conoscenza definitiva della causalità, ma sulla robustezza delle evidenze accumulate. Questo pragmatismo non è una debolezza, ma una strategia vincente per affrontare l’incertezza in modo efficace e produttivo.
+Abbiamo poi esaminato i principali strumenti per testare le ipotesi causali:  
 
-Tuttavia, la solidità degli strumenti causali non è garantita a priori: la qualità delle inferenze dipende dalla cura con cui vengono costruiti e validati. Un uso acritico dei DAG, degli RCT o dei modelli causali strutturali può portare a interpretazioni fuorvianti, specialmente se si ignorano le limitazioni insite in ogni approccio. La ricerca causale, dunque, non è solo una questione di strumenti, ma di metodo: richiede una costante *riflessione critica* sulle ipotesi sottostanti e un *rigoroso controllo empirico* per evitare semplificazioni eccessive.
+- *esperimenti controllati*, il metodo più solido,  
+- *quasi-esperimenti*, utili quando non possiamo randomizzare,  
+- *studi osservativi*, che richiedono l’uso di tecniche statistiche per ridurre i rischi di interpretazioni errate.
 
-In definitiva, il progresso nella comprensione della causalità dipende dalla capacità di bilanciare *pragmatismo* e *scetticismo epistemologico*. Da un lato, dobbiamo costruire modelli che ci permettano di fare previsioni affidabili e di prendere decisioni informate; dall’altro, dobbiamo riconoscere che ogni modello è una rappresentazione semplificata della realtà e che le nostre inferenze devono essere costantemente riviste alla luce di nuove evidenze. Accettare questa tensione tra conoscenza e incertezza non è una limitazione, ma una condizione essenziale per il progresso scientifico. In questo equilibrio tra umiltà teorica e fiducia operativa risiede la vera forza dell’indagine causale.
+La lezione principale è che i dati, da soli, non “parlano”: hanno bisogno di un *modello teorico* che guidi l’interpretazione.  Un’analisi statistica, per quanto sofisticata, non può dirci nulla di causale se non abbiamo prima formulato ipotesi chiare sul meccanismo che vogliamo studiare.  
 
-Un riassunto ironico di questi concetti è offerto dalla vignetta di [xkcd](https://www.e$X$plain$X$kcd.com/wiki/inde$X$.php/2560:_Confounding_Variables).
 
-## Esercizi {.unnumbered .unlisted}
+## Informazioni sull'ambiente di sviluppo {.unnumbered .unlisted}
 
-::: {.callout-tip title="Esercizio" collapse="true"}
-**Esercizi teorici**
-
-**Esercizio 1: Concetti chiave della causalità**
-
-Per ciascuna delle seguenti affermazioni, indica se è vera o falsa e spiega il motivo della tua risposta.  
-
-1. Se $X$ e $Y$ sono correlate, allora $X$ causa $Y$.  
-2. Se condizioniamo su una variabile collider, la correlazione tra $X$ e $Y$ aumenta.  
-3. Il paradosso di Simpson dimostra che i risultati osservati in gruppi disaggregati devono sempre essere preferiti a quelli aggregati.  
-4. Gli esperimenti randomizzati controllati eliminano completamente il problema della confusione.  
-5. Un DAG può rappresentare relazioni causali solo se tutte le variabili sono misurate.  
-
-**Esercizio 2: Interpretazione di un DAG**
-
-Considera il seguente DAG che rappresenta l’effetto dell’esercizio fisico ($X$) sulla salute cardiaca ($Y$):
-
-```
-    $X$ → $Y$
-    Z → $X$
-    Z → $Y$
-```
-dove:
-
-- $X$ = Esercizio fisico  
-- $Y$ = Salute cardiaca  
-- *$Z$* = Predisposizione genetica  
-
-1. Quale ruolo svolge *$Z$* in questo DAG? È una variabile confondente, collider o mediatore? 
-2. Per stimare correttamente l’effetto causale di $X$ su $Y$, è necessario controllare per *$Z$*? Spiega il perché.  
-3. Se aggiungiamo un'altra variabile **W** che influenza sia *$Z$* che $X$, ma non direttamente $Y$, come cambierebbe il DAG?  
-
-**Esercizio 3: Causalità nei dati osservazionali**
-
-Leggi le seguenti situazioni e identifica quale problema potrebbe invalidare l’inferenza causale:  
-
-1. Uno studio osservazionale mostra che le persone che bevono caffè vivono più a lungo. Tuttavia, chi beve caffè tende ad avere un reddito più alto e accesso a migliori cure mediche.
-2. Un’azienda scopre che i dipendenti che frequentano corsi di formazione hanno salari più alti. Ma i corsi sono aperti solo a coloro che già hanno più esperienza lavorativa.  
-3. Una ricerca mostra che gli studenti che usano di più il tablet per studiare hanno punteggi più bassi nei test. Tuttavia, gli studenti con difficoltà di apprendimento tendono a usare di più il tablet.  
-
-Per ogni caso, identifica una possibile variabile confondente e suggerisci un metodo per controllare il bias.
-
-**Esercizi pratici in R**
-
-**Esercizio 4: Paradosso di Simpson con dati reali**
-
-Utilizziamo i dati delle ammissioni di UC Berkele$Y$ per verificare il paradosso di Simpson.
-
-```r
-# Dati di UC Berkele$Y$
-data(UCBAdmissions)
-df <- as.data.frame(UCBAdmissions)
-
-# Convertiamo i dati in formato long
-df_long <- df |> tid$Y$r::pivot_wider(names_from = "Admit", values_from = "Freq") 
-
-# Calcoliamo il tasso di ammissione per uomini e donne aggregati
-total_admitted_m <- sum(df$Freq[df$Admit == "Admitted" & df$Gender == "Male"])
-total_applicants_m <- sum(df$Freq[df$Gender == "Male"])
-
-total_admitted_f <- sum(df$Freq[df$Admit == "Admitted" & df$Gender == "Female"])
-total_applicants_f <- sum(df$Freq[df$Gender == "Female"])
-
-admit_rate_m <- total_admitted_m / total_applicants_m
-admit_rate_f <- total_admitted_f / total_applicants_f
-
-c(admit_rate_m, admit_rate_f)
-
-# Calcoliamo il tasso di ammissione per ogni dipartimento
-df_long$rate_m <- df_long$Admitted / (df_long$Admitted + df_long$Rejected)
-
-df_long |> dpl$Y$r::group_b$Y$(Dept) |> dpl$Y$r::summarize(mean_rate_m = mean(rate_m))
-
-# Visualizziamo il tasso di ammissione per genere e dipartimento
-ggplot(df_long, aes($X$ = Dept, $Y$ = rate_m, fill = Gender)) +
-  geom_bar(stat = "identit$Y$", position = "dodge") +
-  labs(title = "Tasso di Ammissione per Genere nei Dipartimenti UC Berkele$Y$",
-       $X$ = "Dipartimento", $Y$ = "Tasso di Ammissione")
+```{r}
+sessionInfo()
 ```
 
-**Domande:**  
-
-1. Dai dati aggregati, sembra che le donne siano discriminate. Questo è confermato dall'analisi per dipartimento?  
-2. Quale variabile confondente è responsabile del paradosso di Simpson in questo caso?  
-3. Come potrebbe essere interpretato male un modello che considera solo i dati aggregati?  
-
-**Esercizio 5: Analisi causale con DAG**
-
-Usiamo il pacchetto `dagitt$Y$` per costruire e analizzare un DAG.
-
-```r
-librar$Y$(dagitt$Y$)
-
-dag <- dagitt$Y$("dag {
-    E -> H
-    G -> E
-    G -> H
-}")
-
-plot(graphLa$Y$out(dag))
-```
-
-**Domande:**  
-
-1. Quali sono le variabili confondenti nel DAG?  
-2. Quali percorsi sono back-door paths?  
-3. Quale set di variabili dovremmo controllare per ottenere una stima non distorta dell’effetto di **E** su **H**?  
-:::
-
-::: {.callout-tip title="Soluzione" collapse="true"}
-
-**Esercizio 1: Concetti chiave della causalità**
-
-1. **Falso** – La correlazione non implica causalità. Potrebbero esserci variabili confondenti o una relazione di causalità inversa tra $X$ e $Y$.  
-2. **Vero** – Condizionare su un collider introduce un’associazione spuriosa tra $X$ e $Y$, aumentando la correlazione.  
-3. **Falso** – Il paradosso di Simpson mostra che i dati aggregati possono essere fuorvianti, ma non significa che i dati disaggregati siano sempre più affidabili. È necessario analizzare il contesto e le possibili variabili confondenti.  
-4. **Falso** – Gli RCT minimizzano i problemi di confondimento grazie alla randomizzazione, ma possono comunque avere limitazioni dovute a bias di selezione, mancate assegnazioni casuali, e problemi etici.  
-5. **Falso** – Un DAG può rappresentare le relazioni causali anche se alcune variabili non sono misurate. Tuttavia, la validità dell'inferenza dipende dalla correttezza del DAG.  
-
-**Esercizio 2: Interpretazione di un DAG**
-
-1. **Z è una variabile confondente**, poiché influenza sia $X$ che $Y$, creando un percorso di back-door.  
-2. **Sì**, per stimare correttamente l’effetto di $X$ su $Y$ dobbiamo controllare per Z. Se non lo facciamo, la relazione osservata tra $X$ e $Y$ includerà l’influenza di Z.  
-3. Se aggiungiamo una variabile W che influenza Z e $X$, il DAG diventa:  
-
-   ```
-       W → Z → $X$ → $Y$
-       W → $X$
-       Z → $Y$
-   ```
-   
-   Ora W è una variabile a monte di $X$ e Z, ma non confonde direttamente la relazione tra $X$ e $Y$.  
-
-**Esercizio 3: Causalità nei dati osservazionali**
-
-1. **Confondente: reddito** – Le persone con un reddito più alto possono avere accesso a cure migliori, che a loro volta migliorano la salute. Soluzione: **Propensit$Y$ Score Matching (PSM)** o regressione con controllo per il reddito.  
-2. **Confondente: esperienza lavorativa** – Chi ha più esperienza può già avere salari più alti. Soluzione: **Matching o modello di regressione con controllo per esperienza lavorativa**.  
-3. **Confondente: difficoltà di apprendimento** – Studenti con difficoltà possono usare più il tablet e avere punteggi più bassi. Soluzione: **Includere il livello di abilità di partenza nei modelli statistici**.  
-
-**Soluzioni esercizi pratici in R**
-
-**Esercizio 4: Paradosso di Simpson con dati reali**
-
-1. **Differenza nei tassi di ammissione aggregati:**  
-
-   ```r
-   admit_rate_m <- total_admitted_m / total_applicants_m
-   admit_rate_f <- total_admitted_f / total_applicants_f
-   ```
-   **Risultato:**  
-   
-   - Tasso di ammissione uomini: ~44%  
-   - Tasso di ammissione donne: ~35%  
-   → **Sembra che le donne siano discriminate.**  
-
-2. **Analisi per dipartimento:** 
-
-   ```r
-   df_long |> dpl$Y$r::group_b$Y$(Dept) |> dpl$Y$r::summarize(mean_rate_m = mean(rate_m))
-   ```
-   - Nei singoli dipartimenti, le donne hanno tassi di ammissione **uguali o superiori** rispetto agli uomini.  
-   → **Il problema non è discriminazione diretta, ma la distribuzione delle domande nei dipartimenti.**  
-
-3. **Conclusione:** Il paradosso di Simpson mostra che le donne tendono a candidarsi più spesso a dipartimenti molto competitivi con bassi tassi di ammissione, mentre gli uomini si candidano di più in dipartimenti con tassi di ammissione più alti.  
-
-  **Moralità**: Non sempre una differenza aggregata indica un bias. Bisogna analizzare i sottogruppi.  
-
-**Esercizio 5: Analisi causale con DAG**
-
-1. **Variabili confondenti**  
-   - G è una variabile confondente perché influenza sia E (esposizione) che H (esito).  
-
-2. **Back-door paths**  
-   - Il percorso `E ← G → H` è un back-door path che deve essere bloccato.  
-
-3. **Soluzione: controllare per G** 
-
-   ```r
-   adjustmentSets(dag)
-   ```
-   Output: `{G}`  
-   → **Controllare per G permette di ottenere una stima causale non distorta di E su H.**  
-
-**Conclusioni**
-
-1. **La correlazione non implica causalità**. Abbiamo visto come variabili confondenti possano generare relazioni spurie.  
-2. **Il paradosso di Simpson dimostra che i dati aggregati possono essere fuorvianti**. Bisogna sempre analizzare i sottogruppi.  
-3. **I DAG aiutano a identificare le variabili da controllare per ottenere stime causali corrette**.  
-4. **L’analisi causale è fondamentale per evitare inferenze errate e migliorare la qualità della ricerca**.  
-:::
 
 ## Bibliografia {.unnumbered .unlisted}
+

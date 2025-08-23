@@ -22,40 +22,43 @@ here::here("code", "_common.R") |>
 
 # Load packages
 if (!requireNamespace("pacman")) install.packages("pacman")
-pacman::p_load(cmdstanr, posterior, bayestestR, brms, tidyr, broom, tidybayes)
+pacman::p_load(cmdstanr, posterior, bayestestR, brms, tidyr, broom, tidybayes, scales)
 ```
 :::
 
-## Introduzione
+## Introduzione {.unnumbered .unlisted} 
 
+::: {.lead}
 Spesso ci troviamo ad affrontare la necessità di confrontare due gruppi di dati. Mentre nei capitoli precedenti abbiamo considerato il contronto tra le medie di due gruppi indipendenti, nel caso presente ci concentreremo sul confronto tra le proporzioni di due gruppi indipendenti. Per esempio, potrebbe interessarci sapere se la proporzione di un gruppo è maggiore o diversa rispetto a quella di un altro gruppo. Come in precedenza, per effettuare tale confronto, è fondamentale utilizzare un modello statistico, poiché le vere differenze tra i gruppi sono spesso accompagnate da rumore di misurazione o fluttuazioni casuali del fenomeno in esame. Questo rende difficile trarre conclusioni basandosi unicamente sulle differenze calcolate dai dati osservati.
+:::
 
-Anche nel caso delle proporzioni, il metodo tradizionale per confrontare statisticamente due o più gruppi consiste nell'utilizzare un **test di ipotesi**. Questo approccio prevede la definizione di un'ipotesi nulla, che tipicamente afferma l'assenza di differenze tra i gruppi, e l'uso di una statistica test per valutare se i dati osservati sono compatibili con tale ipotesi. Se la statistica test supera una soglia prestabilita, l'ipotesi nulla viene rifiutata, suggerendo che esiste una differenza significativa tra i gruppi.
+Anche nel caso delle proporzioni, il metodo tradizionale per confrontare statisticamente due o più gruppi consiste nell'utilizzare un *test di ipotesi*. Questo approccio prevede la definizione di un'ipotesi nulla, che tipicamente afferma l'assenza di differenze tra i gruppi, e l'uso di una statistica test per valutare se i dati osservati sono compatibili con tale ipotesi. Se la statistica test supera una soglia prestabilita, l'ipotesi nulla viene rifiutata, suggerendo che esiste una differenza significativa tra i gruppi.
 
-Tuttavia, i test di ipotesi presentano diverse criticità, come vedremo in seguito. **Un approccio alternativo e più informativo è quello basato sulla stima anziché sul test dell'ipotesi nulla**, fondato sulla probabilità bayesiana piuttosto che su quella frequentista. In questo caso, l'obiettivo non è semplicemente verificare se esiste una differenza tra i gruppi, ma **stimare quanto siano effettivamente diversi**. Questo metodo è intrinsecamente più informativo, poiché fornisce una stima diretta della differenza tra i gruppi, accompagnata da una misura dell'incertezza associata. Tale incertezza riflette sia la nostra limitata conoscenza dei parametri del modello (incertezza epistemica) sia la variabilità intrinseca del sistema (incertezza aleatoria).
+Tuttavia, i test di ipotesi presentano diverse criticità, come vedremo in seguito. *Un approccio alternativo e più informativo è quello basato sulla stima anziché sul test dell'ipotesi nulla*, fondato sulla probabilità bayesiana piuttosto che su quella frequentista. In questo caso, l'obiettivo non è semplicemente verificare se esiste una differenza tra i gruppi, ma *stimare quanto siano effettivamente diversi*. Questo metodo è intrinsecamente più informativo, poiché fornisce una stima diretta della differenza tra i gruppi, accompagnata da una misura dell'incertezza associata. Tale incertezza riflette sia la nostra limitata conoscenza dei parametri del modello (incertezza epistemica) sia la variabilità intrinseca del sistema (incertezza aleatoria).
 
 In sintesi, mentre i test di ipotesi si concentrano sul rigetto o meno di un'ipotesi nulla, l'approccio basato sulla stima offre una visione più completa e utile, permettendo di quantificare direttamente la differenza tra i gruppi e di valutare l'incertezza associata a tale stima. Questo rende l'analisi più adatta a supportare decisioni informate e basate sui dati.
 
-In questo capitolo approfondiremo l’analisi bayesiana per il confronto tra due proporzioni, utilizzando il pacchetto **`brms`** in R. L’approccio bayesiano permette di ottenere una descrizione completa della **distribuzione a posteriori** del parametro di interesse, fornendo informazioni dettagliate sulla sua incertezza e variabilità, oltre a misure intuitive come intervalli di credibilità e probabilità dirette (es. *la probabilità che la proporzione del gruppo A sia maggiore di quella del gruppo B*).  
+In questo capitolo approfondiremo l’analisi bayesiana per il confronto tra due proporzioni, utilizzando il pacchetto *`brms`* in R. L’approccio bayesiano permette di ottenere una descrizione completa della *distribuzione a posteriori* del parametro di interesse, fornendo informazioni dettagliate sulla sua incertezza e variabilità, oltre a misure intuitive come intervalli di credibilità e probabilità dirette (es. *la probabilità che la proporzione del gruppo A sia maggiore di quella del gruppo B*).  
 
 Per illustrare i vantaggi dell'approccio bayesiano, confronteremo i risultati con quelli ottenuti tramite l'analisi frequentista tradizionale. Per facilitare l'apprendimento, inizieremo con un caso più semplice: l'inferenza su una singola proporzione. Questo ci permetterà di familiarizzarci con i concetti fondamentali prima di estenderli al confronto tra due gruppi.
 
-## Inferenza su Una Proporzione
 
-### Contesto e Dati
+## Inferenza su una proporzione
 
-Come esempio per l'inferenza su una proporzione, utilizzeremo i dati dello studio di @bruckner2005after, discussi anche da @wagenmakers2010bayesian. Nell'articolo "After the promise: the STD consequences of adolescent virginity pledges", @bruckner2005after analizzano una serie di interviste condotte nell'ambito del National Longitudinal Study of Adolescent Health (Add Health). Lo studio si concentra sul comportamento sessuale di adolescenti, di età compresa tra 18 e 24 anni, che hanno fatto un "virginity pledge", ovvero una promessa pubblica o scritta di rimanere vergini fino al matrimonio. Studi scientifici indicano che il comportamento sessuale di questi adolescenti non sia statisticamente diverso da quello di chi non ha fatto tale promessa, con l'unica eccezione che i "pledgers" hanno una minore probabilità di utilizzare il preservativo durante il primo rapporto sessuale.
+Come esempio per l'inferenza su una proporzione, utilizzeremo i dati dello studio di @bruckner2005after, discussi anche da @wagenmakers2010bayesian. Nell'articolo *After the promise: the STD consequences of adolescent virginity pledges*, @bruckner2005after analizzano una serie di interviste condotte nell'ambito del National Longitudinal Study of Adolescent Health (Add Health). Lo studio si concentra sul comportamento sessuale di adolescenti, di età compresa tra 18 e 24 anni, che hanno fatto un "virginity pledge", ovvero una promessa pubblica o scritta di rimanere vergini fino al matrimonio. Studi scientifici indicano che il comportamento sessuale di questi adolescenti non sia statisticamente diverso da quello di chi non ha fatto tale promessa, con l'unica eccezione che i "pledgers" hanno una minore probabilità di utilizzare il preservativo durante il primo rapporto sessuale.
 
 I dati rilevanti per la nostra analisi sono i seguenti:
 
 - su 777 adolescenti che hanno fatto il "virginity pledge", 424 (54.6%) hanno dichiarato di aver usato il preservativo durante il primo rapporto sessuale;
 - su 9072 adolescenti che non hanno fatto la promessa, 5416 (59.7%) hanno dichiarato di aver usato il preservativo.
 
-### Obiettivo dell'Analisi
+
+### Obiettivo dell'analisi
 
 Nella prima analisi, ci concentreremo sul campione di adolescenti che hanno fatto il "virginity pledge". Ci chiediamo se sia credibile pensare che questi adolescenti tendano ad avere un rapporto protetto, nel loro primo rapporto sessuale, in una proporzione minore di quella che ci si potrebbe aspettare in caso di casualità (ovvero, una proporzione di 0.5).
 
-### Analisi Frequentista
+
+### Analisi frequentista
 
 Iniziamo con un test frequentista usando la funzione `prop.test()` per confrontare la proporzione osservata con il valore di riferimento 0.5.
 
@@ -69,13 +72,12 @@ prop_test_freq_vol <- prop.test(
 tidy(prop_test_freq_vol)
 ```
 
-L'intervallo di confidenza frequentista non include il valore di riferimento 0.5, quindi, in base a questa analisi, possiamo concludere che la proporzione osservata (0.546) sia  **maggiore** del valore atteso in caso di casualità (0.5). 
+L'intervallo di confidenza frequentista non include il valore di riferimento 0.5, quindi, in base a questa analisi, possiamo concludere che la proporzione osservata (0.546) sia  *maggiore* del valore atteso in caso di casualità (0.5). 
 
-### Approccio Bayesiano con **brms**
+
+### Approccio bayesiano 
 
 Se utilizziamo dei prior non informativi, ci aspettiamo di giungere alla stessa conclusione anche con un approccio bayesiano. Tuttavia, l'approccio bayesiano ci permette di ottenere una distribuzione completa della probabilità a posteriori del parametro di interesse, offrendo una visione più ricca e flessibile rispetto all'approccio frequentista.
-
-#### Preparazione dei Dati
 
 Iniziamo creando un data frame che sarà utilizzato con la funzione `brm()`.
 
@@ -89,21 +91,9 @@ pledge_binomial_df <- tibble(
 pledge_binomial_df
 ```
 
-#### Definizione delle Opzioni del Campionatore
+#### Modello bayesiano
 
-Impostiamo alcune opzioni globali per il campionatore Stan.
-
-```{r}
-# Set some global Stan options
-CHAINS <- 4
-ITER <- 2000
-WARMUP <- 1000
-BAYES_SEED <- 1234
-```
-
-#### Modello Bayesiano
-
-Utilizziamo un modello di regressione con una funzione link binomiale. Questo significa che stimeremo la proporzione $p$ con un modello di regressione beta-binomiale bayesiano utilizzando **brms**. Useremo un prior non informativo $\mathcal{Beta}(1, 1)$. Questo è un modello solo con intercetta, senza altre covariate, poiché siamo interessati solo alla proporzione sottostante, senza condizionarla su altre variabili.
+Utilizziamo un modello di regressione con una funzione link binomiale. Questo significa che stimeremo la proporzione $p$ con un modello di regressione beta-binomiale bayesiano utilizzando *brms*. Useremo un prior non informativo $\mathcal{Beta}(1, 1)$. Questo è un modello solo con intercetta, senza altre covariate, poiché siamo interessati solo alla proporzione sottostante, senza condizionarla su altre variabili.
 
 Il modello può essere rappresentato come segue:
 
@@ -118,20 +108,20 @@ $$
 Eseguiamo l'analisi bayesiana.
 
 ```{r}
+#| output: false
+
 model_pledge_binomial <- brm(
   n_yes | trials(n_total) ~ 1,
   data = pledge_binomial_df,
   family = binomial(link = "identity"),
   prior = c(prior(beta(1, 1), class = "Intercept", lb = 0, ub = 1)),
-  chains = CHAINS, warmup = WARMUP, iter = ITER, seed = BAYES_SEED,
+  chains = 4, warmup = 1000, iter = 4000, seed = 123,
   refresh = 0,
   backend = "cmdstanr"
 )
 ```
 
-#### Risultati del Modello
-
-Poiché questo è un modello di regressione, si comporta come qualsiasi altro modello **brms**. Il coefficiente per l'intercetta rappresenta la proporzione stimata di adolescenti tra i 18 e i 24 anni che hanno usato il preservativo durante il primo rapporto sessuale nel campione.
+Poiché questo è un modello di regressione, si comporta come qualsiasi altro modello `brms`. Il coefficiente per l'intercetta rappresenta la proporzione stimata di adolescenti tra i 18 e i 24 anni che hanno usato il preservativo durante il primo rapporto sessuale nel campione.
 
 ```{r}
 summary(model_pledge_binomial)
@@ -139,16 +129,17 @@ summary(model_pledge_binomial)
 
 Si noti come l'intervallo di credibilità al 95% riproduce l'intervallo frequentista calcolato in precedenza.
 
-### Confronto tra i Due Approcci
+
+### Confronto tra i due approcci
 
 Confrontiamo ora i risultati ottenuti dai due approcci. L'analisi frequentista ha mostrato che la proporzione osservata (0.546) è significativamente maggiore del valore di riferimento 0.5. L'approccio bayesiano conferma questa conclusione, fornendo una distribuzione completa della probabilità a posteriori per la proporzione π.
 Uno dei vantaggi dell'approccio bayesiano è la possibilità di incorporare informazioni a priori, se disponibili, migliorando così la robustezza delle inferenze. Inoltre, l'intervallo di credibilità bayesiano fornisce una descrizione più completa della distribuzione dei parametri, consentendo una migliore interpretazione dei risultati.
 
-### Modello Beta-Binomiale e Soluzione Analitica
+### Modello Beta-Binomiale e soluzione analitica
 
 In questo contesto, il problema può essere modellato utilizzando una distribuzione beta-binomiale, per la quale esiste una soluzione analitica per la distribuzione a posteriori. Il modello beta-binomiale è particolarmente adatto quando si lavora con dati binomiali (ad esempio, successi e fallimenti) e si desidera incorporare una distribuzione a priori coniugata per la proporzione $p$.
 
-#### Contestualizzazione del Modello
+#### Contestualizzazione del modello
 
 Per il gruppo "pledgers", abbiamo $y_1$ successi su $n_1$ prove. Se assumiamo una distribuzione a priori Beta($\alpha$, $\beta$), la distribuzione a posteriori per la proporzione $p_1$ sarà anch'essa una distribuzione Beta, data da:
 
@@ -162,7 +153,7 @@ $$
 p_1 \mid y_1, n_1 \sim \mathcal{Beta}(1 + 424, 1 + 777 - 424) = \mathcal{Beta}(425, 354).
 $$
 
-#### Calcolo dell'Intervallo di Credibilità
+#### Calcolo dell'intervallo di credibilità
 
 Utilizziamo R per calcolare l'intervallo di credibilità al 95% basato sulla distribuzione a posteriori derivata analiticamente.
 
@@ -178,21 +169,21 @@ print(credibility_interval)
 
 Il risultato ottenuto dall'analisi bayesiana analitica replica quello ottenuto tramite il modello `brm()` implementato in precedenza. Questo confronto tra approcci dimostra la coerenza tra le tecniche frequentista, bayesiana numerica e bayesiana analitica.
 
-### Discussione e Confronto tra Approcci
+### Discussione e confronto tra approcci
 
 L'utilizzo della distribuzione beta-binomiale e della soluzione analitica offre diversi vantaggi:
 
-1. **Semplicità**: La soluzione analitica è spesso più semplice da implementare rispetto ai metodi numerici, come quelli utilizzati in `brms`.
-2. **Velocità**: I calcoli sono generalmente più veloci poiché non richiedono iterazioni o campionamenti.
-3. **Interpretazione**: L'uso di distribuzioni coniugate facilita l'interpretazione dei risultati, fornendo direttamente la distribuzione a posteriori senza bisogno di complessi algoritmi di inferenza.
+1. *Semplicità*: La soluzione analitica è spesso più semplice da implementare rispetto ai metodi numerici, come quelli utilizzati in `brms`.
+2. *Velocità*: I calcoli sono generalmente più veloci poiché non richiedono iterazioni o campionamenti.
+3. *Interpretazione*: L'uso di distribuzioni coniugate facilita l'interpretazione dei risultati, fornendo direttamente la distribuzione a posteriori senza bisogno di complessi algoritmi di inferenza.
 
 Tuttavia, l'approccio bayesiano numerico tramite `brms` presenta anche vantaggi significativi:
 
-1. **Flessibilità**: Può gestire modelli più complessi e includere covariate multiple.
-2. **Priori informativi**: Permette di incorporare facilmente informazioni a priori, se disponibili.
-3. **Estensioni**: Facilita l'estensione del modello a casi più complessi, come il confronto tra proporzioni di due gruppi.
+1. *Flessibilità*: Può gestire modelli più complessi e includere covariate multiple.
+2. *Priori informativi*: Permette di incorporare facilmente informazioni a priori, se disponibili.
+3. *Estensioni*: Facilita l'estensione del modello a casi più complessi, come il confronto tra proporzioni di due gruppi.
 
-#### Analisi della Distribuzione a Posteriori
+#### Analisi della distribuzione a posteriori
 
 Essendo un'analisi bayesiana, possiamo lavorare con l'intera distribuzione a posteriori e calcolare direttamente l'estimando, come la differenza tra la proporzione campionaria e la proporzione di riferimento (0.5).
 
@@ -216,9 +207,9 @@ p1
 
 Il valore di riferimento (0.5) non è incluso nella distribuzione a posteriori, il che significa che la differenza tra la proporzione campionaria e la proporzione di riferimento non include lo zero, con un livello di credibilità del 95%. Possiamo quindi concludere, con un livello soggettivo di credibilità del 95%, che l'uso del preservativo durante il primo rapporto sessuale sia maggiore del caso, per gli adolescenti che hanno fatto il "virginity pledge".
 
-### La Regione di Equivalenza Pratica (ROPE)
+### La regione di equivalenza pratica 
 
-L'analisi precedente confronta la proporzione osservata con un singolo valore di riferimento (0.5). Un approccio alternativo è considerare un intervallo di valori attorno a 0.5 che possano essere considerati "praticamente equivalenti" al valore di riferimento. Questo intervallo è chiamato **Regione di Equivalenza Pratica (ROPE)**.
+L'analisi precedente confronta la proporzione osservata con un singolo valore di riferimento (0.5). Un approccio alternativo è considerare un intervallo di valori attorno a 0.5 che possano essere considerati "praticamente equivalenti" al valore di riferimento. Questo intervallo è chiamato *Regione di Equivalenza Pratica (ROPE)*.
 
 Secondo @kruschke2018bayesian, la ROPE può essere definita come un intervallo attorno al valore nullo (baseline) che corrisponde a un decimo della deviazione standard della distribuzione a posteriori del parametro di interesse. Nel nostro caso, il parametro di interesse è la proporzione $p$, e il valore nullo è 0.5. Per calcolare la ROPE, estraiamo i campioni a posteriori dal modello.
 
@@ -271,22 +262,21 @@ ggplot(posterior_samples, aes(x = b_Intercept)) +
 
 In conclusione, dato che solo lo 0.325% (meno dell'uno per cento) della distribuzione a posteriori di $p$ si trova nella ROPE, possiamo concludere che ci sono evidenze credibili che la distribuzione a posteriori del parametro $p$ (la proporzione di adolescenti, di età compresa tra 18 e 24 anni, che hanno fatto il "virginity pledge" e hanno usato il preservativo durante il primo rapporto sessuale) sia diversa dal valore di riferimento 0.5. Nel caso specifico, questa proporzione è più alta, indicando che la tendenza ad avere un rapporto protetto è maggiore rispetto al caso di casualità, per questa popolazione.
 
-#### Discussione sulla ROPE
+#### Discussione 
 
 L'utilizzo della ROPE offre una prospettiva aggiuntiva nell'interpretazione delle inferenze bayesiane. Invece di semplicemente determinare se un parametro è statisticamente significativo rispetto a un valore di riferimento, la ROPE permette di valutare se le differenze osservate siano praticamente rilevanti in termini di impatto reale.
 
-- **Soglia di Rilevanza**: L'impostazione di una ROPE consente di stabilire una soglia di rilevanza pratica. Se la maggior parte della distribuzione a posteriori cade al di fuori della ROPE, possiamo concludere che la differenza è non solo statistica ma anche pratica.
-- **Interpretazione Clinica**: Nelle applicazioni pratiche, come in ambito medico o sociale, la ROPE aiuta a distinguere tra risultati statisticamente significativi ma clinicamente insignificanti e quelli che hanno un impatto rilevante.
+- *Soglia di rilevanza*: L'impostazione di una ROPE consente di stabilire una soglia di rilevanza pratica. Se la maggior parte della distribuzione a posteriori cade al di fuori della ROPE, possiamo concludere che la differenza è non solo statistica ma anche pratica.
+- *Interpretazione clinica*: Nelle applicazioni pratiche, come in ambito medico o sociale, la ROPE aiuta a distinguere tra risultati statisticamente significativi ma clinicamente insignificanti e quelli che hanno un impatto rilevante.
 
 Nel contesto dello studio sui "pledgers", l'uso della ROPE fornisce una valutazione più completa della tendenza degli adolescenti a utilizzare il preservativo durante il primo rapporto sessuale, dimostrando che questa tendenza è non solo statisticamente diversa dal caso di casualità, ma anche significativa dal punto di vista pratico.
 
-## Inferenza sulla Differenza tra Due Proporzioni
+
+## Inferenza sulla differenza tra due proporzioni
 
 Estendiamo ora l'analisi precedente per confrontare le proporzioni di due gruppi, un compito per il quale non esiste una soluzione analitica semplice. Nello studio in esame, ci poniamo la domanda: *Fino a che punto l'analisi statistica supporta l'ipotesi che i "pledgers" abbiano una minore probabilità rispetto ai "non-pledgers" di usare il preservativo durante il primo rapporto sessuale?*
 
-Per testare questa ipotesi utilizzando **brms**, estendiamo il modello bayesiano includendo due gruppi: i *pledgers* (che hanno fatto il voto di astinenza) e i *non-pledgers* (che non lo hanno fatto). L'obiettivo è stimare la differenza tra le due proporzioni e valutare se questa sia credibilmente diversa da zero.
-
-### Creazione del Dataset
+Per testare questa ipotesi utilizzando *brms*, estendiamo il modello bayesiano includendo due gruppi: i *pledgers* (che hanno fatto il voto di astinenza) e i *non-pledgers* (che non lo hanno fatto). L'obiettivo è stimare la differenza tra le due proporzioni e valutare se questa sia credibilmente diversa da zero.
 
 Costruiamo un `tibble` con i dati relativi ai due gruppi:
 
@@ -299,44 +289,64 @@ pledge_data <- tibble(
 print(pledge_data)
 ```
 
-### Specifica del Modello Bayesiano
 
-Utilizziamo un modello binomiale con un predittore categorico per distinguere tra i due gruppi. Il modello può essere rappresentato come:
+### Modello bayesiano per il confronto tra proporzioni
 
-$$
-p_i \sim \text{Binomiale}(n_i, \theta_i),
-$$
+In questo modello, adottiamo un approccio bayesiano per analizzare la differenza nell'utilizzo del preservativo tra due gruppi distinti: i "pledgers" (chi ha sottoscritto l'impegno) e i "non-pledgers" (chi non lo ha sottoscritto). La struttura del modello si basa sulla distribuzione binomiale, appropriata per dati che rappresentano conteggi di successi su un numero fisso di prove.
 
-dove $\theta_i$ è la proporzione di utilizzo del preservativo nel gruppo $i$, e modelliamo la probabilità di successo come:
+**Specifica del modello.** Il modello assume che il numero di utilizzi del preservativo in ciascun gruppo segua una distribuzione binomiale:
 
 $$
-\theta = \beta_0 + \beta_1 \cdot \text{group},
+y_i \sim \text{Binomial}(n_i, \theta_i)
 $$
 
 dove:
 
-- $\beta_0$ rappresenta la proporzione di *non-pledgers* che usano il preservativo.
-- $\beta_1$ rappresenta la differenza tra *pledgers* e *non-pledgers* (cioè la variazione della proporzione di utilizzo del preservativo associata all'appartenenza al gruppo dei *pledgers*).
+- $y_i$ è il numero di utilizzi del preservativo nel gruppo $i$,
+- $n_i$ è il numero totale di individui nel gruppo $i$,
+- $\theta_i$ è la probabilità di utilizzo del preservativo nel gruppo $i$.
 
-Le caratteristiche di questo modello verranno approfondite nel capitolo successivo. Per ora, limitiamoci a stimare il modello in **brms** utilizzando una distribuzione binomiale e un link identità:
+**Modellazione delle probabilità.** La relazione tra i gruppi viene modellata attraverso una specificazione lineare sulla probabilità stessa (utilizzando un link identità):
+
+$$
+\theta_i = \beta_0 + \beta_1 \cdot x_i,
+$$
+
+dove:
+
+- $x_i$ è una variabile indicatrice che vale 0 per i non-pledgers e 1 per i pledgers,
+- $\beta_0$ rappresenta la probabilità di utilizzo del preservativo nel gruppo di riferimento (non-pledgers),
+- $\beta_1$ rappresenta la differenza assoluta nella probabilità di utilizzo tra pledgers e non-pledgers.
+
+**Scelta dei prior.** La specificazione dei prior riflette le nostre conoscenze a priori sui parametri:
+
+- Per $\beta_0$ (probabilità base nei non-pledgers): utilizziamo un prior Beta(1,1), equivalente a una distribuzione uniforme tra 0 e 1, che rappresenta un'assenza di informazioni specifiche sulla probabilità attesa
+- Per $\beta_1$ (differenza tra gruppi): utilizziamo un prior normale con media 0 e deviazione standard 1, che assegna probabilità decrescenti a differenze maggiori in valore assoluto, pur mantenendo la possibilità di effetti in entrambe le direzioni
+
+**Implementazione pratica.** L'implementazione del modello in `brms` utilizza la seguente sintassi:
 
 ```{r}
+#| output: false
+
 model_pledge_diff <- brm(
-  n_yes | trials(n_total) ~ group,
-  data = pledge_data,
-  family = binomial(link = "identity"),
+  formula = n_yes | trials(n_total) ~ group,  # Specifica della risposta binomiale
+  data = pledge_data,                         # Dataset contenente i dati
+  family = binomial(link = "identity"),       # Link identità per interpretazione diretta
   prior = c(
-    prior(beta(1, 1), class = "Intercept", lb = 0, ub = 1),  
-    # Prior per la proporzione nei non-pledgers
-    prior(normal(0, 1), class = "b")  # Prior per la differenza tra gruppi
+    prior(beta(1, 1), class = "Intercept", lb = 0, ub = 1),  # Prior per la probabilità base
+    prior(normal(0, 1), class = "b")                         # Prior per l'effetto del gruppo
   ),
-  chains = CHAINS, warmup = WARMUP, iter = ITER, seed = BAYES_SEED,
-  refresh = 0,
-  backend = "cmdstanr"
+  chains = 4,                 # Quattro catene Markoviane
+  warmup = 1000,              # 1000 iterazioni di burn-in per catena
+  iter = 4000,                # 4000 iterazioni totali per catena
+  seed = 123,                 # Seed per riproducibilità
+  refresh = 0,                # Nessun output intermedio
+  backend = "cmdstanr"        # Motore di inferenza efficiente
 )
 ```
 
-### Analisi della Distribuzione A Posteriori
+
+### Risultati
 
 Esaminiamo il sommario del modello per valutare la stima della differenza tra le proporzioni:
 
@@ -375,43 +385,65 @@ diff_probability <- mean(pledge_diff_draws$diff > 0)
 print(diff_probability)
 ```
 
-### Interpretazione dei Risultati
+#### Interpretazione 
 
-La probabilità calcolata è **0.997**; ciò significa che c'è una probabilità del 99.7% che la proporzione di *non-pledgers* che usano il preservativo sia **maggiore** rispetto a quella dei *pledgers*. Questo supporta con elevata credibilità l'ipotesi che i *pledgers* abbiano meno probabilità di utilizzare il preservativo durante il primo rapporto sessuale.
+La probabilità calcolata è *0.997*; ciò significa che c'è una probabilità del 99.7% che la proporzione di *non-pledgers* che usano il preservativo sia *maggiore* rispetto a quella dei *pledgers*. Questo supporta con elevata credibilità l'ipotesi che i *pledgers* abbiano meno probabilità di utilizzare il preservativo durante il primo rapporto sessuale.
 
-Possiamo quindi concludere che la differenza tra le due proporzioni è credibilmente diversa da zero, con un'elevata probabilità a favore dell'ipotesi che i *pledgers* abbiano una **minore** propensione all'uso del preservativo rispetto ai *non-pledgers*. Questi risultati riproducono quelli riportati dalla letteratura precedente, come discusso da @bruckner2005after.
+Possiamo quindi concludere che la differenza tra le due proporzioni è credibilmente diversa da zero, con un'elevata probabilità a favore dell'ipotesi che i *pledgers* abbiano una *minore* propensione all'uso del preservativo rispetto ai *non-pledgers*. Questi risultati riproducono quelli riportati dalla letteratura precedente, come discusso da @bruckner2005after.
 
-## Riflessioni Conclusive
 
-L'inferenza su una proporzione tramite un approccio bayesiano offre una prospettiva più ricca e flessibile rispetto agli approcci frequentisti tradizionali. Utilizzando il pacchetto **brms** in R, abbiamo dimostrato come sia possibile modellare la proporzione di adolescenti che hanno usato il preservativo durante il primo rapporto sessuale, ottenendo risultati coerenti con quelli frequentisti. La capacità di ottenere una distribuzione completa della probabilità a posteriori consente non solo stime puntuali ma anche una comprensione approfondita dell'incertezza associata ai parametri stimati, rendendo l'approccio bayesiano uno strumento potente per l'analisi statistica avanzata.
+## Riflessioni conclusive {.unnumbered .unlisted} 
 
-L'estensione dell'analisi alla differenza tra due proporzioni ha ulteriormente evidenziato i vantaggi dell'approccio bayesiano. Attraverso **brms**, abbiamo confrontato le proporzioni di utilizzo del preservativo tra i "pledgers" e i "non-pledgers", ottenendo risultati coerenti e facilmente interpretabili. L'uso di distribuzioni a posteriori complete ci ha permesso di valutare in modo più dettagliato la plausibilità delle differenze osservate, offrendo una maggiore profondità di interpretazione rispetto agli intervalli di confidenza frequentisti.
+In questo capitolo abbiamo lavorato sul modello binomiale/bernoulliano
 
-### Vantaggi dell'Approccio Bayesiano
+$$
+y\mid \theta \sim \mathrm{Binomiale}(n,\theta),\qquad \theta\in(0,1),
+$$
 
-1. **Distribuzioni A Posteriori**: L'approccio bayesiano fornisce una visione completa della distribuzione dei parametri stimati, permettendo di calcolare probabilità direttamente e quantificare l'incertezza in modo più intuitivo.
-   
-2. **Flessibilità Modellistica**: **brms** consente di costruire modelli complessi, inclusi modelli gerarchici e multivariati, adattandosi alle specifiche esigenze dell'analisi senza perdere di generalità.
+con prior $\theta\sim\mathrm{Beta}(a,b)$. La scelta è utile perché la *posterior rimane Beta*:
 
-3. **Prior Informativi e Non Informativi**: La possibilità di incorporare prior informativi o utilizzare prior non informativi permette di integrare conoscenze pregresse o lavorare in assenza di informazioni preliminari, aumentando la robustezza delle inferenze.
+$$
+\theta\mid y \sim \mathrm{Beta}(a+y,\; b+n-y),
+$$
 
-4. **Integrazione con Stan**: Sfruttando la potenza di Stan, **brms** offre algoritmi di campionamento efficienti e accurati per modelli complessi, garantendo risultati affidabili anche in situazioni di alta dimensionalità.
+da cui seguono senza approssimazioni media $\mathbb E[\theta\mid y]=\dfrac{a+y}{a+b+n}$, varianza $\dfrac{(a+y)(b+n-y)}{(a+b+n)^2(a+b+n+1)}$ e intervalli credibili tramite quantili Beta. Questa chiusura algebrica consente calcoli analitici, verifiche veloci e un controllo fine su come *informazione dei dati* ($n$) e *informazione a priori* ($a+b$) si combinano.
 
-5. **Visualizzazione e Interpretazione**: L'integrazione con pacchetti come **tidyverse** e **ggplot2** facilita la visualizzazione e l'interpretazione dei risultati, rendendo più semplice comunicare le analisi bayesiane a un pubblico ampio e variegato.
+**Cosa riportare.** Le quantità che davvero informano il lettore sono:
 
-### Applicazioni Pratiche
+1. *Stima e incertezza di $\theta$*: media o mediana posteriore, più un intervallo credibile (ad es. 90% HPD o et).
+2. *Probabilità di superare una soglia rilevante*: $\Pr(\theta>\theta^\star \mid y)$ per “superiorità”, oppure $\Pr(|\theta-\theta_{\mathrm{ref}}|<\delta\mid y)$ per “equivalenza” (ROPE). Queste sono le frasi che rispondono direttamente alle domande applicative.
+3. *Predittiva*: per $m$ osservazioni future, $y_{\text{new}}\mid y \sim \mathrm{Beta\text{-}Binomiale}\big(m,\,a+y,\,b+n-y\big)$. Media predittiva $m\,\dfrac{a+y}{a+b+n}$ e varianza $m\,\bar\theta(1-\bar\theta)\,\dfrac{a+b+n+m}{a+b+n+1}$, con $\bar\theta$ la media posteriore. Serve per rispondere a “cosa aspettarsi” al prossimo studio o nel campione successivo.
 
-I risultati ottenuti confermano che i "pledgers" hanno una minore propensione all'uso del preservativo rispetto ai "non-pledgers", supportando con elevata credibilità l'ipotesi formulata. Questi risultati riproducono quelli riportati dalla letteratura precedente, rafforzando la validità dell'approccio bayesiano nelle applicazioni pratiche.
+**Scelta e impatto della prior.** L’*effective sample size a priori* è $a+b$. Quando $n \gg a+b$, i dati dominano; quando $n$ è della stessa taglia di $a+b$, la prior pesa visibilmente.
 
-### Conclusione
+* Beta(1,1) è uniforme (poco informativa ma non *ignorante*).
+* Beta(2,2) concentra moderatamente attorno a 0.5 (utile per tassi “centrali”).
+* Beta(0.5,0.5) dà più massa a 0 e 1 (casi rari ma plausibili in cui estremi sono realistici).
+  Se esistono dati storici, calibrare $a$ e $b$ in modo che $\dfrac{a}{a+b}$ coincida con la proporzione storica e $a+b$ rappresenti quanta fiducia le attribuiamo.
 
-In sintesi, l'approccio bayesiano, implementato attraverso il pacchetto **brms**, rappresenta uno strumento estremamente potente e flessibile per l'inferenza statistica. Offre una visione più dettagliata e comprensiva rispetto agli approcci frequentisti tradizionali, permettendo di ottenere risultati coerenti e facilmente interpretabili. 
+**Decisioni coerenti con la domanda.** Le decisioni dovrebbero essere espresse come *probabilità su regioni*:
 
-## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
+* *Superiorità*: dichiarare “successo” se $\Pr(\theta>\theta_0\mid y)\ge 0.95$ (soglia adattabile al contesto).
+* *Non-inferiorità*: usare $\Pr(\theta\ge \theta_0-\Delta\mid y)$.
+* *Equivalenza clinica*: specificare una ROPE $[\theta_{\mathrm{ref}}-\delta,\,\theta_{\mathrm{ref}}+\delta]$ e richiedere $\Pr(\theta\in\text{ROPE}\mid y)$ elevata (es. ≥ 0.95).
+  Queste quantità sono più informative di un “p-value sì/no” perché dicono *quanto* crediamo in ciascuna conclusione, date prior e dati.
+
+**Adeguatezza del modello.** Il binomiale presuppone prove *indipendenti* con *probabilità costante*. Se osservi *overdispersione* (varianza empirica ≫ $n\hat\theta(1-\hat\theta)$) o eterogeneità tra sottogruppi, una *Beta–Binomiale* o un modello gerarchico su $\theta$ è più appropriato. I *posterior predictive checks* con $y_{\text{new}}$ sono lo strumento pratico: se la distribuzione predittiva non riproduce le statistiche chiave (proporzione, varianza, estremi) occorre riformulare il modello.
+
+**Implementazione: evitare ambiguità.** Con `brms`, `family = bernoulli()` o `binomial(trials = n)` usa di default il *link logit*: il parametro stimato è $\alpha$ con $\theta = \mathrm{logit}^{-1}(\alpha)$. Le prior su $\alpha$ non sono lineari su $\theta$. Se desideri controllare la prior *sulla proporzione*, usa una fase di *prior predictive calibration*: scegli una prior su $\alpha$ tale che la distribuzione indotta di $\theta$ riproduca le credenze desiderate (o passa a Stan con $\theta$ parametrico e prior Beta diretta). Coerenza di risultati tra `brms` e `cmdstanr` si verifica confrontando $\Pr(\theta>\theta^\star\mid y)$, gli intervalli credibili e la predittiva: devono sovrapporsi entro l’errore Monte Carlo.
+
+**Pianificazione.** Prima di raccogliere dati, la domanda utile è: “Con quale probabilità la nostra regola decisionale porterà alla conclusione desiderata?”. L’*assurance bayesiana* calcola $\Pr\big(\Pr(\theta>\theta^\star\mid Y)\ge c\big)$ quando $Y$ è generato dal modello con la prior attuale. Si esplora $n$ finché questa probabilità non raggiunge il livello desiderato (ad es. 80%). È più trasparente del calcolo della “potenza” classica perché integra l’incertezza su $\theta$ già nella fase di pianificazione.
+
+**Trappole da evitare (e come riconoscerle).** Risultati “troppo sicuri” con campioni piccoli spesso indicano una *prior troppo informativa* (grande $a+b$); posterior predictive che ignora variabilità reale segnala *modello troppo rigido*; discrepanze tra brms e Stan, a parità di dati, derivano quasi sempre da *prior sul predittore logit* non allineate alla prior Beta desiderata.
+
+In breve, per una sola proporzione, il percorso solido è specificare (o calibrare) una prior con significato operativo, riportare probabilità su soglie rilevanti e predizioni future, verificare l’adeguatezza con posterior predictive, e — se serve — passare a modelli con dispersione extra. Questi elementi, non frasi di rito, sono ciò che rende le conclusioni realmente informative e replicabili.
+
+
+## Informazioni sull'ambiente di sviluppo {.unnumbered .unlisted} 
 
 ```{r}
 sessionInfo()
 ```
 
-## Bibliografia {.unnumbered}
+## Bibliografia {.unnumbered .unlisted} 
 

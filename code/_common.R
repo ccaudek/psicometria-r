@@ -214,9 +214,27 @@ okabe_ito <- c(
   vermillion = "#D55E00",
   reddishpurple = "#CC79A7"
 )
-scale_color_okabe_ito <- function(...)
-  scale_color_manual(values = okabe_ito, ...)
-scale_fill_okabe_ito <- function(...) scale_fill_manual(values = okabe_ito, ...)
+
+# New helpers: drop black by default (common for fills)
+.okabe_ito_no_black <- okabe_ito[c(
+  "sky",
+  "vermillion",
+  "bluishgreen",
+  "orange",
+  "blue",
+  "reddishpurple",
+  "yellow"
+)]
+
+scale_fill_okabe_ito <- function(..., drop_black = TRUE) {
+  vals <- if (isTRUE(drop_black)) .okabe_ito_no_black else okabe_ito
+  ggplot2::scale_fill_manual(values = vals, ...)
+}
+
+scale_color_okabe_ito <- function(..., drop_black = TRUE) {
+  vals <- if (isTRUE(drop_black)) .okabe_ito_no_black else okabe_ito
+  ggplot2::scale_color_manual(values = vals, ...)
+}
 
 # Uso tipico:
 #   ggplot(df, aes(x, y, color = gruppo)) +
