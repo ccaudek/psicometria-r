@@ -1134,15 +1134,35 @@ window.Quarto = {
   
 
 
-</header><div class="callout callout-style-simple callout-important no-icon callout-titled">
-<div class="callout-header d-flex align-content-center">
+</header><div class="epigraph">
+<blockquote class="blockquote">
+<p>“La divergenza di Kullback-Leibler non è una vera e propria distanza, ma una misura di informazione relativa. È il prezzo che paghiamo in termini di informazione quando sostituiamo la distribuzione ‘vera’ con una sua approssimazione.”</p>
+<p>– <strong>Christopher M. Bishop</strong>, Autore di “Pattern Recognition and Machine Learning”</p>
+</blockquote>
+</div>
+<section id="introduzione" class="level2 unnumbered unlisted"><h2 class="unnumbered unlisted anchored" data-anchor-id="introduzione">Introduzione</h2>
+<div class="lead">
+<p>Nel capitolo precedente abbiamo introdotto l’<em>entropia</em> come misura dell’incertezza di una distribuzione di probabilità. Ora facciamo un passo avanti: invece di misurare l’incertezza <em>di una sola distribuzione</em>, vogliamo misurare <em>quanto una distribuzione differisce da un’altra</em>. Uno strumento cruciale per rispondere a questa domanda è la divergenza di Kullback-Leibler <span class="citation" data-cites="kullback1951information">(<a href="#ref-kullback1951information" role="doc-biblioref">Kullback &amp; Leibler, 1951</a>)</span>, spesso abbreviata come divergenza KL (<span class="math inline">\(D_{\text{KL}}\)</span>). Essa misura quanto si perde in precisione o efficienza se si utilizza un modello errato per descrivere la realtà.</p>
+</div>
+<section id="panoramica-del-capitolo" class="level3 unnumbered unlisted"><h3 class="unnumbered unlisted anchored" data-anchor-id="panoramica-del-capitolo">Panoramica del capitolo</h3>
+<ul>
+<li>Cos’è la divergenza KL e da dove nasce.</li>
+<li>Come si collega al concetto di entropia.</li>
+<li>Perché è utile nella scelta tra modelli statistici.</li>
+<li>Come calcolarla e interpretarla, anche con esempi in R.</li>
+</ul>
+<hr>
+<div class="callout callout-style-simple callout-important no-icon callout-titled" title="Obiettivi di apprendimento">
+<div class="callout-header d-flex align-content-center" data-bs-toggle="collapse" data-bs-target=".callout-1-contents" aria-controls="callout-1" aria-expanded="false" aria-label="Toggle callout">
 <div class="callout-icon-container">
 <i class="callout-icon no-icon"></i>
 </div>
 <div class="callout-title-container flex-fill">
 Obiettivi di apprendimento
 </div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
 </div>
+<div id="callout-1" class="callout-1-contents callout-collapse collapse">
 <div class="callout-body-container callout-body">
 <p>Alla fine di questo capitolo, sarai in grado di:</p>
 <ul>
@@ -1154,30 +1174,36 @@ Obiettivi di apprendimento
 </ul>
 </div>
 </div>
-<div class="callout callout-style-simple callout-tip no-icon callout-titled">
-<div class="callout-header d-flex align-content-center">
+</div>
+<div class="callout callout-style-simple callout-tip no-icon callout-titled" title="Prerequisiti">
+<div class="callout-header d-flex align-content-center" data-bs-toggle="collapse" data-bs-target=".callout-2-contents" aria-controls="callout-2" aria-expanded="false" aria-label="Toggle callout">
 <div class="callout-icon-container">
 <i class="callout-icon no-icon"></i>
 </div>
 <div class="callout-title-container flex-fill">
 Prerequisiti
 </div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
 </div>
+<div id="callout-2" class="callout-2-contents callout-collapse collapse">
 <div class="callout-body-container callout-body">
 <ul>
 <li>Per comprendere appieno questo capitolo, dovresti aver già appreso i concetti di <em>entropia e informazione di Shannon</em> (<a href="01_entropy.html" class="quarto-xref"><span>Capitolo 75</span></a>).</li>
 </ul>
 </div>
 </div>
-<div class="callout callout-style-simple callout-caution no-icon callout-titled">
-<div class="callout-header d-flex align-content-center">
+</div>
+<div class="callout callout-style-simple callout-caution no-icon callout-titled" title="Preparazione del Notebook">
+<div class="callout-header d-flex align-content-center" data-bs-toggle="collapse" data-bs-target=".callout-3-contents" aria-controls="callout-3" aria-expanded="false" aria-label="Toggle callout">
 <div class="callout-icon-container">
 <i class="callout-icon no-icon"></i>
 </div>
 <div class="callout-title-container flex-fill">
 Preparazione del Notebook
 </div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
 </div>
+<div id="callout-3" class="callout-3-contents callout-collapse collapse">
 <div class="callout-body-container callout-body">
 <div class="cell">
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html">here</a></span><span class="op">(</span><span class="st">"code"</span>, <span class="st">"_common.R"</span><span class="op">)</span> <span class="op">|&gt;</span> </span>
@@ -1214,17 +1240,8 @@ Preparazione del Notebook
 </div>
 </div>
 </div>
-<section id="introduzione" class="level2 unnumbered unlisted"><h2 class="unnumbered unlisted anchored" data-anchor-id="introduzione">Introduzione</h2>
-<div class="lead">
-<p>Nel capitolo precedente abbiamo introdotto l’<em>entropia</em> come misura dell’incertezza di una distribuzione di probabilità. Ora facciamo un passo avanti: invece di misurare l’incertezza <em>di una sola distribuzione</em>, vogliamo misurare <em>quanto una distribuzione differisce da un’altra</em>. Uno strumento cruciale per rispondere a questa domanda è la divergenza di Kullback-Leibler <span class="citation" data-cites="kullback1951information">(<a href="#ref-kullback1951information" role="doc-biblioref">Kullback &amp; Leibler, 1951</a>)</span>, spesso abbreviata come divergenza KL (<span class="math inline">\(D_{\text{KL}}\)</span>). Essa misura quanto si perde in precisione o efficienza se si utilizza un modello errato per descrivere la realtà.</p>
 </div>
-<p>In questo capitolo vedremo:</p>
-<ul>
-<li>cos’è la divergenza KL e da dove nasce;</li>
-<li>come si collega al concetto di entropia;</li>
-<li>perché è utile nella scelta tra modelli statistici;</li>
-<li>come calcolarla e interpretarla, anche con esempi in R.</li>
-</ul></section><section id="la-generalizzabilità-dei-modelli-e-il-metodo-scientifico" class="level2" data-number="76.1"><h2 data-number="76.1" class="anchored" data-anchor-id="la-generalizzabilità-dei-modelli-e-il-metodo-scientifico">
+</section></section><section id="la-generalizzabilità-dei-modelli-e-il-metodo-scientifico" class="level2" data-number="76.1"><h2 data-number="76.1" class="anchored" data-anchor-id="la-generalizzabilità-dei-modelli-e-il-metodo-scientifico">
 <span class="header-section-number">76.1</span> La generalizzabilità dei modelli e il metodo scientifico</h2>
 <p>Uno degli obiettivi fondamentali della scienza è la <em>generalizzabilità</em>: un buon modello non deve spiegare solo i dati che abbiamo già, ma anche prevedere correttamente nuovi dati che potremmo raccogliere in futuro. Un modello troppo semplice rischia di <em>sotto-adattarsi</em> ai dati (<em>underfitting</em>), perdendo informazioni importanti; uno troppo complesso rischia di <em>sovra-adattarsi</em> (<em>overfitting</em>), confondendo il rumore casuale con segnali reali. Il problema della generalizzabilità è quindi centrale nel metodo scientifico: vogliamo modelli abbastanza flessibili da catturare i pattern reali, ma non così flessibili da adattarsi anche a variazioni casuali.</p>
 <p>Nell’approccio bayesiano, come osserva <span class="citation" data-cites="McElreath_rethinking">McElreath (<a href="#ref-McElreath_rethinking" role="doc-biblioref">2020</a>)</span>, la scelta di un modello implica trovare un equilibrio tra due esigenze:</p>
@@ -1708,7 +1725,18 @@ q &lt;- c(0.1, 0.2, 0.7)</code></pre>
 <div id="exr-entropy-2" class="theorem exercise">
 <p><span class="theorem-title"><strong>Esercizio 76.2</strong></span> Sia <span class="math inline">\(p\)</span> una distribuzione binomiale di parametri <span class="math inline">\(\theta = 0.2\)</span> e <span class="math inline">\(n = 5\)</span>. Sia <span class="math inline">\(q_1\)</span> una approssimazione a <span class="math inline">\(p\)</span>: <code>q1 = c(0.46, 0.42, 0.10, 0.01, 0.01)</code>. Sia <span class="math inline">\(q_2\)</span> una distribuzione uniforme: <code>q2 &lt;- rep(0.2, 5)</code>. Si calcoli la divergenza <span class="math inline">\(\mathbb{KL}\)</span> di <span class="math inline">\(q_1\)</span> da <span class="math inline">\(p\)</span> e da <span class="math inline">\(q_2\)</span> da <span class="math inline">\(p\)</span> e si interpretino i risultati.</p>
 </div>
-</section><section id="informazioni-sullambiente-di-sviluppo" class="level2 unnumbered unlisted"><h2 class="unnumbered unlisted anchored" data-anchor-id="informazioni-sullambiente-di-sviluppo">Informazioni sull’ambiente di sviluppo</h2>
+<div class="callout callout-style-simple callout-note no-icon callout-titled" title="Informazioni sull'ambiente di sviluppo">
+<div class="callout-header d-flex align-content-center" data-bs-toggle="collapse" data-bs-target=".callout-12-contents" aria-controls="callout-12" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon no-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Informazioni sull’ambiente di sviluppo
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-12" class="callout-12-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
 <div class="cell" data-layout-align="center">
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/sessionInfo.html">sessionInfo</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="co">#&gt; R version 4.5.1 (2025-06-13)</span></span>
@@ -1766,6 +1794,9 @@ q &lt;- c(0.1, 0.2, 0.7)</code></pre>
 <span><span class="co">#&gt; [70] rstantools_2.4.0     coda_0.19-4.1        gridExtra_2.3       </span></span>
 <span><span class="co">#&gt; [73] nlme_3.1-168         checkmate_2.3.2      xfun_0.52           </span></span>
 <span><span class="co">#&gt; [76] zoo_1.8-14           pkgconfig_2.0.3</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</div>
+</div>
 </div>
 </section><section id="bibliografia" class="level2 unnumbered unlisted"><h2 class="unnumbered unlisted anchored" data-anchor-id="bibliografia">Bibliografia</h2>
 
