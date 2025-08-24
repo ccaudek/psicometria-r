@@ -1,23 +1,40 @@
 # L'algoritmo di Metropolis-Hastings {#sec-mcmc-metropolis}
 
-::: callout-note  
-## In questo capitolo imparerai a 
+::: {.epigraph}
+> “The [Metropolis] algorithm... has the remarkable property that, *instead of considering all possible states of the system, it concentrates on those states which have the greatest probability*.”
+>
+> -- **Marshall N. Rosenbluth**, raccontando il lavoro del team di Metropolis, Rosenbluth, Rosenbluth, Teller e Teller (1953)
+:::
 
-- utilizzare metodi Monte Carlo per stimare valori attesi e probabilità, evitando calcoli integrali complessi;
-- comprendere il ruolo delle catene di Markov nel campionamento dalla distribuzione a posteriori;
-- implementare l'algoritmo di Metropolis per il campionamento a posteriori;
-- valutare la convergenza delle catene con strumenti diagnostici come trace plot e autocorrelazione;
-- gestire la fase di burn-in e utilizzare più catene per garantire stazionarietà e ridurre l'autocorrelazione.
-:::  
+## Introduzione {.unnumbered .unlisted}
 
-::: callout-tip
+::: {.lead}
+Nei capitoli precedenti abbiamo esaminato diversi esempi di inferenza bayesiana, concentrandoci su modelli parametrici semplici come il caso unidimensionale del modello bernoulliano. In questi scenari elementari, abbiamo utilizzato due approcci principali: l’*approssimazione discreta su griglia*, che valuta la distribuzione a posteriori su un insieme finito di valori parametrali, e l’uso di *distribuzioni a priori coniugate*, che, grazie alla loro forma analiticamente trattabile, permettono di derivare la posterior in modo esatto.  
+:::
+
+Tuttavia, questi metodi presentano limitazioni significative non appena ci si allontana da contesti idealizzati. In particolare, diventano rapidamente inefficienti in presenza di modelli con molteplici parametri, relazioni complesse tra variabili, o distribuzioni a priori non coniugate. In tali casi, il calcolo analitico risulta spesso intrattabile, mentre l’approssimazione su griglia diventa computazionalmente proibitiva a causa della crescita esponenziale del numero di valutazioni necessarie al crescere della dimensionalità dello spazio parametrico.  
+
+Per affrontare queste sfide, l’inferenza bayesiana moderna fa ricorso a tecniche numeriche avanzate, tra cui spicca il *Metodo Monte Carlo a Catena di Markov (MCMC)*. Questo approccio innovativo supera i limiti dei metodi tradizionali generando campioni dalla distribuzione a posteriori attraverso un processo iterativo che combina l’efficienza del campionamento stocastico con la flessibilità degli algoritmi markoviani. Il risultato è una metodologia potente e generale, in grado di fornire stime accurate anche per modelli complessi e ad alta dimensionalità, senza richiedere soluzioni analitiche chiuse.  
+
+
+### Panoramica del capitolo {.unnumbered .unlisted}
+
+- Utilizzare metodi Monte Carlo per stimare valori attesi e probabilità, evitando calcoli integrali complessi.
+- Comprendere il ruolo delle catene di Markov nel campionamento dalla distribuzione a posteriori.
+- Implementare l'algoritmo di Metropolis per il campionamento a posteriori.
+- Valutare la convergenza delle catene con strumenti diagnostici come trace plot e autocorrelazione.
+- Gestire la fase di burn-in e utilizzare più catene per garantire stazionarietà e ridurre l'autocorrelazione.
+
+
+---
+
+::: {.callout-tip collapse=true}
 ## Prerequisiti
 
 - Leggere l'@sec-apx-calculus.
 :::
 
-::: callout-important
-## Preparazione del Notebook
+::: {.callout-caution collapse=true title="Preparazione del Notebook"}
 
 ```{r}
 #| output: false
@@ -29,17 +46,6 @@ if (!requireNamespace("pacman")) install.packages("pacman")
 pacman::p_load(cmdstanr, reshape2)
 ```
 :::
-
-
-## Introduzione {.unnumbered .unlisted}
-
-::: {.lead}
-Nei capitoli precedenti abbiamo esaminato diversi esempi di inferenza bayesiana, concentrandoci su modelli parametrici semplici come il caso unidimensionale del modello bernoulliano. In questi scenari elementari, abbiamo utilizzato due approcci principali: l’*approssimazione discreta su griglia*, che valuta la distribuzione a posteriori su un insieme finito di valori parametrali, e l’uso di *distribuzioni a priori coniugate*, che, grazie alla loro forma analiticamente trattabile, permettono di derivare la posterior in modo esatto.  
-:::
-
-Tuttavia, questi metodi presentano limitazioni significative non appena ci si allontana da contesti idealizzati. In particolare, diventano rapidamente inefficienti in presenza di modelli con molteplici parametri, relazioni complesse tra variabili, o distribuzioni a priori non coniugate. In tali casi, il calcolo analitico risulta spesso intrattabile, mentre l’approssimazione su griglia diventa computazionalmente proibitiva a causa della crescita esponenziale del numero di valutazioni necessarie al crescere della dimensionalità dello spazio parametrico.  
-
-Per affrontare queste sfide, l’inferenza bayesiana moderna fa ricorso a tecniche numeriche avanzate, tra cui spicca il *Metodo Monte Carlo a Catena di Markov (MCMC)*. Questo approccio innovativo supera i limiti dei metodi tradizionali generando campioni dalla distribuzione a posteriori attraverso un processo iterativo che combina l’efficienza del campionamento stocastico con la flessibilità degli algoritmi markoviani. Il risultato è una metodologia potente e generale, in grado di fornire stime accurate anche per modelli complessi e ad alta dimensionalità, senza richiedere soluzioni analitiche chiuse.  
 
 
 ## L'obiettivo del metodo MCMC
@@ -211,57 +217,64 @@ x <- seq(0, 1, length.out = 1000)
 prior_density     <- dbeta(x, 4, 6)
 posterior_density <- dbeta(x, 18, 92)
 
-# Dati per il grafico
-df <- data.frame(
+# Dati per il grafico (tidy senza reshape2)
+df_long <- tibble::tibble(
   x = x,
-  prior = prior_density,
-  posterior = posterior_density
-)
-
-# Lungo
-df_long <- reshape2::melt(
-  df,
-  id.vars = "x",
-  measure.vars = c("prior", "posterior"),
-  variable.name = "distribuzione",
-  value.name = "densita"
-)
-
-# Fattorizziamo con levels e labels espliciti
-df_long <- dplyr::mutate(
-  df_long,
-  distribuzione = factor(
-    distribuzione,
-    levels = c("prior", "posterior"),
-    labels = c("Prior: Beta(4, 6)", "Posterior: Beta(18, 92)")
+  `Prior: Beta(4, 6)`       = prior_density,
+  `Posterior: Beta(18, 92)` = posterior_density
+) |>
+  tidyr::pivot_longer(
+    cols = -x,
+    names_to = "distribuzione",
+    values_to = "densita"
+  ) |>
+  dplyr::mutate(
+    distribuzione = factor(
+      distribuzione,
+      levels = c("Prior: Beta(4, 6)", "Posterior: Beta(18, 92)")
+    )
   )
+
+# Mappatura Okabe–Ito (da _common.R)
+colori_okabe <- c(
+  "Prior: Beta(4, 6)"       = unname(okabe_ito["sky"]),
+  "Posterior: Beta(18, 92)" = unname(okabe_ito["vermillion"])
 )
 
-if (!exists("palette_set1")) {
-  palette_set1 <- RColorBrewer::brewer.pal(3, "Set1")
-  names(palette_set1) <- c("uno","due","tre")
-}
-
-cols <- c(
-  "Prior: Beta(4, 6)"       = unname(palette_set1[[1]]),
-  "Posterior: Beta(18, 92)" = unname(palette_set1[[2]])
-)
-
-# Grafico
 ggplot(df_long, aes(x = x, y = densita)) +
-  geom_line(aes(color = distribuzione), linewidth = 1) +
-  geom_area(aes(fill = distribuzione), alpha = 0.35, position = "identity") +
-  scale_color_manual(values = cols, breaks = names(cols), labels = names(cols)) +
-  scale_fill_manual(values = cols,  breaks = names(cols), labels = names(cols)) +
+  geom_area(
+    aes(fill = distribuzione),
+    alpha = 0.30,
+    position = "identity",
+    color = NA
+  ) +
+  geom_line(
+    aes(color = distribuzione),
+    linewidth = 1.1
+  ) +
+  scale_fill_manual(
+    name   = "Distribuzione",
+    values = colori_okabe,
+    breaks = names(colori_okabe)
+  ) +
+  scale_color_manual(
+    name   = "Distribuzione",
+    values = colori_okabe,
+    breaks = names(colori_okabe)
+  ) +
+  guides(
+    fill  = guide_legend(override.aes = list(color = NA, alpha = 0.30)),
+    color = guide_legend(override.aes = list(fill  = NA, linewidth = 1.1))
+  ) +
   labs(
     title = "Densità a priori e a posteriori",
-    x = "Valore del parametro",
-    y = "Densità",
-    color = NULL, fill = NULL
+    x = expression(theta),
+    y = "Densità"
   ) +
   theme(
     plot.title = element_text(hjust = 0.5),
-    legend.position = "top"
+    legend.position = "top",
+    legend.box = "horizontal"
   )
 ```
 
@@ -537,45 +550,43 @@ tibble(
 Sovrapponiamo la distribuzione analitica $\text{Beta}(18, 92)$ all'istogramma dei campioni post-burn-in:
 
 ```{r}
-# Se per qualche motivo non è stato caricato _common.R:
-if (!exists("palette_set1")) {
-  palette_set1 <- RColorBrewer::brewer.pal(3, "Set1")
-  names(palette_set1) <- c("uno", "due", "tre")
-}
-
-# Mappa colori coerente con la figura precedente
-colori_grafico <- c(
-  "Istogramma MCMC" = unname(palette_set1[[1]]),
-  "Beta(18, 92)"    = unname(palette_set1[[2]])
+colori_okabe <- c(
+  "Istogramma"  = unname(okabe_ito["sky"]),
+  "Beta(18,92)" = unname(okabe_ito["vermillion"])
 )
 
-tibble(Theta = post_burnin_samples) |> 
+p <- tibble(Theta = post_burnin_samples) |>
   ggplot(aes(x = Theta)) +
   geom_histogram(
-    aes(y = after_stat(density), fill = "Istogramma MCMC"),
-    bins = 30, 
-    color = "black", 
-    alpha = 0.7
-  ) + 
+    aes(y = after_stat(density), fill = "Istogramma"),
+    bins = 30, color = "black", alpha = 0.7, show.legend = TRUE
+  ) +
   stat_function(
-    aes(color = "Beta(18, 92)"),
-    fun = dbeta,
-    args = list(shape1 = 18, shape2 = 92), 
-    linewidth = 1.2
-  ) + 
+    aes(color = "Beta(18,92)"),
+    fun = dbeta, args = list(shape1 = 18, shape2 = 92), linewidth = 1.2,
+    show.legend = TRUE
+  ) +
   labs(
     title = "Istogramma e distribuzione a posteriori",
-    x = expression(theta),
-    y = "Densità",
-    fill = "Distribuzione", 
-    color = "Distribuzione"
+    x = expression(theta), y = "Densità"
   ) +
-  scale_fill_manual(values = colori_grafico, breaks = names(colori_grafico)) +
-  scale_color_manual(values = colori_grafico, breaks = names(colori_grafico)) +
+  scale_fill_manual(name = "Distribuzione",
+                    values = colori_okabe,
+                    breaks = names(colori_okabe)) +
+  scale_color_manual(name = "Distribuzione",
+                     values = colori_okabe,
+                     breaks = names(colori_okabe)) +
+  guides(
+    # Mostra un rettangolo per "Istogramma" (fill) e una linea per "Beta"
+    fill  = guide_legend(override.aes = list(color = NA)),
+    color = guide_legend(override.aes = list(fill  = NA))
+  ) +
   theme(
     plot.title = element_text(hjust = 0.5),
     legend.position = "top"
   )
+
+p
 ```
 
 Calcoliamo l'intervallo di credibilità al 94%:
@@ -996,56 +1007,69 @@ std_post
 Visualizziamo i risultati con un istogramma dei campioni MCMC e la curva della distribuzione analitica:
 
 ```{r}
-# Assicuriamoci che palette_set1 sia disponibile
-if (!exists("palette_set1")) {
-  palette_set1 <- RColorBrewer::brewer.pal(3, "Set1")
-  names(palette_set1) <- c("uno", "due", "tre")
-}
+# ── Curva analitica del posterior (normale) ───────────────────────────
+x  <- seq(mu_post - 4 * std_post, mu_post + 4 * std_post, length.out = 1000)
+df_line <- tibble(x = x, dens = dnorm(x, mean = mu_post, sd = std_post))
 
-# Campioni post burn-in
-burnin <- floor(length(samples) * 0.5)
-post_samples <- samples[-seq_len(burnin)]
+# ── Campioni post burn-in per l'istogramma ────────────────────────────
+burnin <- floor(0.5 * length(samples))
+post_samples <- samples[(burnin + 1):length(samples)]
+df_hist <- tibble(val = post_samples)
 
-# Dati per la curva analitica
-x <- seq(mu_post - 4 * std_post, mu_post + 4 * std_post, length.out = 1000)
-analytical_posterior <- dnorm(x, mean = mu_post, sd = std_post)
+# Binwidth data-driven (Freedman–Diaconis)
+bw_fd <- 2 * IQR(post_samples) / length(post_samples)^(1/3)
+```
 
-# Colori coerenti con la palette
-colore_hist <- unname(palette_set1[[1]])  # es. blu Set1
-colore_line <- unname(palette_set1[[2]])  # es. rosso Set1
 
-# Creazione del grafico
+```{r}
+# ── Colori Okabe–Ito (già definiti in _common.R) ─────────────────────
+colori_okabe <- c(
+  "MCMC"      = unname(okabe_ito["sky"]),         # #56B4E9
+  "Analitico" = unname(okabe_ito["bluishgreen"])  # #009E73
+)
+
 ggplot() +
   geom_histogram(
-    aes(x = post_samples, y = after_stat(density)),
+    data = df_hist,
+    aes(x = val, y = after_stat(density), fill = "MCMC"),
     bins = 30,
-    fill = colore_hist,
-    alpha = 0.4
+    alpha = 0.5,
+    color = NA                          # niente bordo: look più editoriale
   ) +
   geom_line(
-    aes(x = x, y = analytical_posterior),
-    color = colore_line,
-    linewidth = 1
+    data = df_line,
+    aes(x = x, y = dens, color = "Analitico"),
+    linewidth = 1.1
   ) +
   labs(
     title = "Distribuzione a posteriori: MCMC vs analitico",
-    x = expression(mu),
-    y = "Densità"
+    x = expression(mu), y = "Densità"
+  ) +
+  scale_fill_manual(
+    name = "Distribuzione",
+    values = colori_okabe,
+    breaks = names(colori_okabe)
+  ) +
+  scale_color_manual(
+    name = "Distribuzione",
+    values = colori_okabe,
+    breaks = names(colori_okabe)
+  ) +
+  guides(
+    fill  = guide_legend(override.aes = list(color = NA, alpha = 0.5)),
+    color = guide_legend(override.aes = list(fill  = NA, linewidth = 1.1))
   ) +
   theme(
     plot.title = element_text(hjust = 0.5),
-    legend.position = "top"
+    legend.position = "top",
+    legend.box = "horizontal"
   )
 ```
 
 Troviamo le proprietà del Posterior derivato con MCMC:
 
 ```{r}
-mean(samples)
-```
-
-```{r}
-sd(samples)
+mean(samples); sd(samples)
 ```
 
 In conclusione, questo esempio illustra l'applicazione dell'algoritmo di Metropolis per la stima di una distribuzione a posteriori nel caso Normale-Normale e dimostra come confrontare i risultati del campionamento con la soluzione analitica, confermando così la coerenza tra le due approcci.
@@ -1426,12 +1450,11 @@ Questo mostra la potenza dell'approccio MCMC anche in situazioni dove la soluzio
 :::
 
 
-## Informazioni sull'ambiente di sviluppo {.unnumbered .unlisted}
-
+::: {.callout-note collapse=true title="Informazioni sull'ambiente di sviluppo"}
 ```{r}
 sessionInfo()
 ```
-
+:::
 
 ## Bibliografia {.unnumbered .unlisted}
 
