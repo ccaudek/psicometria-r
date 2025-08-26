@@ -1,14 +1,29 @@
 # La crisi di replicazione e la riforma metodologica in psicologia {#sec-data-science}
 
-::: callout-important
-## In questo capitolo imparerai a
-
-- comprendere il contesto storico e concettuale della trasformazione metodologica in psicologia;
-- identificare le principali criticità metodologiche che hanno contribuito alla crisi di replicabilità;
-- descrivere l'approccio bayesiano come paradigma statistico alternativo al frequentismo.
+::: {.epigraph}
+> “Nel progetto di replicazione di 100 studi di psicologia, solo il 36% delle repliche ha prodotto risultati statisticamente significativi (contro il 97% degli studi originali) e le dimensioni d’effetto replicate erano circa la metà di quelle originali.”
+>
+> -- **Open Science Collaboration** (2015)
 :::
 
-::: callout-tip
+## Introduzione
+
+::: {.lead .dropcap}
+Negli ultimi vent'anni, la psicologia ha attraversato una trasformazione metodologica profonda, innescata da una crescente consapevolezza dei propri limiti empirici. Questa trasformazione prende il nome di *crisi di replicazione* [@baker20161; @bishop2019psychology]. Numerosi tentativi sistematici di replicare effetti pubblicati in studi classici hanno rivelato un tasso sorprendentemente alto di fallimenti. In molti casi, i risultati non solo non si replicano con la stessa ampiezza, ma talvolta non emergono affatto. Questa situazione ha costretto l'intera disciplina a interrogarsi sulla solidità delle proprie basi empiriche.
+:::
+
+
+### Panoramica del capitolo {.unnumbered .unlisted}
+
+- Distinguere replicazione, riproducibilità, robustezza e generalizzabilità (criteri diversi, complementari).
+- Cause principali: bassa potenza, flessibilità analitica (forking paths), HARKing, bias di pubblicazione, scarsa affidabilità.
+- Riforme: preregistrazione/Registered Reports, open data & code, versionamento (Git/GitHub), report riproducibili (Quarto).
+- Svolta bayesiana: prior + prior predictive, MCMC, posterior predictive checks, LOO/ELPD, analisi di sensibilità; modelli gerarchici.
+- Checklist pratica: progetto adeguato, misure affidabili, evitare dichotomie p<.05, riportare effetti con incertezza e soglie di rilevanza pratica.
+
+---
+
+::: {.callout-tip collapse=true}
 ## Prerequisiti
 
 - Leggere *Statistical Rethinking* [@McElreath_rethinking]. Focalizzati sui primi capitoli dove si discute della dicotomia tra "small world" e "big world".
@@ -18,67 +33,61 @@
 :::
 
 
-## Introduzione
-
-Negli ultimi vent'anni, la psicologia ha attraversato una trasformazione metodologica profonda, innescata da una crescente consapevolezza dei propri limiti empirici. Questa trasformazione prende il nome di **crisi di replicazione** [@baker20161; @bishop2019psychology]. Numerosi tentativi sistematici di replicare effetti pubblicati in studi classici hanno rivelato un tasso sorprendentemente alto di fallimenti. In molti casi, i risultati non solo non si replicano con la stessa ampiezza, ma talvolta non emergono affatto. Questa situazione ha costretto l'intera disciplina a interrogarsi sulla solidità delle proprie basi empiriche.
-
-
 ### Che cos'è la replicazione
 
-Replicare un risultato non significa semplicemente ottenere un nuovo p-value inferiore a .05. Significa ripetere un esperimento in condizioni il più possibile simili all'originale e ottenere **una stima dell'effetto compatibile** con quella iniziale, in termini sia di direzione che di grandezza. La replicabilità è uno dei pilastri fondamentali della scienza empirica: se un risultato rappresenta un fenomeno reale e generalizzabile, dovrebbe emergere anche in campioni indipendenti.
+Replicare un risultato non significa semplicemente ottenere un nuovo p-value inferiore a .05. Significa ripetere un esperimento in condizioni il più possibile simili all'originale e ottenere *una stima dell'effetto compatibile* con quella iniziale, in termini sia di direzione che di grandezza. La replicabilità è uno dei pilastri fondamentali della scienza empirica: se un risultato rappresenta un fenomeno reale e generalizzabile, dovrebbe emergere anche in campioni indipendenti.
 
 
 ### I numeri della crisi
 
 La portata della crisi è stata messa in evidenza dall'@open2015estimating, che ha tentato di replicare 100 studi pubblicati su riviste leader nel settore. Solo il 36% delle repliche ha prodotto risultati "significativi" nello stesso senso degli studi originali. Questo valore non va inteso come una misura bayesiana di probabilità, ma come un indicatore allarmante di quanto i risultati pubblicati siano sensibili alle condizioni sperimentali, ai campioni, e alle analisi.
 
-L'evidenza si è accumulata con studi successivi: Camerer et al. (2018) hanno mostrato una riproducibilità deludente anche in economia comportamentale, mentre Klein et al. (2014) hanno riportato effetti inconsistenti in psicologia sociale. In molti casi, i risultati originali si sono dimostrati **fragili, condizionali, o il prodotto di scelte analitiche arbitrarie**.
+L'evidenza si è accumulata con studi successivi: Camerer et al. (2018) hanno mostrato una riproducibilità deludente anche in economia comportamentale, mentre Klein et al. (2014) hanno riportato effetti inconsistenti in psicologia sociale. In molti casi, i risultati originali si sono dimostrati *fragili, condizionali, o il prodotto di scelte analitiche arbitrarie*.
 
 
 ### Il fallimento della replicazione è un sintomo
 
-Più che una patologia in sé, il fallimento della replicazione è un sintomo di un problema più ampio: un'adozione acritica e routinaria del paradigma frequentista, in particolare del **Null Hypothesis Significance Testing (NHST)**. Questo approccio, se non applicato con estrema cautela, incentiva strategie di analisi discutibili. La dipendenza da soglie fisse come p < .05, la flessibilità nel trattamento dei dati, e la pratica di adattare le ipotesi a posteriori (HARKing), contribuiscono ad amplificare **l'illusione della scoperta** anche in assenza di effetti reali.
+Più che una patologia in sé, il fallimento della replicazione è un sintomo di un problema più ampio: un'adozione acritica e routinaria del paradigma frequentista, in particolare del *Null Hypothesis Significance Testing (NHST)*. Questo approccio, se non applicato con estrema cautela, incentiva strategie di analisi discutibili. La dipendenza da soglie fisse come p < .05, la flessibilità nel trattamento dei dati, e la pratica di adattare le ipotesi a posteriori (HARKing), contribuiscono ad amplificare *l'illusione della scoperta* anche in assenza di effetti reali.
 
-La statistica frequentista tradizionale, centrata sul concetto di errore di I e II specie, può indurre a interpretazioni errate e a una eccessiva enfasi su esiti binari (significativo/non significativo). Questa mentalità ha contribuito alla **diffusione di falsi positivi**, alla **scarsa trasparenza nelle analisi**, e a una generale **crisi di credibilità** nella letteratura psicologica [@ioannidis2005most; @meehl1967theory].
+La statistica frequentista tradizionale, centrata sul concetto di errore di I e II specie, può indurre a interpretazioni errate e a una eccessiva enfasi su esiti binari (significativo/non significativo). Questa mentalità ha contribuito alla *diffusione di falsi positivi*, alla *scarsa trasparenza nelle analisi*, e a una generale *crisi di credibilità* nella letteratura psicologica [@ioannidis2005most; @meehl1967theory].
 
 
 ### Conseguenze scientifiche e sociali
 
-Il risultato è un panorama in cui non è più chiaro quali risultati siano attendibili. Gli effetti di questa incertezza non sono solo accademici: si riflettono nella **perdita di fiducia** da parte del pubblico, nello **spreco di risorse** su linee di ricerca inconsistenti, e in una generale **difficoltà a costruire teorie cumulative**. Tuttavia, questa crisi ha innescato una risposta positiva, nota come **Credibility Revolution** [@angrist2010credibility], che mira a riformare alla radice le pratiche di ricerca, ponendo l'accento su rigore metodologico, trasparenza, e apertura.
+Il risultato è un panorama in cui non è più chiaro quali risultati siano attendibili. Gli effetti di questa incertezza non sono solo accademici: si riflettono nella *perdita di fiducia* da parte del pubblico, nello *spreco di risorse* su linee di ricerca inconsistenti, e in una generale *difficoltà a costruire teorie cumulative*. Tuttavia, questa crisi ha innescato una risposta positiva, nota come *Credibility Revolution* [@angrist2010credibility], che mira a riformare alla radice le pratiche di ricerca, ponendo l'accento su rigore metodologico, trasparenza, e apertura.
 
 
 ## Una via d'uscita: la rivoluzione bayesiana
 
-In questo contesto, l'approccio bayesiano si è imposto come **una delle risposte più promettenti**. La statistica bayesiana si fonda sull'idea che la conoscenza scientifica non sia binaria (vero/falso), ma debba essere espressa in termini di **gradi di credenza** che evolvono nel tempo. L'inferenza diventa allora un processo di aggiornamento della conoscenza, in cui le distribuzioni di probabilità posteriori riflettono **quanto siamo sicuri di una determinata ipotesi**, alla luce dei dati e delle nostre conoscenze pregresse.
+In questo contesto, l'approccio bayesiano si è imposto come *una delle risposte più promettenti*. La statistica bayesiana si fonda sull'idea che la conoscenza scientifica non sia binaria (vero/falso), ma debba essere espressa in termini di *gradi di credenza* che evolvono nel tempo. L'inferenza diventa allora un processo di aggiornamento della conoscenza, in cui le distribuzioni di probabilità posteriori riflettono *quanto siamo sicuri di una determinata ipotesi*, alla luce dei dati e delle nostre conoscenze pregresse.
 
 A differenza dell'approccio NHST, che produce una decisione dicotomica, l'inferenza bayesiana restituisce un'intera distribuzione di credibilità sull'effetto. Questo consente di rispondere a domande più naturali e utili per la pratica scientifica, come ad esempio: "quanto è probabile che l'effetto superi una soglia di rilevanza pratica?", oppure: "quanto si restringe la mia incertezza sull'effetto rispetto alla conoscenza pregressa?"
 
 
 ## Il problema dei piccoli campioni e l'eterogeneità
 
-Uno dei limiti strutturali della ricerca psicologica riguarda la frequente presenza di **campioni piccoli e popolazioni eterogenee**. A causa della natura dei fenomeni studiati (ad esempio, patologie rare o condizioni sperimentali complesse), molti studi operano in condizioni di informazione limitata e con forte variabilità interindividuale. Questo porta a stime instabili, a bassa potenza statistica, e a risultati difficilmente replicabili.
+Uno dei limiti strutturali della ricerca psicologica riguarda la frequente presenza di *campioni piccoli e popolazioni eterogenee*. A causa della natura dei fenomeni studiati (ad esempio, patologie rare o condizioni sperimentali complesse), molti studi operano in condizioni di informazione limitata e con forte variabilità interindividuale. Questo porta a stime instabili, a bassa potenza statistica, e a risultati difficilmente replicabili.
 
 L'approccio bayesiano è particolarmente adatto a questi contesti. Permette di:
 
-* **integrare conoscenze pregresse** (priors) per aumentare la stabilità delle stime;
-* **modellare esplicitamente l'incertezza** e l'eterogeneità tra soggetti o studi;
-* **valutare la robustezza dei risultati** rispetto a diverse ipotesi a priori.
+* *integrare conoscenze pregresse* (priors) per aumentare la stabilità delle stime;
+* *modellare esplicitamente l'incertezza* e l'eterogeneità tra soggetti o studi;
+* *valutare la robustezza dei risultati* rispetto a diverse ipotesi a priori.
 
 In altre parole, la statistica bayesiana rende possibile un'inferenza più solida in condizioni dove i metodi frequentisti si rivelano fragili, soprattutto nei casi in cui la variabilità è alta e i dati sono scarsi.
 
 
 ## Verso una scienza cumulativa e trasparente
 
-La crisi di replicazione ha accelerato la transizione verso pratiche di ricerca più aperte, riproducibili e cumulative. In questo nuovo paradigma, l'approccio bayesiano si integra perfettamente con la **Data Science** e gli strumenti di **Open Science**: version control con GitHub, documentazione con Quarto, condivisione di dati e codice, preregistrazione delle ipotesi e confronto tra modelli. Questi strumenti, sempre più adottati, non sono semplici tecnicalità, ma **elementi strutturali** di un nuovo modello di scienza psicologica.
+La crisi di replicazione ha accelerato la transizione verso pratiche di ricerca più aperte, riproducibili e cumulative. In questo nuovo paradigma, l'approccio bayesiano si integra perfettamente con la *Data Science* e gli strumenti di *Open Science*: version control con GitHub, documentazione con Quarto, condivisione di dati e codice, preregistrazione delle ipotesi e confronto tra modelli. Questi strumenti, sempre più adottati, non sono semplici tecnicalità, ma *elementi strutturali* di un nuovo modello di scienza psicologica.
 
-Inoltre, si sta assistendo a un rinnovato interesse per la **modellazione formale**, in cui le ipotesi teoriche vengono esplicitate attraverso modelli matematici interpretabili. La statistica bayesiana è il linguaggio naturale di questi modelli, poiché permette di confrontare teorie alternative, incorporare incertezza parametrica, e testare la coerenza predittiva in modo diretto.
+Inoltre, si sta assistendo a un rinnovato interesse per la *modellazione formale*, in cui le ipotesi teoriche vengono esplicitate attraverso modelli matematici interpretabili. La statistica bayesiana è il linguaggio naturale di questi modelli, poiché permette di confrontare teorie alternative, incorporare incertezza parametrica, e testare la coerenza predittiva in modo diretto.
 
-## Conclusioni {.unnumbered .unlisted}
+## Riflessioni conclusive {.unnumbered .unlisted}
 
-La crisi di replicazione ha messo a nudo i limiti di un certo modo di fare scienza: eccessiva fiducia nei risultati significativi, scarsa attenzione all'incertezza, e una concezione rigida dell'inferenza. Il paradigma bayesiano, affiancato da pratiche di ricerca aperta e strumenti di data science, offre un'alternativa concreta e operativa. Questo libro si propone come guida introduttiva a questo approccio, con l'obiettivo di formare ricercatori capaci di pensare in termini di **variabilità, incertezza e aggiornamento continuo della conoscenza**.
+La crisi di replicazione ha messo a nudo i limiti di un certo modo di fare scienza: eccessiva fiducia nei risultati significativi, scarsa attenzione all'incertezza, e una concezione rigida dell'inferenza. Il paradigma bayesiano, affiancato da pratiche di ricerca aperta e strumenti di data science, offre un'alternativa concreta e operativa. Questo libro si propone come guida introduttiva a questo approccio, con l'obiettivo di formare ricercatori capaci di pensare in termini di *variabilità, incertezza e aggiornamento continuo della conoscenza*.
 
 
-## Esercizi {.unnumbered .unlisted}
 
 ::: {.callout-important title="Problemi" collapse="true"}
 1. Quali sono i principali fattori che hanno portato alla “Credibility Revolution” in psicologia e in che modo le nuove metodologie — in particolare l’approccio bayesiano e le buone pratiche di Data Science — mirano a superare i limiti che hanno contribuito alla “Replication Crisis”?
@@ -92,25 +101,25 @@ La crisi di replicazione ha messo a nudo i limiti di un certo modo di fare scien
 :::
 
 ::: {.callout-tip title="Soluzioni" collapse="true"}
-**1. Quali sono i principali fattori che hanno portato alla “Credibility Revolution” in psicologia e in che modo le nuove metodologie — in particolare l’approccio bayesiano e le buone pratiche di Data Science — mirano a superare i limiti che hanno contribuito alla “Replication Crisis”?**
+*1. Quali sono i principali fattori che hanno portato alla “Credibility Revolution” in psicologia e in che modo le nuove metodologie — in particolare l’approccio bayesiano e le buone pratiche di Data Science — mirano a superare i limiti che hanno contribuito alla “Replication Crisis”?*
 
 Negli ultimi decenni, la psicologia ha attraversato una “Replication Crisis” a causa di diverse pratiche di ricerca problematiche, tra cui l’utilizzo di campioni di piccole dimensioni, l’uso eccessivo di test di significatività frequentisti con *p* < .05 come soglia rigida, il fenomeno del *p-hacking* (cioè l’adattamento delle analisi per ottenere risultati “significativi”), e la carenza di trasparenza e condivisione dei dati. Questi fattori hanno portato alla pubblicazione di molti falsi positivi e a un’erosione della fiducia nelle conclusioni psicologiche.
 
 La “Credibility Revolution” nasce dalla presa di coscienza di questi problemi e dall’introduzione di nuove metodologie che offrono maggior rigore e trasparenza. L’approccio bayesiano, in particolare, consente di superare alcuni limiti della statistica frequentista, poiché fornisce distribuzioni posteriori di plausibilità per i parametri e non si affida a soglie arbitrarie di significatività. Inoltre, la Data Science ha promosso la diffusione di *pipeline* analitiche riproducibili (tramite il controllo di versione, la condivisione del codice e dei dati), contribuendo a ridurre errori, bias e a favorire la replicabilità. Insieme, queste innovazioni mirano a creare una scienza più aperta, solida e cumulativa.
 
-**2. In che modo il paradigma bayesiano differisce dall’approccio frequentista nella gestione dell’incertezza e nell’aggiornamento della conoscenza, e quali vantaggi pratici offre quando si lavora con campioni di piccole dimensioni e popolazioni eterogenee?**
+*2. In che modo il paradigma bayesiano differisce dall’approccio frequentista nella gestione dell’incertezza e nell’aggiornamento della conoscenza, e quali vantaggi pratici offre quando si lavora con campioni di piccole dimensioni e popolazioni eterogenee?*
 
 Il paradigma frequentista si basa sull’idea di ripetizione ipotetica degli esperimenti e sull’applicazione di test di significatività, focalizzandosi su *p*-value e intervalli di confidenza che rispondono a domande “se si ripetesse infinite volte l’esperimento, in media cosa accadrebbe?”. L’inferenza bayesiana, al contrario, concepisce la probabilità come uno stato di conoscenza (o di credenza) e integra le informazioni precedenti (priors) con i dati osservati per produrre una distribuzione posteriore. Ciò consente un aggiornamento continuo e iterativo delle ipotesi alla luce delle nuove evidenze.
 
 Questa impostazione risulta particolarmente utile quando i campioni sono ridotti e le popolazioni indagate sono eterogenee. In tali condizioni, il paradigma frequentista rischia di generare stime instabili o intervalli di confidenza molto ampi. L’approccio bayesiano, invece, permette di incorporare informazioni pregresse e di ottenere stime più precise, a patto che le priors siano giustificate e non eccessivamente informative. L’attenzione alla distribuzione posteriore rende inoltre più chiaro il grado di incertezza associato ai parametri di interesse e favorisce la formulazione di inferenze più calibrate.
 
-**3. Qual è il ruolo delle distribuzioni a priori nelle analisi bayesiane e come ci si assicura che l’uso di priors non introduca bias indesiderati, specialmente in un contesto come quello psicologico dove le teorie e i dati pregressi possono essere incompleti o controversi?**
+*3. Qual è il ruolo delle distribuzioni a priori nelle analisi bayesiane e come ci si assicura che l’uso di priors non introduca bias indesiderati, specialmente in un contesto come quello psicologico dove le teorie e i dati pregressi possono essere incompleti o controversi?*
 
 Nell’approccio bayesiano, le distribuzioni a priori (priors) rappresentano la conoscenza o le ipotesi iniziali di cui si dispone sui parametri in esame prima di raccogliere i dati. Se ben specificate, contribuiscono a rendere l’analisi più informativa, soprattutto quando il campione è di piccole dimensioni. Tuttavia, un uso improprio delle priors può introdurre bias, poiché priors troppo “forti” (ossia eccessivamente vincolanti) possono spingere i risultati verso determinate conclusioni.
 
-Per evitare questi rischi, i ricercatori devono adottare *priors* ben motivate e trasparenti. In psicologia, dove le teorie possono essere ancora in fase di sviluppo e i dati pregressi non sempre affidabili, è spesso utile iniziare con priors non informative o debolmente informative, per ridurre il rischio di forzare troppo il modello. È anche fondamentale effettuare **analisi di sensibilità**: testare differenti specificazioni di *priors* per verificare se i risultati sono robusti oppure fortemente dipendenti da particolari assunzioni iniziali. La documentazione delle scelte fatte (e le relative ragioni) è parte integrante di una buona pratica di ricerca trasparente.
+Per evitare questi rischi, i ricercatori devono adottare *priors* ben motivate e trasparenti. In psicologia, dove le teorie possono essere ancora in fase di sviluppo e i dati pregressi non sempre affidabili, è spesso utile iniziare con priors non informative o debolmente informative, per ridurre il rischio di forzare troppo il modello. È anche fondamentale effettuare *analisi di sensibilità*: testare differenti specificazioni di *priors* per verificare se i risultati sono robusti oppure fortemente dipendenti da particolari assunzioni iniziali. La documentazione delle scelte fatte (e le relative ragioni) è parte integrante di una buona pratica di ricerca trasparente.
 
-**4. Perché la modellazione formale e le buone pratiche di Data Science (ad es. condivisione di codice, controllo di versione, pipeline riproducibili) risultano fondamentali per una scienza cumulativa e per mitigare gli errori sistematici nella ricerca psicologica?**
+*4. Perché la modellazione formale e le buone pratiche di Data Science (ad es. condivisione di codice, controllo di versione, pipeline riproducibili) risultano fondamentali per una scienza cumulativa e per mitigare gli errori sistematici nella ricerca psicologica?*
 
 La modellazione formale consente di superare la mera descrizione delle relazioni tra variabili (tipica dell’ANOVA o dei modelli lineari tradizionali) e di entrare nel merito dei meccanismi sottostanti i fenomeni psicologici, costruendo teorie più articolate e fondate. Questa prospettiva rende più esplicite le assunzioni e le ipotesi su cui si basa la ricerca, permettendo un confronto chiaro tra diverse spiegazioni concorrenti.
 

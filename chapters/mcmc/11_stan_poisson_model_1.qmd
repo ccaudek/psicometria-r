@@ -1,7 +1,47 @@
 # Modello di Poisson (1) {#sec-mcmc-poisson-1}
 
+::: {.epigraph}
+> “Statistical analysis is a dialogue between models and data: we propose a model, confront it with data, and revise our understanding.”
+>
+> — **Andrew Gelman**
+:::
 
-*Preparazione del Notebook*
+
+## Introduzione {.unnumbered .unlisted}
+
+::: {.dropcap}
+In questo capitolo affrontiamo un primo esempio di modellazione con Stan, il linguaggio che useremo per costruire modelli statistici e fare inferenza bayesiana. Riprendiamo un caso già risolto con metodi analitici e con il metodo su griglia — il modello Gamma–Poisson — e lo affrontiamo ora con il campionamento MCMC. In questo modo possiamo confrontare i risultati e, soprattutto, imparare un workflow che useremo anche quando non esistono soluzioni chiuse.
+:::
+
+### Panoramica del capitolo {.unnumbered .unlisted}
+
+- Introdurre il modello di Poisson per dati di conteggio.  
+- Specificare una distribuzione a priori Gamma coniugata.  
+- Implementare il modello in Stan e stimare i parametri con MCMC. 
+- Confrontare i risultati con la soluzione analitica Gamma–Poisson.  
+- Applicare il modello a un dataset reale sulle sparatorie mortali negli Stati Uniti.
+
+---
+
+::: {.callout-note collapse=true title="Perché questo esempio?"}
+In questo capitolo non vogliamo solo calcolare una media dal campione, ma imparare a:
+
+- stimare il *tasso medio di occorrenza nella popolazione* a partire dai dati osservati;  
+- esprimere anche la *nostra incertezza* su quel tasso, non solo un singolo numero;  
+- tradurre un modello teorico (Poisson con prior Gamma) in un *modello computazionale in Stan*;  
+- verificare che Stan fornisce gli stessi risultati della soluzione analitica, così da prendere confidenza con il workflow MCMC.
+
+Questo esempio funziona come una “palestra”: semplice, ma ci prepara ad affrontare modelli più complessi in cui non avremo formule chiuse e l’uso di Stan diventerà indispensabile.
+:::
+
+::: {.callout-note collapse=true title="Perché studiare il modello di Poisson?"}
+- Molti dati psicologici si presentano come *conteggi* (episodi comportamentali, risposte corrette, eventi clinici).  
+- Il modello di Poisson è lo strumento naturale per stimare il *tasso medio di occorrenza* di questi eventi.  
+- L’approccio bayesiano ci permette non solo di stimare questo tasso, ma anche di esprimere in modo chiaro la *nostra incertezza*.  
+- In questo capitolo usiamo il Poisson come *primo esempio pratico* per imparare a scrivere e stimare un modello in Stan.
+:::
+
+::: {.callout-caution collapse=true title="Preparazione del Notebook"}
 
 ```{r}
 here::here("code", "_common.R") |> 
@@ -13,63 +53,99 @@ conflicts_prefer(posterior::ess_bulk)
 conflicts_prefer(posterior::ess_tail)
 conflicts_prefer(dplyr::count)
 ```
-
-
-## Introduzione {.unnumbered .unlisted}
-
-::: {.lead}
-In questo capitolo affrontiamo un primo esempio di modellazione con Stan, il linguaggio che useremo per costruire modelli statistici e fare inferenza bayesiana. Riprendiamo un caso già risolto con metodi analitici e con il metodo su griglia — il modello Gamma–Poisson — e lo affrontiamo ora con il campionamento MCMC. In questo modo possiamo confrontare i risultati e, soprattutto, imparare un workflow che useremo anche quando non esistono soluzioni chiuse.
 :::
 
 
 ## Dal modello teorico al modello computazionale
 
-Supponiamo di osservare, in otto finestre temporali di pari durata, quante volte si verifica un certo evento (per esempio: il numero di compulsioni in otto momenti della giornata, oppure le chiamate ricevute in otto turni orari). I dati sono:
+Quando raccogliamo dati in psicologia, non ci interessa solo descrivere quello che è accaduto nel nostro campione, ma soprattutto *stimare il processo che genera i dati nella popolazione*.
+
+Immaginiamo di osservare, in *otto finestre temporali di pari durata*, quante volte si verifica un certo evento psicologico o comportamentale. Per esempio, il numero di *compulsioni* in otto momenti della giornata, oppure il numero di *telefonate* ricevute in otto turni orari.
+
+I dati raccolti sono:
 
 ```{r}
 y <- c(2, 1, 3, 2, 2, 1, 1, 1)
 ```
 
-Abbiamo quindi $N=8$ osservazioni. Vogliamo stimare $\lambda$, il *tasso medio di occorrenza per unità di tempo* (qui: per finestra di osservazione). Per fenomeni di conteggio assumiamo una *distribuzione di Poisson*. In presenza di esposizioni (durate) potenzialmente diverse $t_i>0$, il modello naturale è
+Abbiamo quindi $N = 8$ osservazioni. Dal campione potremmo calcolare una semplice media ($\bar y = 1.625$), ma questo ci dice solo *quanto spesso l’evento è avvenuto nei nostri dati*. La domanda più interessante è:
+
+> *qual è il tasso medio di occorrenza nella popolazione?*
+
+Chiamiamo questo tasso $\lambda$: il *numero medio di eventi attesi in una finestra temporale*.
+
+
+### Perché serve un modello probabilistico?
+
+I dati osservati sono solo un piccolo campione e possono variare da una raccolta all’altra.
+Un modello probabilistico ci serve per due motivi principali:
+
+1. *Separare il segnale dal rumore*: capire quanto dell’andamento osservato è dovuto al caso e quanto riflette una regolarità della popolazione.
+2. *Quantificare l’incertezza*: non ci basta stimare $\lambda$, vogliamo anche dire quanto siamo sicuri (o incerti) di quella stima.
+
+
+### Il modello di Poisson
+
+Per i fenomeni di *conteggio* (quante volte un evento si verifica in un intervallo), il modello naturale è la *distribuzione di Poisson*:
 
 $$
-y_i \sim \text{Poisson}(\mu_i), 
-\qquad \mu_i = \lambda\, t_i,
+y_i \sim \text{Poisson}(\mu_i), \qquad \mu_i = \lambda \cdot t_i
 $$
 
-ossia
+dove:
+
+* $y_i$ è il numero osservato di eventi nella finestra $i$,
+* $t_i$ è la durata della finestra,
+* $\lambda$ è il tasso medio.
+
+Nel nostro caso tutte le finestre hanno la stessa durata ($t_i = 1$), e quindi:
 
 $$
-P(y_i \mid \lambda) \;=\; \frac{(\lambda\, t_i)^{y_i} e^{-\lambda\, t_i}}{y_i!},
-\quad y_i \in \mathbb{N},\ \lambda>0.
+P(y_i \mid \lambda) = \frac{\lambda^{y_i} e^{-\lambda}}{y_i!},
+\qquad \mathbb{E}[y_i]=\lambda, \quad \mathrm{Var}(y_i)=\lambda.
 $$
 
-Poiché qui tutte le finestre hanno la *stessa durata* ($t_i=1$), la formula si semplifica in
+In parole semplici: $\lambda$ rappresenta *quanti eventi in media ci aspettiamo per finestra*.
 
-$$
-P(y_i \mid \lambda) \;=\; \frac{\lambda^{y_i} e^{-\lambda}}{y_i!},
-\qquad \mathbb{E}[y_i]=\lambda,\quad \mathrm{Var}(y_i)=\lambda.
-$$
+::: {.callout-tip collapse=true title="Esempi in psicologia"}
+Modelli di questo tipo compaiono spesso anche nella ricerca psicologica.  
+Alcuni esempi:
 
-In altre parole, *$\lambda$ coincide con il numero medio di eventi per finestra* (ad es. per turno/ora o per giorno). Da non confondere con i *tempi di attesa* tra eventi: lì la media è $1/\lambda$, ma riguarda il modello esponenziale, non i conteggi.
+- *Clinica*: numero di episodi compulsivi o attacchi di panico osservati in un certo periodo.  
+- *Psicologia dello sviluppo*: numero di parole nuove prodotte da un bambino in un giorno.  
+- *Psicologia cognitiva*: numero di risposte corrette in una serie di prove a tempo.  
+- *Psicologia sociale*: numero di interazioni tra membri di un gruppo osservate in una sessione.  
 
-Per l’analisi bayesiana specifichiamo una *prior coniugata Gamma* in parametrizzazione *shape–rate* $(\alpha,\beta)$, con densità
+In tutti questi casi, il modello di Poisson ci aiuta a stimare il *tasso medio di occorrenza* dell’evento di interesse e l’incertezza che accompagna tale stima.
+:::
 
-$$
-p(\lambda) \;=\; \frac{\beta^{\alpha}}{\Gamma(\alpha)}\, \lambda^{\alpha - 1} e^{-\beta \lambda},
-\quad \lambda>0,
-$$
 
-per cui
+### La distribuzione a priori
 
-$$
-\mathbb{E}[\lambda] = \frac{\alpha}{\beta}, 
-\qquad \mathrm{Var}(\lambda) = \frac{\alpha}{\beta^{2}},
-\qquad \mathrm{sd}(\lambda)=\frac{\sqrt{\alpha}}{\beta}.
-$$
+Nell’approccio bayesiano dobbiamo dichiarare che cosa riteniamo plausibile per $\lambda$ *prima di osservare i dati*. Per i modelli di Poisson la scelta naturale è la *distribuzione Gamma*. Ad esempio, una prior Gamma(9, 2) esprime l’idea che, prima di osservare i dati, ci aspettiamo circa 4–5 eventi per finestra, ma lasciamo spazio a una certa variabilità.
 
-Nel nostro esempio poniamo $\alpha=9$ e $\beta=2$: la prior ha media $\alpha/\beta=4{,}5$ (circa 4–5 eventi per finestra) e deviazione standard $\sqrt{\alpha}/\beta \approx 1{,}5$, che esprime moderata informazione con adeguata incertezza.
 
+### Perché usiamo Stan?
+
+Potremmo calcolare la distribuzione a posteriori anche con formule chiuse (qui la posterior è ancora una Gamma). Ma usiamo Stan per due motivi didattici fondamentali:
+
+1. *Generalizzare*: nella pratica incontreremo modelli per cui non esiste una soluzione analitica semplice. Con Stan impariamo un workflow valido in tutti i casi.
+2. *Quantificare l’incertezza*: Stan ci fornisce direttamente campioni dalla distribuzione a posteriori, che possiamo usare per costruire intervalli credibili, fare previsioni, confrontare modelli, ecc.
+
+::: {.callout-tip collapse=true title="Un caso semplice per allenarsi"}
+In questo esempio l’uso di Stan può sembrare eccessivo, perché sappiamo già che la posterior è una Gamma e potremmo calcolarla con una formula.  
+Il punto, però, è proprio *esercitarsi*: usiamo un caso semplice come “palestra” per imparare un workflow (specificare un modello, campionare con MCMC, analizzare la posterior) che ci sarà indispensabile quando i modelli diventeranno più realistici e complessi, e non avremo più scorciatoie analitiche.
+:::
+
+### Obiettivi del modello in Stan
+
+Con questo primo esempio vogliamo:
+
+* stimare $\lambda$, il tasso medio di occorrenza nella popolazione;
+* ottenere una misura della *nostra incertezza* su $\lambda$;
+* verificare che i campioni generati da Stan coincidano con i risultati della formula analitica (dove è disponibile).
+
+In questo modo ci abituiamo a un flusso di lavoro che useremo anche per modelli molto più complessi, in cui solo un approccio computazionale ci permette di fare inferenza bayesiana.
 
 ## Scrivere il modello in Stan
 
@@ -136,41 +212,135 @@ fit <- mod$sample(
 
 ### Analizzare i risultati
 
-Estraiamo i campioni di $\lambda$ e i parametri posteriori teorici:
-  
-```{r}
-lambda_samples <- fit$draws("lambda", format = "df")$lambda
+Una volta che Stan ha terminato il campionamento, otteniamo migliaia di valori possibili di $\lambda$, campionati dalla distribuzione a posteriori. Questi valori ci permettono di “vedere” la distribuzione a posteriori invece di calcolarla solo con una formula.
 
-alpha_post <- alpha_prior + sum(y)
-beta_post  <- beta_prior + N
+<span class="sottopasso">1. Estraiamo i campioni di $\lambda$</span>
+
+Estraiamo i valori campionati di λ dalla posterior. L'oggetto `draws` restituisce tutti i campioni MCMC, noi qui selezioniamo solo il parametro `lambda`:
+
+```{r}
+posterior_draws <- fit$draws("lambda", format = "df")
 ```
 
-Istogramma dei campioni MCMC + curva Gamma teorica:
-  
+Creiamo un vettore con solo i valori di `lambda`:
+
+```{r}
+lambda_samples <- posterior_draws$lambda
+```
+
+Ora `lambda_samples` contiene migliaia di valori di $\lambda$: possiamo usarli per calcolare media, intervalli credibili e per costruire grafici.
+
+```{r}
+length(lambda_samples)
+head(lambda_samples)
+```
+
+
+<span class="sottopasso">2. Calcoliamo i parametri della distribuzione posteriore teorica<span>
+
+Dato che in questo caso abbiamo una *posterior coniugata*, conosciamo la formula esatta della distribuzione a posteriori (Gamma). Ci serve per confrontarla con i campioni generati da Stan:
+
+```{r}
+alpha_post <- alpha_prior + sum(y)   # nuovo parametro shape
+beta_post  <- beta_prior + N         # nuovo parametro rate
+```
+
+<span class="sottopasso">3. Confrontiamo i due risultati (MCMC vs formula)<span>
+
+Creiamo un grafico che mostri l’istogramma dei campioni ottenuti con Stan (in *azzurro*) e la curva della distribuzione Gamma calcolata analiticamente (in *rosso*).
+
 ```{r}
 ggplot(data.frame(lambda = lambda_samples), aes(x = lambda)) +
-  geom_histogram(aes(y = after_stat(density)), bins = 50, fill = "skyblue", alpha = 0.7) +
+  # Istogramma dei campioni posteriori
+  geom_histogram(
+    aes(y = after_stat(density)),
+    bins = 50,
+    fill = okabe_ito["sky"],
+    alpha = 0.7
+  ) +
+  # Curva teorica Gamma con parametri aggiornati
   stat_function(
     fun = function(x) dgamma(x, shape = alpha_post, rate = beta_post),
-    color = "red", linewidth = 1.2
+    color = okabe_ito["vermillion"],
+    linewidth = 1.2
   ) +
-  labs(title = "Distribuzione a posteriori di λ", x = "λ", y = "Densità")
+  labs(
+    title = "Distribuzione a posteriori di λ",
+    x = "λ (tasso medio di occorrenza)",
+    y = "Densità"
+  )
 ```
 
-Intervallo di credibilità (94% centrale, ad es.):
+Il confronto visivo è molto utile:
+
+* l’istogramma mostra la distribuzione stimata con Stan tramite campionamento MCMC,
+* la curva rossa rappresenta la distribuzione teorica Gamma–Poisson che conosciamo già.
+
+Se le due coincidono (entro piccole fluttuazioni casuali), significa che Stan ha fatto un buon lavoro: il nostro workflow MCMC funziona!
+
+
+### Intervallo di credibilità
+
+Un grande vantaggio dell’approccio bayesiano è che non otteniamo solo una stima puntuale di $\lambda$, ma una *distribuzione completa dei valori plausibili*. Da questa distribuzione possiamo ricavare un *intervallo di credibilità*: un intervallo che contiene, ad esempio, il 94% o il 95% della massa a posteriori.
+
+<span class="sottopasso">1. Calcoliamo i quantili della distribuzione<span>
+
+Calcoliamo i quantili al 3%, 50% (mediana) e 97%: 
 
 ```{r}
-quantile(lambda_samples, probs = c(0.03, 0.97))
+cred_interval <- quantile(lambda_samples, probs = c(0.03, 0.5, 0.97))
+cred_interval
 ```
 
-Diagnostica essenziale:
-  
+* il valore al *50%* è la mediana della distribuzione a posteriori,
+* i valori al *3% e 97%* delimitano un intervallo centrale che contiene il 94% della distribuzione.
+
+
+<span class="sottopasso">2. Interpretazione dei risultati<span>
+
+I risultati ottenuti indicano che:
+
+* il valore “tipico” di $\lambda$ (mediana) è circa *2.2 eventi per finestra*,
+* c’è un *94% di probabilità* che $\lambda$ si trovi tra 1.42 e 3.20.
+
+L’informazione più importante non è tanto la stima puntuale (2.2), ma il fatto che possiamo quantificare la *nostra incertezza*: la posterior ci dice chiaramente quali valori di $\lambda$ sono più o meno plausibili.
+
+
+### Diagnostica essenziale
+
+Dopo il campionamento MCMC, è fondamentale verificare che le catene abbiano esplorato bene la distribuzione a posteriori. Per questo guardiamo due tipi di informazioni: *indici numerici* (come $\hat{R}$ e ESS) e *grafici delle catene* (traceplot).
+
+Possiamo ottenere una sintesi numerica della distribuzione a posteriore dei parametri con la funzione `summarise_draws` del pacchetto `posterior`:
+
 ```{r}
 posterior::summarise_draws(fit$draws("lambda"), rhat, ess_bulk, ess_tail)
-
-bayesplot::mcmc_trace(fit$draws("lambda")) +
-  ggtitle("Traceplot di lambda")
 ```
+
+* $\hat{R}$ (R-hat): misura la convergenza delle catene.
+  Valori vicini a 1.00 indicano che le catene si sono mescolate bene; valori maggiori di 1.01 segnalano possibili problemi.
+
+* ESS (Effective Sample Size): indica quanti campioni “indipendenti” equivalenti abbiamo ottenuto.
+
+  * `ess_bulk` valuta la precisione delle stime centrali (media, mediana).
+  * `ess_tail` valuta la precisione nelle code della distribuzione (intervalli credibili).
+    Più sono grandi, meglio è: in genere migliaia di campioni equivalenti sono più che sufficienti.
+
+Possiamo generare un traceplot con la funzione `mcmc_trace` di `bayesplot`:
+
+```{r}
+bayesplot::mcmc_trace(fit$draws("lambda")) +
+  ggtitle("Traceplot di λ")
+```
+
+Il traceplot mostra l’andamento dei valori di $\lambda$ campionati dalle diverse catene.
+Se le catene:
+
+* oscillano liberamente attorno alla stessa regione,
+* senza trend sistematici o salti strani,
+
+allora possiamo concludere che il campionamento è avvenuto correttamente.
+
+In sintesi: se $\hat{R} \approx 1$, ESS è elevato e i traceplot sono ben mescolati, possiamo fidarci delle stime ottenute.
 
 
 ## Sparatorie mortali
@@ -181,7 +351,7 @@ Nella sezione precedente abbiamo esaminato il processo di derivazione della dist
 
 Come spiegato [qui](https://github.com/washingtonpost/data-police-shootings), i dati che esamineremo sono raccolti dal Washington Post con lo scopo di registrare ogni sparatoria mortale negli Stati Uniti ad opera di agenti di polizia, a partire dal 1° gennaio 2015. Il Washington Post ha adottato un approccio sistematico e accurato nella raccolta di queste informazioni, fornendo dati che possono essere utili per valutare i problemi legati alla violenza delle forze di polizia negli Stati Uniti.
 
-**Obiettivo.** Stimare, per il periodo 2015–*ultimo anno completo disponibile*, il *tasso medio annuo* e l’*incertezza* associata. Poiché il *2025* è incompleto, lo escludiamo.
+*Obiettivo.* Stimare, per il periodo 2015–*ultimo anno completo disponibile*, il *tasso medio annuo* e l’*incertezza* associata. Poiché il *2025* è incompleto, lo escludiamo.
 
 
 ### Importazione e pre-processing dei dati
@@ -222,9 +392,7 @@ $$
 y_t \,\sim\, \text{Poisson}(\lambda), \quad t=1,\dots,n.
 $$
 
-Il supporto di $\lambda$ è $[0,\infty)$.
-
-Si noti che abbiamo considerato i dati come iid. Guardando la serie temporale, però, è ovvio che le cose non stanno così: i valori aumentano nel tempo.
+Il supporto di $\lambda$ è $[0,\infty)$. Si noti che abbiamo considerato i dati come iid. Guardando la serie temporale, però, è ovvio che le cose non stanno così: i valori aumentano nel tempo.
 
 
 ### Prior
@@ -407,31 +575,26 @@ cat("95% CrI: [", round(ci95[1], 2), ", ", round(ci95[2], 2), "]\n")
 La derivazione *analitica* e i risultati *MCMC* coincidono (entro l’errore Monte Carlo).
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 ## Riflessioni conclusive
 
 In questo capitolo abbiamo fatto un passo importante: abbiamo visto come tradurre un modello probabilistico relativamente semplice in Stan, come eseguire il campionamento MCMC, e come confrontare i risultati con la soluzione analitica. Questo esempio ci ha permesso di verificare che Stan funziona correttamente, perché in questo caso conoscevamo già la distribuzione a posteriori esatta.
 
-L’aspetto davvero interessante, però, è che la stessa procedura può essere usata anche quando la soluzione analitica non esiste. Nei capitoli successivi incontreremo modelli più complessi, in cui la coniugatezza non ci aiuta più e non abbiamo formule chiuse per la distribuzione a posteriori. In quei casi, il campionamento MCMC sarà lo strumento indispensabile per fare inferenza bayesiana.
+L’aspetto davvero interessante, però, è che la stessa procedura può essere usata anche quando la soluzione analitica non esiste. Nei capitoli successivi incontreremo modelli più complessi, in cui la coniugatezza non ci aiuta più e non abbiamo formule chiuse per la distribuzione a posteriori. In quei casi, il campionamento MCMC sarà lo strumento indispensabile per fare inferenza bayesiana. 
 
+Qui abbiamo lavorato con un modello coniugato, in cui la posterior è ancora Gamma. Ma nei modelli più complessi che incontreremo (per esempio con predittori, effetti gerarchici o dinamici), non avremo più formule chiuse: sarà Stan, con MCMC, a permetterci di fare inferenza.
 
-## Informazioni sull’ambiente di sviluppo {.unnumbered .unlisted}
+::: {.callout-tip collapse=true title="Cosa abbiamo imparato?"}
+- Come tradurre un *modello teorico* di conteggio (Poisson con prior Gamma) in un modello Stan.  
+- Come ottenere campioni dalla *distribuzione a posteriori* con il campionamento MCMC.  
+- Come confrontare i risultati con la *soluzione analitica* per verificare che il workflow funziona.  
+- Perché è utile partire da un caso semplice: per allenarsi con il workflow che useremo in modelli più complessi, dove formule chiuse non esistono.
+:::
 
+::: {.callout-note collapse=true title="Informazioni sull'ambiente di sviluppo"}
 ```{r}
 sessionInfo()
 ```
-
+:::
 
 ## Bibliografia {.unnumbered .unlisted}
 

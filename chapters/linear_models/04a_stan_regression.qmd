@@ -1,16 +1,63 @@
 # Regressione lineare in Stan {#sec-regression-stan}
 
-::: {.callout-note}
-## In questo capitolo imparerai a
+::: {.epigraph}
 
-- Esprimere il modello di regressione multipla in *notazione matriciale* e comprenderne la logica.  
-- Collegare ogni simbolo matematico agli *oggetti del codice Stan*.  
-- Simulare dati realistici in ambito psicologico e *specificare prior interpretabili* sulla scala originale delle variabili.  
-- Stimare e interpretare *coefficenti parziali* e confrontarli con quelli di modelli bivariati.  
-- Comprendere l’effetto della *correlazione tra predittori* sulle stime e riconoscere situazioni di *errore di specificazione*.  
+> “The purpose of regression is to describe, not to prescribe.”
+>
+> — **Stephen Senn**, Statistico
 :::
 
-::: {.callout-tip}
+## Introduzione {.unnumbered .unlisted}
+
+::: {.lead .dropcap}
+In questo capitolo useremo la **regressione lineare** come laboratorio per imparare a **tradurre un modello statistico in Stan**: dalla formulazione matematica, alla scrittura del modello generativo, fino all’interpretazione dei coefficienti e alle verifiche predittive.
+:::
+
+L’obiettivo è duplice. Da un lato, acquisire familiarità con la struttura di un modello in Stan: come dichiarare gli oggetti (`vector`, `matrix`, parametri, priors), come sfruttare la *vettorializzazione* della likelihood, e perché questo rende il codice più chiaro ed efficiente. Dall’altro, approfondire l’interpretazione della regressione multipla, distinguendo il *coefficiente bivariato* (che misura l’associazione totale di un predittore preso da solo) dal *coefficiente parziale* (che misura l’effetto condizionato sugli altri predittori). È un passaggio essenziale: quando i predittori sono correlati, trascurare questa differenza può portare a conclusioni fuorvianti.
+
+### Perché usare Stan per la regressione?
+
+Scrivere la regressione in Stan significa specificare un *modello generativo* completo:
+
+$$
+y_n \sim \mathcal{N}(\alpha + \mathbf{x}_n^\top \boldsymbol{\beta},\, \sigma),
+$$
+
+con priors espliciti per $\alpha$, $\boldsymbol{\beta}$ e $\sigma$. Questo approccio offre tre vantaggi immediati:
+
+1. *Trasparenza* — la struttura del modello (likelihood e priors) è dichiarata in modo chiaro.
+2. *Coerenza* — l’inferenza è interamente bayesiana: non ci sono p-value né “soglie di significatività”.
+3. *Flessibilità* — lo stesso schema si estende facilmente a *GLM* (esiti Bernoulli, Poisson, ecc.) e a modelli multilivello, semplicemente cambiando la famiglia di distribuzione o la struttura gerarchica.
+
+### Idee guida del capitolo
+
+* *Notazione matriciale*: la scrittura compatta $\mathbf{y} = \mathbf{X}\boldsymbol{\beta} + \boldsymbol{\varepsilon}$ si traduce in Stan in `matrix[N,K] X;` e `vector[K] beta;`, con previsioni calcolate come `X * beta`.
+* *Vettorializzazione*: scrivere `y ~ normal(X * beta + alpha, sigma);` è più elegante ed efficiente che iterare su ogni osservazione.
+* *Coefficiente parziale vs bivariato*: in presenza di correlazione tra predittori, il coefficiente bivariato può risultare distorto o addirittura invertire segno. I coefficienti del modello multiplo misurano invece l’associazione condizionata.
+* *Priors su scala naturale*: formulare i priors nelle unità originali (per esempio, punteggi da 0 a 10 o da 0 a 100) rende le ipotesi più interpretabili e comunicabili.
+
+### Una prima finestra sugli errori di specificazione
+
+Il capitolo affronterà anche alcuni casi frequenti di *specificazione errata*, con esempi concreti tratti dalla ricerca psicologica:
+
+1. *Variabili omesse*: trascurare un predittore rilevante e correlato introduce *bias* nei coefficienti.
+2. *Forma funzionale errata*: trattare relazioni non lineari come lineari semplici produce stime ingannevoli.
+3. *Varianza non costante e outlier*: assumere residui gaussiani omoschedastici può essere inadeguato; i *posterior predictive checks* aiutano a diagnosticarlo e a considerare likelihood più robuste.
+
+
+In sintesi, la regressione lineare in Stan non è solo un esercizio di calcolo, ma un’occasione per apprendere un metodo: partire da un modello teorico, tradurlo in linguaggio probabilistico, implementarlo in codice, e valutarne la capacità di rappresentare i dati psicologici in modo critico e trasparente.
+
+
+### Panoramica del capitolo {.unnumbered .unlisted}
+
+- Il modello di regressione multipla in *notazione matriciale*.  
+- Formulazione del modello in codice Stan.  
+- Stima e interpretazione dei *coefficienti parziali* e confronto con quelli di modelli bivariati.  
+- Effetto della *correlazione tra predittori* sulle stime e *errore di specificazione*.  
+
+---
+
+::: {.callout-tip collapse=true}
 ## Prerequisiti
 
 Per seguire al meglio questo capitolo è utile avere:
@@ -21,8 +68,7 @@ Per seguire al meglio questo capitolo è utile avere:
 - familiarità minima con R per la simulazione di dati e con il flusso di lavoro di Stan.
 :::
 
-::: callout-caution
-## Preparazione del Notebook
+::: {.callout-caution collapse=true title="Preparazione del Notebook"}
 
 ```{r}
 #| output: false
@@ -36,59 +82,75 @@ pacman::p_load(brms, posterior, cmdstanr, tidybayes, loo, patchwork)
 :::
 
 
-## Introduzione {.unnumbered .unlisted}
+## Regressione lineare con un solo predittore 
 
-::: {.lead}
-Stan permette di costruire modelli di regressione che vanno dalla semplice regressione lineare ai modelli lineari generalizzati multilivello.
-:::
-
-
-## Il caso più semplice: regressione lineare con un predittore
-
-Consideriamo il caso di una regressione lineare molto semplice, con *un solo predittore*, un'*intercetta* ($\alpha$), un *coefficiente di pendenza* ($\beta$) e un *termine di errore* normalmente distribuito con deviazione standard $\sigma$.
-Nella notazione standard della regressione, il modello è:
+Consideriamo una regressione lineare con *un solo predittore*, un’intercetta $\alpha$, un coefficiente $\beta$ e un errore gaussiano $\sigma$:
 
 $$
-y_n = \alpha + \beta \, x_n + \varepsilon_n, \quad \varepsilon_n \sim \mathcal{N}(0, \sigma) .
+y_n = \alpha + \beta\,x_n + \varepsilon_n,\qquad \varepsilon_n \sim \mathcal{N}(0,\sigma).
 $$
 
-In Stan, la forma più compatta di questo modello si scrive così:
+In Stan *con priors espliciti e debolmente informativi*:
 
 ```stan
 data {
-  int<lower=0> N;     // numero di osservazioni
-  vector[N] x;        // predittore
-  vector[N] y;        // variabile risposta
+  int<lower=1> N;
+  vector[N] x;               // predittore (consigliato centrare in R)
+  vector[N] y;               // risposta continua
 }
 parameters {
-  real alpha;         // intercetta
-  real beta;          // coefficiente di pendenza
-  real<lower=0> sigma; // deviazione standard dell’errore
+  real alpha;                // intercetta (valore di y al centro di x)
+  real beta;                 // coefficiente
+  real<lower=0> sigma;       // DS dell'errore
 }
 model {
+  // Priors debolmente informativi (propri)
+  alpha ~ normal(0, 10);
+  beta  ~ normal(0, 5);
+  sigma ~ student_t(4, 0, 10);  // half-Student-t implicita grazie al vincolo <lower=0>
+
+  // Likelihood (vettorializzata)
   y ~ normal(alpha + beta * x, sigma);
 }
+generated quantities {
+  vector[N] mu = alpha + beta * x;
+  vector[N] y_rep;
+  for (n in 1:N) y_rep[n] = normal_rng(mu[n], sigma);
+
+  // R^2 "bayesiano" (Gelman et al.)
+  real R2 = variance(mu) / (variance(mu) + square(sigma));
+}
 ```
+In questo modello: 
 
-In questo modello:
-
-* *N* è il numero di osservazioni;
+* *N* è il numero di osservazioni; 
 * per ogni osservazione abbiamo un valore di *x* (predittore) e un valore di *y* (variabile risposta);
-* *alpha* è l’intercetta e *beta* la pendenza;
-* *sigma* rappresenta la deviazione standard del termine di errore, che si assume distribuito normalmente.
+* `alpha ~ normal(0, 10)` e `beta ~ normal(0, 5)` sono *priors propri, debolmente informativi* sulla scala della variabile *y*;
+* `sigma ~ student_t(4, 0, 10)` è una *half-Student-t implicita* (perché `sigma` è vincolata $>0$); è un prior robusto e poco informativo sulla scala di $\sigma$.
 
-Le variabili `alpha` e `beta` hanno un prior improprio (cioè non specificato esplicitamente), mentre `sigma` è vincolato ad assumere valori non negativi.
+Se venissero rimosse tutte le righe di prior, Stan *non* aggiungerebbe priors di default:
+
+* `alpha` e `beta` avrebbero di fatto un *prior piatto improprio* su $(-\infty, +\infty)$;
+* `sigma` avrebbe un *prior piatto improprio* su $(0, +\infty)$.
+
+Con likelihood gaussiane questi priors possono talvolta produrre una posteriore propria, ma *non è una buona pratica*: meglio usare priors (anche deboli) e fare *prior predictive checks*.
+
+
+::: {.callout-tip}
+### Centrare i predittori
+
+*Consigliato* centrare `x` in R (`x_c <- x - mean(x)`) e passare `x_c` al modello: rende `alpha` interpretabile (valore atteso di $y$ al centro dei predittori) e migliora la geometria posteriore (minore correlazione tra $\alpha$ e $\beta$).
+:::
 
 
 ### Notazione matriciale e vettorializzazione
 
-La riga:
+La riga seguente è *vettorializzata*, cioè calcola la probabilità di tutte le osservazioni in un’unica istruzione:
 
 ```stan
 y ~ normal(alpha + beta * x, sigma);
 ```
-
-è *vettorializzata*, cioè calcola la probabilità di tutte le osservazioni in un’unica istruzione. È equivalente a scrivere:
+È equivalente a scrivere:
 
 ```stan
 for (n in 1:N) {
@@ -99,18 +161,16 @@ for (n in 1:N) {
 La forma vettorializzata è più compatta *e molto più veloce* da eseguire.
 In Stan, quando un argomento di una distribuzione è un vettore, anche gli altri argomenti possono esserlo (purché abbiano la stessa dimensione) oppure possono essere scalari (in tal caso vengono “riciclati” per tutte le osservazioni).
 
-Ora estendiamo il ragionamento al caso in cui i predittori siano più di uno, così da introdurre il concetto di effetto parziale.
 
-## Il modello di regressione multipla in notazione matriciale
+## Notazione matriciale: regressione multipla
 
-Quando abbiamo *più predittori* per ciascuna osservazione, possiamo scrivere il modello di regressione in *forma vettoriale/matriciale* [@caudek2001statistica].
+Ora estendiamo il ragionamento al caso in cui i predittori siano più di uno, così da introdurre il concetto di *effetto parziale*.
 
-In forma compatta, il modello è:
+Quando abbiamo *più predittori* per ciascuna osservazione, possiamo scrivere il modello di regressione in *forma vettoriale/matriciale* [@caudek2001statistica]. Con più predittori per osservazione, in forma compatta il modello è:
 
 $$
 \mathbf{y} = \mathbf{X} \, \boldsymbol{\beta} + \boldsymbol{\varepsilon}
 $$
-
 dove:
 
 * $\mathbf{y}$ è un vettore colonna di dimensione $N \times 1$, che contiene la variabile risposta per le $N$ osservazioni;
@@ -174,7 +234,7 @@ $$
 * Gli *errori* $\boldsymbol{\varepsilon}$ rappresentano la differenza tra il valore osservato $y_i$ e il valore previsto $\hat{y}_i$.
 
 
-### Esempio numerico
+### Esempio con due variabili indipendenti
 
 Se $N=3$ e $K=3$ (intercetta + 2 predittori), abbiamo:
 
@@ -196,7 +256,6 @@ y_{1} \\ y_{2} \\ y_{3}
 \varepsilon_{1} \\ \varepsilon_{2} \\ \varepsilon_{3}
 \end{bmatrix}}_{\varepsilon}
 $$
-
 Il che equivale a:
 
 $$
@@ -227,15 +286,25 @@ In questi casi:
 * *Modello multiplo*: il coefficiente di $x_j$ è “depurato” dagli effetti degli altri predittori, cioè riflette l’associazione residua unica di $x_j$ con $y$.
 
 
-#### Esempio numerico 
+## Esempio numerico
 
-Immaginiamo di voler prevedere *punteggi di ansia* ($y$) a partire da:
+Per chiarire concretamente la differenza tra l'effetto totale (o grezzo) di un predittore e il suo effetto parziale (o netto), simuliamo uno scenario realistico ipotizzando che l’*esito* $y$ sia un punteggio di *stress* su scala 0–10. I due predittori sono:
 
-* *stress percepito* ($x_1$, scala 0–10),
-* *ore di sonno* ($x_2$, scala 0–10).
+* $x_1$: *affetto negativo* istantaneo su scala 0–10 (più alto = più negativo);
+* $x_2$: *ore di sonno* nell’ultima notte su scala 0–10.
+
+Supponiamo che:
+
+* a parità di altre condizioni, *aumentare l’affetto negativo* di 1 punto (su 0–10) faccia crescere lo stress di qualche punto (effetto positivo);
+* *dormire di più* riduca lo stress (effetto negativo);
+* il *livello medio* di stress a affetto negativo medio e sonno medio sia moderato.
 
 ```{r}
+#| message: false
+#| warning: false
+
 set.seed(42)
+
 N <- 2000
 rho <- 0.8
 
@@ -248,35 +317,42 @@ beta2_true <- -2
 sigma_true <-  0.5
 
 y <- beta1_true * x1 + beta2_true * x2 + rnorm(N, 0, sigma_true)
+
+dati <- tibble(y = y + abs(min(y)), x1 = x1 + abs(min(x1)), x2 = x2 + abs(min(x2)))
+summary(dati)
 ```
 
-Se $x_1$ e $x_2$ sono correlati (chi dorme poco tende anche a percepire più stress), allora:
+Se i due predittori $x_1$ e $x_2$ sono *correlati* (ad esempio: chi dorme poco tende anche a percepire più stress):
 
-* Nel *modello bivariato* $y \sim x_1$, il coefficiente di $x_1$ cattura sia l’effetto diretto dello stress sia quello indiretto dovuto al fatto che più stress → meno sonno → più ansia.
-* Nel *modello di regressione multipla* $y \sim x_1 + x_2$, il coefficiente di $x_1$ misura *solo* la variazione di ansia associata a un aumento di stress *a parità di ore di sonno*.
+```{r}
+cor(dati$x1, dati$x2)
+```
 
-**In sintesi:**
+allora i coefficienti stimati assumono significati diversi a seconda del modello:
 
-* i coefficienti *bivariati* misurano l’associazione *totale* tra predittore e risposta,
-* i coefficienti *parziali* misurano l’associazione *unica* (al netto degli altri predittori),
-* la differenza tra i due diventa rilevante quando i predittori sono correlati.
+* Nel *modello bivariato* $y \sim x_1$, il coefficiente di $x_1$ riflette non solo l’effetto diretto dello stress sull’ansia, ma anche l’effetto *indiretto* mediato dalla correlazione con il sonno (più stress → meno sonno → più ansia).
+* Nel *modello multiplo* $y \sim x_1 + x_2$, il coefficiente di $x_1$ isola invece l’effetto *unico* dello stress, cioè la variazione di ansia associata a un incremento di stress *a parità di ore di sonno*.
 
+In sintesi:
 
-::: {.callout-note collapse = "true"}
-## Confronto pratico tra coefficienti bivariati e parziali
+* i coefficienti *bivariati* misurano l’*associazione totale* tra predittore e risposta,
+* i coefficienti *parziali* misurano l’*associazione unica*, controllando per gli altri predittori,
+* la differenza tra i due diventa rilevante quando i predittori sono *correlati*.
 
-Usiamo i dati simulati dell’esempio del distress (`y`, `x1`, `x2`) per stimare:
+Per rendere chiara la differenza, usiamo i dati simulati (`y`, `x1`, `x2`) e stimiamo i coefficienti di regressione in due modi diversi:
 
-1. *Modelli bivariati*: un predittore per volta (`y ~ x1` e `y ~ x2`).
-2. *Modello multiplo*: entrambi i predittori (`y ~ x1 + x2`).
+– usando un predittore alla volta (`y ~ x1` e `y ~ x2`);
+– usando entrambi i predittori insieme (`y ~ x1 + x2`).
+
+Per semplicità, iniziamo a stimare i coefficienti con `lm()` (poi useremo Stan):
 
 ```{r}
 # Modelli bivariati
-fit_biv_x1 <- lm(y ~ x1)
-fit_biv_x2 <- lm(y ~ x2)
+fit_biv_x1 <- lm(y ~ x1, data = dati)
+fit_biv_x2 <- lm(y ~ x2, data = dati)
 
 # Modello multiplo
-fit_mult <- lm(y ~ x1 + x2)
+fit_mult <- lm(y ~ x1 + x2, data = dati)
 
 # Confronto dei coefficienti
 coefs <- data.frame(
@@ -287,62 +363,42 @@ coefs <- data.frame(
 coefs
 ```
 
-:::
-
-
-::: {.callout-note collapse = "true"}
-## Quando i predittori sono molto correlati: cambio di segno nel bivariato
-
-Per illustrare gli effetti della *collinearità* e della *specificazione del modello*, simuliamo un caso in cui i predittori sono *fortemente correlati* e gli effetti “veri” sono opposti. Vedremo che nel modello *bivariato* il coefficiente di `x1` può addirittura cambiare *segno*, mentre nel modello *multiplo* recupera il segno corretto (effetto parziale).
-
-**Idea della simulazione**
-
-- Facciamo `x1 ~ N(0,1)`.
-- Costruiamo `x2` altamente correlata con `x1` (es. ρ = 0.8): `x2 = ρ*x1 + sqrt(1-ρ^2)*z`.
-- Generiamo l’esito con *effetti veri* opposti: `y = 1*x1 + (-2)*x2 + errore`.
-
-Con questi valori, il coefficiente bivariato di `x1` in `y ~ x1` si approssima a:
-
-$$
-\hat\beta^{(biv)}_{x1} \approx \beta_1 + \beta_2 \frac{\operatorname{Cov}(x_1, x_2)}{\operatorname{Var}(x_1)}
-= 1 + (-2)\cdot \rho = 1 - 2\rho .
-$$
-
-Se $\rho=0.8$, allora $1 - 2\cdot 0.8 = -0.6$: *cambio di segno* atteso nel bivariato.
+I valori veri dei coefficienti erano:
 
 ```{r}
-# Stime
-m_biv_x1 <- lm(y ~ x1)
-m_biv_x2 <- lm(y ~ x2)
-m_mult   <- lm(y ~ x1 + x2)
-
-out <- data.frame(
-  Modello = c("Bivariato x1", "Bivariato x2", "Multiplo"),
-  beta_x1 = c(coef(m_biv_x1)["x1"], NA, coef(m_mult)["x1"]),
-  beta_x2 = c(NA, coef(m_biv_x2)["x2"], coef(m_mult)["x2"])
-)
-out
+beta1_true <-  1
+beta2_true <- -2
 ```
 
-**Cosa osserviamo**
 
-* Nel *modello bivariato* `y ~ x1` il coefficiente di `x1` risulta *negativo* (≈ −0.6), nonostante il vero effetto di `x1` sia *positivo* (+1).
-* Nel *modello di regressione multipla* `y ~ x1 + x2` i coefficienti recuperano i *valori veri* (≈ +1 per `x1`, ≈ −2 per `x2`): questo è l’*effetto parziale*.
+Cosa osserviamo:
 
-Il cambio di segno nel bivariato è un esempio di *bias da variabile omessa*: stimare `y ~ x1` quando `x2` ha un effetto su `y` ed è *correlata* con `x1` fa sì che la stima di `x1` assorba (in parte o in tutto) l’effetto di `x2`. Matematicamente, la stima bivariata è uguale all’effetto vero più una correzione proporzionale alla correlazione tra i predittori. La formula del bias (per il modello bivariato) è:
+* nel *modello bivariato* `y ~ x1`, il coefficiente di `x1` è *negativo* (≈ −0.6), anche se il vero effetto è *positivo* (+1);
+* nel *modello multiplo* `y ~ x1 + x2`, i coefficienti si avvicinano ai valori veri (≈ +1 per `x1`, ≈ −2 per `x2`): qui leggiamo gli *effetti parziali*, cioè ciascun predittore “a parità” dell’altro.
+
+Il cambio di segno nel bivariato è un chiaro esempio di *bias da variabile omessa*: se escludiamo `x2` (sonno), l’effetto stimato di `x1` (affetto negativo) assorbe anche parte dell’influenza del sonno, arrivando persino a invertirne il segno.
+
+Matematicamente, l’atteso del coefficiente bivariato è:
 
 $$
-\mathbb{E}\!\left[\hat\beta^{(biv)}_{x1}\right]
-= \beta_1 + \beta_2 \frac{\operatorname{Cov}(x_1, x_2)}{\operatorname{Var}(x_1)} .
+\mathbb{E}\!\left[\hat\beta^{(biv)}_{x1}\right] \;=\; 
+\beta_1 \;+\; \beta_2 \frac{\operatorname{Cov}(x_1, x_2)}{\operatorname{Var}(x_1)} .
 $$
 
-Quando $\beta_2$ e $\operatorname{Cov}(x_1,x_2)$ hanno *segni opposti* e grande *ampiezza*, la correzione può superare $\beta_1$ e invertire il segno.
+Quando $\beta_2$ e $\operatorname{Cov}(x_1, x_2)$ hanno *segni opposti* e grande ampiezza, la correzione può superare $\beta_1$ e invertire il segno.
 
-**Messaggio didattico:** i coefficienti *bivariati* misurano associazioni *totali* e possono essere fuorvianti in presenza di predittori correlati. I coefficienti *parziali* del modello multiplo sono più appropriati per l’interpretazione causale/condizionale (a parità degli altri predittori).
+::: {.callout-note}
+**Messaggio didattico:**
 
-In psicologia questo scenario non è raro: per esempio, includere o escludere una variabile di controllo come il livello socioeconomico può cambiare sostanzialmente la stima dell’effetto di altre variabili come stress o supporto sociale.
+* I coefficienti *bivariati* misurano l’*associazione totale* tra un predittore e la risposta.
+* I coefficienti *parziali* del modello multiplo misurano l’*associazione unica*, condizionata agli altri predittori.
+* In psicologia (e non solo), questo è cruciale: includere o escludere variabili di controllo — ad esempio livello socioeconomico, sonno o supporto sociale — può cambiare radicalmente la stima di un effetto.
 :::
 
+
+### La regressione multipla in Stan
+
+Ora ripetiamo l'analisi precedente usando Stan. Prima però ci rinfreschiamo la memoria relativamente alle operazioni di algebra matriciale necessarie per capire il codice Stan.
 
 ::: {.callout-note collapse = "true"}
 ## Come funziona la moltiplicazione tra matrici (ripasso essenziale)
@@ -408,27 +464,34 @@ A %*% B
 :::
 
 
-### Regressione con più predittori in Stan
-
 Con più predittori, anche in Stan possiamo usare la *notazione matriciale*:
 
 ```stan
 data {
-  int<lower=0> N;       // numero di osservazioni
-  int<lower=0> K;       // numero di predittori
-  matrix[N, K] x;       // matrice dei predittori
-  vector[N] y;          // variabile risposta
+  int<lower=1> N;
+  int<lower=1> K;
+  matrix[N, K] X;
+  vector[N] y;
 }
 parameters {
-  real alpha;           // intercetta
-  vector[K] beta;       // coefficienti di regressione
-  real<lower=0> sigma;  // deviazione standard dell’errore
+  real alpha;
+  vector[K] beta;
+  real<lower=0> sigma;
 }
 model {
-  y ~ normal(x * beta + alpha, sigma);
+  alpha ~ normal(0, 10);
+  beta  ~ normal(0, 5);
+  sigma ~ student_t(4, 0, 10);
+
+  y ~ normal(X * beta + alpha, sigma);
+}
+generated quantities {
+  vector[N] mu = alpha + X * beta;
+  vector[N] y_rep;
+  for (n in 1:N) y_rep[n] = normal_rng(mu[n], sigma);
+  real R2 = variance(mu) / (variance(mu) + square(sigma));
 }
 ```
-
 Qui:
 
 * `x` è una matrice *N × K* di predittori;
@@ -444,205 +507,331 @@ for (n in 1:N) {
 }
 ```
 
+
 ### Intercetta come colonna della matrice dei predittori
 
-Se preferiamo non dichiarare un parametro separato per l’intercetta (`alpha`), possiamo inserire una *colonna di 1* come prima colonna della matrice `x`.
-In questo caso il primo elemento di `beta` (`beta[1]`) fungerà da intercetta.
+Se preferiamo non dichiarare un parametro separato per l’intercetta (`alpha`), possiamo inserire una *colonna di 1* come prima colonna della matrice `x`. In questo caso il primo elemento di `beta` (`beta[1]`) fungerà da intercetta.
 
 Se però vogliamo assegnare un prior diverso all’intercetta rispetto agli altri coefficienti, è meglio dichiarare `alpha` come parametro separato. Questo è anche leggermente più efficiente, ma la differenza di velocità è trascurabile: la scelta va fatta per *chiarezza del codice*.
 
-
-### Esempio numerico
-
-Per fare un esempio concreto, ipotizziamo che l’*esito* $y$ sia un punteggio di *distress* su scala 0–100. I due predittori sono:
-
-* $x_1$: *affetto negativo* istantaneo su scala 0–10 (più alto = più negativo);
-* $x_2$: *ore di sonno* nell’ultima notte su scala 0–10.
-
-Per rendere l’esempio realistico, supponiamo che:
-
-* a parità di altre condizioni, *aumentare l’affetto negativo* di 1 punto (su 0–10) faccia crescere il distress di qualche punto (effetto positivo);
-* *dormire di più* riduca il distress (effetto negativo);
-* il *livello medio* di distress a affetto negativo medio e sonno medio sia moderato.
-
-**1) Simulazione dei dati.**
+Scriviamo dunque il modello Stan per i dati dell'esempio in discussione.
 
 ```{r}
-#| label: simulate-data
-#| message: false
-#| warning: false
-
-set.seed(123)
-
-N <- 200
-# Predittori su scala "naturale"
-x1 <- pmin(pmax(rnorm(N, mean = 5, sd = 2), 0), 10)   # Affetto negativo (0-10)
-x2 <- pmin(pmax(rnorm(N, mean = 7, sd = 1.5), 0), 10) # Ore di sonno (0-10)
-
-# Veri parametri (sconosciuti allo stimatore)
-alpha_true <- 20        # baseline di distress a x1=5, x2=7 circa
-beta1_true <- 4         # +4 punti distress per +1 punto di affetto negativo
-beta2_true <- -3        # -3 punti distress per +1 ora di sonno
-sigma_true <- 8         # rumore/residuo (DS)
-
-# Generazione dell'esito
-y <- alpha_true + beta1_true * x1 + beta2_true * x2 + rnorm(N, 0, sigma_true)
-
-# Controllo rapide statistiche
-summary(data.frame(y, x1, x2))
-```
-
-
-**2) Modello Stan.**
-
-Lavoriamo *senza standardizzare* le variabili. Questo ci consente di specificare *prior* *direttamente interpretabili* nelle unità psicologiche originali, evitando di dover ricondurre mentalmente i coefficienti a scale standardizzate.
-
-```{r}
-#| label: stan-code
-#| message: false
-#| warning: false
-
-stancode <- "
+stancode <- write_stan_file("
 data {
   int<lower=1> N;
-  vector[N] x1;       // affetto negativo (0-10)
-  vector[N] x2;       // ore di sonno (0-10)
-  vector[N] y;        // distress (0-100)
+  int<lower=1> K;
+  matrix[N, K] X;
+  vector[N] y;
 }
 parameters {
-  real alpha;              // intercetta (baseline distress)
-  vector[2] beta;          // beta[1]=effetto x1, beta[2]=effetto x2
-  real<lower=0> sigma;     // DS dell'errore
+  real alpha;
+  vector[K] beta;
+  real<lower=0> sigma;
 }
 model {
-  // PRIORS informativi ma prudenti (scala grezza)
-  alpha ~ normal(20, 20);     // baseline tipica, DS ampia
-  beta[1] ~ normal(4, 2);     // NA: aumento atteso +4 distress per +1 punto
-  beta[2] ~ normal(-3, 2);    // Sonno: riduzione attesa -3 distress per +1 ora
-  sigma ~ student_t(4, 0, 10); // Rumore: DS ~5-15, tolleranza outlier
+  alpha ~ normal(0, 10);
+  beta  ~ normal(0, 5);
+  sigma ~ student_t(4, 0, 10);
 
-  // LIKELIHOOD vettorializzato
-  y ~ normal(alpha + beta[1] * x1 + beta[2] * x2, sigma);
+  y ~ normal(X * beta + alpha, sigma);
 }
 generated quantities {
-  vector[N] y_rep; // repliche per PPC
-  for (n in 1:N)
-    y_rep[n] = normal_rng(alpha + beta[1]*x1[n] + beta[2]*x2[n], sigma);
+  vector[N] mu = alpha + X * beta;
+  vector[N] y_rep;
+  for (n in 1:N) y_rep[n] = normal_rng(mu[n], sigma);
+  real R2 = variance(mu) / (variance(mu) + square(sigma));
 }
-"
+")
 ```
 
-**3) Compilazione del modello.**
+Notiamo la scelta dei *prior* nel modello Stan:
+
+```stan
+alpha ~ normal(0, 10);
+beta  ~ normal(0, 5);
+sigma ~ student_t(4, 0, 10);
+```
+
+* **Intercetta `alpha`**: prior `normal(0,10)`.
+  È un prior *debole* e poco informativo: ammette con alta probabilità valori compresi tra circa −20 e +20. È adatto se i dati sono centrati (così l’intercetta rappresenta il valore medio di $y$). Se invece $y$ ha una scala diversa, conviene adeguare la deviazione standard del prior alla variabilità attesa dei dati.
+
+* **Coefficienti `beta`**: prior `normal(0,5)`.
+  Indica che, a priori, ci aspettiamo effetti di ampiezza moderata (nell’ordine di qualche unità di $y$ per uno scarto unitario di $x$), ma lasciamo aperta la possibilità a effetti anche più grandi. Se i predittori vengono *standardizzati*, un prior ancora più stretto come `normal(0,1)` diventa naturale, perché corrisponde all’ipotesi che la maggior parte degli effetti sia inferiore a ±2 deviazioni standard di $y$.
+
+* **Deviazione standard `sigma`**: prior `student_t(4, 0, 10)`.
+  È una distribuzione *half-Student-t* (positiva per vincolo `<lower=0>`), con code più pesanti della normale: questo rende il prior robusto, permettendo valori piccoli ma anche occasionalmente molto grandi per $\sigma$. In pratica, evita che il modello “forzi” troppo la variabilità residua, ma previene anche valori assurdi.
+
+**Messaggio didattico:** questi prior sono *propri e debolmente informativi*: non costringono il modello a soluzioni arbitrarie, ma al tempo stesso evitano i problemi dei *prior impropri* (che Stan non assegna mai di default).
+
+In generale, conviene:
+
+* centrare e, se possibile, standardizzare i predittori;
+* scegliere prior compatibili con la scala dei dati;
+* verificare le implicazioni con un *prior predictive check* (simulando $y$ dai soli prior).
+
+Compiliamo:
 
 ```{r}
 #| output: false
-stanmod <- cmdstan_model(
-  write_stan_file(stancode),
-  compile = TRUE
+mod <- cmdstan_model(stancode, compile = TRUE)
+```
+
+#### Un solo predittore
+
+Iniziamo stimando il modello con *un solo predittore*. Costruiamo la matrice $X$ di dimensione $N \times 1$ (una sola colonna) e centriamo i dati per rendere l’intercetta più interpretabile:
+
+```{r}
+# Scegliamo il predittore (qui x1; per usare x2 basta sostituire "x1")
+x1_c <- dati$x1 - mean(dati$x1)  # centratura rispetto alla media
+
+# Creiamo una matrice N×1 (attenzione: non usare as.numeric, che schiaccia la matrice)
+X <- matrix(x1_c, ncol = 1)
+K <- ncol(X)  # qui sarà 1
+```
+
+Prepariamo i dati per Stan:
+
+```{r}
+stan_data <- list(
+  N = nrow(dati),
+  K = K,   # numero di predittori: 1
+  X = X,   # matrice N×1
+  y = dati$y
 )
+glimpse(stan_data)  # controllo rapido della lista
 ```
 
-**4) Dati di input per Stan.**
+Eseguiamo il campionamento MCMC:
 
 ```{r}
-data_list <- list(N = N, x1 = x1, x2 = x2, y = y)
-```
-
-**5) Campionamento.**
-
-```{r}
-#| label: fit-model
-#| message: false
-#| warning: false
 #| output: false
-
-fit <- stanmod$sample(
-  data = data_list,
+fit <- mod$sample(
+  data = stan_data,
   seed = 2025,
-  chains = 4, parallel_chains = 4,
-  iter_warmup = 1000, iter_sampling = 2000
+  chains = 4,
+  parallel_chains = 4,
+  iter_warmup = 1000,
+  iter_sampling = 2000
 )
 ```
 
-**6) Confronto tra parametri veri e stime a posteriori.**
+Sintesi delle stime a posteriori:
 
 ```{r}
-#| label: posterior-summary
-#| message: false
-#| warning: false
-
-post_sum <- fit$summary(variables = c("alpha", "beta[1]", "beta[2]", "sigma"))
-post_sum
-
-true_vals <- data.frame(
-  parameter = c("alpha", "beta[1]", "beta[2]", "sigma"),
-  true = c(20, 4, -3, 8)
-)
-true_vals
+summ <- fit$summary(variables = c("alpha", "beta", "sigma", "R2"))
+summ
 ```
 
-**Interpretazione:**
-Se i *posterior mean* per `beta[1]` e `beta[2]` risultano vicini a 4 e -3, e gli intervalli di credibilità li includono, il modello sta recuperando bene i valori simulati.
-Lavorare su *scala grezza* rende i coefficienti subito leggibili:
-
-* `beta[1]`: “+1 punto di NA → +4 punti di distress”,
-* `beta[2]`: “+1 ora di sonno → −3 punti di distress”.
+Con un solo predittore, osserviamo lo stesso *bias da variabile omessa* che avevamo trovato con `lm()`: il coefficiente stimato per `x1` è distorto perché il modello non tiene conto dell’influenza di `x2`.
 
 
-::: {.callout-note collapse = "true"}
-### Come scegliere *prior* informativi in psicologia
+#### Due predittori
 
-Lavorare nella scala originale consente di definire *prior* *direttamente interpretabili*.  La scelta dovrebbe basarsi su:
-
-1. *Scala di misura*: specificare i prior nelle stesse unità delle variabili (es. punti su una scala 0–10 o 0–100).
-2. *Conoscenze pregresse*: dati di studi precedenti, letteratura o esperienza clinica.
-3. *Prudenza*: scegliere deviazioni standard sufficientemente ampie da includere valori plausibili ma meno probabili.
-4. *Robustezza*: per i parametri di scala, preferire distribuzioni a code più pesanti (es. Student-t) quando si sospetta la presenza di outlier.
-
-**Applicazione all’esempio del distress:**
-
-| Parametro | Interpretazione psicologica                  | Prior scelto          | Motivazione                                                    |
-| --------- | -------------------------------------------- | --------------------- | -------------------------------------------------------------- |
-| `alpha`   | Distress medio in baseline (NA e sonno medi) | `normal(20, 20)`      | Copre un range ampio, tipico di campioni non clinici           |
-| `beta[1]` | Effetto dell’affetto negativo (0–10)         | `normal(4, 2)`        | Atteso aumento di \~4 punti distress per +1 NA, con incertezza |
-| `beta[2]` | Effetto delle ore di sonno (0–10)            | `normal(-3, 2)`       | Attesa riduzione di \~3 punti distress per +1 ora di sonno     |
-| `sigma`   | DS residua (0–100)                           | `student_t(4, 0, 10)` | Copre DS comuni 5–15, code pesanti per outlier                 |
-:::
-
-
-**7) Controllo predittivo posteriore.**
+Ora estendiamo il modello includendo *entrambi i predittori*. Creiamo una matrice $X$ di dimensione $N \times 2$, centrando entrambe le colonne:
 
 ```{r}
-#| label: ppc-quick
-#| message: false
-#| warning: false
+# Matrice con due predittori centrati
+X <- cbind(dati$x1, dati$x2)
+X <- scale(X, center = TRUE, scale = FALSE)
+K <- ncol(X)  # ora K = 2
+```
 
-y_rep_mat <- posterior::as_draws_matrix(fit$draws("y_rep"))
-bayesplot::ppc_dens_overlay(data_list$y, y_rep_mat[1:100, ])
+Prepariamo i dati per Stan:
+
+```{r}
+stan2_data <- list(
+  N = nrow(dati), 
+  K = K, 
+  X = X, 
+  y = dati$y
+)
+glimpse(stan2_data)
+```
+
+Campionamento:
+
+```{r}
+#| output: false
+fit2 <- mod$sample(
+  data = stan2_data,
+  seed = 2025, 
+  chains = 4, 
+  parallel_chains = 4,
+  iter_warmup = 1000, 
+  iter_sampling = 2000
+)
+```
+
+Sintesi delle stime:
+
+```{r}
+summ <- fit2$summary(variables = c("alpha", "beta", "sigma", "R2"))
+summ
+```
+
+**Interpretazione**
+
+* I *posterior mean* di `beta[1]` e `beta[2]` sono vicini ai valori veri della simulazione (+1 e −2), e gli intervalli di credibilità li comprendono.
+* Questo conferma che il modello multiplo riesce a recuperare gli effetti “puliti”, eliminando il bias da variabile omessa.
+
+Lavorando su scala grezza, i coefficienti sono immediatamente leggibili:
+
+* `beta[1]`: *+1 punto di affetto negativo → +1 punto di stress*,
+* `beta[2]`: *+1 ora di sonno → −2 punti di stress*.
+
+
+### Diagnostica
+
+```{r}
+fit2$cmdstan_diagnose()
+```
+
+### Controllo predittivo posteriore
+
+```{r}
+draws <- fit2$draws()
+# Estrazione sicura dei draw per mu e y_rep
+# (uso 'variables =' e imposto l'ordine esplicito 1..N per y_rep)
+mu_draws   <- posterior::as_draws_matrix(fit2$draws(variables = "mu"))
+yrep_draws <- posterior::as_draws_matrix(
+  fit2$draws(variables = paste0("y_rep[", 1:N, "]"))
+)
+
+# Controllo di coerenza dimensioni (opzionale ma utile)
+stopifnot(ncol(yrep_draws) == length(dati$y))
+
+# PPC: uso 100 repliche (righe = draw, colonne = osservazioni)
+ns <- min(100, nrow(yrep_draws))
+bayesplot::ppc_dens_overlay(dati$y, yrep_draws[1:ns, ])
 ```
 
 Se le curve replicate si sovrappongono bene alla distribuzione osservata di $y$, il modello ha una buona calibrazione predittiva.
 
 
+## Robustezza agli *outlier*: regressione t di Student
+
+La regressione lineare classica assume che gli errori siano gaussiani, cioè distribuiti come $\mathcal{N}(0,\sigma)$. Questa ipotesi funziona bene quando la distribuzione dei residui è “ben comportata”. Tuttavia, in psicologia capita spesso di avere osservazioni *estreme* (outlier) che non si adattano a questa ipotesi: pochi valori anomali possono “tirare” la retta e distorcere molto le stime.
+
+Un rimedio è sostituire la normale con la *distribuzione t di Student*, che ha *code più pesanti*. Questo significa che gli outlier ricevono meno peso: la stima è più robusta, perché non si lascia influenzare eccessivamente da poche osservazioni estreme.
+
+### Il modello in Stan
+
+Ecco la versione “robusta” della regressione multipla:
+
+```stan
+// file: lm_multiple_t.stan
+data {
+  int<lower=1> N;          // numero osservazioni
+  int<lower=1> K;          // numero predittori
+  matrix[N, K] X;          // matrice dei predittori
+  vector[N] y;             // variabile risposta
+}
+parameters {
+  real alpha;              // intercetta
+  vector[K] beta;          // coefficienti di regressione
+  real<lower=0> sigma;     // scala residui
+  real<lower=2> nu;        // gradi di libertà (>=2 per varianza finita)
+}
+model {
+  // Priors
+  alpha ~ normal(0, 10);
+  beta  ~ normal(0, 5);
+  sigma ~ student_t(4, 0, 10);
+  nu    ~ exponential(0.1);   // media ≈ 10, lascia aperta la possibilità a valori piccoli
+
+  // Likelihood: regressione t (GLM)
+  target += student_t_id_glm_lpdf(y | nu, X, alpha, beta, sigma);
+}
+generated quantities {
+  vector[N] mu = alpha + X * beta;
+  vector[N] y_rep;
+  for (n in 1:N)
+    y_rep[n] = student_t_rng(nu, mu[n], sigma);
+
+  real R2 = variance(mu) / (variance(mu) + square(sigma));
+}
+```
+
+### Interpretazione dei parametri
+
+* `nu` controlla lo “spessore delle code”:
+
+  * valori grandi (es. $\nu > 30$) rendono la t praticamente indistinguibile da una normale,
+  * valori piccoli (es. $\nu \approx 3$–$5$) producono code pesanti e quindi maggiore robustezza.
+* `sigma` misura la dispersione residua, ma ora è separata dalla robustezza delle code.
+
+**Messaggio didattico:** con la t di Student il modello “capisce” che ci sono dati un po’ anomali e li tratta con cautela, senza lasciarsi dominare da essi.
+
+
+## Non linearità (errore di specificazione) e PPC
+
+Un altro caso frequente di *errore di specificazione* si ha quando forziamo un modello *lineare* su dati che in realtà hanno una *curvatura* (per esempio quadratica). Anche se i residui sembrano gaussiani, il modello sbaglia sistematicamente le previsioni.
+
+### Simuliamo dati non lineari
+
+```{r}
+set.seed(11)
+N <- 300
+x <- rnorm(N)
+y_true <- 1 + 2*x + 1.5*x^2         # relazione quadratica
+y <- y_true + rnorm(N, 0, 1.5)
+
+X <- cbind(x)                       # modello lineare "sbagliato"
+K <- 1
+```
+
+### Fittiamo un modello lineare
+
+```{r}
+#| output: false
+fit_lin <- mod$sample(
+  data = list(N = N, K = K, X = scale(X, center = TRUE, scale = FALSE), y = y),
+  seed = 2025, chains = 4, parallel_chains = 4,
+  iter_warmup = 1000, iter_sampling = 2000
+)
+```
+
+### Controllo predittivo posteriore
+
+```{r}
+yrep_lin <- as_draws_matrix(fit_lin$draws("y_rep"))
+bayesplot::ppc_scatter_avg(y = y, yrep = yrep_lin[1:200, ])
+```
+
+### Cosa osserviamo?
+
+Il PPC mostra un *mismatch sistematico*: le previsioni lineari non seguono la curvatura dei dati veri. Il modello sta sbagliando in maniera *strutturale*, non solo per rumore.
+
+### Come rimediare?
+
+* Aggiungere un termine quadratico ($x^2$) come nuovo predittore;
+* Usare polinomi di grado superiore;
+* Oppure usare modelli flessibili (spline, funzioni base, Gaussian process).
+
+**Messaggio didattico:** i PPC non servono solo a “validare” un modello, ma soprattutto a diagnosticare quando la forma funzionale è troppo rigida. In questo caso, il PPC rivela l’esigenza di un modello più flessibile.
+
+
+
 ## Riflessioni conclusive {.unnumbered .unlisted}
 
-In questo capitolo abbiamo visto come esprimere la regressione lineare in *Stan*, partendo dal caso con un solo predittore fino ad arrivare al modello multiplo in notazione matriciale.
-Abbiamo introdotto la distinzione tra *coefficiente bivariato* e *coefficiente parziale*, chiarendo perché in un contesto con predittori correlati il secondo fornisca un’informazione più precisa e interpretativamente solida.
+In questo capitolo abbiamo tradotto la regressione lineare in un modello generativo scritto in *Stan*, partendo dal caso con un solo predittore fino alla forma multipla in notazione matriciale. Questo ci ha permesso di chiarire una distinzione fondamentale: il *coefficiente bivariato* descrive l’associazione totale fra un predittore e l’esito, mentre il *coefficiente parziale* misura l’effetto specifico, depurato dall’influenza degli altri predittori. È un passaggio cruciale per leggere correttamente le relazioni nei dati psicologici, dove le variabili sono spesso tra loro correlate.
 
-Dal punto di vista pratico, abbiamo:
+Dal punto di vista operativo abbiamo toccato tutti i passaggi essenziali di un’analisi bayesiana:
 
-* simulato dati psicologici plausibili su scala *grezza*, evitando la standardizzazione per mantenere l’interpretazione diretta dei coefficienti;
-* discusso la scelta di *prior informativi ma prudenziali* derivati da conoscenze precedenti, illustrando il legame tra teoria psicologica e specificazione del modello;
-* eseguito il modello in Stan via CmdStanR, verificando la capacità di recuperare i parametri simulati;
-* effettuato un *controllo predittivo posteriore* per confrontare distribuzioni osservate e replicate.
+* *Simulazione di dati plausibili* su scala grezza, per mantenere l’interpretabilità dei coefficienti.
+* *Scelta dei prior*: non arbitrari, ma debolmente informativi e ancorati alle conoscenze teoriche disponibili.
+* *Implementazione in Stan* tramite CmdStanR, con sintassi vettorializzata che sfrutta l’algebra lineare.
+* *Diagnostica del modello*: controllo predittivo posteriore e calcolo dell’$R^2$ bayesiano come misura sintetica di adattamento.
 
-Questo approccio illustra *l’intero flusso di lavoro*: dalla formulazione teorica del modello alla sua implementazione computazionale, fino alla valutazione della bontà di adattamento.
+In questo modo abbiamo percorso l’intero *ciclo di lavoro bayesiano*: dalla formulazione del modello teorico, alla traduzione in codice, alla valutazione critica delle sue prestazioni. L’idea centrale è che la regressione non è solo “stimare una retta”, ma un laboratorio per apprendere come costruire, stimare e validare modelli probabilistici che mantengano un legame diretto con le ipotesi psicologiche.
 
 
-## Informazioni sull'ambiente di sviluppo {.unnumbered .unlisted}
-
+::: {.callout-note collapse=true title="Informazioni sull'ambiente di sviluppo"}
 ```{r}
 sessionInfo()
 ```
+:::
+
 
 ## Bibliografia {.unnumbered .unlisted}
