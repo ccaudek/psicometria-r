@@ -9,25 +9,20 @@
 ## Introduzione {.unnumbered .unlisted} 
 
 ::: {.lead .dropcap}
-Il concetto di *regressione verso la media* è stato introdotto da Francis Galton, un pioniere della statistica, mentre studiava la trasmissione ereditaria di tratti fisici, in particolare l'altezza. Galton osservò che, quando si confronta l'altezza dei padri con quella dei figli, i figli tendono ad essere più vicini alla media della popolazione rispetto ai loro padri. Questo fenomeno è noto come *regressione verso la media*.
+Il concetto di *regressione verso la media* fu introdotto da Francis Galton studiando la trasmissione ereditaria dell’altezza. Egli osservò che i figli di padri molto alti tendevano sì ad essere sopra la media, ma meno dei loro padri; allo stesso modo, i figli di padri molto bassi risultavano meno estremi dei padri. Questo “ritorno parziale verso il centro” della distribuzione è il fenomeno che oggi chiamiamo *regressione verso la media*.
 :::
 
-Immaginiamo di avere un padre che è più alto della media della popolazione. Ci aspettiamo che suo figlio sia anch'esso più alto della media, ma *non* tanto quanto il padre. In altre parole, l'altezza del figlio "regredisce" parzialmente verso la media della popolazione. Lo stesso principio si applica ai padri più bassi della media: i loro figli tenderanno ad essere più bassi della media, ma non tanto quanto i padri.
+Perché accade? Un’altezza eccezionale può essere il risultato della combinazione di fattori genetici, ambientali e casuali. I figli ereditano solo una parte di tali fattori e, con l’aggiunta di nuove influenze, la loro altezza tende ad avvicinarsi alla media della popolazione. Non significa che un figlio di un padre altissimo diventi basso: resta sopra la media, ma meno estremo.
 
-*Perché succede?* 
-Quando un padre è alto 75 pollici (mentre la media magari è 69.1), essere così alto potrebbe essere dovuto a molti fattori “eccezionali” combinati (genetici, ambientali, casuali). Il figlio, tuttavia, eredita solo una parte di quei fattori, e probabilmente avrà altri fattori (positivi o negativi) in modo casuale, cosicché la sua altezza si sposta verso la media della popolazione. Questo non vuol dire che il figlio sia basso: rimane comunque al di sopra della media, ma non raggiunge l’estremo del padre.
-
-Il cuore statistico del fenomeno si trova nella correlazione tra due variabili (in questo caso, altezza del padre e altezza del figlio). Se la correlazione fosse 1 (perfetta), un padre alto in modo eccezionale avrebbe sempre un figlio proporzionalmente alto, senza “riavvicinarsi” alla media. Se invece la correlazione è minore di 1, come succede quasi sempre nel mondo reale, la relazione padre-figlio non è perfetta e vi è una certa variabilità.
-
-Galton misurò in media una correlazione di circa 0.5 tra altezza paterna e altezza del figlio maschio. Questo valore implica che, se un padre si discosta di 2-3 deviazioni standard sopra la media, il figlio di solito ne recupererà una parte, ma non interamente.
+Il cuore statistico del fenomeno è la correlazione imperfetta tra le due variabili (altezza del padre e del figlio). Se la correlazione fosse 1, i valori estremi si replicherebbero perfettamente. Ma, quando $\rho < 1$, i valori attesi dei figli sono più vicini alla media rispetto a quelli dei padri. Galton stimò una correlazione attorno a 0.5: dunque, gran parte ma non tutta l’estremità del tratto paterno si trasmette al figlio.
 
 
 ### Panoramica del capitolo {.unnumbered .unlisted}
 
-- Origine storica e intuizione della regressione verso la media (Galton).
-- Correlazione e regressione: forma standardizzata e non standardizzata.
-- Visualizzare/quantificare la RTM: stime condizionate e retta di regressione; interpretazione predittiva.
-- RTM ≠ causalità: effetti di selezione e rumore di misura; come evitare false inferenze.
+- Origine storica e intuizione del fenomeno (Galton).
+- Regressione e correlazione: forme standardizzate e non standardizzate.
+- Visualizzazione della RTM tramite retta di regressione.
+- RTM ≠ causalità: errori di misura e artefatti di selezione.
 
 ---
 
@@ -88,7 +83,7 @@ galton_heights |>
 
 ### Il coefficiente di correlazione
 
-Per quantificare la relazione lineare tra l'altezza del padre e quella del figlio, utilizziamo il *coefficiente di correlazione* (indicato con $r$ o $\rho$). La formula del coefficiente di correlazione è:
+La forza e la direzione dell'associazione lineare tra le due variabili sono misurate dal coefficiente di correlazione di Pearson, definito come:
 
 $$
 \rho = \frac{1}{n}\sum_{i=1}^n 
@@ -96,7 +91,7 @@ $$
 \left(\frac{y_i - \mu_y}{\sigma_y}\right).
 $$
 
-In R, possiamo calcolare la correlazione tra l'altezza del padre e quella del figlio con il seguente codice:
+dove $\mu_X, \mu_Y$ sono le medie e $\sigma_X, \sigma_Y$ le deviazioni standard delle rispettive popolazioni.   La sua stima campionaria, $r$, è calcolata in R come:
 
 ```{r}
 galton_heights |> 
@@ -104,13 +99,13 @@ galton_heights |>
   pull(r)
 ```
 
-Nel nostro caso, la correlazione è circa 0.5. Questo valore positivo indica che padri più alti tendono ad avere figli più alti, ma la correlazione non è perfetta. Il coefficiente di correlazione varia tra -1 e 1, dove il valore assoluto misura la forza della relazione lineare.
+Un coefficiente di 0.5 indica un'associazione lineare positiva di moderata intensità, implicando che l'altezza paterna spiega solo parzialmente la variabilità dell'altezza dei figli.
 
-### Stime condizionate: previsioni basate sull'altezza del padre
+### L'aspettativa condizionata e l'emergenza del fenomeno di regressione
 
-Un modo per fare previsioni è chiedersi: “Se un padre è alto 72 pollici, quale sarà l'altezza media dei figli di tutti i padri di 72 pollici?” In termini statistici, questa è l'*aspettativa condizionata* $\mathbb{E}(\text{altezza figlio} \mid \text{altezza padre} = 72)$.
+Un obiettivo inferenziale comune è la stima del valore atteso dell'altezza del figlio ($Y$), condizionata a un specifico valore dell'altezza del padre ($X = x_0$), formalmente $\mathbb{E}(Y \mid X = x_0)$. 
 
-Se filtriamo i dati prendendo solo i padri di altezza 72 pollici, possiamo calcolare la media dell'altezza dei figli in quel sottogruppo. Tuttavia, questo metodo può essere instabile se il numero di osservazioni nel sottogruppo è piccolo. Ad esempio:
+Un approccio intuitivo è stratificare i dati e calcolare la media campionaria del sottogruppo. Ad esempio, per $X = 72$ pollici:
 
 ```{r}
 galton_heights |> 
@@ -118,11 +113,11 @@ galton_heights |>
   summarize(avg_son = mean(son))
 ```
 
-Questo ci dà la stima condizionata dell'altezza media del figlio di un padre di 72 pollici. Spesso, questa media è maggiore della media generale dei figli, ma *meno* di quanto il padre (72 pollici) sia sopra la media dei padri. Questo fenomeno è noto come *regressione verso la media*.
+Tale stima risulta sistematicamente più vicina alla media generale di $Y$ di quanto $x_0$ non lo sia alla media di $X$. Questo fenomeno è noto come regressione verso la media.
 
-## Visualizzare la regressione verso la media
+## Visualizzare del fenomeno attraverso la stratificazione
 
-Ripetiamo ora lo stesso procedimento per tutti i dati.  *Stratifichiamo* i dati  raggruppadoli in base a valori simili di altezza del padre. Calcoliamo poi in ogni gruppo la media dell’altezza del figlio:
+Il fenomeno è generalizzabile visualizzando la media condizionata $\mathbb{E}(Y \mid X = x)$ per diversi valori di $x$, ottenuti tramite stratificazione:
 
 ```{r}
 galton_heights |>
@@ -133,117 +128,104 @@ galton_heights |>
   geom_point()
 ```
 
-Nel grafico risultante, ogni punto rappresenta la media dei figli corrispondenti a un determinato “strato” di padri. Se tracciamo anche la *retta di regressione*, noteremo che i punti si dispongono in modo approssimativamente lineare: *a padri più alti corrispondono figli più alti*, ma in media *meno* alti di quanto ci si aspetterebbe se la correlazione fosse perfetta.
+La nube di punti delle medie condizionate presenta una pendenza positiva ma inferiore a 45°, dimostrando visivamente la regressione verso la media.
 
-## La retta di regressione
+## Modello di regressione lineare e interpretazione dei parametri
 
-Per capire perché, dal punto di vista statistico, si verifica la regressione verso la media, consideriamo il modello di *regressione lineare semplice* che prevede l’altezza del figlio $\hat{Y}$ in base all’altezza del padre $X$:
-
-$$
-\hat{Y} = \beta_0 + \beta_1 X.
-$$
-
-- Quando *standardizziamo* i dati (cioè trasformiamo sia $X$ sia $Y$ in “punti z”, sottraendo la media e dividendo per la deviazione standard), la pendenza $\beta_1$ della retta di regressione *diventa esattamente la correlazione* $\rho$.  
-- Se $\rho = 1$, la pendenza sarebbe 1 e non ci sarebbe alcun “riavvicinamento” alla media: i valori alti di $X$ corrisponderebbero a valori altrettanto alti di $Y$.  
-- Se $\rho < 1$, la pendenza risulta *minore di 1* e ciò significa che, partendo da un valore molto alto (o molto basso) di $X$, la nostra previsione di $Y$ si colloca in una posizione *parzialmente più vicina* alla media di $Y$ rispetto alla distanza del padre dalla media di $X$. È proprio questo il fenomeno della regressione verso la media.
-
-### Forma non standardizzata
-
-Nella forma originale (non standardizzata), i coefficienti si calcolano con:
+Il modello statistico che formalizza questa relazione è la regressione lineare semplice:
 
 $$
-\beta_1 
-= \rho \,\frac{\sigma_Y}{\sigma_X}, 
-\quad
-\beta_0 
-= \mu_Y 
-- \beta_1 \,\mu_X,
+Y = \beta_0 + \beta_1 X + \varepsilon ,
 $$
 
-dove:
+dove $\epsilon$ è un termine di errore stocastico con media zero.
 
-- $\mu_X, \mu_Y$ sono le medie di $X$ (altezza del padre) e $Y$ (altezza del figlio);
-- $\sigma_X, \sigma_Y$ sono le rispettive deviazioni standard;
-- $\rho$ è la correlazione tra $X$ e $Y$.
-
-### Forma standardizzata
-
-Nella forma standardizzata, le deviazioni standard di $X$ e $Y$ sono pari a 1 e i coefficienti di regressione diventano:
+Gli stimatori dei minimi quadrati ordinari (OLS) per i parametri $\beta_0$ (intercetta) e $\beta_1$ (pendenza) sono:
 
 $$
-\beta_1 
-= \rho, 
-\quad
-\beta_0 
-= 0,
+\hat{\beta}_1 = r \frac{s_Y}{s_X}, \quad \hat{\beta}_0 = \bar{Y} - \hat{\beta}_1\bar{X}
 $$
 
-dato che le medie di $X$ e $Y$ sono uguali a zero.
+dove $s_X$, $s_Y$ sono le deviazioni standard campionarie e $\bar{X}$, $\bar{Y}$ le medie campionarie.
 
-### Regressione verso la media 
-
-Ne segue dunque che, se la correlazione tra le variabili è minore di 1, si verificherà necessariamente il fenomeno della regressione verso la media. In R, possiamo stimare la retta di regressione tramite la *stima dei minimi quadrati*:
+L'applicazione del modello ai dati di Galton fornisce:
 
 ```{r}
 fit <- lm(son ~ father, data = galton_heights)
-fit$coefficients
+coef(fit)
 ```
 
-La funzione `lm` calcola gli stimatori $\hat{\beta}_0$ e $\hat{\beta}_1$ che minimizzano la somma dei quadrati degli scarti:
+La pendenza stimata $\hat{\beta}_1 = 0.454$ conferma che per ogni pollice in più del padre, l'altezza attesa del figlio aumenta di circa 0.454 pollici, un valore inferiore a 1 che è consistente con la regressione verso la media.
+
+#### Standardizzazione
+
+Standardizzando le variabili ($Z_X = (X - \bar{X})/s_X$, $Z_Y = (Y - \bar{Y})/s_Y$), il modello di regressione assume la forma
 
 $$
-\text{RSS} = \sum_{i} \left[y_i - (\beta_0 + \beta_1 x_i)\right]^2.
+Z_Y = \rho\, Z_X + \varepsilon.
 $$
 
-Possiamo quindi tracciare la retta sullo scatterplot dei dati:
+Vediamo come si arriva a questo risultato. Consideriamo il modello lineare semplice
+
+$$
+Y = \beta_0 + \beta_1 X + \varepsilon, 
+\qquad \mathbb{E}[\varepsilon] = 0, 
+\qquad \mathrm{Cov}(X,\varepsilon) = 0.
+$$
+
+Dalle *equazioni normali* dei minimi quadrati otteniamo, a livello di popolazione:
+
+$$
+\beta_1 = \frac{\mathrm{Cov}(X,Y)}{\mathrm{Var}(X)}, 
+\qquad 
+\beta_0 = \mu_Y - \beta_1 \mu_X.
+$$
+
+Scrivendo la covarianza come $\mathrm{Cov}(X,Y) = \rho \sigma_X \sigma_Y$, segue che
+
+$$
+\beta_1 = \rho \,\frac{\sigma_Y}{\sigma_X}.
+$$
+
+Se ora standardizziamo $X$ e $Y$, entrambe le deviazioni standard valgono 1, quindi la pendenza diventa
+
+$$
+\beta_1^* = \rho.
+$$
+
+Inoltre, poiché le variabili standardizzate hanno media zero, anche l’intercetta scompare.
+
+In conclusione, la regressione di $Z_Y$ su $Z_X$ ha sempre intercetta pari a 0 e coefficiente angolare pari alla correlazione $\rho$.
+
+Infatti, nei dati campionari:
 
 ```{r}
-galton_heights |>
-  ggplot(aes(father, son)) +
-  geom_point(alpha = 0.5) +
-  geom_abline(
-    slope = coef(fit)[2], 
-    intercept = coef(fit)[1],
-    color = okabe_ito["sky"]
-  )
+fit_standardized <- lm(scale(son) ~ scale(father), data = galton_heights)
+coef(fit_standardized)
 ```
 
-Se standardizziamo i dati, la pendenza della retta di regressione diventa uguale alla correlazione:
-
-```{r}
-fit_2 <- lm(scale(son) ~ scale(father), data = galton_heights)
-fit_2$coefficients
-```
-
-```{r}
-galton_heights |>
-  ggplot(aes(scale(father), scale(son))) +
-  geom_point(alpha = 0.5) +
-  geom_abline(
-    slope = coef(fit_2)[2], 
-    intercept = coef(fit_2)[1],
-    color = okabe_ito["sky"]
-  )
-```
-
-Il punto cruciale è ricordare che la pendenza $\beta_1$ *è proporzionale* alla correlazione $\rho$. Se la correlazione non è perfetta ($\rho < 1$), allora qualsiasi previsione basata su $X$ (ad esempio, l’altezza del padre) risulterà *meno estrema* di quanto sia $X$ stesso rispetto alla sua media. In altre parole, un padre altissimo (molto sopra la media) avrà, in media, un figlio sopra la media ma non altrettanto estremo, “regredendo” parzialmente verso il centro della distribuzione.
+La pendenza è $0.4434$, numericamente uguale alla correlazione $r$ calcolata in precedenza (a meno di errori di arrotondamento). Poiché $|\rho| < 1$, la previsione per un valore standardizzato $z_x$ sarà $\hat{z}_y = \rho z_x$, che è sempre, in valore assoluto, minore di $z_x$. Questo spiega matematicamente il perché un valore estremo di $X$ porta a una previsione per $Y$ che è meno estrema, ossia più vicina alla sua media standardizzata (zero).
 
 In sintesi, la correlazione imperfetta ($\rho < 1$) è la ragione principale per cui un valore estremo di $X$ (ad esempio, un padre molto alto) porta a un valore $\hat{Y}$ che è sì superiore (o inferiore) alla media, ma *meno* estremo del padre. Questo “ritorno verso il centro” è ciò che chiamiamo *regressione verso la media*.
 
 
 ## Riflessioni conclusive {.unnumbered .unlisted}
 
-Il fenomeno della regressione verso la media rappresenta un principio statistico fondamentale con profonde implicazioni per la ricerca psicologica. In presenza di una correlazione imperfetta (0 < $\rho$ < 1), i valori estremi della variabile X generano previsioni $\hat{Y}$ meno estreme. Espresso in termini di punteggi standardizzati, l'atteso condizionato di $Z_Y$ dato $Z_X = z$ è pari a $\rho z$. Questo "richiamo verso il centro" della distribuzione costituisce l'essenza del fenomeno della regressione verso la media.
+La regressione verso la media è un fenomeno statistico che si verifica inevitabilmente quando due misurazioni della stessa variabile presentano una correlazione imperfetta (0 < $\rho$ < 1). In tali condizioni, i valori estremi osservati nella prima misurazione ($X$) sono associati, nella seconda misurazione ($Y$), a valori che si discostano meno dalla media della distribuzione.
 
-Questo fenomeno si verifica perché le relazioni tra le variabili psicologiche sono raramente (o mai) deterministiche. La presenza di variabilità non spiegata, di errori di misurazione e di processi di selezione che privilegiano i casi estremi, determina, in contesti di ripetizione della misurazione o di previsione di $Y$ da $X$, uno spostamento sistematico verso il valore medio. È importante sottolineare che l'entità di questo effetto è inversamente proporzionale all'affidabilità della misura: minore è l'affidabilità, più marcato sarà l'effetto di regressione.
+Dal punto di vista matematico, il valore atteso condizionato del punteggio standardizzato $Z_Y$, dato il punteggio $Z_X = z$, è: $\mathbb{E}[Z_Y \mid Z_X = z] = \rho z$. Ne consegue che la retta di regressione dei punteggi standardizzati ha una pendenza pari a $\rho$, inferiore a 1, riflettendo il caratteristico richiamo dei valori verso la media.
 
-Nella pratica della ricerca, specialmente nei disegni pre-post privi di gruppo di controllo, un apparente miglioramento successivo a un intervento in soggetti con valori di base molto bassi potrebbe essere semplicemente attribuibile all'atteso statistico di regressione verso la media, *anche in assenza di un qualsiasi effetto dell'intervento*. Lo stesso principio si applica al presunto peggioramento osservato dopo picchi eccezionalmente elevati.
+La causa fondamentale di questo fenomeno risiede nell'affidabilità non perfetta delle misurazioni psicologiche. L'errore di misura e la componente di variabilità casuale fanno sì che parte dell'estremità osservata in $X$ sia attribuibile a fluttuazioni transitorie piuttosto che a differenze individuali stabili. Di conseguenza, l'entità della regressione verso la media è inversamente proporzionale all'affidabilità dello strumento di misura: minore è l'affidabilità, maggiore sarà l'effetto.
 
-Per evitare interpretazioni fuorvianti, è essenziale adottare buone pratiche metodologiche. L'impiego di gruppi di controllo e la randomizzazione sono le strategie preferibili, quando fattibili. L'aggiustamento del valore di base tramite modelli di regressione o ANCOVA è un'alternativa migliore rispetto al semplice confronto delle differenze grezze. L'utilizzo di misurazioni multiple consente di stimare e incrementare l'affidabilità, riducendo l'errore di misura. È inoltre opportuno evitare, quando possibile, la selezione basata esclusivamente su casi estremi; quando ciò non è evitabile, è necessario modellare esplicitamente tale processo selettivo. La trasparenza nel reporting, che include scatterplot, pendenze in scala standardizzata e intervalli di incertezza, insieme a una discussione critica sull'affidabilità degli strumenti, completa l'approccio metodologicamente rigoroso.
+Le implicazioni pratiche di questo artefatto statistico sono notevoli. In contesti pre-post privi di gruppo di controllo, un apparente miglioramento dei soggetti con punteggi iniziali bassi, così come un peggioramento di quelli con punteggi iniziali alti, può essere interamente attribuibile alla regressione verso la media, in assenza di qualsiasi effetto reale dell'intervento.
 
-Dal punto di vista della psicologia come disciplina, è cruciale concettualizzare la regressione verso la media come un fenomeno statistico prevedibile e non come una spiegazione psicologica dei cambiamenti osservati. Le interpretazioni di natura causale devono basarsi su adeguati disegni di ricerca e su modelli statistici che incorporino esplicitamente considerazioni sull'affidabilità, sulla variabilità non osservata e sui processi di selezione del campione.
+Pertanto, per isolare e correggere tale artefatto, è indispensabile adottare disegni di ricerca appropriati, quali l'inclusione di un gruppo di controllo randomizzato, e tecniche analitiche specifiche. Queste includono:
 
-In sintesi, la regressione verso la media emerge sistematicamente in tutte le situazioni caratterizzate da $\rho$ < 1, la sua entità è inversamente proporzionale all'affidabilità della misurazione e il suo controllo richiede un attento disegno sperimentale e appropriati aggiustamenti statistici.
+- modelli di regressione che controllano il punteggio di base (ANCOVA);
+- modelli gerarchici o ad equazioni strutturali in grado di tenere esplicitamente conto dell'errore di misura.
+- procedure di correzione basate sulla stima dell'affidabilità della misura.
+
+L'impiego di tali metodologie consente di distinguere i cambiamenti genuini dagli artefatti statistici, evitando interpretazioni erronee degli effetti osservati. Questi accorgimenti permettono di evitare di attribuire erroneamente a un intervento o a un predittore ciò che in realtà è un artefatto statistico.
 
 
 ::: {.callout-note collapse=true title="Informazioni sull'ambiente di sviluppo"}
