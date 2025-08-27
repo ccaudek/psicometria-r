@@ -6,9 +6,10 @@
 > -- **Julian J. Faraway**, *Linear Models with R* (2004)
 :::
 
+
 ## Introduzione {.unnumbered .unlisted}
 
-::: {.dropcap}
+::: {.lead .dropcap}
 L'analisi delle associazioni tra variabili è un'operazione fondamentale nell'ambito della ricerca psicologica, ma nonostante la sua apparente semplicità, rappresenta uno degli aspetti più controversi e metodologicamente complessi. Sebbene possa sembrare un passaggio naturale successivo all'analisi univariata, questo processo solleva numerose questioni concettuali e pratiche che richiedono un'attenta riflessione.  
 :::
 
@@ -102,6 +103,7 @@ df <- df[!is.na(df$bdi), ]
 Successivamente, è stato realizzato un grafico a dispersione (*scatterplot*) in cui i valori del BDI-II sono stati posti sull'asse delle ascisse e quelli del CES-D sull'asse delle ordinate. Ogni punto rappresenta un partecipante, suddiviso per gruppo (soggetti depressi e controlli). L'aggiunta di una retta di regressione, ottenuta mediante un modello lineare, consente di valutare visivamente la tendenza di associazione tra le due misure.
 
 ```{r}
+#| echo: false
 # Separazione dei dati per gruppo
 mdd_data <- df[df$group == "mdd", ]
 ctl_data <- df[df$group == "ctl", ]
@@ -114,43 +116,51 @@ line_combined <- function(x) coeff_combined[1] + coeff_combined[2] * x
 
 # Generazione dei valori x per la retta
 x_values <- seq(min(df$bdi), max(df$bdi), length.out = 100)
-okabe_ito_colors <- c("Pazienti" = "#E69F00",  # Arancione
-                      "Controlli" = "#56B4E9")  # Azzurro
 
-# Creazione del grafico a dispersione e della retta di regressione
-ggplot() +
-  geom_point(
-    data = mdd_data,
-    aes(x = bdi, y = cesd_sum, color = "Pazienti"), alpha = 0.7
-  ) +
-  geom_point(
-    data = ctl_data,
-    aes(x = bdi, y = cesd_sum, color = "Controlli"), alpha = 0.7
-  ) +
-  geom_line(
-    aes(x = x_values, y = line_combined(x_values)),
-    linetype = "dashed", color = okabe_ito_colors["Pazienti"]
-  ) +
-  geom_vline(
-    aes(xintercept = mean(mdd_data$bdi, na.rm = TRUE)),
-    color = okabe_ito_colors["Pazienti"], alpha = 0.2
-  ) +
-  geom_vline(
-    aes(xintercept = mean(ctl_data$bdi, na.rm = TRUE)),
-    color = okabe_ito_colors["Controlli"], alpha = 0.2
-  ) +
-  geom_hline(
-    aes(yintercept = mean(mdd_data$cesd_sum, na.rm = TRUE)),
-    color = okabe_ito_colors["Pazienti"], alpha = 0.2
-  ) +
-  geom_hline(
-    aes(yintercept = mean(ctl_data$cesd_sum, na.rm = TRUE)),
-    color = okabe_ito_colors["Controlli"], alpha = 0.2
-  ) +
-  labs(x = "BDI-II", y = "CES-D", color = "Gruppo") +
-  scale_color_manual(
-    values = okabe_ito_colors
+# Etichette leggibili
+df <- df %>%
+  dplyr::mutate(group_label = dplyr::recode(group,
+                                            mdd = "Pazienti",
+                                            ctl = "Controlli"),
+                group_label = factor(group_label, levels = c("Pazienti","Controlli")))
+
+# Sotto-palette dai tuoi colori
+group_colors <- c(
+  "Pazienti"  = renaissance_palette[["warm_red"]],
+  "Controlli" = renaissance_palette[["warm_blue"]]
+)
+
+# Regressione combinata
+coeff_combined <- lm(cesd_sum ~ bdi, data = df)$coefficients
+line_combined  <- function(x) coeff_combined[1] + coeff_combined[2] * x
+x_values <- seq(min(df$bdi, na.rm = TRUE), max(df$bdi, na.rm = TRUE), length.out = 100)
+
+# Medie per gruppo (saltando gruppi assenti)
+means_df <- df %>%
+  dplyr::group_by(group_label) %>%
+  dplyr::summarise(
+    mean_bdi  = mean(bdi, na.rm = TRUE),
+    mean_cesd = mean(cesd_sum, na.rm = TRUE),
+    .groups = "drop"
   )
+
+ggplot(df, aes(x = bdi, y = cesd_sum, color = group_label)) +
+  geom_point(alpha = 0.8) +
+  # retta combinata (colore fissato, p.es. quello dei Pazienti)
+  geom_line(
+  data = data.frame(x = x_values, y = line_combined(x_values)),
+  aes(x = x, y = y),
+  inherit.aes = FALSE,
+  linetype = "dashed",
+  color = group_colors["Pazienti"]
+) +
+  # linee delle medie per i gruppi presenti
+  geom_vline(data = means_df, aes(xintercept = mean_bdi, color = group_label),
+             alpha = 0.2, show.legend = FALSE) +
+  geom_hline(data = means_df, aes(yintercept = mean_cesd, color = group_label),
+             alpha = 0.2, show.legend = FALSE) +
+  scale_color_manual(values = group_colors, drop = FALSE) +
+  labs(x = "BDI-II", y = "CES-D", color = "Gruppo")
 ```
 
 **Interpretazione dei risultati:** il grafico a dispersione evidenzia una tendenza approssimativamente lineare tra i punteggi del BDI-II e della CES-D, indicando che, in linea teorica, le due scale sono associate nel misurare il livello di depressione. Tuttavia, la presenza di una certa dispersione dei dati rispetto alla retta ideale sottolinea l'influenza degli errori di misurazione e della natura arbitraria delle unità di misura utilizzate. Per una valutazione più accurata della relazione, è necessario ricorrere a indici statistici in grado di quantificare sia la forza che la direzione dell'associazione.
@@ -500,7 +510,7 @@ for (i in 1:4) {
 }
 
 ggplot(anscombe_m, aes(x, y)) +
-  geom_point(size = 3, color = "red", fill = "orange", shape = 21) +
+  geom_point(size = 3, color = renaissance_palette[["warm_red"]], fill = renaissance_palette[["secondary"]], shape = 21) +
   geom_smooth(method = "lm", fill = NA, fullrange = TRUE) +
   facet_wrap(~set, ncol = 2)
 ```
