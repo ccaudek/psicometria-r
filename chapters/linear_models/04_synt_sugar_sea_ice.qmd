@@ -1,0 +1,939 @@
+# Zucchero sintattico {#sec-linar-models-brms}
+
+::: {.epigraph}
+> “Syntactic sugar: a notation designed to make a language sweeter to use, by providing an alternative, more concise, or more familiar style.”
+>
+> -- **Peter J. Landin**, The Next 700 Programming Languages (1966)
+:::
+
+
+## Introduzione {.unnumbered .unlisted}
+
+::: {.lead .dropcap}
+I modelli lineari sono così ampiamente utilizzati che sono stati sviluppati appositamente una sintassi, dei metodi e delle librerie per la regressione. Una di queste librerie è `brms` (Bayesian Regression Models using Stan), già introdotta nel @sec-linmod-bayesian-reg. `brms` è un pacchetto R progettato per adattare modelli gerarchici generalizzati lineari (di cui il modello lineare bivariato è un caso particolare), utilizzando una sintassi simile a quella presente nei pacchetti R, come `lm`, `lme4`, `rstanarm`, `brms` si basa su Stan, ma offre un'API di livello superiore.
+:::
+
+In questo capitolo esploreremo in maniera dettagliata come condurre un'analisi di regressione utilizzando `brms` invece di Stan.
+
+
+### Panoramica del capitolo {.unnumbered .unlisted}
+
+- Costruire e adattare modelli lineari con la funzione `brm()`.
+- Interpretare i risultati e confrontarli con quelli ottenuti da un approccio frequentista.
+- Visualizzare le relazioni stimate e distinguere tra intervalli di credibilità e di predizione.
+- Specificare priors personalizzati e valutare l’impatto sui risultati.
+- Eseguire verifiche predittive a posteriori (*posterior predictive checks*).
+- Gestire la presenza di outlier tramite la regressione robusta.
+- Calcolare e interpretare l’indice di determinazione bayesiano (*Bayes R²*).
+- Accedere e manipolare la distribuzione a posteriori dei parametri.
+
+---
+
+::: {.callout-tip collapse=true}
+## Prerequisiti
+
+- Leggere *Navigating the Bayes maze: The psychologist's guide to Bayesian statistics, a hands-on tutorial with R code* [@alter2025navigating].
+- Consultare [The brms Book: Applied Bayesian Regression Modelling Using R and Stan](https://paulbuerkner.com/software/brms-book/brms-book.pdf).
+:::
+
+::: {.callout-caution collapse=true title="Preparazione del Notebook"}
+```{r}
+here::here("code", "_common.R") |> 
+  source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(brms, posterior, cmdstanr, tidybayes)
+```
+:::
+
+
+## Interfaccia `brms`
+
+Come esempio, utilizzeremo un dataset che ci consente di stimare un modello lineare molto semplice. Il [National Snow and Ice Data Center](https://nsidc.org/home) mette a disposizione numerosi dati pubblici, scaricabili ed esplorabili liberamente. Uno degli effetti più evidenti del cambiamento climatico riguarda la progressiva riduzione dell’estensione dei ghiacci marini nell’emisfero settentrionale. Qui analizzeremo come questa estensione è variata nel tempo.
+
+La progressiva scomparsa di un elemento così iconico del nostro pianeta non è solo un dato fisico; agisce come un potente *segnale psicologico*. La percezione di perdite ambientali tangibili e su larga scala è un fattore chiave nel fenomeno dell'*ansia climatica* (*climate anxiety*), quella preoccupazione cronica e angoscia per gli impatti presenti e futuri del cambiamento climatico [@clayton2020climate].
+
+Visualizzare un trend discendente così chiaro, come quello che emergerà dalla nostra analisi, fornisce un contesto cruciale. Non si tratta di un'astratta previsione futura, ma della documentazione di una trasformazione in atto che sta già alterando ecosistemi, economie e, non da ultimo, il nostro benessere psicologico collettivo ([APA, 2017](https://www.apa.org/news/press/releases/2017/03/mental-health-climate.pdf)). L'analisi dei dati diventa così uno strumento per comprendere e comunicare una delle fonti dello stress ambientale contemporaneo.
+
+I dati contenuti nel file `N_08_extent_v4.0.csv` riguardano le osservazioni del mese di agosto dal 1979 al 2024 e riportano i valori di `extent`. Con questo termine si indica la superficie marina totale in cui la concentrazione di ghiaccio è almeno del 15%. L’*extent* è considerato l’indicatore più robusto per monitorare le tendenze climatiche di lungo periodo, poiché risente meno delle fluttuazioni giornaliere dovute al vento (che può comprimere o disperdere il ghiaccio, modificandone la concentrazione ma non la sua estensione complessiva). Per questo motivo, quando si parla di “minimo storico dei ghiacci artici”, il riferimento è quasi sempre al valore di *extent*. La variabile `extent` è espressa in milioni di chilometri quadrati (ad esempio, 8.04 = 8.040.000 km²).
+
+Carichiamo i dati e diamo un’occhiata alle prime righe:
+
+```{r}
+df <- rio::import(here::here("data", "N_08_extent_v4.0.csv"))
+df |> 
+  head()
+```
+
+Visualizziamo ora la relazione tra `extent` e `year` con un diagramma a dispersione:
+
+```{r}
+ggplot(df, aes(x = year, y = extent)) +
+  geom_point() +  
+  labs(x = "Anno", y = "Estensione (milioni km²)") 
+```
+
+Il pacchetto `brms` si concentra sui *modelli di regressione*. Questa specializzazione consente di adottare una sintassi semplice e compatta, detta *sintassi di Wilkinson* [@wilkinson1973symbolic].
+
+Per esempio, il modello lineare
+
+$$
+y = \alpha + \beta x + \varepsilon
+$$
+
+può essere scritto in `brms` nel modo seguente:
+
+```r
+a_model <- brm(extent ∼ 1 + year, data = df)
+```
+
+Nella sintassi di Wilkinson:
+
+* il simbolo `~` separa la variabile dipendente (a sinistra) dalle variabili indipendenti (a destra);
+* `1` rappresenta l’intercetta, che in realtà è inclusa di default.
+
+Quindi il modello precedente può essere scritto in maniera equivalente come:
+
+```r
+a_model <- brm(extent ∼ year, data = df)
+```
+
+Se desideriamo *escludere l’intercetta* dal modello, possiamo farlo così:
+
+```r
+no_intercept_model <- brm(extent ∼ 0 + year, data = df)
+```
+
+oppure:
+
+```r
+no_intercept_model <- brm(extent ∼ -1 + year, data = df)
+```
+
+Per aggiungere altre variabili indipendenti, basta estendere la formula:
+
+```r
+model_2 <- brm(extent ∼ year + z, data = df)
+```
+
+`brms` permette anche di stimare *modelli gerarchici (a effetti misti)*. Ad esempio, se avessimo osservazioni raggruppate per area geografica `g` e volessimo stimare un effetto di `year` che varia da un gruppo all’altro, potremmo scrivere:
+
+```r
+model_h <- brm(extent ∼ year + z + (year | g), data = df)
+```
+
+È importante sottolineare che la sintassi di Wilkinson *non specifica le distribuzioni a priori*, ma soltanto come le variabili sono collegate tra loro. In assenza di istruzioni esplicite, `brms` assegna automaticamente delle *prior debolmente informative*, che permettono di stimare comunque il modello senza ulteriori interventi. Tuttavia, se desideriamo avere un controllo più preciso, possiamo definire manualmente le prior, come vedremo nelle sezioni successive.
+
+
+### Centrare le variabili
+
+Per interpretare più facilmente *l’intercetta*, centriamo la variabile `year` rispetto alla sua media nel campione:
+
+```{r}
+df$year_c <- df$year - mean(df$year)
+```
+
+In questo modo, *l’intercetta* ($\alpha$) del modello rappresenterà l’*estensione media prevista* (*extent*, in milioni di km²) *nell’anno medio del campione* (cioè l’anno medio tra 1979 e 2024).
+
+Adattiamo un modello lineare con `year` centrata ed esaminiamo i risultati:
+
+```{r}
+#| message: false
+#| warning: false
+#| output: false
+
+fit_1 <- brm(
+  bf(extent ~ 1 + year_c, center = FALSE),
+  data = df,
+  backend = "cmdstanr",
+  silent = 0
+)
+```
+
+* `center = FALSE` nel *bf(...)* assicura che *brms non applichi un centraggio automatico* ai predittori numerici: così evitiamo il “doppio centraggio”, dato che abbiamo già centrato `year` a mano.
+* `backend = "cmdstanr"` indica a `brms` di usare *CmdStan tramite l’interfaccia `cmdstanr`* (anziché l’interfaccia `rstan`). In questo corso useremo `cmdstanr`, quindi è utile specificarlo esplicitamente.
+* `silent = 0` lascia visibili alcuni messaggi informativi durante la compilazione e il campionamento (opzionale).
+
+Le *tracce MCMC* dei parametri si ottengono così:
+
+```{r fig.asp=1}
+mcmc_trace(
+  fit_1,
+  pars = c("b_Intercept", "b_year_c", "sigma"),
+  facet_args = list(nrow = 3)
+)
+```
+
+Riepilogo del modello:
+
+```{r}
+summary(fit_1)
+```
+
+#### Interpretazione
+
+* L’*intercetta* $\alpha$ = `b_Intercept` è l’*extent previsto* (milioni di km²) *nell’anno medio* del campione (circa $\text{mean(df\$year)}$).
+* La *pendenza* $\beta$ = `b_year_c` quantifica la *variazione media annua* dell’extent: un valore negativo indica una *diminuzione* dell’estensione dei ghiacci nel tempo (trend atteso in questi dati).
+
+Per confronto, stimiamo lo *stesso modello* con l’approccio frequentista:
+
+```{r}
+fit_2 <- lm(extent ~ 1 + year_c, data = df)
+summary(fit_2)
+```
+
+Con *prior debolmente informativi*, i risultati bayesiani e frequentisti tendono a essere molto simili (stesse quantità stimate, ma nel caso bayesiano abbiamo l’intera *distribuzione a posteriori* dei parametri, utile per inferenze e previsione).
+
+
+### Visualizzazione dei risultati
+
+Per comprendere visivamente la relazione stimata tra *anno* ed *estensione dei ghiacci artici* nel nostro modello bayesiano, possiamo utilizzare la funzione `conditional_effects`:
+
+```{r}
+conditional_effects(fit_1, effects = "year_c")
+```
+
+Il grafico generato fornisce una rappresentazione intuitiva della stima:
+
+* **Linea centrale (media posteriore):** rappresenta il valore medio previsto di *extent* per ciascun valore di `year_c`.
+* **Area colorata (intervallo di credibilità):** mostra l’*intervallo di credibilità* al 95% (Highest Density Interval, HDI), cioè l’intervallo in cui cade il 95% della distribuzione a posteriori delle previsioni.
+
+Possiamo modificare il livello di incertezza visualizzato regolando l’argomento `prob`:
+
+```{r}
+# Visualizzazione con intervallo di credibilità all'89%
+conditional_effects(fit_1, effects = "year_c", prob = 0.89)
+```
+
+* Riducendo `prob` (ad esempio a 0.80 o 0.50) otteniamo intervalli più stretti, che mostrano solo la parte più densa della distribuzione posteriore.
+* Aumentando `prob` (ad esempio a 0.99) otteniamo intervalli più ampi, che riflettono una maggiore incertezza.
+
+#### Interpretazione pratica del grafico
+
+Nel grafico:
+
+* il punto in cui la linea attraversa `year_c = 0` corrisponde all’*estensione prevista dei ghiacci* nell’anno medio del campione (circa il 2001, dato che abbiamo centrato la variabile `year`);
+* la *pendenza della linea* indica la variazione media di estensione dei ghiacci (in milioni di km²) per ogni anno in più: un valore negativo segnala una riduzione progressiva;
+* la *larghezza dell’intervallo di credibilità* riflette il grado di incertezza delle stime: intervalli più stretti indicano maggiore precisione, intervalli più larghi indicano più incertezza.
+
+
+## Due tipi di incertezza nei modelli bayesiani
+
+Immaginiamo di voler capire come l’*anno* (*X*) sia collegato all’*estensione dei ghiacci artici* (*Y*). Con un modello bayesiano otteniamo due tipi distinti di incertezza, che corrispondono a due domande diverse:
+
+| Che cosa stiamo stimando?                                                                                         | Come si chiama l’incertezza?                      | Che intervallo disegniamo?                       |
+| ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------ |
+| *La media “vera”* dell’estensione dei ghiacci per un dato anno                                                    | *Incertezza del parametro* (o dell’effetto medio) | *Intervallo di credibilità* (credible interval)  |
+| *Il valore futuro di una nuova osservazione* (quale sarà l’estensione dei ghiacci in un singolo anno come quello) | *Incertezza predittiva*                           | *Intervallo di predizione* (prediction interval) |
+
+
+### Incertezza del parametro – «Quanto stiamo sbagliando la linea media?»
+
+```{r}
+conditional_effects(fit_1, effects = "year_c")
+```
+
+* Disegna la *linea di regressione* (la media stimata dell’estensione per ogni anno centrato).
+* Aggiunge intorno una *fascia stretta*: l’intervallo di credibilità al 95%.
+
+* *Come leggerla:*
+  Se la fascia, per l’anno medio del campione, va ad esempio da 7.5 a 7.7 milioni di km², significa che “con il 95% di probabilità la vera media dell’estensione in quell’anno sta lì dentro”.
+  Non dice nulla sulle singole osservazioni, che possono discostarsi anche molto dalla media.
+
+
+**Metafora veloce.** *Pensa a tirare freccette: la media cade vicino al centro, ma ogni singola freccia può atterrare in punti diversi. L’intervallo di credibilità descrive solo *dove cade il centro*.*
+
+
+### Incertezza predittiva – «Quanto potrebbe variare la prossima osservazione?»
+
+```{r}
+conditional_effects(fit_1, effects = "year_c", method = "predict")
+```
+
+* Ripropone la stessa linea media.
+* Disegna però una *fascia molto più larga*: l’intervallo di predizione.
+
+L’intervallo predittivo include due fonti di variabilità:
+
+1. *Incertezza sulla linea media* (come sopra).
+2. *Variabilità residua*: le differenze naturali tra osservazioni nello stesso anno (fluttuazioni dovute a vento, condizioni meteorologiche, ecc.).
+
+**Metafora veloce.** *Ora guardi non solo il centro del bersaglio, ma l’intero disco dove ogni freccia potrebbe cadere. L’area è molto più grande.*
+
+
+### Quando usare l’una o l’altra fascia?
+
+| Obiettivo della tua domanda                                                                     | Funzione da usare                              | Quale fascia guardare       |
+| ----------------------------------------------------------------------------------------------- | ---------------------------------------------- | --------------------------- |
+| Capire *l’effetto medio* (es. “quanto si riduce in media l’estensione ogni anno?”)              | `conditional_effects(...)`                     | *Intervallo di credibilità* |
+| Fare *previsioni su un caso futuro* (es. “quale sarà l’estensione osservata nell’agosto 2025?”) | `conditional_effects(..., method = "predict")` | *Intervallo di predizione*  |
+
+
+#### In sintesi
+
+1. *Credibilità* = incertezza sul *parametro medio* → fascia stretta (stima della retta).
+2. *Predizione* = incertezza su *osservazioni future* → fascia larga (linea + variabilità residua).
+3. La scelta dipende dalla domanda: “qual è la media?” (credibilità) oppure “dove cadrà il prossimo dato?” (predizione).
+
+In breve, la visualizzazione predittiva è più onesta quando vogliamo fare previsioni concrete su nuove osservazioni, mentre quella con l’intervallo di credibilità è più utile per capire la relazione generale tra anno ed estensione dei ghiacci.
+
+
+
+## Distribuzione a posteriori dei parametri
+
+Per esaminare la *distribuzione a posteriori dei parametri* del modello, possiamo utilizzare la funzione `mcmc_plot()`:
+
+```{r}
+mcmc_plot(fit_1, type = "dens")
+```
+
+Questa funzione disegna la *densità a posteriori* dei parametri, mostrando graficamente quali valori sono più plausibili dato il modello, i dati e le scelte a priori.
+
+Per un’analisi numerica più dettagliata, trasformiamo l’oggetto `fit_1` in un formato compatibile con il pacchetto `posterior` e poi calcoliamo le statistiche di sintesi:
+
+```{r}
+draws <- posterior::as_draws(fit_1, variable = "^b_", regex = TRUE)
+posterior::summarise_draws(draws, "mean", "sd", "mcse_mean", "mcse_sd")
+```
+
+* La funzione `as_draws()` converte l’oggetto in una struttura che rappresenta i campioni MCMC.
+* Gli argomenti `variable = "^b_"` e `regex = TRUE` selezionano solo i parametri che iniziano con `b_`, cioè i coefficienti del modello: l’intercetta e la pendenza.
+* La funzione `summarise_draws()` calcola statistiche riassuntive per la distribuzione a posteriori di questi parametri.
+
+
+### Spiegazione di `mcse_mean` e `mcse_sd`
+
+Oltre a media (`mean`) e deviazione standard (`sd`), `summarise_draws()` riporta anche due indici utili:
+
+* **`mcse_mean`** = *Monte Carlo Standard Error* della media.
+
+  * Indica quanto la stima della media potrebbe variare semplicemente perché abbiamo un numero finito di campioni MCMC.
+  * Se è molto piccolo rispetto a `sd`, possiamo fidarci che la media stimata rappresenta bene la distribuzione a posteriori.
+
+* **`mcse_sd`** = *Monte Carlo Standard Error* della deviazione standard.
+
+  * Indica quanto la stima della deviazione standard della distribuzione a posteriori potrebbe variare per lo stesso motivo.
+  * Anche qui, un valore molto piccolo rispetto alla `sd` è segno che il campionamento è stato sufficiente.
+
+
+### Come interpretarli in pratica?
+
+* **Rapporto rispetto a `sd`**
+
+  * `mcse_mean` e `mcse_sd` dovrebbero essere almeno un ordine di grandezza più piccoli delle corrispondenti stime (`mean` e `sd`).
+  * Ad esempio: se per `b_Intercept` abbiamo `mcse_mean = 0.0044` e `sd = 0.2695`, il valore è più di 60 volte più piccolo → la stima è robusta.
+
+* **Qualità del campionamento**
+
+  * Se `mcse_mean` o `mcse_sd` fossero troppo grandi, questo indicherebbe che:
+
+    * il numero di iterazioni MCMC è insufficiente,
+    * le catene non hanno mescolato bene,
+    * o ci sono problemi di convergenza.
+
+
+#### In sintesi
+
+* `mcse_mean` e `mcse_sd` non descrivono l’incertezza statistica sui dati, ma *la qualità del campionamento Monte Carlo*.
+* Se sono piccoli, significa che il numero di campioni è sufficiente e la distribuzione a posteriori è rappresentata in modo accurato.
+* In altre parole: ci dicono se possiamo fidarci che la “fotografia” ottenuta con l’MCMC rispecchi bene la vera distribuzione a posteriori.
+
+
+## Specificare i priors
+
+Nei modelli bayesiani i *priors* rappresentano le nostre aspettative sui parametri *prima* di osservare i dati. Se non li specifichiamo, `brms` assegna dei prior debolmente informativi di default.
+
+Possiamo ispezionarli con la funzione `get_prior`:
+
+```{r}
+get_prior(extent ~ 1 + year_c, data = df)
+```
+
+L’output mostra quali prior vengono assegnati a ciascun parametro del modello. Per esempio:
+
+1. **`prior`** – indica il prior utilizzato.
+
+   * `student_t(3, 6.8, 2.5)`: prior t di Student per l’intercetta, con 3 gradi di libertà, media 6.8 e scala 2.5.
+   * `(flat)`: prior piatto (non informativo) per i coefficienti delle variabili predittive, come il coefficiente di `year_c`.
+   * `student_t(3, 0, 2.5)`: prior t di Student per la deviazione standard residua ($\sigma$), centrato su 0 con scala 2.5.
+
+2. **`class`** – indica a quale tipo di parametro il prior si riferisce:
+
+   * `Intercept`: prior sull’intercetta ($\alpha$);
+   * `b`: prior sui coefficienti dei predittori ($\beta$);
+   * `sigma`: prior sulla deviazione standard residua ($\sigma$).
+
+3. **`coef`** – specifica a quale predittore si riferisce il prior.
+
+   * Vuoto per l’intercetta (perché non dipende da un predittore specifico).
+   * `year_c` per il coefficiente associato al predittore `year_c`.
+
+4. **`lb` e `ub`** – rappresentano i limiti inferiore (*lower bound*) e superiore (*upper bound*) del prior, se esistono.
+
+   * Per `sigma`, il limite inferiore è 0, poiché una deviazione standard non può essere negativa.
+
+5. **`source`** – indica se il prior è stato impostato dall’utente o se è il valore predefinito (`default`).
+
+
+### Specificare priors manualmente
+
+Se vogliamo rendere esplicite le nostre ipotesi, possiamo definire dei priors diversi da quelli di default. Ad esempio:
+
+```{r}
+prior_gaussian <- 
+  brms::prior(normal(7, 2), class = "b", coef = "Intercept") +    # Intercetta attorno a 7 (milioni km²)
+  brms::prior(normal(0, 0.5), class = "b", coef = "year_c") +  # Coefficiente di year_c
+  brms::prior(cauchy(0, 2), class = "sigma")          # Deviazione standard residua
+```
+
+> Nota: usiamo `brms::prior()` per essere sicuri di richiamare la funzione del pacchetto `brms` ed evitare conflitti con funzioni omonime di altri pacchetti.
+
+Adattiamo ora il modello con i priors specificati:
+
+```{r}
+#| message: false
+#| warning: false
+#| output: false
+
+fit_2 <- brm(
+  bf(extent ~ 1 + year_c, center = FALSE), 
+  prior = prior_gaussian,
+  data = df, 
+  backend = "cmdstanr", 
+  silent = 0
+)
+```
+
+E otteniamo un sommario numerico delle distribuzioni a posteriori:
+
+```{r}
+draws <- posterior::as_draws(fit_2, variable = "^b_", regex = TRUE)
+posterior::summarise_draws(draws, "mean", "sd", "mcse_mean", "mcse_sd")
+```
+
+### Confronto con i priors di default
+
+Nel nostro caso, i priors esplicitamente definiti *non cambiano in modo rilevante* le distribuzioni a posteriori. Questo accade perché i dati disponibili sono numerosi e forniscono già informazioni molto forti: in pratica, le osservazioni “dominano” sulle ipotesi iniziali.
+
+Dal punto di vista didattico è un aspetto cruciale da sottolineare:
+
+* **Con molti dati e alta informatività**, i priors hanno un ruolo marginale: le stime finali saranno simili indipendentemente dalle ipotesi iniziali.
+* **Con pochi dati o dati molto rumorosi**, invece, i priors diventano determinanti: le scelte iniziali possono influenzare in maniera sostanziale i risultati finali.
+
+In altre parole, la forza relativa tra *dati* e *priors* dipende dalla quantità e dalla qualità dell’informazione empirica disponibile.
+
+
+## Predizioni a posteriori (*Posterior Predictive Checks*)
+
+Un aspetto fondamentale nella valutazione di un modello statistico, sia frequentista che bayesiano, è verificare *quanto bene le predizioni del modello rappresentino i dati osservati*. La logica di fondo è simile nei due paradigmi, ma l’approccio e l’interpretazione sono diversi.
+
+
+### Confronto frequentista
+
+Nel caso frequentista, il confronto si basa sui valori stimati dal modello:
+
+$$
+\hat{y} = \hat{\alpha} + \hat{\beta}x
+$$
+
+Si analizzano principalmente:
+
+* la vicinanza della retta di regressione ai dati osservati;
+* la presenza di eventuali pattern non lineari nei residui;
+* la variazione della dispersione di $y$ rispetto a $x$ (per verificare l’ipotesi di omoschedasticità).
+
+
+### Approccio bayesiano
+
+Nell’approccio bayesiano eseguiamo *le stesse verifiche di base*, ma disponiamo di uno strumento in più: le *Predizioni a Posteriori* (*Posterior Predictive Checks, PPCs*).
+
+L’idea è semplice ma potente:
+
+* invece di confrontare i dati osservati solo con una linea di regressione “fissa”,
+* li confrontiamo con *dati simulati dal modello*, generati utilizzando i campioni dalle distribuzioni a posteriori dei parametri.
+
+In questo modo, nelle predizioni è incorporata anche l’*incertezza sui parametri* stimata dal modello.
+
+
+### Come si costruiscono le predizioni a posteriori
+
+Nel caso di un modello lineare semplice, il procedimento è:
+
+1. **Dati osservati:** partiamo dalla distribuzione empirica della variabile risposta ($y$).
+2. **Estrazione dei parametri:** prendiamo un campione casuale $\alpha'$, $\beta'$, $\sigma'$ dalle distribuzioni a posteriori dei parametri.
+3. **Simulazione dei dati:** generiamo valori simulati da una normale:
+
+   $$
+   y_{\text{sim}} \sim \mathcal{N}(\alpha' + \beta' x, \sigma')
+   $$
+
+   dove $x$ sono i predittori osservati.
+4. **Ripetizione:** il processo viene ripetuto molte volte, producendo numerosi dataset simulati.
+5. **Confronto:** i dati simulati vengono confrontati con i dati reali (istogrammi, densità o residui).
+
+
+### Interpretazione
+
+* **Buona corrispondenza:** se la distribuzione dei dati simulati si sovrappone bene a quella osservata, il modello rappresenta adeguatamente i dati.
+* **Discrepanze:** differenze sistematiche (picchi mancanti, code sottostimate, ecc.) indicano che il modello non cattura tutti gli aspetti dei dati.
+
+Il vantaggio dei PPC è che:
+
+* integrano l’incertezza sui parametri;
+* permettono di valutare non solo la bontà di adattamento media, ma anche dettagli della distribuzione;
+* sono molto intuitivi e visivi, facilitando la diagnosi di problemi.
+
+
+#### Esempi con R
+
+Verifichiamo le predizioni del modello confrontandole con i dati osservati:
+
+```{r}
+pp_check(fit_2)
+```
+
+In questo caso, il grafico mostra una buona corrispondenza tra i dati simulati e quelli reali.
+
+Possiamo poi analizzare i *residui bayesiani* con un grafico più specifico:
+
+```{r}
+pp_check(fit_1, type = "error_scatter_avg")
+```
+
+Questo grafico rappresenta i residui (differenze tra osservato e predetto) rispetto ai valori predetti:
+
+* se i residui appaiono distribuiti in modo uniforme, il modello descrive correttamente la relazione;
+* se emergono pattern sistematici (ad esempio curvature o variazioni di dispersione), il modello potrebbe essere inadeguato.
+
+
+### Commento sui residui
+
+Nel grafico dei residui ($y$ in funzione di $y - y_{\text{rep}}$) si osserva un *trend crescente*: i residui non sono distribuiti in modo uniforme, ma mostrano una struttura sistematica. Questo pattern indica che il modello lineare bivariato *non cattura pienamente le proprietà dei dati*. In particolare, trattandosi di una serie temporale, è probabile che vi siano *dipendenze tra osservazioni successive nel tempo*: l’estensione dei ghiacci in un anno dipende anche dai valori degli anni immediatamente precedenti. Il modello lineare semplice, invece, assume che gli errori siano *indipendenti e identicamente distribuiti*, e non è quindi in grado di rappresentare questa dinamica temporale.
+
+Questo esempio è didatticamente importante perché mostra che:
+
+* anche un modello molto semplice può aiutare a evidenziare *strutture nascoste nei dati* (qui la dipendenza temporale);
+* tuttavia, se compaiono *incongruenze nei residui*, significa che il modello non è adeguato e va *migliorato o reso più complesso* (ad esempio con modelli di regressione per serie temporali o modelli gerarchici dinamici).
+
+La verifica dei residui è dunque un passaggio cruciale: non solo permette di valutare l’adattamento del modello, ma può suggerire *nuove direzioni di modellizzazione* per rappresentare meglio la complessità del fenomeno.
+
+
+
+#### In sintesi
+
+Le *Predizioni a Posteriori* forniscono un modo robusto per valutare l’adeguatezza di un modello bayesiano:
+
+* se i dati simulati somigliano ai dati reali, il modello è plausibile per il campione analizzato;
+* in caso contrario, è opportuno rivedere la struttura del modello (es. includendo effetti non lineari, variabili aggiuntive o priors più adeguati).
+
+Il PPC è una “prova del nove” del modello, che traduce la teoria in un confronto diretto e visivo con i dati osservati.
+
+
+## Regressione robusta
+
+In questa sezione introduciamo la *regressione robusta*.
+L’obiettivo è mostrare quanto sia semplice modificare, in `brm()`, la distribuzione degli errori per rendere il modello meno sensibile agli *outlier*.
+
+Questa flessibilità è un punto di forza dell’approccio bayesiano: nei modelli frequentisti standard, la distribuzione degli errori è quasi sempre fissata a priori (ad esempio normale/gaussiana) e non può essere facilmente modificata.
+
+
+### Perché servono modelli robusti?
+
+Gli outlier — valori molto distanti dal resto delle osservazioni — possono influenzare in modo marcato le stime di regressione.
+Ad esempio, aggiungiamo artificialmente un outlier nel dataset:
+
+```{r}
+df_outlier <- df
+df_outlier$extent[1] <- 20     # valore anomalo molto alto
+df_outlier$year_c[1] <- -25    # anno centrato "estremo"
+```
+
+Visualizziamo i dati:
+
+```{r}
+df_outlier |> 
+  ggplot(aes(x = year_c, y = extent)) +
+    geom_point() +  
+    labs(x = "Anno centrato", y = "Estensione (milioni km²)") 
+```
+
+
+### Effetto dell’outlier su un modello gaussiano
+
+Stimiamo un modello lineare gaussiano:
+
+```{r}
+#| message: false
+#| warning: false
+#| output: false
+
+fit_3 <- brm(
+  bf(extent ~ 1 + year_c, center = FALSE), 
+  prior = prior_gaussian,
+  data = df_outlier, 
+  backend = "cmdstanr", 
+  silent = 0
+)
+```
+
+Esaminiamo i parametri stimati:
+
+```{r}
+draws <- posterior::as_draws(fit_3, variable = "^b_", regex = TRUE)
+posterior::summarise_draws(draws, "mean", "sd", "mcse_mean", "mcse_sd")
+```
+
+Rispetto al modello stimato senza outlier (dove la pendenza $\beta$ era intorno a –0.07), qui la stima è fortemente distorta. Un singolo punto anomalo può dunque trascinare la retta di regressione.
+
+
+### Un modello robusto con distribuzione *t*
+
+Per ridurre la sensibilità agli outlier, possiamo sostituire la distribuzione gaussiana degli errori con una distribuzione *t* di Student, che ha *code più pesanti*:
+
+```{r}
+#| message: false
+#| warning: false
+#| output: false
+
+fit_4 <- brm(
+  bf(extent ~ 1 + year_c, center = FALSE), 
+  prior = prior_gaussian,
+  family = student(),   # distribuzione t di Student
+  data = df_outlier, 
+  backend = "cmdstanr", 
+  silent = 0
+)
+```
+
+I risultati mostrano che il modello *t* è *meno influenzato dall’outlier* rispetto al modello gaussiano:
+
+```{r}
+draws <- posterior::as_draws(fit_4, variable = "^b_", regex = TRUE)
+posterior::summarise_draws(draws, "mean", "sd", "mcse_mean", "mcse_sd")
+```
+
+
+### Il parametro $\nu$: quanto sono pesanti le code?
+
+Il modello con distribuzione *t* stima anche il parametro $\nu$, che controlla la pesantezza delle code:
+
+```{r}
+draws <- posterior::as_draws(fit_4, variable = "nu")
+posterior::summarise_draws(draws, "mean", "sd", "mcse_mean", "mcse_sd")
+```
+
+* Con valori *alti* di $\nu$ (es. > 30), la distribuzione *t* si avvicina a una normale.
+* Con valori *bassi* (es. $\nu \approx 4$), le code sono molto più pesanti: la distribuzione “accetta” più facilmente valori estremi, senza permettere che influenzino eccessivamente le stime.
+
+Nel nostro caso, $\nu \approx 4$ indica una distribuzione ben più robusta della normale, e il modello riesce a ignorare in buona parte l’effetto dell’outlier.
+
+
+### In sintesi
+
+La regressione robusta con distribuzione *t* è uno strumento essenziale quando sospettiamo che i dati possano contenere valori anomali. A differenza del modello gaussiano, non lascia che pochi outlier distorcano in modo significativo le stime dei parametri.
+
+
+
+## Indice di determinazione bayesiano
+
+Con il pacchetto `brms` possiamo calcolare il *Bayes $R^2$*, l’equivalente bayesiano del classico indice di determinazione $R^2$.
+Questo indice misura la *proporzione di varianza spiegata dal modello*, ma a differenza dell’approccio frequentista, tiene conto dell’*incertezza associata* alle stime dei parametri.
+
+Il comando per calcolarlo è:
+
+```{r}
+bayes_R2(fit_2)
+```
+
+
+### Interpretazione dell’output
+
+Il risultato è un *tibble* (una tabella ordinata) che riporta:
+
+* **Estimate**: la media della distribuzione a posteriori del Bayes $R^2$, cioè la proporzione di varianza spiegata dal modello;
+* **Est.Error**: l’errore standard associato alla stima;
+* **Q2.5** e **Q97.5**: i limiti inferiore e superiore dell’intervallo di credibilità al 95% per il Bayes $R^2$.
+
+Esempio (con valori ipotetici coerenti col nostro modello):
+
+* **Stima media**: il modello spiega circa il 57% della varianza osservata;
+* **Errore standard**: l’incertezza sulla stima è bassa (± 0.02);
+* **Intervallo di credibilità**: con il 95% di probabilità, il vero valore del Bayes $R^2$ si trova tra 0.52 e 0.61.
+
+### Differenze rispetto al $R^2$ frequentista
+
+1. **Incertezza esplicita**
+
+   * Il Bayes $R^2$ non è una stima puntuale, ma una distribuzione a posteriori: possiamo quindi rappresentare l’incertezza con intervalli di credibilità.
+   * Nel caso frequentista, invece, il $R^2$ è un singolo numero senza misura diretta di incertezza.
+
+2. **Influenza dei priors**
+
+   * Nel Bayes $R^2$, i priors scelti per i parametri influiscono sulla stima finale.
+   * Questo consente di incorporare conoscenze precedenti e rende la misura più flessibile e adattabile al contesto di ricerca.
+
+
+### Distribuzione a posteriori del Bayes $R^2$
+
+Possiamo anche visualizzare la distribuzione completa dei valori simulati di $R^2$:
+
+```{r}
+r2_draws <- bayes_R2(fit_2, summary = FALSE)
+r2_df <- data.frame(R2 = as.numeric(r2_draws))
+
+ggplot(r2_df, aes(x = R2)) +
+  geom_density(fill = "skyblue", alpha = 0.6) +
+  geom_rug(alpha = 0.2) +
+  labs(
+    title = "Distribuzione a posteriori di R²",
+    x = expression(R^2),
+    y = "Densità"
+  ) 
+```
+
+Calcoliamo anche i quantili:
+
+```{r}
+round(quantile(r2_df$R2, probs = c(.025, .5, .975)), 3)
+```
+
+In alternativa, con `bayesplot` possiamo ottenere una visualizzazione immediata e compatta:
+
+```{r}
+mcmc_areas(r2_draws, prob = 0.95) +
+  ggtitle("Posterior di R² (area = 95% CI)")
+```
+
+
+#### In sintesi
+
+Il Bayes $R^2$ è uno strumento potente perché combina l’intuitività del $R^2$ classico con la ricchezza informativa dell’approccio bayesiano, permettendo di valutare non solo quanta varianza il modello spiega, ma anche quanto siamo sicuri di questa stima.
+
+
+## Approfondimento: manipolare la distribuzione a posteriori con `brms`
+
+Vediamo ora come accedere e manipolare i *campioni della distribuzione a posteriori* generati da un modello stimato con `brms`.
+
+Supponiamo di aver costruito un modello lineare semplice, in cui vogliamo predire l’estensione dei ghiacci (`extent`) a partire dall’anno centrato (`year_c`):
+
+```r
+fit_2 <- brm(
+  bf(extent ~ 1 + year_c, center = FALSE), 
+  prior = prior_gaussian,
+  data = df, 
+  backend = "cmdstanr", 
+  silent = 0
+)
+```
+
+
+### Estrarre i campioni
+
+Una volta stimato il modello, possiamo ottenere i *campioni MCMC* della distribuzione a posteriori con `as_draws()`:
+
+```{r}
+posterior_2 <- as_draws(fit_2)
+```
+
+L’oggetto `posterior_2` è di tipo *draws*, definito dal pacchetto *posterior*.
+Al suo interno troviamo i campioni prodotti dall’algoritmo MCMC, organizzati come un array o una lista:
+
+```{r}
+str(posterior_2)
+```
+
+
+### Parametri del modello
+
+Per vedere i nomi dei parametri campionati (intercetta, slope, deviazione standard, ecc.) usiamo:
+
+```{r}
+variables(fit_2)
+```
+
+Nel nostro caso, siamo interessati al coefficiente di regressione associato a `year_c`, che in `brms` è etichettato come `b_year_c`.
+
+
+### Estrarre e riorganizzare i campioni
+
+Per lavorare più comodamente con i campioni, possiamo usare *tidybayes*, che fornisce funzioni per trasformare gli output bayesiani in formato *tidy*.
+
+```{r}
+b_slope_draws <- posterior_2 |> 
+  spread_draws(b_year_c)
+```
+
+La funzione `spread_draws()` “srotola” i campioni in un tibble:
+
+```{r}
+head(b_slope_draws)
+```
+
+Ogni riga rappresenta un singolo campione della catena MCMC per quel parametro.
+
+
+### Calcolare statistiche di sintesi
+
+Una volta estratti i campioni di `b_year_c`, possiamo calcolare facilmente mediana, media e quantili:
+
+```{r}
+quantile(b_slope_draws$b_year_c, probs = c(0.03, 0.50, 0.97))
+mean(b_slope_draws$b_year_c)
+```
+
+* I quantili a 0.03 e 0.97 definiscono un intervallo di credibilità al 94%.
+* Il quantile a 0.50 corrisponde alla *mediana a posteriori*.
+* La media a posteriori fornisce un’altra stima puntuale utile.
+
+
+### Visualizzare la distribuzione a posteriori
+
+Per capire meglio la forma della distribuzione a posteriori, possiamo tracciarne la densità. Con *tidyverse* e *tidybayes* bastano poche righe:
+
+```{r}
+tibble(beta = b_slope_draws$b_year_c) %>%
+  ggplot(aes(x = beta)) +
+  stat_halfeye(fill = "skyblue", alpha = 0.6) +
+  labs(
+    title = "Distribuzione a posteriori di β (b_year_c)",
+    x = "Valore di β",
+    y = "Densità a posteriori"
+  )
+```
+
+* `stat_halfeye()` mostra la densità stimata e mette in evidenza i valori più probabili.
+* La banda orizzontale rappresenta un intervallo di credibilità centrale.
+
+
+#### In sintesi
+
+Grazie a `as_draws()` di *posterior* e alle funzioni di *tidybayes*, possiamo:
+
+* estrarre i campioni MCMC della distribuzione a posteriori,
+* calcolare statistiche di sintesi (media, mediana, quantili),
+* visualizzare in modo intuitivo la forma e l’incertezza della distribuzione di un parametro.
+
+La combinazione di *posterior*, *tidybayes* e *tidyverse* rende il flusso di lavoro con i modelli stimati da `brms` semplice, potente e flessibile.
+
+
+## Riflessioni conclusive {.unnumbered .unlisted}
+
+In questo capitolo abbiamo visto come utilizzare *brms* per stimare e interpretare modelli lineari in ottica bayesiana.
+Abbiamo esplorato:
+
+* come impostare e personalizzare i *priors*;
+* come analizzare la *distribuzione a posteriori* dei parametri;
+* come condurre verifiche tramite *predizioni a posteriori*;
+* come affrontare la presenza di *outlier* con modelli robusti.
+
+L’approccio di *brms* combina la semplicità sintattica dei modelli classici con la potenza dell’inferenza bayesiana, offrendo un ambiente flessibile e intuitivo per applicazioni reali in psicologia e scienze sociali.
+
+In sintesi, *brms* permette non solo di stimare relazioni lineari, ma anche di *ragionare in termini probabilistici*: ogni parametro, previsione e indice di adattamento viene trattato come una distribuzione, rendendo l’analisi più trasparente, completa e vicina alle domande della ricerca empirica.
+
+::: {.callout-important title="Problemi" collapse="true"}
+
+1. *Modello base*  
+   Importa il dataset `Howell_18.csv`, filtra gli individui di età ≥ 18 anni e adatta un modello bayesiano lineare `height ∼ weight` usando `brm()`. Visualizza il sommario.
+
+2. *Centraggio del predittore*  
+   Calcola la variabile centrata `weight_c` e adatta il modello `height ∼ weight_c`. Confronta l’intercetta (`b_Intercept`) con quella del modello non centrato. Spiega la differenza.
+
+3. *Specificazione dei prior*  
+   Usa `get_prior()` per recuperare i prior di default, poi definisci manualmente prior debolmente informativi:
+   
+   - `Intercept ∼ Normal(150, 20)`
+   - `weight_c ∼ Normal(0, 10)`
+   - `sigma ∼ Cauchy(0, 5)`
+   
+   Adatta il modello con questi prior e confronta le stime a posteriori con quelle del modello con prior di default.
+
+4. *Predizioni predittive a posteriori*  
+   Per il modello con prior personalizzati:
+   
+   - Esegui `pp_check()` per la densità e per l’errore medio (`type = "error_scatter_avg"`).
+   - Descrivi brevemente cosa mostrano i due grafici.
+
+5. *Modello robusto*  
+   Introduci un outlier modificando il primo record: imposta `height = 400`.  
+   
+   - Adatta prima un modello gaussiano e poi uno robusto con `family = student()`.
+   - Confronta le stime di `b_weight_c` nei due modelli e discuti l’impatto dell’outlier.
+
+:::
+
+::: {.callout-tip title="Soluzioni" collapse="true"}
+
+1. *Modello base*  
+
+   ```r
+   library(brms)
+   df <- rio::import("data/Howell_18.csv")
+   df_adults <- subset(df, age >= 18)
+   fit_base <- brm(height ~ weight, data = df_adults, backend = "cmdstanr")
+   summary(fit_base)
+   ```
+
+2. *Centraggio del predittore*  
+
+   ```r
+   df_adults$weight_c <- df_adults$weight - mean(df_adults$weight)
+   fit_centered <- brm(height ~ weight_c, data = df_adults, backend = "cmdstanr")
+   summary(fit_centered)
+   ```
+   - Il `b_Intercept` nel modello non centrato è l’altezza prevista per peso = 0 (non interpretabile realisticamente).  
+   - Nel modello centrato, l’intercetta rappresenta l’altezza media alla media del peso del campione.
+
+3. *Specificazione dei prior*  
+
+   ```r
+   get_prior(height ~ weight_c, data = df_adults)
+   
+   priors_custom <- c(
+     prior(normal(150, 20), class = "b", coef = "Intercept"),
+     prior(normal(0, 10), class = "b", coef = "weight_c"),
+     prior(cauchy(0, 5), class = "sigma")
+   )
+   fit_priors <- brm(
+     height ~ weight_c,
+     data = df_adults,
+     prior = priors_custom,
+     backend = "cmdstanr"
+   )
+   summary(fit_priors)
+   ```
+   - Le stime a posteriori rimangono simili, ma i prior personalizzati influenzano leggermente l’incertezza.
+
+4. *Predizioni predittive a posteriori*  
+
+   ```r
+   pp_check(fit_priors)
+   pp_check(fit_priors, type = "error_scatter_avg")
+   ```
+   - Il grafico di densità mostra se la distribuzione simulata riproduce quella osservata.  
+   - Il grafico degli errori media evidenzia eventuali pattern sistematici nei residui.
+
+5. *Modello robusto*  
+
+   ```r
+   df_out <- df_adults
+   df_out$height[1] <- 400
+   fit_gauss <- brm(height ~ weight_c, data = df_out, backend = "cmdstanr")
+   fit_student <- brm(height ~ weight_c, family = student(),
+                      data = df_out, backend = "cmdstanr")
+   summary(fit_gauss)$fixed["weight_c", ]
+   summary(fit_student)$fixed["weight_c", ]
+   ```
+   - Il modello gaussiano vede una variazione marcata di `b_weight_c` a causa dell’outlier.  
+   - Il modello Student stima un coefficiente più vicino al valore senza outlier, dimostrando robustezza.
+:::
+
+
+::: {.callout-note collapse=true title="Informazioni sull'ambiente di sviluppo"}
+```{r}
+sessionInfo()
+```
+:::
+
+
+## Bibliografia {.unnumbered .unlisted}

@@ -233,6 +233,7 @@ knitr::opts_chunk$set(
   eval = TRUE,
   error = FALSE,
   dev = "ragg_png",
+  dev.args = list(bg = "transparent"), # transparent PNG
   dpi = 192, # Single DPI declaration
   out.width = "90%",
   fig.align = "center",

@@ -6,6 +6,7 @@
 > -- **Jacob Cohen**, Statistician and psychologist
 :::
 
+
 ## Introduzione {.unnumbered .unlisted} 
 
 ::: {.lead .dropcap}
@@ -39,7 +40,6 @@ pacman::p_load(cmdstanr, posterior, brms, bayestestR, insight)
 ```
 :::
 
-
 ## Perché stimare la grandezza dell’effetto
 
 La grandezza dell’effetto fornisce un ponte tra *analisi statistica* e *interpretazione sostanziale* dei dati. Essa consente di rispondere a domande come:
@@ -51,9 +51,9 @@ La grandezza dell’effetto fornisce un ponte tra *analisi statistica* e *interp
 L’*American Psychological Association (APA)* raccomanda di *riportare sempre una misura di grandezza dell’effetto*, in quanto essa fornisce un’informazione critica che va oltre la mera dicotomia "effetto presente / effetto assente".
 
 
-## Standardizzare le differenze: il Cohen’s *d*
+## Standardizzare le differenze: il *d* di Cohen
 
-Nel confronto tra due gruppi, una delle misure più comuni di grandezza dell’effetto è il *Cohen’s *d**, che esprime la differenza tra due medie in unità di deviazione standard:
+Nel confronto tra due gruppi, una delle misure più comuni di grandezza dell’effetto è il *d* di Cohen, che esprime la differenza tra due medie in unità di deviazione standard:
 
 $$
 d = \frac{\mu_1 - \mu_2}{\sigma},
@@ -66,18 +66,13 @@ dove:
 
 L’interpretazione di *d* è indipendente dalle unità di misura originali, il che la rende particolarmente utile per confrontare risultati provenienti da diversi studi o contesti.
 
+## Il *d* di Cohen in un’ottica bayesiana
 
-## Il Cohen’s *d* in ottica bayesiana
-
-Nell’approccio bayesiano, non calcoliamo un unico valore di *d*, ma *una distribuzione a posteriori* di valori plausibili per *d*, ottenuta combinando:
-
-* i campioni posteriori della differenza tra gruppi,
-* i campioni posteriori della deviazione standard residua.
-
+Nell’approccio bayesiano non ci limitiamo a stimare un singolo valore di *d*. L’idea è diversa: costruiamo una *distribuzione a posteriori* di valori plausibili per la grandezza dell’effetto. Questa distribuzione si ottiene combinando i campioni posteriori della differenza tra gruppi con quelli della deviazione standard residua. In questo modo, invece di una stima unica, otteniamo un quadro completo delle incertezze ancora presenti dopo aver osservato i dati.
 
 ### Esempio pratico con `brms`
 
-A partire dal modello stimato nel capitolo precedente:
+Riprendiamo il modello già stimato nel capitolo precedente:
 
 ```{r}
 #| output: false
@@ -91,15 +86,16 @@ fit_1 <- brm(
 )
 ```
 
-Otteniamo i campioni posteriori:
+Dai campioni posteriori estraiamo sia la stima della differenza tra i gruppi (`b_mom_hs`) sia la stima della deviazione standard residua (`sigma`). Dividendo i due otteniamo i campioni della distribuzione di Cohen’s *d*:
 
 ```{r}
 post <- as_draws_df(fit_1)
 d_samples <- post$b_mom_hs / post$sigma
 ```
 
+### Visualizzare la distribuzione di *d*
 
-#### Visualizzazione della distribuzione di *d*
+La distribuzione a posteriori di *d* si può esplorare graficamente. Ad esempio:
 
 ```{r}
 mcmc_areas(as_draws_df(tibble(d = d_samples)), pars = "d", prob = 0.89) +
@@ -109,25 +105,21 @@ mcmc_areas(as_draws_df(tibble(d = d_samples)), pars = "d", prob = 0.89) +
   )
 ```
 
-Questa distribuzione esprime *l’incertezza residua* sulla grandezza dell’effetto, dopo aver osservato i dati, ed è il punto di partenza per una valutazione più completa.
+Il grafico mostra l’intero intervallo di valori plausibili per la grandezza dell’effetto, mettendo in evidenza la regione che contiene l’89% degli esiti più credibili. È una rappresentazione diretta dell’incertezza che rimane anche dopo aver osservato i dati.
 
+### Statistiche riassuntive
 
-#### Statistiche riassuntive
+Per sintetizzare numericamente i risultati si può usare la funzione `describe_posterior()`:
 
 ```{r}
 bayestestR::describe_posterior(d_samples, ci = 0.89)
 ```
 
-Questa funzione fornisce:
+Questa funzione restituisce la stima centrale (media o mediana), l’intervallo di credibilità, e la probabilità che la grandezza dell’effetto superi o resti al di sotto di valori soglia rilevanti.
 
-* la stima centrale (media o mediana) di *d*,
-* l’intervallo di credibilità,
-* la probabilità che *d* sia maggiore o minore di soglie rilevanti.
+### Interpretare la grandezza dell’effetto
 
-
-#### Interpretare la grandezza dell’effetto: da soglie fisse a giudizi probabilistici
-
-In ambito frequentista, la seguente classificazione è comunemente usata:
+Nella tradizione frequentista è comune adottare la classificazione proposta da Cohen:
 
 | Valore di *d* | Interpretazione convenzionale |
 | ------------- | ----------------------------- |
@@ -135,13 +127,7 @@ In ambito frequentista, la seguente classificazione è comunemente usata:
 | ≈ 0.5         | Effetto medio                 |
 | ≥ 0.8         | Effetto grande                |
 
-Queste soglie hanno valore euristico, ma *non vanno applicate meccanicamente*. Nell’approccio bayesiano possiamo invece porre domande più informative, del tipo:
-
-* Qual è la *probabilità* che l’effetto superi 0.5 (soglia di effetto medio)?
-* Qual è la *probabilità* che sia minore di 0.2 (effetto trascurabile)?
-* Qual è l’intervallo entro cui cade il 89% degli effetti più credibili?
-
-Queste domande trovano risposta diretta nei dati posteriori:
+Queste soglie sono utili come orientamento, ma rischiano di essere applicate in modo meccanico. L’approccio bayesiano offre un vantaggio importante: consente di trasformare queste soglie in domande probabilistiche. Possiamo chiederci, ad esempio, qual è la probabilità che *d* sia almeno pari a 0.5, oppure la probabilità che resti al di sotto di 0.2. Con i campioni posteriori queste domande trovano risposta diretta:
 
 ```{r}
 mean(d_samples > 0.5)  # Probabilità che l'effetto sia almeno medio
@@ -149,18 +135,19 @@ mean(d_samples > 0.8)  # Probabilità che l'effetto sia grande
 mean(d_samples < 0.2)  # Probabilità che l'effetto sia trascurabile
 ```
 
+In questo modo non abbiamo un giudizio binario (grande/piccolo), ma una descrizione più sfumata e realistica.
 
-#### La soglia di rilevanza pratica
+### La soglia di rilevanza pratica
 
-In contesti applicativi, non basta sapere che l’effetto è diverso da zero: bisogna chiedersi se supera una *soglia minima di rilevanza* (*minimum effect of interest*, o *region of practical equivalence*).
+In applicazioni concrete non è sufficiente stabilire che l’effetto sia diverso da zero: è necessario valutare se supera una soglia di rilevanza pratica (*minimum effect of interest*, o ROPE — *region of practical equivalence*).
 
-Ad esempio, se uno psicologo clinico ritiene che un effetto inferiore a *d* = 0.3 sia irrilevante dal punto di vista terapeutico, può valutare:
+Supponiamo, per esempio, che uno psicologo clinico ritenga irrilevante qualsiasi effetto inferiore a *d* = 0.3. In questo caso, la domanda da porsi è: *qual è la probabilità che l’effetto osservato sia superiore a 0.3*? La risposta si ottiene immediatamente dai campioni posteriori:
 
 ```{r}
 mean(d_samples > 0.3)
 ```
 
-Questa quantità risponde alla domanda: *qual è la probabilità che l’effetto sia rilevante nella pratica clinica*?
+Questo numero esprime in modo diretto la probabilità che la differenza osservata abbia una rilevanza clinica concreta, spostando l’attenzione da soglie arbitrarie a valutazioni fondate sulle esigenze specifiche del contesto.
 
 
 ## Riflessioni conclusive {.unnumbered .unlisted}
