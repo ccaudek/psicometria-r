@@ -1,19 +1,38 @@
-# Modello di Poisson
+# Modello di Poisson {#sec-poisson-model}
 
-::: callout-important
-## In questo capitolo imparerai a
-
-- utilizzare `cmdstanr` per adattare ai dati un modello di regressione di Poisson.
+::: {.epigraph}
+> “La distribuzione di Poisson è ampiamente usata per modellare il numero di 'eventi rari' che si verificano in un intervallo di tempo o in una regione di spazio.”
+>
+> -- **William H. Greene**, Econometric Analysis
 :::
 
-::: callout-tip
+
+## Introduzione  {.unnumbered .unlisted} 
+
+::: {.lead .dropcap}
+In questo tutorial, approfondiremo l'utilizzo di CmdStan per condurre un'analisi di [regressione di Poisson](https://it.wikipedia.org/wiki/Regressione_di_Poisson). La regressione di Poisson rappresenta una forma di modello lineare generalizzato impiegato nell'analisi di regressione per modellare dati di conteggio. Essa si basa sull'assunzione che la variabile di risposta $Y$ segua una distribuzione di Poisson, con il logaritmo del suo valore atteso modellabile attraverso una combinazione lineare di parametri sconosciuti.
+:::
+
+In questo capitolo, dopo aver investigato il calcolo della media a posteriori e dell'incertezza correlata al tasso di sparatorie fatali da parte della polizia negli Stati Uniti per ogni anno, ci interrogheremo se vi siano evidenze di una tendenza all'aumento di tale tasso nel corso del tempo. Per contestualizzare il fenomeno si suggerisce di leggere l’articolo *Racial Disparities in Police Use of Deadly Force Against Unarmed Individuals Persist After Appropriately Benchmarking Shooting Data on Violent Crime Rates* [@ross2021racial]. Non è obbligatorio per seguire il capitolo, ma fornisce lo sfondo sociale e metodologico dei dati che stiamo per analizzare.
+
+
+### Panoramica del capitolo {.unnumbered .unlisted}
+
+- Introduzione alla regressione di Poisson per dati di conteggio.
+- Studio dell'andamento temporale delle sparatorie fatali della polizia USA (2015-2024).
+- Implementazione del modello in Stan.
+- Posterior predictive check e analisi degli Incidence Rate Ratios (IRR).
+- Traduzione dei coefficienti in termini di conteggi attesi e trend percentuale annuo.
+
+---
+
+::: {.callout-tip collapse=true}
 ## Prerequisiti
 
 - Leggere [Racial Disparities in Police Use of Deadly Force Against Unarmed Individuals Persist After Appropriately Benchmarking Shooting Data on Violent Crime Rates](https://journals.sagepub.com/doi/full/10.1177/1948550620916071) per ottenere una panoramica approfondita su questo fenomeno e sul relativo ambito di ricerca.
 :::
 
-::: callout-important
-## Preparazione del Notebook
+::: {.callout-caution collapse=true title="Preparazione del Notebook"}
 
 ```{r}
 #| output: false
@@ -25,15 +44,6 @@ if (!requireNamespace("pacman")) install.packages("pacman")
 pacman::p_load(cmdstanr, HDInterval, lubridate, brms, bayesplot, tidybayes, posterior, tidyr)
 ```
 :::
-
-
-## Introduzione  {.unnumbered .unlisted} 
-
-::: {.lead}
-In questo tutorial, approfondiremo l'utilizzo di CmdStan per condurre un'analisi di [regressione di Poisson](https://it.wikipedia.org/wiki/Regressione_di_Poisson). La regressione di Poisson rappresenta una forma di modello lineare generalizzato impiegato nell'analisi di regressione per modellare dati di conteggio. Essa si basa sull'assunzione che la variabile di risposta $Y$ segua una distribuzione di Poisson, con il logaritmo del suo valore atteso modellabile attraverso una combinazione lineare di parametri sconosciuti.
-:::
-
-In questo capitolo, dopo aver investigato il calcolo della media a posteriori e dell'incertezza correlata al tasso di sparatorie fatali da parte della polizia negli Stati Uniti per ogni anno, ci interrogheremo se vi siano evidenze di una tendenza all'aumento di tale tasso nel corso del tempo. Per contestualizzare il fenomeno si suggerisce di leggere l’articolo *Racial Disparities in Police Use of Deadly Force Against Unarmed Individuals Persist After Appropriately Benchmarking Shooting Data on Violent Crime Rates* [@ross2021racial]. Non è obbligatorio per seguire il capitolo, ma fornisce lo sfondo sociale e metodologico dei dati che stiamo per analizzare.
 
 
 ## Regressione di Poisson 
@@ -283,7 +293,6 @@ Il valore stimato è $\alpha \approx 6.94$, con un intervallo di credibilità al
 $$
 \exp(\alpha) \approx 1\,030
 $$
-
 cioè circa *1030 eventi attesi* nell’anno di riferimento.
 
 Il parametro `beta` misura la variazione logaritmica attesa per ogni anno aggiuntivo. La stima $\beta \approx 0.022$ (ICr 95%: 0.017–0.028) indica una crescita positiva.
@@ -293,15 +302,13 @@ Per interpretare questo effetto sulla scala dei conteggi:
 $$
 \exp(\beta) \approx 1.022 ,
 $$
-
 ossia ogni anno in più corrisponde a un aumento atteso di circa *+2.2%* degli eventi rispetto all’anno precedente.
 
-Se traduciamo questa percentuale in termini assoluti, partendo dal valore base $\exp(\alpha)\approx 1\.030$, otteniamo:
+Se traduciamo questa percentuale in termini assoluti, partendo dal valore base $\exp(\alpha)\approx 1.030$, otteniamo:
 
 $$
 \exp(\alpha)\times(\exp(\beta)-1) \;\approx\; 23
 $$
-
 quindi in media *circa 23 eventi in più per ogni anno successivo*.
 
 ```{r}
@@ -460,8 +467,6 @@ Il valore medio stimato dell’IRR è *1.022*, con un intervallo di credibilità
 
 Poiché l’intero intervallo si colloca *sopra 1*, il modello suggerisce con elevata credibilità che la tendenza temporale sia effettivamente *crescente*: non stiamo osservando fluttuazioni casuali, ma un aumento sistematico anno dopo anno.
 
-**Interpretazione dell’IRR in termini assoluti**
-
 Il valore medio dell’IRR è 1.022: questo equivale a un incremento di circa +2.2% per anno.
 
 * In termini assoluti, partendo da una media di circa 1030 eventi, un aumento del 2.2% corrisponde a circa +23 eventi all’anno.
@@ -482,12 +487,12 @@ In questo esempio abbiamo visto come la regressione di Poisson permetta di model
 Questo caso mostra come, anche con un set di dati relativamente piccolo, sia possibile trarre *conclusioni interpretabili e predittive* usando un modello statistico appropriato.
 
 
-## Informazioni sull'ambiente di sviluppo {.unnumbered .unlisted} 
-
+::: {.callout-note collapse=true title="Informazioni sull'ambiente di sviluppo"}
 ```{r}
 sessionInfo()
 ```
+:::
 
-## Bibliografia  {.unnumbered .unlisted} 
+## Bibliografia {.unnumbered .unlisted}
 
 
