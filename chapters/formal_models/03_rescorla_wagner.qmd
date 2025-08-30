@@ -1,6 +1,34 @@
 # Il modello di Rescorla–Wagner {#sec-dynamic-models-rescorla-wagner}
 
+::: {.epigraph}
+> “An early and influential example of model‑free learning is the Rescorla‑Wagner (RW) model… [it] proposed that associative strength (i.e. the degree to which a cue predicted an outcome) updates in response to new experiences in proportion to the magnitude of a prediction error (i.e., how wrong the current prediction was).”
+>
+> -- **Cochran, A. L. & Cisler, J. M.**, A flexible and generalizable model of online latent-state learning (2019)
+:::
 
+## Introduzione {.unnumbered .unlisted}
+
+<p class="capo">
+  <span class="capo-initial" data-bg="1">Q</span>
+uesto capitolo introduce il modello di *Rescorla–Wagner (RW)* con regola di scelta *Softmax*. Si tratta di un’estensione naturale del modello di revisione degli obiettivi discusso nel capitolo precedente. In quel modello, l’aggiornamento dell’obiettivo era un semplice *termine additivo*: ad ogni trial, la stima veniva spostata un po’ più vicino al valore osservato, con un ritmo determinato dal parametro di apprendimento.
+</p>
+
+Nel modello di Rescorla–Wagner, invece, l’aggiornamento è guidato dall’*errore di predizione del rinforzo* (*reward prediction error*, RPE): la differenza tra il rinforzo ottenuto e quello atteso. Questo rende il modello più psicologicamente plausibile, perché riflette il meccanismo di apprendimento osservato in molti studi di psicologia e neuroscienze, dove le nuove informazioni vengono integrate in proporzione a quanto il risultato differisce dalle aspettative.
+
+A questa componente di apprendimento si aggiunge un livello decisionale: le scelte non sono deterministiche, ma bilanciano esplorazione e sfruttamento. Nei compiti binari (due opzioni) la trasformazione dei valori appresi in probabilità di scelta è ben descritta dalla funzione logistica (equivalente alla Softmax a due opzioni):
+
+$$
+P(\text{scegliere B}) = \text{inv\_logit}\!\big(\tau \,[Q_t(B)-Q_t(A)]\big),
+$$
+dove $\tau>0$ (inverse temperature) regola quanto le differenze di valore si traducano in scelte deterministiche (τ alta) o esplorative (τ bassa).
+
+In questo modo, il modello collega in maniera esplicita due livelli fondamentali:
+
+1. *Livello dell’apprendimento* – come i valori associati agli stimoli vengono aggiornati in base all’esperienza.
+2. *Livello decisionale* – come questi valori vengono trasformati in scelte effettive.
+
+
+::: {.callout-caution collapse=true title="Preparazione del Notebook"}
 ```{r}
 #| echo: false
 #| message: false
@@ -8,410 +36,555 @@
 # Setup comune del manuale
 here::here("code", "_common.R") |> source()
 library(cmdstanr)
-
-# Salvagente nel caso la palette non sia definita
-if (!exists("palette_set1")) {
-  palette_set1 <- RColorBrewer::brewer.pal(3, "Set1")
-  names(palette_set1) <- c("uno", "due", "tre")
-}
-col1 <- unname(palette_set1[[1]])
-col2 <- unname(palette_set1[[2]])
-col3 <- unname(palette_set1[[3]])
 ```
-
-## Introduzione {.unnumbered .unlisted}
-
-::: {.lead}
-Questo capitolo introduce il modello di *Rescorla–Wagner (RW)* con regola di scelta *Softmax*. Si tratta di un’estensione naturale del modello di revisione degli obiettivi discusso nel capitolo precedente. In quel modello, l’aggiornamento dell’obiettivo era un semplice *termine additivo*: ad ogni trial, la stima veniva spostata un po’ più vicino al valore osservato, con un ritmo determinato dal parametro di apprendimento.
 :::
 
-Nel modello di Rescorla–Wagner, invece, l’aggiornamento è guidato dall’*errore di predizione del rinforzo* (*reward prediction error*, RPE): la differenza tra il rinforzo ottenuto e quello atteso. Questo rende il modello più psicologicamente plausibile, perché riflette il meccanismo di apprendimento osservato in molti studi di psicologia e neuroscienze, dove le nuove informazioni vengono integrate in proporzione a quanto il risultato differisce dalle aspettative.
 
-A questa componente di apprendimento si aggiunge un *livello decisionale*: le scelte non sono deterministiche, ma seguono un compromesso tra *esplorazione* (provare alternative meno note) e *sfruttamento* (scegliere l’opzione che sembra migliore sulla base dell’esperienza). Questo equilibrio è regolato dalla *funzione Softmax*, che traduce i valori appresi ($Q$) in *probabilità di scelta*.
+## Il Modello di Rescorla–Wagner
 
-In questo modo, il modello collega in maniera esplicita due livelli fondamentali:
+Il modello di *Rescorla–Wagner (RW)* è uno dei modelli più influenti nello studio dell’apprendimento associativo. Esso descrive come gli individui aggiornino le proprie aspettative in base all’esperienza, introducendo un meccanismo semplice ma potente che spiega fenomeni come acquisizione, estinzione e *blocking*.
 
-1. **Livello dell’apprendimento** – come i valori associati agli stimoli vengono aggiornati in base all’esperienza.
-2. **Livello decisionale** – come questi valori vengono trasformati in scelte effettive.
+L’idea di fondo è che l’apprendimento si realizzi attraverso l’aggiornamento della *forza associativa* $Q_t(s)$ di uno stimolo $s$ al tempo $t$, in funzione della discrepanza tra ciò che ci si aspettava e ciò che si è effettivamente osservato.
 
 
-## Il modello RW: formulazione
+### Aggiornamento delle aspettative
 
-Nel paradigma a due alternative (A/B), il modello mantiene una stima di valore $Q_t(s)$ per ciascuno stimolo $s \in \{A,B\}$. Dopo la scelta al tempo $t$ e l’osservazione di un esito $R_t \in \{0,1\}$, il valore si aggiorna secondo
+Dopo ogni prova, la stima del valore viene modificata secondo la regola:
 
 $$
-Q_{t+1}(s) = Q_t(s) + \alpha \, \delta_t, \qquad \delta_t = R_t - Q_t(s),
-$$ {#eq-rescorla-wagner-learning-rule}
-
-dove $\alpha \in (0,1)$ è la *learning rate*. È spesso utile usare due learning rate: $\alpha^+$ per gli errori positivi ($\delta_t>0$) e $\alpha^-$ per quelli negativi ($\delta_t<0$), così da rappresentare asimmetrie nell’apprendimento da ricompense e punizioni.
-
-La generazione della scelta richiede di trasformare i valori in probabilità. Con la *Softmax* si assume
+Q_{t+1}(s) \;=\; Q_t(s) \;+\; \alpha \, \delta_t ,
+$$
+dove
 
 $$
-P(\text{scegli A} \mid Q_t) = \frac{\exp(\beta \, Q_t(A))}{\exp(\beta \, Q_t(A)) + \exp(\beta \, Q_t(B))},
-$$ {#eq-rescorla-wagner-softmax-rule}
+\delta_t \;=\; R_t - Q_t(s)
+$$
+è l’*errore di previsione* (*prediction error*), cioè la differenza tra la ricompensa ottenuta $R_t$ e l’aspettativa precedente $Q_t(s)$.
 
-dove $\beta>0$ è il parametro di *inverse temperature*: con valori alti le scelte sono più deterministiche (sfruttamento), con valori bassi più stocastiche (esplorazione).
+* Se $\delta_t > 0$: la ricompensa è stata migliore del previsto → l’associazione si rafforza.
+* Se $\delta_t < 0$: la ricompensa è stata peggiore del previsto → l’associazione si indebolisce.
+* Se $\delta_t = 0$: ciò che si è osservato coincide con l’attesa → nessun aggiornamento.
+
+Il parametro $ \alpha \in [0,1] $ rappresenta il tasso di apprendimento (qui lo indichiamo con `lr`). Con `lr` alto l’aggiornamento è rapido; con `lr` basso è lento e più “conservativo”.
+
+::: {.callout-note collapse=true title="Variante (facoltativa): tassi distinti per PE positivo/negativo"}
+In alcune applicazioni si usano due tassi distinti $\alpha^+$ e $\alpha^-$ per apprendere diversamente da buone e cattive notizie. Questa distinzione consente di modellare la diversa sensibilità di individui o gruppi alle ricompense inattese rispetto alle punizioni o ai premi. Nel presente tutorial adottiamo **un unico `lr`** per semplicità e coerenza con il codice Stan.
+:::
 
 
-::: {.callout-note title="Approfondimento: esplorazione vs. sfruttamento nella Softmax"}
-La funzione *Softmax* trasforma le stime di valore $Q$ in **probabilità di scelta**. Il parametro di *inverse temperature* $\beta$ regola quanto fortemente le differenze di valore influenzano la decisione:
+### Dalla valutazione alla decisione
 
-- **$\beta$ basso** → alta esplorazione: anche opzioni con valore inferiore vengono scelte con probabilità non trascurabile.  
-- **$\beta$ alto** → alto sfruttamento: si tende quasi sempre a scegliere l’opzione con valore maggiore.
+Avere valori $Q_t(A)$ e $Q_t(B)$ diversi non implica che la scelta sia sempre deterministica. Gli individui possono alternare tra *sfruttamento* (scegliere l’opzione con valore atteso maggiore) ed *esplorazione* (provare opzioni alternative).
 
-Nel grafico seguente, per due diversi valori di $\beta$, vediamo come cambia la relazione tra la differenza di valore $Q_A - Q_B$ e la probabilità di scegliere A.
+Con due opzioni (A, B), la scelta è modellata come logistica della differenza di valore:
+
+$$
+P(\text{scegliere B}) = \text{inv\_logit}\!\big(\tau \,[Q_t(B)-Q_t(A)]\big).
+$$
+
+All’aumentare di $\tau$, anche piccole differenze $Q_t(B)-Q_t(A)$ producono scelte quasi deterministiche; con $\tau$ bassa il comportamento è più esplorativo.
+
+In sintesi, il modello di Rescorla–Wagner fornisce una descrizione formale e compatta di come gli individui apprendono in modo flessibile dalle proprie esperienze, adattando le aspettative e le decisioni in risposta ai cambiamenti dell’ambiente.
+
+
+::: {.callout-caution collapse=true title="Approfondimento: esplorazione vs. sfruttamento (logit a 2 opzioni)"}
+Con due opzioni, la *Softmax* si riduce a una *logistica* sulla differenza di valore. Useremo quindi $\Delta Q = Q_B - Q_A$ e modelleremo la probabilità di scegliere *B* come
+
+$$
+P(B) = \text{inv\_logit}\big(\tau \,\Delta Q\big),
+$$
+dove $\tau>0$ (*inverse temperature*) regola il compromesso esplorazione–sfruttamento:
+
+* *$\tau$ basso* → comportamento *esplorativo*: anche differenze modeste non portano scelte deterministiche.
+* *$\tau$ alto* → comportamento di *sfruttamento*: piccole differenze in $\Delta Q$ bastano per preferenze quasi certe.
+
+Nel grafico seguente mostriamo la relazione tra $\Delta Q$ e $P(B)$ per due valori di $\tau$.
 
 ```{r}
-# Differenze di valore
-dq <- seq(-2, 2, length.out = 200)
+# Differenze di valore (coerenti con Q in [0,1] → ΔQ in [-1, 1])
+dq <- seq(-1, 1, length.out = 201)
 
-# Funzione Softmax per due opzioni
-softmax_prob <- function(dq, beta) {
-  exp(beta * dq) / (1 + exp(beta * dq))
-}
+# Logit a 2 opzioni (equivalente alla Softmax con K=2)
+p_choose_B <- function(dq, tau) plogis(tau * dq)
 
 df <- data.frame(
   dq = rep(dq, 2),
-  prob_A = c(softmax_prob(dq, beta = 0.5),
-             softmax_prob(dq, beta = 5)),
-  beta = factor(rep(c("β = 0.5 (alta esplorazione)",
-                      "β = 5 (alto sfruttamento)"),
-                    each = length(dq)))
+  prob_B = c(p_choose_B(dq, tau = 0.5),
+             p_choose_B(dq, tau = 5)),
+  tau = factor(rep(c("τ = 0.5 (alta esplorazione)",
+                     "τ = 5 (alto sfruttamento)"),
+                   each = length(dq)))
 )
 
-ggplot(df, aes(x = dq, y = prob_A, color = beta)) +
+ggplot(df, aes(x = dq, y = prob_B, color = tau)) +
   geom_line(size = 1.2) +
-  scale_color_brewer(palette = "Set1") +
   labs(
-    x = expression(Delta*Q[A-B]),
-    y = "Probabilità di scegliere A",
-    title = "Effetto di β sul compromesso\nesplorazione/sfruttamento"
-  ) 
+    x = expression(Delta*Q[B-A]),
+    y = "Probabilità di scegliere B",
+    title = "Effetto di τ sul compromesso esplorazione–sfruttamento"
+  )
 ```
 
-**Interpretazione del grafico:**
+**Lettura del grafico**
 
-* Se $\Delta Q = 0.5$ (l’opzione A vale leggermente più di B):
+* Se $\Delta Q = 0.5$:
 
-  * con $\beta = 0.5$ la probabilità di scegliere A è circa **0.56**, quindi il comportamento resta molto esplorativo;
-  * con $\beta = 5$ la probabilità sale a circa **0.92**, segnalando un comportamento quasi del tutto rivolto allo sfruttamento.
-* Se $\Delta Q = 1$ (A è chiaramente migliore di B):
+  * con $\tau = 0.5$, $P(B) \approx \text{inv\_logit}(0.25) \approx 0.56$ → decisione ancora esplorativa;
+  * con $\tau = 5$, $P(B) \approx \text{inv\_logit}(2.5) \approx 0.92$ → prevale lo sfruttamento.
 
-  * con $\beta = 0.5$ la probabilità di scegliere A è circa **0.62** — ancora lontana da una scelta deterministica;
-  * con $\beta = 5$ la probabilità supera **0.99**, quindi si sceglie quasi sempre A.
+* Se $\Delta Q = 1$:
 
-Questo mostra chiaramente come $\beta$ regoli il compromesso tra *esplorare* alternative e *sfruttare* la scelta più redditizia nota.
+  * con $\tau = 0.5$, $P(B) \approx \text{inv\_logit}(0.5) \approx 0.62$;
+  * con $\tau = 5$, $P(B) \approx \text{inv\_logit}(5) \approx 0.993$, scelta quasi deterministica.
+
+Questo esempio mostra come $\tau$ controlli la transizione tra esplorazione e sfruttamento nel *caso binario* (logit), coerente con il modello Stan usato nel tutorial.
 :::
 
 
 ### Identificabilità e scaling
 
-Poiché una traslazione comune $Q_t(s)+c$ non cambia le probabilità Softmax, conviene inizializzare i valori in modo simmetrico (ad es., $Q_0(A)=Q_0(B)=0.5$) e mantenere i rinforzi in $\{0,1\}$. In alternativa, si può fissare uno dei due valori iniziali o imporre vincoli su $\beta$.
+Nella funzione Softmax conta solo la *differenza* tra i valori $Q$. Se aggiungiamo la stessa costante $c$ a entrambi (cioè $Q_t(s) + c$), le probabilità di scelta non cambiano.  
+
+Per questo motivo:  
+
+- si inizializzano di solito i valori in modo simmetrico (ad esempio $Q_0(A) = Q_0(B) = 0.5$);  
+- si mantengono i rinforzi nel range $\{0,1\}$;  
+- oppure si fissa un valore iniziale di riferimento, o si pongono vincoli su $\beta$.  
+
+Queste scelte servono solo a rendere il modello *ben definito*, senza influenzare il comportamento osservato.
+
+Nel presente tutorial il rinforzo è codificato come $R_t \in \{0,1\}$. In questo caso i valori $Q$ convergono a stime di probabilità di ricompensa e risultano naturalmente in $[0,1]$. Con codifiche $\{-1,+1\}$, i $Q$ convergono a valori attesi in $[-1,+1]$ e occorre tenerne conto nell’interpretazione.
 
 
-## Simulazione di dati (PRL semplificato)
 
-Simuliamo un compito *Probabilistic Reversal Learning* (PRL)^[Nel compito di *Probabilistic Reversal Learning*, al partecipante vengono presentati due o più stimoli con probabilità diverse di ottenere un rinforzo (ad esempio una ricompensa monetaria o un feedback positivo). L’obiettivo è apprendere, attraverso il feedback, quale stimolo sia più vantaggioso. A intervalli predefiniti, ma non annunciati, le probabilità di ricompensa vengono invertite (*reversal*), richiedendo al partecipante di aggiornare le proprie scelte e adattarsi alla nuova contingenza. Questo compito è ampiamente utilizzato in neuropsicologia e psichiatria per valutare la flessibilità cognitiva e la sensibilità al feedback.], con due stimoli: uno *ricco* (probabilità di ricompensa $p=0.7$) e uno *povero* (probabilità $1-p$), con una singola inversione a metà dei trial.
+## Simulazione
 
+Simuliamo i dati in un compito di *Probabilistic Reversal Learning* (PRL). In questo compito il partecipante deve scegliere ripetutamente tra due stimoli:
+
+* uno *ricco*, con probabilità di ricompensa $p=0.7$;
+* uno *povero*, con probabilità $1-p=0.3$.
+
+A metà esperimento le probabilità vengono invertite (*reversal*): lo stimolo che prima era ricco diventa povero e viceversa. Il partecipante deve quindi adattarsi al cambiamento per massimizzare le ricompense.
 
 ```{r}
-# Simulatore RW + Softmax per compito 2AFC con una reversa
-simulate_prl_rw <- function(n_trials = 160,
-                            p_reward_rich = 0.7,
-                            reversal_trial = 80,
-                            alpha_pos = 0.15,
-                            alpha_neg = 0.10,
-                            beta = 4,
-                            Q0 = c(A = 0.5, B = 0.5),
-                            seed = 123) {
+# Simulatore PRL (RW + logit) allineato al modello Stan (choice in 0/1)
+simulate_prl_rw_binary <- function(
+  n_trials        = 160,
+  p_reward_rich   = 0.7,
+  reversal_trial  = 80,            # se NULL, nessun reversal
+  lr              = 0.15,          # learning rate unico
+  tau             = 2,             # inverse temperature (decision noise)
+  Q0              = c(A = 0.0, B = 0.0),
+  seed            = 1234
+){
+  stopifnot(length(Q0) == 2, all(c("A","B") %in% names(Q0)))
   set.seed(seed)
   Q <- Q0
-  choice <- integer(n_trials)
-  reward <- integer(n_trials)
-  rich_is_A <- rep(TRUE, n_trials)
-  if (!is.null(reversal_trial) && reversal_trial > 0 && reversal_trial < n_trials) {
-    rich_is_A[(reversal_trial+1):n_trials] <- FALSE
+
+  choice   <- integer(n_trials)   # 0 = A, 1 = B
+  reward   <- integer(n_trials)   # 0/1
+  rich_is_A <- rep.int(1L, n_trials) # 1 = A ricco, 0 = B ricco (inizio A ricco)
+  if (!is.null(reversal_trial)) {
+    rich_is_A[(reversal_trial + 1):n_trials] <- 0L
   }
+
+  Q_A <- Q_B <- pB_seq <- pe_seq <- numeric(n_trials)
+
   for (t in seq_len(n_trials)) {
-    # Probabilità di scegliere A con softmax
-    pA <- exp(beta * Q["A"]) / (exp(beta * Q["A"]) + exp(beta * Q["B"]))
-    choice[t] <- rbinom(1, 1, pA) # 1=A, 0=B
-    chosen <- if (choice[t] == 1) "A" else "B"
-    # Probabilità di ricompensa per lo stimolo scelto
-    chosen_is_rich <- (chosen == "A" && rich_is_A[t]) || (chosen == "B" && !rich_is_A[t])
+    # probabilità di scegliere B (softmax logit a due opzioni)
+    pB <- plogis(tau * (Q["B"] - Q["A"]))
+    choice[t] <- rbinom(1, 1, pB)   # 1=B, 0=A
+
+    a_idx <- if (choice[t] == 1L) 2L else 1L
+
+    # probabilità di ricompensa per l’opzione scelta
+    chosen_is_rich <- (choice[t] == 0L && rich_is_A[t] == 1L) ||  
+                      (choice[t] == 1L && rich_is_A[t] == 0L)
     pr <- if (chosen_is_rich) p_reward_rich else (1 - p_reward_rich)
+
     reward[t] <- rbinom(1, 1, pr)
-    # Prediction error e aggiornamento
-    pe <- reward[t] - Q[chosen]
-    if (pe >= 0) {
-      Q[chosen] <- Q[chosen] + alpha_pos * pe
-    } else {
-      Q[chosen] <- Q[chosen] + alpha_neg * pe
-    }
+
+    # prediction error e aggiornamento RW
+    pe <- reward[t] - Q[a_idx]
+    Q[a_idx] <- Q[a_idx] + lr * pe
+
+    Q_A[t]   <- Q["A"]
+    Q_B[t]   <- Q["B"]
+    pB_seq[t] <- pB
+    pe_seq[t] <- pe
   }
+
   tibble::tibble(
-    trial = seq_len(n_trials),
-    choice = factor(ifelse(choice == 1, "A", "B"), levels = c("A","B")),
-    reward = reward,
-    rich_is_A = rich_is_A
+    trial     = seq_len(n_trials),
+    choice    = choice,    # 0=A, 1=B
+    reward    = reward,    # 0/1
+    rich_is_A = rich_is_A, # 0/1
+    Q_A = Q_A, Q_B = Q_B, pB = pB_seq, pe = pe_seq
   )
 }
 
-sim <- simulate_prl_rw()
-dplyr::glimpse(sim)
+sim <- simulate_prl_rw_binary()
 ```
 
-Rappresentiamo l’andamento cumulativo delle scelte *ricche* (corrette), evidenziando la reversa.
+*Nota.* La probabilità simulata coincide con quella dello Stan: $P(B)=\text{inv\_logit}\!\big(\tau [Q(B)-Q(A)]\big)$. Anche l’aggiornamento usa **lo stesso** `lr`.
 
-```{r}
-sim_plot <- sim |>
-  dplyr::mutate(
-    rich_choice = dplyr::case_when(
-      choice == "A" & rich_is_A ~ 1L,
-      choice == "B" & !rich_is_A ~ 1L,
-      TRUE ~ 0L
-    )
-  ) |>
-  dplyr::mutate(cum_rich = cumsum(rich_choice) / dplyr::row_number())
 
-ggplot(sim_plot, aes(trial, cum_rich)) +
-  geom_line(color = col1, linewidth = 1) +
-  geom_vline(xintercept = 80, linetype = 2, linewidth = 0.6, color = col2) +
-  labs(x = "Trial", y = "Proporzione cumulativa scelte ricche",
-       title = "Andamento cumulativo e prova di reversa") +
+Visualizziamo l’evoluzione dei valori associativi $Q$:
+
+```{r echo=FALSE}
+sim_long <- sim |>
+  select(trial, Q_A, Q_B) |>
+  pivot_longer(
+    cols = c(Q_A, Q_B),
+    names_to = "stimolo",
+    values_to = "Q"
+  )
+
+ggplot(sim_long, aes(x = trial, y = Q, color = stimolo)) +
+  geom_line(linewidth = 1) +
+  geom_vline(xintercept = 80, linetype = 2, color = "#5d5349") +
+  scale_color_manual(
+    values = c(Q_A = "#4682B4", Q_B = "#6B8E23"),
+    labels = c(Q_A = "Q[A]", Q_B = "Q[B]")
+  ) +
+  labs(
+    x = "Trial", y = "Valore Q",
+    color = NULL,
+    title = "Traiettorie dei valori associativi (Q) con reversal a metà"
+  ) +
   theme(plot.title = element_text(hjust = 0.5))
 ```
 
-## Stima per un singolo soggetto (MLE)
+### Interpretazione del grafico
 
-Per una prima stima accessibile, usiamo la *Massima Verosimiglianza* (MLE) su $(\alpha^+,\alpha^-,\beta)$, con vincoli $\alpha^\pm \in (0,1)$, $\beta>0$ tramite trasformazioni logistiche/esponenziali.
+Nella *prima fase* (trial 1–80), lo stimolo ricco (linea blu) riceve più ricompense e quindi accumula un valore $Q$ più alto rispetto allo stimolo povero (linea verde).
 
-```{r}
-# Log-verosimiglianza del modello RW + Softmax (un soggetto)
-ll_rw_softmax <- function(par, data, Q0 = c(A = 0.5, B = 0.5)) {
-  a_pos <- plogis(par[1])
-  a_neg <- plogis(par[2])
-  beta  <- exp(par[3])
-  Q <- Q0
-  ll <- 0
-  for (t in seq_len(nrow(data))) {
-    pA <- exp(beta * Q["A"]) / (exp(beta * Q["A"]) + exp(beta * Q["B"]))
-    # Prob. della scelta osservata
-    p_choice <- if (data$choice[t] == "A") pA else (1 - pA)
-    p_choice <- max(p_choice, 1e-12) # stabilità numerica
-    ll <- ll + log(p_choice)
-    # Aggiornamento sullo stimolo scelto
-    chosen <- if (data$choice[t] == "A") "A" else "B"
-    pe <- data$reward[t] - Q[chosen]
-    if (pe >= 0) {
-      Q[chosen] <- Q[chosen] + a_pos * pe
-    } else {
-      Q[chosen] <- Q[chosen] + a_neg * pe
-    }
-  }
-  return(-ll) # minimizziamo
-}
+Al momento del *reversal* (linea verticale tratteggiata), le probabilità si invertono. Lo stimolo blu smette di essere vantaggioso e il suo valore $Q$ scende, mentre lo stimolo verde cresce.
 
-fit_rw_mle <- function(data, init = c(qlogis(0.2), qlogis(0.2), log(3))) {
-  opt <- optim(par = init, fn = ll_rw_softmax, data = data, method = "BFGS",
-               control = list(maxit = 500, reltol = 1e-8))
-  a_pos <- plogis(opt$par[1])
-  a_neg <- plogis(opt$par[2])
-  beta  <- exp(opt$par[3])
-  list(par = c(alpha_pos = a_pos, alpha_neg = a_neg, beta = beta),
-       value = opt$value, convergence = opt$convergence, opt = opt)
-}
+Questo andamento riflette il principio base del modello di *Rescorla–Wagner*:
 
-# Stima MLE su dati simulati
-fit_mle <- fit_rw_mle(sim)
-fit_mle$par
-```
+* i valori associativi $Q$ non sono fissi,
+* vengono aggiornati *trial per trial* con una regola di apprendimento molto semplice:
 
-Confrontiamo i dati osservati con una simulazione *replicata* dal modello parametrizzato con le stime MLE. 
+$$
+Q_{\text{nuovo}} = Q_{\text{vecchio}} + lr \times (reward - Q_{\text{vecchio}}).
+$$
+
+Il termine $reward - Q_{\text{vecchio}}$ è il *prediction error* (PE): la differenza tra ciò che si è osservato e ciò che ci si aspettava.
+
+* Se il feedback è migliore del previsto (PE>0), il valore $Q$ aumenta.
+* Se è peggiore del previsto (PE<0), il valore diminuisce.
+* Il *learning rate* `lr` regola di quanto il valore cambia a ogni prova.
+* Il parametro `tau` controlla invece quanto le scelte sono “guidate” dai valori Q:
+
+  * se `tau` è grande → scelte più deterministiche (si sceglie quasi sempre lo stimolo con Q maggiore);
+  * se `tau` è piccolo → scelte più esplorative o rumorose.
+
+
+## Stima Bayesiana con Stan
+
+Nella simulazione conoscevamo i parametri generativi (`lr=0.15`, `tau=2`). Nella realtà, però, abbiamo *solo i dati osservati*:
+
+* per ogni trial sappiamo quale scelta è stata fatta (`choice=0` per A, `choice=1` per B),
+* e se il feedback è stato positivo o negativo (`reward=1` oppure `0`).
+
+I valori interni $Q$ e i parametri del modello non sono osservabili: dobbiamo *inferirli*.
+
+L’ipotesi è che i dati derivino da un processo di tipo *Rescorla–Wagner con regola di scelta logistica*. L’obiettivo è quindi stimare, a partire dai soli dati:
+
+* il *learning rate* `lr`, che regola la velocità di aggiornamento dei valori;
+* l’*inverse temperature* `tau`, che controlla quanto le scelte sono coerenti con i valori Q.
+
+
+### Codice Stan
 
 ```{r}
-# Simulazione "replicata" dal modello stimato (posterior predictive in chiave MLE)
-sim_rep <- simulate_prl_rw(
-  n_trials = nrow(sim),
-  p_reward_rich = 0.7,
-  reversal_trial = 80,
-  alpha_pos = fit_mle$par["alpha_pos"],
-  alpha_neg = fit_mle$par["alpha_neg"],
-  beta = fit_mle$par["beta"]
-)
-
-compare_df <- dplyr::bind_rows(
-  sim |> dplyr::mutate(source = "Osservato"),
-  sim_rep |> dplyr::mutate(source = "Replicato MLE")
-)
-
-colori_confronto <- c("Osservato" = col1, "Replicato MLE" = col2)
-
-ggplot(compare_df, aes(trial, as.numeric(choice == "A"), color = source)) +
-  stat_smooth(method = "loess", se = FALSE, linewidth = 1) +
-  geom_vline(xintercept = 80, linetype = 2, linewidth = 0.6, color = col3) +
-  scale_color_manual(values = colori_confronto, breaks = names(colori_confronto)) +
-  labs(y = "Probabilità (stimata) di scegliere A", color = NULL,
-       title = "Dati osservati vs. simulazione dal modello stimato") +
-  theme(plot.title = element_text(hjust = 0.5), legend.position = "top")
-```
-
-## Stima Bayesiana (singolo soggetto, Stan)
-
-Per coerenza con il resto del manuale, includiamo una versione Bayesiana per singolo soggetto in Stan con prior deboli su $\alpha^\pm$ (scala logit) e $\beta$ (scala log).
-
-```{r}
-# Codice Stan per RW + Softmax a due learning rate (singolo soggetto)
-stancode_rw_single <- "
-data{
-  int<lower=1> T;                                  // numero di trial
-  array[T] int<lower=1, upper=2> choice;           // 1 = A, 2 = B
-  array[T] int<lower=0, upper=1> reward;           // 0/1 esito
-  vector[2] Q0;                                    // valori iniziali
+stancode_rw <- "
+data {
+  int<lower=1> nTrials;                   // numero di prove
+  array[nTrials] int<lower=0,upper=1> choice; // scelte osservate (0=A, 1=B)
+  array[nTrials] real<lower=0,upper=1> reward; // ricompense osservate (0/1)
 }
-parameters{
-  real a_pos_logit;
-  real a_neg_logit;
-  real log_beta;
+
+transformed data {
+  vector[2] initV = rep_vector(0.0, 2);   // valori Q iniziali
 }
-transformed parameters{
-  real<lower=0, upper=1> a_pos = inv_logit(a_pos_logit);
-  real<lower=0, upper=1> a_neg = inv_logit(a_neg_logit);
-  real<lower=0> beta = exp(log_beta);
+
+parameters {
+  real<lower=0,upper=1> lr;   // learning rate
+  real<lower=0,upper=3> tau;  // inverse temperature (softmax / decision noise)
 }
-model{
-  vector[2] Q = Q0;
 
-  // prior debolmente informativi
-  a_pos_logit ~ normal(0, 1.5);
-  a_neg_logit ~ normal(0, 1.5);
-  log_beta    ~ normal(1, 1.0);
+model {
+  vector[2] v = initV;        // valori Q correnti
+  real pe;                    // prediction error
+  real p;                     // probabilità di scelta =1 (stimolo B)
 
-  for (t in 1:T){
-    // Per due alternative, la softmax si riduce a una logistica del differenziale di valore
-    // logit(pA) = beta * (Q_A - Q_B)
-    target += bernoulli_logit_lpmf( choice[t] == 1 | beta * (Q[1] - Q[2]) );
+  // Priors deboli ma informative
+  lr ~ beta(2, 10);           // learning rate vicino a valori piccoli
+  tau ~ lognormal(log(2), 0.5); // inverse temperature positiva
 
-    // Aggiornamento RW sullo stimolo scelto
-    int c = choice[t];                 // 1 = A, 2 = B
-    real pe = reward[t] - Q[c];        // prediction error
-    if (pe >= 0) Q[c] += a_pos * pe;
-    else         Q[c] += a_neg * pe;
+  for (t in 1:nTrials) {
+    // Probabilità di scegliere B: logit della differenza Q_B - Q_A
+    p = inv_logit(tau * (v[2] - v[1]));
+    choice[t] ~ bernoulli(p);
+
+    // Prediction error e aggiornamento
+    int a = choice[t] + 1;     // 0→1 (A), 1→2 (B)
+    pe = reward[t] - v[a];
+    v[a] += lr * pe;
   }
 }
 "
 ```
 
+I prior scelti sono debolmente informativi ma coerenti con compiti PRL tipici (apprendimento moderato e scelte non eccessivamente rumorose). Possono essere resi più o meno conservativi in base al compito.
+
+
+### Commento al codice Stan
+
+1. **Inizializzazione.** All’inizio i due valori $Q[1]$ e $Q[2]$ (per A e B) sono fissati a 0.
+   Rappresentano l’aspettativa iniziale: “nessuna preferenza”.
+
+2. **Probabilità della scelta.**
+   Al trial $t$, confrontiamo i due valori:
+
+   $$
+   p(B) = \text{inv\_logit}\big(\tau \cdot (Q_B - Q_A)\big).
+   $$
+
+   Questo significa che se $Q_B > Q_A$, aumenta la probabilità di scegliere B.
+   Il parametro `tau` regola la “determinazione”:
+
+   * se `tau` è grande, basta una piccola differenza tra i due Q per portare a scelte quasi certe;
+   * se `tau` è piccolo, anche differenze grandi lasciano spazio all’esplorazione.
+
+3. **Valutazione della scelta osservata.**
+   La riga `choice[t] ~ bernoulli(p)` confronta la scelta osservata con la probabilità prevista.
+   Questa è la *verosimiglianza*: se la scelta osservata è coerente con i Q correnti, il modello “ottiene credito”; se è incoerente, viene “penalizzato”.
+
+4. **Osservazione dell’esito e prediction error.**
+   Dopo aver osservato il feedback, calcoliamo:
+
+   $$
+   PE = reward[t] - Q[\text{scelta}],
+   $$
+
+   ossia la differenza tra il risultato ricevuto e quello atteso.
+
+5. **Aggiornamento dei valori.**
+   Solo il Q corrispondente all’opzione scelta viene aggiornato:
+
+   $$
+   Q_{\text{nuovo}} = Q_{\text{vecchio}} + lr \cdot PE.
+   $$
+
+   * Se il feedback è migliore del previsto (PE>0), il valore cresce.
+   * Se è peggiore del previsto (PE<0), il valore diminuisce.
+   * Il learning rate `lr` determina di quanto cambia il valore a ogni trial.
+
+### Esempio intuitivo
+
+Immagina di avere $Q_A = 0.6$, $Q_B = 0.3$ e `tau=2`. La differenza $Q_B - Q_A = -0.3$. Il logit vale $-0.6$, e quindi:
+
+$$
+p(B) = \text{inv\_logit}(-0.6) \approx 0.35.
+$$
+
+Quindi, il modello si aspetta che A venga scelto nel 65% dei casi.
+
+Se il soggetto sceglie effettivamente A, la verosimiglianza è alta. Se sceglie B, è possibile ma meno probabile: il modello aggiorna i valori interni in base al feedback ricevuto.
+
+In questo tutorial useremo i dati simulati in precedenza:
+
+```{r}
+stan_data <- list(
+  nTrials = nrow(sim),
+  choice  = as.integer(sim$choice),
+  reward  = as.numeric(sim$reward)   # 0/1 come real per coerenza con <lower=0,upper=1>
+)
+glimpse(stan_data)
+```
+
+Compiliamo il modello e eseguiamo il campionamento:
+
 ```{r}
 #| output: false
-# Preparazione dati Stan e fit
-stan_data <- list(
-  T = nrow(sim),
-  choice = ifelse(sim$choice=="A", 1L, 2L),
-  reward = sim$reward,
-  Q0 = c(0.5, 0.5)
+mod_rw <- cmdstanr::cmdstan_model(write_stan_file(stancode_rw))
+fit_rw <- mod_rw$sample(
+  data = stan_data,
+  seed = 42,
+  chains = 4,
+  parallel_chains = 4,
+  iter_warmup = 1000,
+  iter_sampling = 4000,
+  refresh = 200
 )
-
-mod_rw <- cmdstanr::cmdstan_model(write_stan_file(stancode_rw_single))
-fit_rw  <- mod_rw$sample(data = stan_data, chains = 4, parallel_chains = 4,
-                         iter_warmup = 1000, iter_sampling = 1000, seed = 42)
-
 ```
 
+Eseguiamo le diagnostiche di campionamento:
+
 ```{r}
-# Estrazione dei campioni a posteriori (solo parametri di interesse)
-draws_df <- fit_rw$draws(c("a_pos", "a_neg", "beta")) |>
-  posterior::as_draws_df() |>
+fit_rw$cmdstan_diagnose()  # controlli rapidi cmdstan
+```
+
+Esaminiamo la distribuzione a posteriori dei parametri:
+
+```{r}
+fit_rw$summary(c("lr","tau"))
+```
+
+
+## Interpretazione dei risultati
+
+Le distribuzioni a posteriori stimano quanto bene il modello è riuscito a recuperare i parametri generativi usati nella simulazione (`lr = 0.15`, `tau = 2`).
+
+* `lr` (learning rate) regola la rapidità con cui il soggetto aggiorna le proprie aspettative dopo ogni feedback.
+
+  * Valori alti → aggiornamenti rapidi: anche un singolo feedback può cambiare molto la stima del valore associato a uno stimolo.
+  * Valori bassi → aggiornamenti lenti: il soggetto “conserva” più a lungo le esperienze passate, adattandosi solo gradualmente ai cambiamenti.
+
+* `tau` (inverse temperature) controlla la coerenza delle scelte rispetto ai valori $Q$.
+
+  * Con `tau` alto → le scelte sono quasi deterministiche: basta una piccola differenza tra $Q_A$ e $Q_B$ per indurre una preferenza netta.
+  * Con `tau` basso → il comportamento appare più esplorativo o rumoroso: anche se uno stimolo ha un valore più alto, non sempre viene scelto.
+
+Nei grafici delle distribuzioni posteriori:
+
+* le *linee tratteggiate* rappresentano i valori “veri” usati per simulare i dati,
+* le *distribuzioni stimate* mostrano l’incertezza del modello sulle possibili soluzioni.
+
+Quando la distribuzione è ben centrata sulla linea tratteggiata e piuttosto stretta, significa che il modello ha recuperato bene il parametro. Distribuzioni più larghe o spostate indicano maggiore incertezza o possibili *trade-off* tra parametri (ad esempio: un `lr` leggermente diverso può essere compensato da un `tau` più basso o più alto producendo previsioni simili).
+
+
+```{r}
+draws_df <- fit_rw$draws(c("lr","tau")) |>
+  as_draws_df() |>
   tibble::as_tibble()
-```
 
+cols <- c(lr = "#5d5349", tau = "#4682B4")
 
-```{r}
-# helper per riuso
-plot_posterior <- function(draws, param, true, col_hex) {
+plot_post <- function(draws, param, col) {
   ggplot(draws, aes(x = .data[[param]])) +
     geom_histogram(aes(y = after_stat(density)), bins = 40,
-                   fill = col_hex, color = "black", alpha = 0.6) +
-    geom_density(color = col_hex, linewidth = 1) +
-    geom_vline(xintercept = true, color = "black", linetype = "dotted", linewidth = 1) +
-    annotate("text", x = true, y = 0, label = format(true, digits = 3),
-             vjust = -1, hjust = -0.1, size = 3) +
-    labs(x = "Valore del parametro", y = "Densità",
-         title = param) +
-    theme(plot.title = element_text(hjust = 0.5))
+                   fill = col, color = "black", alpha = 0.6) +
+    geom_density(color = col, linewidth = 1) +
+    labs(x = param, y = "Densità", title = paste("Posterior di", param))
 }
 
-# colori dalla palette_set1
-cols <- c(
-  a_pos = unname(palette_set1[["uno"]]),
-  a_neg = unname(palette_set1[["due"]]),
-  beta  = unname(palette_set1[["tre"]])
-)
-
-# valori veri (adatta se hai simulato diversamente)
-true_vals <- c(a_pos = 0.15, a_neg = 0.10, beta = 4.0)
-
-# tre figure separate (il chunk può avere fig.height=3.5, out.width="70%")
-p_a_neg <- plot_posterior(draws_df, "a_neg", true_vals["a_neg"], cols["a_neg"])
-p_a_pos <- plot_posterior(draws_df, "a_pos", true_vals["a_pos"], cols["a_pos"])
-p_beta  <- plot_posterior(draws_df, "beta",  true_vals["beta"],  cols["beta"])
+p_lr  <- plot_post(draws_df, "lr",  cols["lr"])
+p_tau <- plot_post(draws_df, "tau", cols["tau"])
 ```
 
 ```{r}
-p_a_neg
+true_vals <- c(lr = 0.15, tau = 2)
+p_lr  + geom_vline(xintercept = true_vals["lr"],  linetype = 2)
+p_tau + geom_vline(xintercept = true_vals["tau"], linetype = 2)
 ```
 
-```{r}
-p_a_pos
-```
-
-```{r}
-p_beta
-```
-
-L’ispezione delle distribuzioni a posteriori fornisce una misura intuitiva di quanto bene il modello è riuscito a recuperare i parametri generati nella simulazione.
-Nel grafico, le *linee tratteggiate verticali* rappresentano i valori veri usati per simulare i dati, mentre gli *istogrammi* mostrano la densità della distribuzione a posteriori stimata.
-
-Se la distribuzione a posteriori è *centrata* attorno al valore vero e presenta una *variabilità ridotta*, significa che il modello ha recuperato il parametro con buona precisione. Piccoli scostamenti possono derivare dalla variabilità stocastica del processo di simulazione o da *trade-off* tra parametri (ad esempio, tra `a_pos` e `beta`).
-
-In un contesto applicato, questo confronto ha una doppia utilità didattica:
-
-1. *Verifica del modello* — Permette di capire se il modello, con la struttura e i dati disponibili, può realmente identificare i parametri di interesse.
-2. *Sensibilità ai dati* — Evidenzia se alcuni parametri richiedono più dati o condizioni sperimentali specifiche per essere stimati in modo affidabile.
+Attenzione ai possibili *trade-off*: in dataset brevi o con scarsa esplorazione, combinazioni diverse di `lr` e `tau` possono produrre predizioni simili (identificabilità parziale). Conviene sempre ispezionare tracce, R-hat, ESS e, se possibile, condurre *posterior predictive checks*.
 
 
-## Contextual Bandits e compiti food vs. neutral
+## Dal parametro allo stile cognitivo
 
-La famiglia dei *banditi contestuali* estende il modello RW introducendo variabili di *contesto* che modulano le probabilità di ricompensa (o l’interpretazione degli esiti). In pratica, si stima lo stesso impianto RW + Softmax, ma consentendo a $\alpha^+,\alpha^-$ e $\beta$ di variare *per contesto* (ad es., cue alimentari vs. neutri) e, quando rilevante, *per gruppo*.
+I parametri del modello non sono soltanto numeri: possono essere interpretati come *indicatori di stili di apprendimento e decisione*.
 
-Nel nostro lavoro applicativo su *decision-making specifico per il cibo nell’anoressia nervosa* — in cui due compiti PRL identici si differenziavano unicamente per il contenuto degli stimoli (blocco *neutral-only* vs. *food–neutral*) — l’approccio RW consente di verificare se i parametri di apprendimento e scelta differiscono selettivamente nel contesto alimentare [@colpizzi2025food]. In particolare, i risultati indicano che deficit di apprendimento (riduzione delle learning rate) emergono *solo* in presenza di stimoli legati al cibo, mentre le stesse persone mostrano parametri nella norma in contesti neutrali; ciò suggerisce una *specificità di contesto* e supporta interpretazioni in termini di fattori di mantenimento.
+* **Learning rate (`lr`)**
+
+  * Un soggetto con `lr` alto è molto sensibile ai singoli feedback: aggiorna le proprie aspettative in modo rapido e può adattarsi velocemente a un *reversal*.
+    *Esempio*: basta un paio di esiti negativi perché abbandoni l’opzione che prima sembrava migliore.
+  * Un soggetto con `lr` basso aggiorna più lentamente: dà più peso all’esperienza accumulata e tende a mantenere le proprie scelte anche di fronte a segnali contrari.
+    *Esempio*: continua a scegliere lo stimolo “vecchio ricco” anche dopo alcuni esiti negativi, adattandosi solo gradualmente.
+
+* **Inverse temperature (`tau`)**
+
+  * Un soggetto con `tau` alto si comporta in modo *deterministico*: sceglie quasi sempre l’opzione con il valore Q più alto. Questo corrisponde a uno stile “sfruttatore” (*exploiter*), focalizzato sul massimizzare subito i guadagni.
+  * Un soggetto con `tau` basso mostra un comportamento più *esplorativo o rumoroso*: anche se una delle due opzioni è chiaramente più vantaggiosa, di tanto in tanto sceglie l’altra. Questo stile può sembrare “incoerente”, ma in certi contesti favorisce l’esplorazione di alternative.
+
+### Messaggio chiave
+
+L’approccio bayesiano permette di stimare, per ogni individuo, un profilo fatto di *apprendimento* (quanto velocemente aggiorna le proprie aspettative) e *decisione* (quanto coerentemente agisce in base a quelle aspettative).
+
+Differenze sistematiche nei parametri tra *gruppi sperimentali* (es. stimoli emozionanti vs. neutri) o tra *popolazioni cliniche e di controllo* possono rivelare *stili cognitivi distintivi*:
+
+* difficoltà nell’adattarsi a nuovi feedback (lr basso),
+* oppure scelte troppo rigide o troppo esplorative (tau troppo alto o troppo basso).
+
+In questo modo, un modello computazionale semplice come il Rescorla–Wagner con regola logistica non solo descrive i dati, ma fornisce anche una *chiave di lettura psicologica* dei processi sottostanti.
 
 
-::: {.callout-tip title="Collegamento didattico"}
-Il passaggio dal modello di revisione degli obiettivi al RW + Softmax consente di separare chiaramente *apprendimento* (come si aggiornano i valori) e *politica di scelta* (come i valori aggiornati guidano la selezione). Questa scomposizione è utile quando le differenze tra condizioni sperimentali si manifestano solo in uno dei due livelli.
-:::
+## Contextual Bandits e compiti *food* vs. *neutral*
+
+Il modello di Rescorla–Wagner con regola logistica, come visto nel tutorial, assume due parametri stabili per tutto il compito:
+
+* `lr`, che regola la velocità con cui i valori $Q$ vengono aggiornati,
+* `tau`, che governa la coerenza delle scelte rispetto a tali valori.
+
+La famiglia dei *banditi contestuali* rappresenta un’estensione naturale: i parametri non sono più fissi, ma possono *variare in funzione del contesto*. In pratica, lo stesso schema RW + logit viene applicato separatamente a diverse condizioni sperimentali (es. stimoli *food* vs. stimoli *neutral*, per un campione di pazienti anoressiche) o a diversi gruppi di partecipanti (es. clinici vs. controlli).
+
+Questa estensione è stata applicata con successo nello studio dei disturbi alimentari. Analisi recenti hanno mostrato che i *deficit di apprendimento* in anoressia nervosa non sono globali, ma *specifici del contesto alimentare*:
+
+* di fronte a stimoli legati al cibo, le persone con anoressia tendono a mostrare un *learning rate più basso*, cioè aggiornano le aspettative più lentamente;
+* negli stessi compiti con stimoli neutri, invece, i parametri risultano simili a quelli dei controlli [@colpizzi2025food].
+
+Questa evidenza suggerisce che la vulnerabilità non consista in un deficit generale dei processi di apprendimento, ma in un’alterazione *selettiva e contestuale*, che contribuisce al mantenimento del disturbo.
+
+Formalmente, per il contesto $c \in \{\text{food},\text{neutral}\}$ si stima:
+$$
+P_c(B_t)=\text{inv\_logit}\!\big(\tau_c [Q_{c,t}(B)-Q_{c,t}(A)]\big), 
+$$
+$$
+Q_{c,t+1}(s)=Q_{c,t}(s)+lr_c \,[R_{c,t}-Q_{c,t}(s)].
+$$
+Il confronto tra $lr_{\text{food}}$ e $lr_{\text{neutral}}$ (e analogamente per $\tau$) quantifica le differenze contestuali.
+
+
+
+### Limiti e varianti minime
+
+- **Aggiornamento solo dell’opzione scelta.** In alcune applicazioni si usa un “fictive update” anche per l’opzione non scelta (o un decadimento).
+- **Lapse/guess rate.** Una piccola probabilità $\xi$ di scelta casuale: $P^\*=(1-\xi)P+\xi/2$.
+- **Bias laterale iniziale.** Aggiungere un offset di preferenza (es. per A) nel logit.
+- **Gerarchico multi-soggetto.** `lr` e `tau` con distribuzioni di gruppo → più robusto e adatto al confronto tra gruppi/condizioni.
 
 
 ## Riflessioni conclusive {.unnumbered .unlisted}
 
-Il modello di Rescorla–Wagner con regola di scelta Softmax estende il modello di revisione degli obiettivi introducendo un *livello decisionale* che traduce i valori appresi (*Q-values*) in probabilità di scelta. Questo passaggio è cruciale perché separa due componenti fondamentali del comportamento:
+Il modello di *Rescorla–Wagner con regola di scelta logistica* arricchisce la semplice dinamica di aggiornamento dei valori introducendo un *livello decisionale* che traduce i valori appresi (*Q-values*) in probabilità di scelta. In questo modo possiamo distinguere due componenti fondamentali del comportamento:
 
-1. **Apprendimento dagli esiti** (*learning*), rappresentato dai parametri di aggiornamento $a_{\text{pos}}$ e $a_{\text{neg}}$, che indicano la velocità con cui il soggetto integra feedback positivi e negativi.
-2. **Selezione dell’azione** (*decision policy*), rappresentata dal parametro $\beta$, che riflette la coerenza o la “determinazione” delle scelte sulla base dei valori appresi.
+1. **Apprendimento dagli esiti** (*learning*), governato dal parametro `lr`, che determina la rapidità con cui il soggetto aggiorna le proprie aspettative in base al *prediction error* (quanto l’esito è diverso da ciò che ci si aspettava).
 
-Questa distinzione è particolarmente rilevante negli studi clinici. Nel nostro lavoro sull’anoressia nervosa e il *probabilistic reversal learning* (PRL), abbiamo osservato che le pazienti mostrano un apprendimento ridotto solo in condizioni *food-specific*, mentre la prestazione in condizioni neutrali è simile a quella di controlli sani. Questo suggerisce che il deficit non è globale, ma legato al contenuto emotivamente saliente dello stimolo [@colpizzi2025food].
+   * `lr` alto → adattamento veloce, ma anche maggiore sensibilità al rumore;
+   * `lr` basso → apprendimento lento, più stabile ma meno flessibile ai cambiamenti.
 
-Il modello RW + Softmax ci ha permesso di individuare non solo *quanto* velocemente i valori venivano aggiornati in ciascuna condizione, ma anche *come* tali valori venivano tradotti in scelte. Ad esempio, una $\beta$ elevata indica scelte più coerenti con il valore appreso, mentre una $\beta$ bassa suggerisce un comportamento più esplorativo o incoerente. Nei nostri dati, le differenze in $a_{\text{pos}}$ e $a_{\text{neg}}$ tra condizioni fornivano un quadro preciso delle difficoltà di apprendimento, mentre $\beta$ rivelava se tali difficoltà si accompagnavano a un cambiamento nello stile decisionale.
+2. **Politica decisionale** (*decision policy*), rappresentata dal parametro `tau`, che regola il grado di coerenza delle scelte con i valori stimati.
 
-Per uno psicologo, questo approccio offre due vantaggi didattici e clinici:
+   * `tau` alto → scelte deterministiche e coerenti con l’opzione migliore;
+   * `tau` basso → comportamento più esplorativo o meno consistente.
 
-* **Precisione teorica:** possiamo formulare ipotesi separate su meccanismi di apprendimento e politiche decisionali, anziché inferire tutto dalla sola prestazione media.
-* **Applicabilità clinica:** la scomposizione dei processi aiuta a capire se un deficit deriva da un problema nell’aggiornamento delle informazioni o da una strategia decisionale subottimale, con implicazioni per interventi mirati.
+Questa distinzione è particolarmente rilevante negli studi clinici. Nel nostro lavoro sull’anoressia nervosa e il *Probabilistic Reversal Learning* (PRL), ad esempio, è emerso che i deficit non sono globali, ma *specifici per il contesto alimentare*: le pazienti aggiornano più lentamente le loro aspettative (`lr` ridotto) quando sono coinvolti stimoli *food*, mentre si comportano come i controlli in condizioni neutrali [@colpizzi2025food].
 
-In sintesi, il modello RW + Softmax non è solo un esercizio statistico: è uno strumento che consente di tradurre il comportamento osservato in indicatori psicologicamente e clinicamente interpretabili, capaci di distinguere tra deficit specifici di contesto e strategie generali di scelta.
+Il modello RW + logit permette quindi di andare oltre la semplice prestazione media:
+
+* da un lato, evidenzia differenze nei *meccanismi di apprendimento* (`lr`) tra condizioni,
+* dall’altro, consente di verificare se tali differenze si accompagnano a uno *stile decisionale* diverso (`tau`).
+
+Per uno psicologo questo comporta due vantaggi:
+
+* **Chiarezza teorica:** si possono formulare ipotesi distinte sui processi di aggiornamento e sulle strategie decisionali, evitando interpretazioni riduttive basate solo sull’accuratezza.
+* **Rilevanza clinica:** distinguere tra un problema di apprendimento e uno di scelta ha implicazioni dirette per interventi mirati, ad esempio potenziando la sensibilità al feedback o modulando l’equilibrio tra esplorazione e sfruttamento.
+
+In conclusione, il modello RW + logit non è soltanto uno strumento computazionale: è un *ponte tra il comportamento osservato e i processi psicologici sottostanti*, utile per isolare deficit specifici di contesto e per comprendere come le strategie decisionali possano variare nei diversi individui e gruppi clinici.
+
+Operativamente, la versione gerarchica multi-soggetto del modello è spesso preferibile: stabilizza le stime individuali, consente confronti tra gruppi/condizioni e integra naturalmente la variabilità inter-individuale.
 
 
+
+::: {.callout-note collapse=true title="Informazioni sull'ambiente di sviluppo"}
+```{r}
+sessionInfo()
+```
+:::
 
 ## Bibliografia {.unnumbered .unlisted}
 

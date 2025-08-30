@@ -448,6 +448,17 @@ formato_percentuale_it <- function(accuracy = 1) {
   )
 }
 
+# Default per histogram:
+update_geom_defaults(
+  "bar",
+  list(
+    fill = unname(rinascimentale_primaria["seppia_scuro"]),
+    colour = "white", # puoi usare "color" ma internamente è "colour"
+    alpha = 0.85,
+    linewidth = 0.3
+  )
+)
+
 ## ─────────────────────────────────────────────────────────────────────
 ## 11. Configurazione pacchetti specialistici
 ## ─────────────────────────────────────────────────────────────────────
