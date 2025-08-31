@@ -16,6 +16,7 @@ conflict_prefer("var", "stats")
 conflict_prefer("sd", "stats")
 conflict_prefer("filter", "dplyr")
 conflict_prefer("select", "dplyr")
+conflicts_prefer(stats::chisq.test)
 
 ## ─────────────────────────────────────────────────────────────────────
 ## 2. Pacchetti per analisi bayesiana
