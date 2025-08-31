@@ -9,20 +9,20 @@
 ## Introduzione {.unnumbered .unlisted}
 
 <p class="capo">
-  <span class="capo-initial" data-bg="2">I</span>
+  <span class="capo-initial" data-bg="9">I</span>
 n psicologia capita spesso di lavorare con *variabili di conteggio*, cioè variabili che registrano quante volte un certo evento si verifica. Pensiamo, ad esempio, al numero di sintomi riportati da un paziente in una settimana, oppure al numero di parole pronunciate da un bambino durante un’interazione osservata in laboratorio. In altri casi, le variabili di conteggio vengono usate in psicolinguistica per misurare la frequenza con cui certi vocaboli compaiono in un testo.
 </p>
 
 Queste variabili hanno una caratteristica importante: possono assumere solo valori interi non negativi (0, 1, 2, …). Non possiamo trattarle come se fossero variabili continue, perché la loro natura discreta richiede modelli statistici specifici. Il modello di riferimento per questo tipo di dati è la *distribuzione di Poisson*, che descrive la probabilità di osservare un certo numero di eventi in un intervallo di tempo (o di spazio), dato un tasso medio di incidenza.
 
-Il parametro centrale della distribuzione di Poisson è $\lambda$, che rappresenta proprio il *numero medio di eventi per unità di misura* (ad esempio, la media di compulsioni per ora, oppure la media di parole per frase). Stimare questo parametro significa, in pratica, descrivere l’intensità con cui l’evento che ci interessa tende a verificarsi.
+Il parametro centrale della distribuzione di Poisson è $\lambda$, che rappresenta il *numero medio di eventi per unità di misura* (ad esempio, la media di compulsioni per ora, oppure la media di parole per frase). Stimare questo parametro significa, in pratica, descrivere l’intensità con cui l’evento che ci interessa tende a verificarsi.
 
 In questo capitolo ci proponiamo due obiettivi:
 
 1. mostrare come stimare il parametro $\lambda$ in un contesto bayesiano, utilizzando una distribuzione *a priori di tipo Gamma*, che si combina bene con la Poisson;
 2. confrontare due approcci diversi per ottenere la distribuzione a posteriori: da un lato la derivazione analitica, che sfrutta la coniugatezza tra le due distribuzioni, dall’altro una procedura di *simulazione Monte Carlo*, che ci permette di approssimare la distribuzione anche quando non disponiamo di formule esatte.
 
-Questo doppio percorso è molto utile per chi studia: ci consente infatti di verificare che i metodi numerici funzionano correttamente in un caso semplice, dove conosciamo già la soluzione analitica, e ci prepara ad affrontare situazioni più complesse in cui la soluzione chiusa non esiste e la simulazione diventa indispensabile.
+Questo doppio percorso ci consente di verificare che i metodi numerici funzionano correttamente in un caso semplice, dove conosciamo già la soluzione analitica, e ci prepara ad affrontare situazioni più complesse, in cui la soluzione chiusa non esiste e le procedure basate sulla simulazione numerica diventano indispensabili.
 
 
 ### Panoramica del capitolo {.unnumbered .unlisted}
@@ -53,28 +53,28 @@ pacman::p_load(ggdist)
 
 ## Distribuzione di Poisson
 
-La distribuzione di *Poisson* è uno degli strumenti fondamentali per descrivere fenomeni di *conteggio*, cioè situazioni in cui vogliamo sapere quante volte un certo evento si verifica in un intervallo di tempo (o di spazio) fissato. L’idea di fondo è semplice: immaginiamo che gli eventi si verifichino con una frequenza media costante e che ogni evento avvenga in modo indipendente dagli altri.
+La distribuzione di Poisson descrive fenomeni di conteggio, ovvero situazioni in cui si desidera conoscere il numero di volte in cui un certo evento si verifica in un intervallo di tempo o di spazio prestabilito. L'idea di fondo è semplice: immaginiamo che gli eventi si verifichino con una frequenza media costante e che ogni evento avvenga in modo indipendente dagli altri.
 
 Se una variabile casuale $Y$ segue una distribuzione di Poisson con parametro $\lambda$, la probabilità di osservare un certo numero $y_i$ di eventi è data da:
 
 $$
-f(y_i \mid \lambda) = \frac{e^{-\lambda} \lambda^{y_i}}{y_i!}, \quad y_i \in \{0,1,2,\dots\},\ \lambda > 0.
+f(y_i \mid \lambda) = \frac{e^{-\lambda} \lambda^{y_i}}{y_i!}, \quad y_i \in \{0,1,2,\dots\},\ \lambda > 0,
 $$
+dove il parametro $\lambda$ rappresenta il *tasso medio di occorrenza* degli eventi. 
 
-Il parametro $\lambda$ rappresenta il *tasso medio di occorrenza* degli eventi. Una caratteristica importante della distribuzione di Poisson è che la sua media e la sua varianza coincidono:
+Una caratteristica importante della distribuzione di Poisson è che la sua media e la sua varianza coincidono:
 
 $$
 E(Y) = \lambda, \qquad \text{Var}(Y) = \lambda.
 $$
-
-Questo significa che, se in media osserviamo 2 eventi per intervallo, anche la variabilità attesa attorno a questo valore sarà pari a 2.
+Ciò significa che, se in media si osservano 2 eventi per intervallo, anche la varianza attesa di questo valore sarà pari a 2.
 
 
 ### Un esempio psicologico
 
-Per rendere più concreta l’idea, immaginiamo un paziente con disturbo ossessivo-compulsivo. Supponiamo che, in media, questo paziente compia *2 azioni compulsive all’ora*. In questo caso il parametro della distribuzione di Poisson è $\lambda = 2$.
+Per rendere l'idea più concreta, immaginiamo un paziente affetto da disturbo ossessivo-compulsivo. Supponiamo che, in media, compia due azioni compulsive all’ora. In questo caso, il parametro della distribuzione di Poisson è $\lambda = 2$.
 
-La formula ci permette di calcolare la probabilità di osservare esattamente $k$ eventi in un’ora. Ad esempio:
+La formula ci permette di calcolare la probabilità di osservare esattamente k eventi in un'ora. Ad esempio:
 
 * la probabilità di osservare *0 eventi* è $\frac{e^{-2} \cdot 2^0}{0!} = e^{-2} \approx 0.1353$;
 * la probabilità di osservare *1 evento* è $\frac{e^{-2} \cdot 2^1}{1!} = 2e^{-2} \approx 0.2707$;
@@ -83,7 +83,7 @@ La formula ci permette di calcolare la probabilità di osservare esattamente $k$
 
 ### Calcoli in R
 
-Possiamo calcolare queste probabilità direttamente con R, usando la funzione `dpois`:
+Possiamo svolgere questi calcoli direttamente con R, utilizzando la funzione `dpois`:
 
 ```{r}
 lam_true <- 2
@@ -96,14 +96,12 @@ for (i in seq_along(k_values)) {
 }
 ```
 
-Questo codice calcola la probabilità di osservare tra 0 e 9 eventi in un’ora, dato che il tasso medio è 2.
-
-Notiamo che i valori più probabili sono proprio 1 o 2 eventi per ora, mentre la probabilità di osservare molti più eventi diminuisce rapidamente.
+Questo codice calcola la probabilità di osservare tra 0 e 9 eventi in un'ora, dato che il tasso medio è 2. Si noti che i valori più probabili sono 1 o 2 eventi all'ora, mentre la probabilità di osservare molti più eventi diminuisce rapidamente.
 
 
 ### Visualizzazione grafica
 
-Un modo ancora più intuitivo per comprendere la distribuzione di Poisson è guardare il suo grafico. Con il seguente codice possiamo rappresentare la funzione di massa di probabilità (PMF) per $\lambda = 2$:
+Un modo ancora più intuitivo per comprendere la distribuzione di Poisson è osservare il suo grafico. Il seguente codice permette di rappresentare la funzione di massa di probabilità (PMF) per $\lambda = 2$:
 
 ```{r}
 lambd <- 2
@@ -124,28 +122,27 @@ ggplot(df, aes(x = numero_eventi, y = probabilita)) +
   theme(plot.title = element_text(hjust = 0.5))
 ```
 
-Il grafico mostra con chiarezza che i valori centrati attorno a 2 hanno probabilità maggiore, mentre la probabilità decresce rapidamente per valori più alti.
+Il grafico mostra chiaramente che i valori centrati attorno a 2 hanno una probabilità maggiore, mentre la probabilità diminuisce rapidamente per valori più alti.
 
 
 ## Distribuzione Gamma
 
-Per costruire un modello bayesiano con dati di tipo Poisson abbiamo bisogno di scegliere una distribuzione a priori per il parametro di tasso, $\lambda$. La scelta più comune – e anche la più conveniente dal punto di vista matematico – è la *distribuzione Gamma*. Questa distribuzione, infatti, è *coniugata* alla Poisson: significa che, partendo da una prior Gamma e aggiornandola con dati che seguono una Poisson, la distribuzione a posteriori appartiene ancora alla famiglia delle Gamma. In pratica, la coniugatezza ci permette di aggiornare le nostre credenze in modo molto semplice e diretto, senza doverci avventurare in calcoli complicati.
+Per costruire un modello bayesiano con dati di tipo Poisson, è necessario scegliere una distribuzione a priori per il parametro di tasso $\lambda$. La scelta più comune, nonché la più conveniente dal punto di vista matematico, è la distribuzione Gamma. Questa distribuzione, infatti, è coniugata alla Poisson, il che significa che, partendo da una distribuzione a priori Gamma e aggiornandola con dati che seguono una distribuzione di Poisson, la distribuzione a posteriori appartiene ancora alla famiglia delle Gamma. In pratica, la coniugatezza ci permette di aggiornare le nostre credenze in modo semplice e diretto, senza dover affrontare calcoli complicati.
 
 La densità della distribuzione Gamma è definita dalla formula:
 
 $$
-f(x \mid \alpha, \beta) = \frac{\beta^\alpha}{\Gamma(\alpha)} x^{\alpha - 1} e^{-\beta x}, \quad x > 0
+f(x \mid \alpha, \beta) = \frac{\beta^\alpha}{\Gamma(\alpha)} x^{\alpha - 1} e^{-\beta x}, \quad x > 0.
 $$
+In questa formula compaiono due parametri fondamentali:
 
-dove compaiono due parametri fondamentali:
-
-* *$\alpha$ (forma)*: controlla la forma della distribuzione. Con valori piccoli, la distribuzione è molto asimmetrica, concentrata vicino allo zero; aumentando $\alpha$, la distribuzione diventa più regolare e tende ad assumere una forma simile a una normale.
-* *$\beta$ (tasso o “rate”)*: regola la scala della distribuzione. Con valori alti, la probabilità si concentra verso valori più piccoli di $x$; con valori bassi, la distribuzione si allarga e assegna probabilità a valori più grandi.
+* *$\alpha$ (forma)*:  controlla la forma della distribuzione. Con valori piccoli, la distribuzione è molto asimmetrica e concentrata vicino allo zero; aumentando il valore di $\alpha$, la distribuzione diventa più regolare e tende a assumere una forma simile a quella di una distribuzione normale.
+* *$\beta$ (tasso o “rate”)*: regola la scala della distribuzione. Con valori alti, la probabilità si concentra su valori più piccoli di $x$; con valori bassi, invece, la distribuzione si allarga e assegna probabilità a valori più grandi.
 
 Alcuni esempi aiutano a chiarire:
 
 * con $\alpha = 2$ e $\beta = 3$, la distribuzione descrive un processo in cui gli eventi sono relativamente rari, ma non impossibili;
-* con $\alpha = 10$ e $\beta = 1$, invece, la distribuzione è molto più concentrata e simmetrica, riflettendo un processo più regolare e prevedibile.
+* con $\alpha = 10$ e $\beta = 1$, invece, la distribuzione è molto più concentrata e simmetrica, a indicare un processo più regolare e prevedibile.
 
 ::: {.callout-note}
 In R la distribuzione Gamma è parametrizzata usando direttamente $\beta$ come *rate*. Attenzione: a volte, in altri contesti, la stessa distribuzione viene scritta usando il parametro di *scala* (scale), che è semplicemente l’inverso del rate: $scale = 1/\beta$.
@@ -176,19 +173,19 @@ ggplot(data.frame(x = c(0, 3)), aes(x = x)) +
   theme(plot.title = element_text(hjust = 0.5))
 ```
 
-Il grafico mostra come la distribuzione si concentri vicino a valori piccoli di $x$, ma lasci comunque una coda lunga verso destra. È proprio questa flessibilità che rende la distribuzione Gamma molto utile come modello a priori: può descrivere sia situazioni in cui ci aspettiamo valori piccoli ma incerti, sia casi in cui prevediamo valori medi o alti con maggiore regolarità.
+Il grafico mostra come la distribuzione si concentri intorno ai valori piccoli di x, ma lasci comunque una coda lunga verso destra. È proprio questa flessibilità a rendere la distribuzione gamma molto utile come modello a priori: può descrivere sia situazioni in cui ci si aspetta valori piccoli ma incerti, sia casi in cui si prevedono valori medi o alti con maggiore regolarità.
 
 
 ## La coppia coniugata Gamma–Poisson
 
-Abbiamo visto separatamente due elementi: la distribuzione di *Poisson*, che descrive il numero di eventi osservati, e la distribuzione *Gamma*, che scegliamo come distribuzione a priori per il parametro di tasso $\lambda$. Ora possiamo metterli insieme per costruire un modello bayesiano completo.
+Abbiamo esaminato separatamente due elementi: la distribuzione di Poisson, che descrive il numero di eventi osservati, e la distribuzione Gamma, che abbiamo scelto come distribuzione a priori per il parametro di tasso $\lambda$. Ora possiamo unirli per costruire un modello bayesiano completo.
 
-Il cuore del ragionamento è questo:
+Il cuore del ragionamento è il seguente:
 
-* i *dati osservati* ($y_1, y_2, \dots, y_N$) sono modellati come Poisson con parametro $\lambda$;
-* la nostra *conoscenza a priori* su $\lambda$ è rappresentata da una distribuzione Gamma con parametri $\alpha_{\text{prior}}$ e $\beta_{\text{prior}}$.
+- i dati osservati ($y_1, y_2, ..., y_N$) sono modellati come una distribuzione di Poisson con parametro $\lambda$;
+- la nostra conoscenza a priori su $\lambda$ è rappresentata da una distribuzione Gamma con parametri $\alpha_{\text{prior}}$ e $\beta_{\text{prior}}$.
 
-Questa combinazione è molto conveniente perché la Gamma è *coniugata* alla Poisson. Ma che cosa significa, concretamente, “coniugata”? Significa che, dopo aver osservato i dati, la distribuzione a posteriori di $\lambda$ rimane della stessa famiglia della priori, cioè una distribuzione Gamma. In altre parole, se parto con una Gamma e la aggiorno con dati di tipo Poisson, ottengo ancora una Gamma: cambia soltanto il valore dei parametri, che incorporano l’informazione proveniente dai dati.
+Questa combinazione è molto conveniente, perché la Gamma è coniugata alla Poisson. Ma cosa significa, concretamente, "coniugata"? Significa che, dopo aver osservato i dati, la distribuzione a posteriori di $\lambda$ rimane della stessa famiglia della distribuzione a priori, ovvero una distribuzione Gamma. In altre parole, se si parte da una distribuzione Gamma e la si aggiorna con dati di tipo Poisson, si ottiene ancora una distribuzione Gamma, ma i valori dei parametri cambiano, incorporando l'informazione proveniente dai dati.
 
 
 ### La distribuzione a posteriori
@@ -198,43 +195,39 @@ La regola di Bayes ci dice che:
 $$
 p(\lambda \mid y) \propto p(\lambda) \cdot p(y \mid \lambda).
 $$
-
-Sostituendo le due distribuzioni (Gamma per la priori e Poisson per la verosimiglianza), si vede facilmente che la forma risultante è ancora quella di una Gamma. I parametri aggiornati sono:
-
-$$
-\alpha_{\text{post}} = \alpha_{\text{prior}} + \sum_{i=1}^N y_i
-$$
+Sostituendo le due distribuzioni (Gamma per la prioritaria e Poisson per la verosimiglianza), si ottiene ancora una distribuzione Gamma. I parametri aggiornati sono:
 
 $$
-\beta_{\text{post}} = \beta_{\text{prior}} + N
+\alpha_{\text{post}} = \alpha_{\text{prior}} + \sum_{i=1}^N y_i ,
 $$
 
+$$
+\beta_{\text{post}} = \beta_{\text{prior}} + N .
+$$
 Dunque, la nostra credenza su $\lambda$ dopo aver osservato i dati è rappresentata da una distribuzione:
 
 $$
 \lambda \mid y \sim \text{Gamma}(\alpha_{\text{post}}, \beta_{\text{post}})
 $$
 
-
 ### Intuizione
 
-Che cosa sta succedendo qui? L’aggiornamento dei parametri ha un’interpretazione molto intuitiva:
+Il meccanismo di aggiornamento bayesiano ammette un'interpretazione particolarmente intuitiva nel caso della distribuzione di Poisson. I parametri della distribuzione a posteriori, $\alpha_{\text{post}}$ e $\beta_{\text{post}}$, si ottengono semplicemente aggiornando quelli a priori, ovvero $\alpha_0$ e $\beta_0$, con le informazioni contenute nei dati.
 
-* *$\alpha$* aumenta con la somma degli eventi osservati: più eventi contiamo, più la distribuzione a posteriori si sposta verso valori alti di $\lambda$.
-* *$\beta$* aumenta con il numero di osservazioni $N$: più intervalli di tempo osserviamo, più aumenta la precisione con cui stimiamo il tasso medio.
+- il parametro di forma, $\alpha_{\text{post}} = \alpha_0 + \sum_{i=1}^N y_i$, cresce con il numero totale di eventi osservati; Ogni evento è considerato come un'unità di "evidenza" a favore di un certo tasso $\lambda$, spostando la distribuzione a posteriori verso valori più alti man mano che si accumulano le osservazioni.
 
-In altre parole, i parametri della posteriori rappresentano una *sintesi tra la nostra conoscenza a priori e i dati raccolti*.
+- il parametro *rate* (tasso), $\beta_{\text{post}} = \beta_0 + N$, aumenta con il numero di intervalli osservati, N. Questo parametro controlla la dispersione della distribuzione: valori più alti di $\beta$ corrispondono a una minore varianza e, quindi, a una maggiore certezza nella stima di $\lambda$. Ogni nuovo intervallo di osservazione, indipendentemente dal numero di eventi in esso registrati, restringe la distribuzione a posteriori, perfezionando la stima.
 
 
 ### Un esempio numerico
 
-Riprendiamo l’esempio visto prima, con i dati:
+Riprendiamo l’esempio visto in precedenza con i dati:
 
 ```{r}
 y <- c(2, 1, 3, 2, 2, 1, 1, 1)
 ```
 
-Abbiamo $N = 8$ osservazioni, e come priori scegliamo $\alpha_{\text{prior}} = 9$ e $\beta_{\text{prior}} = 2$.
+Abbiamo $N = 8$ osservazioni, e come prior scegliamo $\alpha_{\text{prior}} = 9$ e $\beta_{\text{prior}} = 2$.
 
 Calcoliamo i nuovi parametri:
 
@@ -245,12 +238,12 @@ beta_post  <- 2 + length(y)
 alpha_post; beta_post
 ```
 
-Il risultato è $\alpha_{\text{post}} = 22$ e $\beta_{\text{post}} = 10$. La nostra distribuzione a posteriori è quindi una Gamma(22, 10), che rappresenta la nuova convinzione su $\lambda$ dopo aver visto i dati.
+Il risultato è $\alpha_{\text{post}} = 22$ e $\beta_{\text{post}} = 10$. La nostra distribuzione a posteriori è quindi una Gamma(22, 10), che rappresenta la nuova convinzione su $\lambda$ dopo aver osservato i dati.
 
 
-### Visualizzare la posteriori
+### Visualizzare la distribuzione a posteriori
 
-Possiamo visualizzare il cambiamento confrontando la priori e la posteriori:
+Possiamo visualizzare il cambiamento confrontando la prior e la posterior:
 
 ```{r}
 x <- seq(0, 6, length.out = 500)
@@ -267,30 +260,29 @@ df <- data.frame(
 ggplot(df, aes(x = x, y = densita, color = Distribuzione)) +
   geom_line(size = 1) +
   labs(
-    title = "Aggiornamento da Prior a Posterior (Gamma–Poisson)",
+    title = "Aggiornamento bayesiano (Gamma–Poisson)",
     x = expression(lambda),
     y = "Densità"
   ) +
   theme(plot.title = element_text(hjust = 0.5))
 ```
 
-Il grafico mostra chiaramente che la posteriori è più concentrata: osservare gli otto dati ci ha reso più sicuri sul valore di $\lambda$. Inoltre, il centro della distribuzione si è spostato verso il valore suggerito dai dati, integrando così le informazioni empiriche con le credenze iniziali.
+Il grafico mostra chiaramente che la posterior è più concentrata: osservare gli otto dati ci ha reso più sicuri del valore di $\lambda$. Inoltre, il centro della distribuzione si è spostato verso il valore suggerito dai dati, integrando così le informazioni empiriche con le credenze iniziali.
 
 
-## Metodo basato su griglia
+### Metodo basato su griglia
 
-Ora che abbiamo introdotto il modello *Gamma–Poisson*, possiamo provare a calcolare la distribuzione *a posteriori* del parametro $\lambda$ non con formule chiuse, ma con un procedimento puramente numerico. Questo approccio prende il nome di *metodo su griglia* (*grid approximation*), ed è molto utile come strumento didattico: ci mostra, passo dopo passo, come funziona l’aggiornamento bayesiano, trasformando le regole matematiche in un algoritmo semplice da eseguire al computer.
+Ora che abbiamo introdotto il modello *Gamma–Poisson*, possiamo provare a calcolare la distribuzione *a posteriori* del parametro $\lambda$ non con formule chiuse, ma con un procedimento puramente numerico. Questo approccio prende il nome di *metodo su griglia* (*grid approximation*), ed è molto utile come strumento didattico, in quanto mostra, passo dopo passo, il funzionamento dell'aggiornamento bayesiano, trasformando le regole matematiche in un algoritmo semplice da eseguire al computer.
 
 L’idea è la seguente:
 
-1. fissiamo una “griglia” di possibili valori per $\lambda$;
-2. calcoliamo la probabilità di ciascun valore secondo la *priori*;
-3. calcoliamo, per gli stessi valori, la *verosimiglianza* dei dati osservati;
-4. moltiplichiamo i due risultati per ottenere la distribuzione *a posteriori* (non ancora normalizzata);
-5. normalizziamo in modo che la somma totale sia pari a 1.
+* fissiamo una griglia di possibili valori per $\lambda$;
+* calcoliamo la probabilità di ciascun valore secondo la prioria;
+* calcoliamo, per gli stessi valori, la verosimiglianza dei dati osservati;
+* moltiplichiamo i due risultati per ottenere la distribuzione a posteriori (non ancora normalizzata);
+* normalizziamo in modo che la somma totale sia pari a 1.
 
-
-### 1. I dati e la priori
+#### I dati e la prior
 
 Prendiamo gli stessi dati già usati in precedenza, cioè il numero di compulsioni osservate in otto intervalli di tempo:
 
@@ -314,7 +306,7 @@ prior <- dgamma(lambda_grid, shape = alpha_prior, rate = beta_prior)
 Questa curva rappresenta ciò che crediamo possibile *prima di vedere i dati*.
 
 
-### 2. La verosimiglianza
+#### La verosimiglianza
 
 La seconda componente è la *verosimiglianza*, cioè quanto ciascun valore ipotetico di $\lambda$ rende probabili i dati osservati. Per una Poisson, la verosimiglianza è il prodotto delle probabilità individuali:
 
@@ -331,14 +323,13 @@ likelihood <- sapply(lambda_grid, function(l) prod(dpois(y, l)))
 Così, per ogni punto della griglia otteniamo il valore della verosimiglianza: se il dato osservato è molto coerente con un certo $\lambda$, la verosimiglianza sarà alta; altrimenti sarà vicina a zero.
 
 
-### 3. La distribuzione a posteriori
+####  La distribuzione a posteriori
 
 Il passo successivo è combinare *priori* e *verosimiglianza*. La regola di Bayes ci dice che:
 
 $$
 p(\lambda \mid y) \propto p(\lambda) \cdot \mathcal{L}(\lambda).
 $$
-
 In pratica, moltiplichiamo i valori calcolati ai due passi precedenti:
 
 ```{r}
@@ -348,7 +339,7 @@ posterior_unnormalized <- prior * likelihood
 Questo ci dà una curva che ha la forma giusta, ma che non è ancora una vera distribuzione di probabilità: non somma a 1.
 
 
-### 4. Normalizzazione
+#### Normalizzazione
 
 Per trasformarla in una distribuzione valida, dobbiamo normalizzare, cioè dividere per la somma totale (che qui approssimiamo come una somma numerica sulla griglia):
 
@@ -362,7 +353,7 @@ posterior <- posterior_unnormalized / normalization_factor
 Ora abbiamo davvero la distribuzione *a posteriori* di $\lambda$.
 
 
-### 5. Interpretazione e confronto visivo
+#### Interpretazione e confronto visivo
 
 A questo punto possiamo confrontare la priori e la posteriori in un unico grafico:
 
@@ -379,7 +370,7 @@ df_long <- pivot_longer(df, cols = c("Prior", "Posteriori"),
 
 ggplot(df_long, aes(x = lambda, y = Densita, color = Distribuzione)) +
   geom_line(size = 1) +
-  labs(title = "Aggiornamento bayesiano con il metodo su griglia",
+  labs(title = "Aggiornamento bayesiano con il metodo a griglia",
        x = expression(lambda),
        y = "Densità")
 ```
@@ -390,20 +381,36 @@ Il grafico rivela due aspetti fondamentali:
 * la *posteriori* è anche più *concentrata*, cioè meno incerta: dopo aver osservato i dati, non solo abbiamo aggiornato la nostra convinzione, ma siamo anche diventati più sicuri del valore plausibile di $\lambda$.
 
 
-### Perché è utile il metodo su griglia?
+### Perché è utile il metodo a griglia?
 
-Questo metodo non è molto efficiente in problemi complessi (dove i parametri sono tanti e lo spazio da esplorare è enorme), ma è *molto utile a scopo didattico*. Ci mostra infatti in modo visivo e intuitivo come funziona l’aggiornamento bayesiano: partiamo da una convinzione iniziale (la prior), la confrontiamo con i dati (la likelihood) e otteniamo una nuova convinzione aggiornata (la posterior).
+Questo metodo non è molto efficiente nei problemi complessi (dove i parametri sono numerosi e lo spazio da esplorare è vasto), ma è molto utile a scopo didattico. Ci mostra infatti in modo visivo e intuitivo il funzionamento dell'aggiornamento bayesiano: partiamo da una convinzione iniziale (la prior), la confrontiamo con i dati (la likelihood) e otteniamo una nuova convinzione aggiornata (la posterior).
 
 Nei prossimi capitoli vedremo come affrontare lo stesso problema con strumenti più generali, come il campionamento MCMC in Stan, che diventano indispensabili quando i modelli si complicano e il metodo su griglia non è più praticabile.
 
 
 ## Riflessioni conclusive {.unnumbered .unlisted}
 
-Il modello *Gamma–Poisson* rappresenta un esempio chiaro ed elegante di come l’inferenza bayesiana possa essere applicata ai dati di conteggio, molto frequenti in psicologia. L’idea di fondo è semplice: partiamo da una convinzione iniziale sul tasso medio di occorrenza degli eventi, espressa attraverso una distribuzione *a priori* di tipo Gamma. Quando osserviamo nuovi dati, questa convinzione viene aggiornata in modo sistematico, e il risultato è una nuova distribuzione, la *a posteriori*, che incorpora sia ciò che sapevamo prima sia l’informazione proveniente dai dati.
+In questo capitolo sono stati presentati i modelli per dati di conteggio basati sulla distribuzione di Poisson e sulla coppia coniugata Gamma–Poisson. L'utilizzo di una distribuzione a priori Gamma per il tasso $\lambda$ consente un aggiornamento analitico della credenza: la distribuzione a posteriori rimane di tipo Gamma e la sua media risulta essere una media pesata tra la media a priori e la media campionaria. Ciò rende esplicito il fenomeno di *shrinkage*: con pochi dati, le stime tendono verso la credenza iniziale; all'aumentare di $n$, prevale invece l'informazione contenuta nei dati.
 
-Questo meccanismo ha due grandi vantaggi. Da un lato, ci fornisce **stime più realistiche** del parametro \$\lambda\$, perché non si limita a un singolo numero ma restituisce una distribuzione che descrive tutti i valori plausibili. Dall’altro, ci permette di **quantificare l’incertezza**: non diciamo soltanto “qual è” il tasso medio, ma anche “quanto siamo incerti” sulla sua stima.
+L'approssimazione numerica su griglia ha permesso di illustrare lo stesso processo di aggiornamento in forma discreta, offrendo un utile supporto didattico per visualizzare il contributo relativo della prior e della verosimiglianza. In contesti più complessi — quali modelli con predittori multipli, strutture gerarchiche o dati longitudinali — la stessa logica inferenziale può essere estesa mediante tecniche di campionamento MCMC (ad esempio con Stan), mantenendo la validazione del modello attraverso *posterior predictive checks*.
 
-In questo modo, il modello Gamma–Poisson non è soltanto un esercizio teorico: diventa uno strumento pratico che ci aiuta a ragionare in modo più cauto e informato quando prendiamo decisioni basate sui dati psicologici. È un primo passo per comprendere il potere dell’approccio bayesiano, che non si limita a calcolare parametri, ma ci offre un vero e proprio linguaggio per descrivere e aggiornare le nostre conoscenze.
+Dal punto di vista applicativo, il modello di Poisson è appropriato quando:
+
+- i dati sono conteggi interi non negativi;
+- le osservazioni sono condizionatamente indipendenti dato $\lambda$;
+- media e varianza dei conteggi sono di ordine di grandezza comparabile.
+
+In presenza di esposizioni differenziate tra le unità (ad esempio durate, aree o numero di prove differenti), è necessario introdurre un *offset* per modellare correttamente il tasso sottostante. Qualora la varianza osservata ecceda sistematicamente la media (*over-dispersione*), è opportuno considerare modelli più flessibili, come la Poisson–Gamma (Binomiale Negativa) con parametro di dispersione, modelli a inflazione di zeri o strutture gerarchiche che catturino l’eterogeneità non osservata.
+
+Le verifiche predittive dovrebbero confrontare i dati osservati con repliche simulate dalla posterior sotto diversi aspetti: distribuzione dei conteggi (inclusa la frequenza di zeri), media, varianza, presenza di code pesanti o valori estremi. Scostamenti sistematici possono indicare violazioni delle assunzioni di base, quali over-dispersione, eterogeneità non modellata o dipendenze temporali.
+
+Per una rendicontazione completa, si raccomanda di includere:
+
+- la specifica formale del modello (inclusi offset e predittori, se presenti);
+- la scelta della prior, in forma parametrica e con relativa giustificazione;
+- sintesi della posterior di $\lambda$ (mediana, intervallo di credibilità al 95%, eventuali confronti con valori di riferimento);
+- risultati dei *posterior predictive checks*, con commento degli eventuali scostamenti;
+- indicazioni su limiti emersi (es. segnali di over-dispersione residua) e possibili estensioni del modello.
 
 
 ::: {.callout-tip title="Esercizio" collapse="true"}

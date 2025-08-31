@@ -15,11 +15,11 @@ n questo capitolo affrontiamo un primo esempio di modellazione con Stan, il ling
 
 ### Panoramica del capitolo {.unnumbered .unlisted}
 
-- Introdurre il modello di Poisson per dati di conteggio.  
-- Specificare una distribuzione a priori Gamma coniugata.  
-- Implementare il modello in Stan e stimare i parametri con MCMC. 
-- Confrontare i risultati con la soluzione analitica Gamma–Poisson.  
-- Applicare il modello a un dataset reale sulle sparatorie mortali negli Stati Uniti.
+- Capire *quando* usare un modello di Poisson (conteggi non negativi, tendenzialmente rari, indipendenti dato il tasso).
+- Scrivere un modello in Stan con *parametri su scala naturale* (qui: `lambda` come tasso medio).
+- Impostare *prior debolmente informative* su `lambda` o sul suo log (per mantenere positività e stabilità numerica).
+- Eseguire stima MCMC con `cmdstanr` e leggere i diagnostici di convergenza.
+- Fare *posterior predictive checks* (PPC) per valutare l'adeguatezza del modello.
 
 ::: {.callout-note collapse=true title="Perché questo esempio?"}
 In questo capitolo non vogliamo solo calcolare una media dal campione, ma imparare a:
@@ -209,7 +209,7 @@ fit <- mod$sample(
 
 Una volta che Stan ha terminato il campionamento, otteniamo migliaia di valori possibili di $\lambda$, campionati dalla distribuzione a posteriori. Questi valori ci permettono di “vedere” la distribuzione a posteriori invece di calcolarla solo con una formula.
 
-<span class="sottopasso">1. Estraiamo i campioni di $\lambda$</span>
+#### Estraiamo i campioni di $\lambda$
 
 Estraiamo i valori campionati di λ dalla posterior. L'oggetto `draws` restituisce tutti i campioni MCMC, noi qui selezioniamo solo il parametro `lambda`:
 
@@ -230,7 +230,7 @@ length(lambda_samples)
 head(lambda_samples)
 ```
 
-<span class="sottopasso">2. Calcoliamo i parametri della distribuzione posteriore teorica<span>
+#### Calcoliamo i parametri della distribuzione posteriore teorica
 
 Dato che in questo caso abbiamo una *posterior coniugata*, conosciamo la formula esatta della distribuzione a posteriori (Gamma). Ci serve per confrontarla con i campioni generati da Stan:
 
@@ -239,7 +239,7 @@ alpha_post <- alpha_prior + sum(y)   # nuovo parametro shape
 beta_post  <- beta_prior + N         # nuovo parametro rate
 ```
 
-<span class="sottopasso">3. Confrontiamo i due risultati (MCMC vs formula)<span>
+#### Confrontiamo i due risultati (MCMC vs formula)
 
 Creiamo un grafico che mostri l’istogramma dei campioni ottenuti con Stan (in *azzurro*) e la curva della distribuzione Gamma calcolata analiticamente (in *rosso*).
 
@@ -249,13 +249,11 @@ ggplot(data.frame(lambda = lambda_samples), aes(x = lambda)) +
   geom_histogram(
     aes(y = after_stat(density)),
     bins = 50,
-    fill = okabe_ito["sky"],
     alpha = 0.7
   ) +
   # Curva teorica Gamma con parametri aggiornati
   stat_function(
     fun = function(x) dgamma(x, shape = alpha_post, rate = beta_post),
-    color = okabe_ito["vermillion"],
     linewidth = 1.2
   ) +
   labs(
@@ -277,7 +275,7 @@ Se le due coincidono (entro piccole fluttuazioni casuali), significa che Stan ha
 
 Un grande vantaggio dell’approccio bayesiano è che non otteniamo solo una stima puntuale di $\lambda$, ma una *distribuzione completa dei valori plausibili*. Da questa distribuzione possiamo ricavare un *intervallo di credibilità*: un intervallo che contiene, ad esempio, il 94% o il 95% della massa a posteriori.
 
-<span class="sottopasso">1. Calcoliamo i quantili della distribuzione<span>
+#### Calcoliamo i quantili della distribuzione
 
 Calcoliamo i quantili al 3%, 50% (mediana) e 97%: 
 
@@ -290,7 +288,7 @@ cred_interval
 * i valori al *3% e 97%* delimitano un intervallo centrale che contiene il 94% della distribuzione.
 
 
-<span class="sottopasso">2. Interpretazione dei risultati<span>
+#### Interpretazione dei risultati
 
 I risultati ottenuti indicano che:
 
@@ -347,8 +345,9 @@ Come spiegato [qui](https://github.com/washingtonpost/data-police-shootings), i 
 
 *Obiettivo.* Stimare, per il periodo 2015–*ultimo anno completo disponibile*, il *tasso medio annuo* e l’*incertezza* associata. Poiché il *2025* è incompleto, lo escludiamo.
 
+### Svolgimento con R
 
-### Importazione e pre-processing dei dati
+#### Importazione e pre-processing dei dati
 
 ```{r}
 # URL del dataset
@@ -378,7 +377,7 @@ print(year_counts)
 ```
 
 
-### Modello di Poisson (pooling completo)
+#### Modello di Poisson (pooling completo)
 
 Assumiamo $y_t \sim \text{Poisson}(\lambda)$ con $\lambda$ costante sul periodo:
 
@@ -389,7 +388,7 @@ $$
 Il supporto di $\lambda$ è $[0,\infty)$. Si noti che abbiamo considerato i dati come iid. Guardando la serie temporale, però, è ovvio che le cose non stanno così: i valori aumentano nel tempo.
 
 
-### Prior
+#### Prior
 
 Usiamo una *prior coniugata Gamma* su $\lambda$, scelta in modo *debolmente informativo*. Un’ipotesi ragionevole (da verificare e discutere in aula) è una media a priori di *600* eventi/anno, con *deviazione standard 200*. In termini Gamma(shape, rate):
 
@@ -411,10 +410,7 @@ set.seed(2)
 x_draws <- rgamma(50000, shape = k, scale = theta)
 
 ggplot(data.frame(x = x_draws), aes(x = x)) +
-  geom_histogram(
-    bins = 30, color = "white", fill = rinascimentale_primaria["seppia_scuro"],
-    alpha = 0.5
-    ) +
+  geom_histogram(bins = 30) +
   labs(
     x = "Tasso (eventi/anno)",
     y = "Frequenza",
@@ -423,7 +419,7 @@ ggplot(data.frame(x = x_draws), aes(x = x)) +
 ```
 
 
-### Modello di Poisson con Stan
+#### Modello di Poisson con Stan
 
 Qui stimiamo $\lambda$ assumendo lo *stesso tasso* per tutti gli anni (pooling completo). Con prior Gamma in *parametrizzazione (shape, rate)*:
 
@@ -533,7 +529,7 @@ bayesplot::mcmc_trace(fit$draws("lambda")) +
 ```
 
 
-### Derivazione analitica (Gamma–Poisson)
+#### Derivazione analitica (Gamma–Poisson)
 
 Con prior $\lambda \sim \text{Gamma}(\alpha,\beta)$ e dati $y_1,\dots,y_n$ i.i.d. Poisson($\lambda$), il posteriore è:
 

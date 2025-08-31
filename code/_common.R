@@ -86,7 +86,7 @@ detect_renaissance_fonts <- function() {
   # Primary serif fonts matching CSS
   primary_serif <- c(
     "Palatino",
-    "Palatino nova W1G",
+    "Palatino nova Pro",
     "ETBook",
     "EB Garamond",
     "TeX Gyre Pagella",
@@ -97,7 +97,7 @@ detect_renaissance_fonts <- function() {
   secondary_serif <- c(
     "Book Antiqua",
     "URW Palladio L",
-    "Adobe Jenson Pro", # Mentioned in CSS
+    "Adobe Jenson Pro",
     "Georgia"
   )
 
