@@ -1,28 +1,49 @@
-# Analisi delle decisioni {#sec-decision-analysis}
+# Decisione ottimale e utilità attesa: l’approccio bayesiano {#sec-decision-analysis}
 
-::: callout-important
-## Obiettivi di apprendimento
-
-Al termine di questo capitolo, sarai in grado di:
-
-- Descrivere le quattro fasi dell’analisi decisionale bayesiana e applicarle a un caso concreto.  
-- Definire lo spazio delle decisioni e degli esiti in un problema pratico.  
-- Modellare la distribuzione predittiva degli esiti a partire da dati empirici.  
-- Formulare e interpretare una funzione di utilità, spiegando il significato del parametro λ.  
-- Calcolare l’utilità attesa di diverse opzioni usando simulazioni dalla distribuzione predittiva posteriore.  
-- Identificare la decisione ottimale in base all’utilità attesa e alla probabilità di optimalità.  
-- Riconoscere i limiti del modello lineare e proporre estensioni per scenari più realistici.  
-::: 
-
-
-::: callout-tip
-## Prerequisiti
-
-- Per un'introduzione alla *loss function*, si rimanda al capitolo *Sampling the Imaginary* di *Statistical Rethinking* [@McElreath_rethinking]. 
+::: {.epigraph}
+> “In the Bayesian view of optimality, good rules minimize posterior expected loss.”
+>
+> -- **A. N. Smith**, Notes on Bayesian Decision Theory (2021)
 :::
 
-::: callout-caution
-## Preparazione del Notebook
+## Introduzione {.unnumbered .unlisted}
+
+<p class="capo">
+  <span class="capo-initial" data-bg="1">L' </span>
+analisi decisionale bayesiana offre un approccio strutturato per affrontare le scelte in condizioni di incertezza. L’idea di fondo è semplice: ogni alternativa possibile genera diversi esiti, ciascuno con una certa probabilità e con un valore associato in termini di utilità (quanto è desiderabile) o di perdita (quanto è costoso). La decisione migliore è quella che massimizza l’utilità attesa, oppure minimizza la perdita attesa, tenendo conto della distribuzione predittiva degli esiti.
+</p>
+
+In questo capitolo applicheremo questo quadro teorico a un problema vicino all’esperienza degli studenti di psicologia: la scelta del metodo di studio. Considereremo tre possibili strategie, che si differenziano per impegno richiesto ed efficacia prevista:
+
+1. **Metodo classico**: studio individuale su testi ed esercizi, senza supporti interattivi.
+2. **Metodo di gruppo**: lo stesso approccio classico, arricchito da discussioni in piccoli gruppi per chiarire e consolidare i contenuti.
+3. **Metodo con AI tutor**: studio su testi integrato con spiegazioni alternative, chat interattiva ed esercizi generati automaticamente da un tutor basato su intelligenza artificiale.
+
+Gli esiti che ci interessano sono due: il voto d’esame ($g \in [0,100]$) e le ore di studio necessarie ($h \geq 0$). Entrambi sono caratterizzati da incertezza, legata sia alle differenze individuali (abilità, motivazione, stile di apprendimento), sia alla variabilità intrinseca del processo di studio.
+
+Il framework bayesiano ci consentirà di stimare la distribuzione congiunta di $(g,h)$ per ciascun metodo, di combinare voto e tempo in un’unica misura tramite una funzione di utilità. Per la discussione presente scegliamo la seguente funzione:
+
+$$
+U(g,h;\lambda) = g - \lambda h,
+$$
+dove $\lambda \geq 0$ indica quanto “costa” un’ora di studio in termini di punti di voto. In questo modo potremo calcolare l’utilità attesa di ciascun metodo, integrando l’incertezza attraverso simulazioni, e infine identificare l’opzione che ha maggiore probabilità di rappresentare la scelta ottimale.
+
+
+### Panoramica del capitolo {.unnumbered .unlisted}
+
+- Le quattro fasi dell’analisi decisionale bayesiana.  
+- Modellare la distribuzione predittiva degli esiti.  
+- Formulare e interpretare una funzione di utilità.  
+- Identificare la decisione ottimale.  
+- Limiti del modello lineare.  
+
+::: {.callout-tip collapse=true}
+## Prerequisiti
+
+- Per un'introduzione alla loss function, si rimanda al capitolo Sampling the Imaginary di Statistical Rethinking [@McElreath_rethinking]. 
+:::
+
+::: {.callout-caution collapse=true title="Preparazione del Notebook"}
 
 ```{r}
 #| output: false
@@ -35,204 +56,113 @@ pacman::p_load(brms, posterior, loo, cmdstanr, stringr, tidyr)
 ```
 :::
 
+## Schema in quattro passi
 
-## Introduzione {.unnumbered .unlisted}
+Seguendo l’impostazione proposta da @gelman1995bayesian, l’analisi decisionale bayesiana si articola in quattro fasi: definizione del problema, modellazione degli esiti, specificazione della funzione di utilità e scelta della decisione ottimale. Nel nostro caso, queste fasi vengono applicate alla scelta del metodo di studio.
 
-L’*analisi decisionale bayesiana* è un modo per scegliere in condizioni di incertezza: si prevedono gli esiti possibili, si assegna a ciascuno un punteggio di *utilità* (quanto è desiderabile) o di *perdita* (quanto è costoso), e si sceglie l’alternativa che *massimizza l’utilità attesa* (equivalente a minimizzare la perdita attesa) rispetto alla *distribuzione predittiva* degli esiti.
+**1. Definizione delle alternative e degli esiti**
+Le decisioni possibili sono tre: metodo classico, studio di gruppo e AI tutor. Ogni decisione porta a due esiti di interesse: il voto d’esame $g$ (tra 0 e 100) e le ore di studio $h$ (con $h \geq 0$).
 
-In questo capitolo applicheremo il metodo al problema, concreto per gli studenti di psicologia, della *scelta del metodo di studio*. Metteremo a confronto tre opzioni, che differiscono per impegno richiesto ed efficacia prevista:
+**2. Modellazione della distribuzione predittiva**
+Per descrivere la variabilità dei risultati usiamo un modello gerarchico stimato da dati storici (ad esempio, i registri di studenti dell’anno precedente). Assumiamo che le ore di studio seguano una distribuzione lognormale, adatta a variabili non negative e asimmetriche, mentre il voto dipende dalle ore in modo sublineare, riflettendo rendimenti decrescenti: inizialmente ogni ora extra produce un buon guadagno, ma col tempo l’effetto si attenua.
 
-* *Metodo classico*: studio su testi + esercizi; nessun supporto interattivo.
-* *Metodo di gruppo*: come il classico, più discussioni in piccoli gruppi per chiarire e consolidare.
-* *Metodo con AI tutor*: studio su testi integrato con spiegazioni alternative, chat interattiva e esercizi aggiuntivi generati dal tutor.
-
-Valuteremo ogni metodo in base a due esiti: *voto d’esame* $g \in [0,100]$ e *ore di studio* $h \ge 0$. Entrambi sono incerti e variano per differenze individuali (abilità, stile, motivazione) e per la naturale variabilità del processo di apprendimento.
-
-Il quadro bayesiano ci consente di:
-
-1. *Stimare* per ciascun metodo la *distribuzione predittiva* congiunta di $(g, h)$ a partire da dati (anche storici).
-2. *Combinare* voto e tempo in un unico numero tramite una *funzione di utilità*, ad es.
-
-   $$
-   U(g,h;\lambda) = g - \lambda\,h,
-   $$
-
-   dove $\lambda \ge 0$ esprime *quanto “pesa” un’ora* in termini di punti di voto (il *tasso di scambio* tra voto e tempo).
-3. *Calcolare l’utilità attesa* di ogni metodo integrando l’incertezza sui parametri e sugli esiti (via simulazione).
-4. *Selezionare* il metodo con utilità attesa più alta e quantificare *quanto è probabile* che sia la scelta migliore.
-
-
-## Schema in quattro passi  
-
-Secondo l’impostazione proposta da @gelman1995bayesian, l’*analisi decisionale bayesiana* può essere strutturata in quattro fasi fondamentali. Di seguito, adattiamo tale schema al contesto in esame.  
-
-**1. Definizione degli spazi delle decisioni e degli esiti.**  
-
-Siano:  
-
-- $D$ l’insieme delle *decisioni possibili*, corrispondenti alla scelta tra tre metodi di studio:  
-  $$  
-  D = \{1, 2, 3\} \equiv \{\text{metodo classico}, \text{AI tutor}, \text{studio di gruppo}\}.  
-  $$  
-- $X$ l’insieme degli esiti, rappresentati da una coppia $(g, h)$, dove:  
-  - $g$ è il voto d’esame (scalato tra 0 e 100 per convenienza);  
-  - $h$ è il numero di ore di studio impiegate ($h \geq 0$).  
-  Formalmente, lo spazio degli esiti è definito come $X = \mathbb{R} \times \mathbb{R}_+$.  
-
-**2. Modellazione della distribuzione predittiva degli esiti.**  
-
-La distribuzione degli esiti, condizionata alla decisione $d$, viene modellata attraverso una specificazione congiunta delle componenti $H$ (ore) e $G$ (voto):  
-
-$$  
-\begin{aligned}  
-H \mid d &\sim \mathrm{Lognormale}\big(\mu^{(h)}_{d}, \sigma^{(h)}_{d}\big), \\  
-G \mid H, d &\sim \mathrm{Normale}\!\Big(\alpha_{d} + \beta_{d}\,\log(1+H),\ \sigma_g\Big).  
-\end{aligned}  
-$$  
-
-Giustificazione delle scelte modellistiche:
-
-- la distribuzione *lognormale* per $H$ garantisce valori non negativi e cattura l’asimmetria tipicamente osservata nella distribuzione dei tempi di studio;  
-- la relazione tra $G$ e $H$ è modellata in modo da riflettere *rendimenti marginali decrescenti*: l’effetto delle ore di studio sul voto è positivo ma sublineare, come suggerito dal termine $\log(1+H)$;  
-- i parametri $\theta = (\mu^{(h)}_{1:3}, \sigma^{(h)}_{1:3}, \alpha_{1:3}, \beta_{1:3}, \sigma_g)$ vengono stimati a partire da dati storici (ad esempio, registri di 300 studenti dell’anno precedente, comprendenti metodo di studio adottato, ore dedicate e voto ottenuto).  
-
-
-**3. Specificazione della funzione di utilità.**
-
-Vogliamo un numero unico che riassuma *quanto è “buona”* una certa combinazione di risultati: voto all’esame $g$ (0–100) e ore di studio $h$ (≥ 0). L’idea è premiare voti più alti e penalizzare più ore.
-
-Una scelta semplice è:
+**3. Funzione di utilità**
+Per confrontare i metodi su un’unica scala, combiniamo voto e ore in una funzione di utilità lineare:
 
 $$
-U(g,h;\lambda) \;=\; g \;-\; \lambda\,h, \qquad \lambda \ge 0.
+U(g,h;\lambda) = g - \lambda h,
 $$
+dove $\lambda$ esprime quanto pesa il tempo rispetto al voto. Ad esempio, con $\lambda=0$ conta solo il voto, mentre con $\lambda=2$ ogni ora di studio “costa” due punti d’esame.
 
-* $U$ è l’*utilità*: più è grande, meglio è.
-* $g$ è il *voto*.
-* $h$ sono le *ore di studio*.
-* $\lambda$ dice *quanto “vale” un’ora di studio in punti di voto* (cioè quanti punti sei disposto a “barattare” per risparmiare 1 ora).
-
-**Come leggere $\lambda$:**
-
-* $\lambda = 0$: *il tempo non pesa*. Conta solo alzare il voto.
-* $\lambda = 1$: *1 ora costa 1 punto*. Risparmiare 3 ore vale come guadagnare 3 punti.
-* $\lambda = 0.5$: *2 ore costano 1 punto*. Risparmiare 2 ore “vale” come +1 punto.
-* $\lambda$ grande (es. 2): il tempo è molto prezioso: 1 ora “vale” 2 punti.
-
-> In pratica, $\lambda$ fissa il *tasso di scambio* tra voto e ore. È una manopola che l’utente (studente/docente) sceglie per dire quanto pesa la fatica/tempo rispetto al voto.
-
-**Esempi.**
-
-Con $\lambda=0.5$ (2 ore ≈ 1 punto):
-
-* Piano A: $g=88$, $h=28$ ⇒ $U=88-0.5\cdot28=88-14=74$
-* Piano B: $g=85$, $h=20$ ⇒ $U=85-0.5\cdot20=85-10=75$
-  → *B è preferito* (75 > 74): qualche punto in meno, ma molte ore risparmiate.
-
-Se $\lambda=0$ (il tempo non conta):
-
-* A: $U=88$ ; B: $U=85$ → *A vince* (conta solo il voto).
-
-
-**4. Scelta della decisione ottimale.**  
-
-La *decisione bayesiana ottimale* $d^*$ è quella che massimizza l’*utilità attesa predittiva*:  
-
-$$  
-d^* = \arg\max_{k \in \{1,2,3\}} \mathbb{E}\!\left[U(G, H; \lambda) \mid d = k, \text{dati}\right].  
-$$  
-
-In un contesto bayesiano, tale valore atteso viene calcolato integrando sia sull’*incertezza parametrica* (distribuzione a posteriori dei parametri) sia sulla *variabilità predittiva* degli esiti. Operativamente, questa integrazione è implementata mediante *simulazioni dalla distribuzione predittiva posteriore*.  
-
-
-## Esempio concreto: tre metodi di studio
-
-Immaginiamo di avere dati dell’anno scorso (per ogni studente: metodo usato, ore totali, voto). Con Stan stimiamo $p(H,G\mid d,\text{dati})$ come segue:
-
-* **Modello generativo**
-  $H\mid d \sim \text{Lognormal}(\mu^{(h)}_{d},\sigma^{(h)}_{d})$
-  $G\mid H,d \sim \text{Normal}(\alpha_d + \beta_d \log(1+H),\sigma_g)$
-
-* **Utilità**
-  $U(G,H;\lambda) = G - \lambda H$
-
-* **Calcolo dell’utilità attesa** (schema Monte Carlo):
-  per molti campioni $\theta^{(s)}\sim p(\theta\mid \text{dati})$:
-
-  1. generiamo $H^{(s)}\sim p(H\mid d=k,\theta^{(s)})$
-  2. generiamo $G^{(s)}\sim p(G\mid H^{(s)}, d=k, \theta^{(s)})$
-  3. calcoliamo $U^{(s)}_k=U(G^{(s)},H^{(s)};\lambda)$
-     L’*utilità attesa* per il metodo $k$ è la media $\frac{1}{S}\sum_s U^{(s)}_k$.
-     La decisione ottimale è il metodo con media più alta.
-     
-
-## Nota pratica su Stan 
-
-* nel blocco `model` si specificano le due componenti $H\mid d$ e $G\mid H,d$;
-* nel blocco `functions` si definisce $U(g,h;\lambda)$;
-* nel blocco `generated quantities` si generano, *per ciascun metodo*, una coppia $(\tilde H,\tilde G)$ e la corrispondente *utilità* `util[k]`.
-  La *media posteriore* di `util[k]` approssima l’*utilità attesa* del metodo $k$. Confrontando queste medie si ottiene la decisione.
-
-Nelle sezioni successive mostreremo il codice Stan minimale e uno script R che: i) stima il modello su dati simulati/reali, ii) calcola l’utilità attesa per i tre metodi al variare di $\lambda$, iii) visualizza la distribuzione predittiva dell’utilità e la *probabilità che ciascun metodo sia ottimale*.
+**4. Decisione ottimale**
+L’alternativa migliore è quella che massimizza l’utilità attesa, calcolata integrando l’incertezza sia sui parametri del modello sia sulla variabilità predittiva degli esiti. In pratica, questa integrazione si realizza tramite simulazioni dalla distribuzione predittiva posteriore, così da ottenere un confronto robusto tra le opzioni disponibili.
 
 
 ### Simulazione dei dati
 
+Per illustrare il funzionamento dell’analisi decisionale bayesiana, iniziamo simulando un dataset. Questo ci permette di sapere quali sono i “veri” parametri del mondo simulato e di verificare se il modello bayesiano riesce a recuperarli. Il campione simulato comprende 300 studenti, ciascuno assegnato casualmente a uno dei tre metodi di studio: classico, AI tutor e gruppo.
+
 ```{r}
 set.seed(123)
 
-# --- 1) Setup ---
+# Numero di studenti
 N <- 300
 method_names <- c("classico","AI","gruppo")
 d <- sample(1:3, N, replace = TRUE)
+```
 
-# --- 2) Parametri "di mondo" più distanzianti ma plausibili ---
-# Ore (H) ~ Lognormal(mu_h, sigma_h)
-#  - classico: poche ore
-#  - AI: ore moderate
-#  - gruppo: molte ore, più variabile
+Per rendere l’esempio più realistico, ipotizziamo che le *ore di studio* ($H$) seguano una distribuzione lognormale, che garantisce valori non negativi e una coda a destra (alcuni studenti studiano molto di più della media). Ogni metodo ha una diversa mediana e variabilità: il metodo classico richiede meno ore, l’AI tutor un impegno intermedio, e il gruppo più ore e con maggiore dispersione.
+
+```{r}
 mu_h_true    <- log(c(8,   12,  16))   # mediane circa: 8, 12, 16 ore
 sigma_h_true <- c(0.30, 0.40, 0.50)
+```
 
-# Voto G | H, d ~ Normal(alpha_d + beta_d * log1p(H), sigma_g)
-#  - AI: rendimento migliore (alpha e beta più alti)
-#  - gruppo: rendimento buono ma "caro" in ore
-#  - classico: rendimento più basso ma meno ore
+Il *voto d’esame* ($G$) dipende dalle ore di studio con rendimenti decrescenti, modellati tramite la funzione logaritmica. Ogni metodo ha parametri diversi: l’AI tutor è più efficace, il metodo di gruppo offre buoni risultati ma a caro prezzo in termini di ore, e il metodo classico è il meno performante.
+
+```{r}
 alpha_true    <- c(55,  64,  61)
 beta_true     <- c(5.5, 8.0, 6.5)
 sigma_g_true  <- 7
+```
 
-# Costo orario in punti-voto: leggermente più alto per aumentare la separazione
+Infine, specifichiamo il *costo orario* in termini di punti d’esame, fissato a $\lambda = 0.65$:
+
+```{r}
 lambda <- 0.65
+```
 
-# --- 3) Simula ore e voti ---
+Con questi ingredienti generiamo le osservazioni simulate:
+
+```{r}
 h  <- rlnorm(N, meanlog = mu_h_true[d], sdlog = sigma_h_true[d])
 mu <- alpha_true[d] + beta_true[d] * log1p(h)
 g  <- rnorm(N, mu, sigma_g_true)
-g  <- pmin(pmax(g, 0), 100)  # vincola in [0,100]
+g  <- pmin(pmax(g, 0), 100)  # vincola i voti in [0,100]
 ```
 
-```{r}
-# --- 4)  Controllo rapido: utilità "vera" per vedere la separazione ---
-u_true <- g - lambda * h
-df_sim <- data.frame(method = factor(method_names[d], levels = method_names),
-                     g = g, h = h, u = u_true)
+Calcoliamo poi l’*utilità vera* per ciascuno studente e verifichiamo come si distribuisce nei tre gruppi:
 
-# Densità utilità per metodo (controllo pre-Stan)
+```{r}
+u_true <- g - lambda * h
+df_sim <- data.frame(
+  method = factor(method_names[d], levels = method_names),
+  g = g, 
+  h = h, u = u_true
+)
+
 ggplot(df_sim, aes(x = u, fill = method)) +
   geom_density(alpha = 0.35) +
-  labs(x = "Utilità (G - λ H)", y = "Densità",
-       title = "Controllo simulazione: utilità 'vera' per metodo") 
+  labs(x = "Utilità", y = "Densità")
 ```
 
+Questo grafico mostra come, in base ai parametri scelti, i metodi producano distribuzioni diverse di utilità. È una prima verifica che il modello simulato genera differenze plausibili e interpretabili, prima di passare alla stima vera e propria con Stan.
+
+Prepariamo i dati per Stan:
+
 ```{r}
-# --- 5) Prepara i dati per Stan ---
 stan_data <- list(N = N, d = as.integer(d), h = h, g = g, lambda = lambda)
 glimpse(stan_data)
 ```
 
 
-### Definizione del modello Stan
+### Specificazione del modello Stan
+
+Il modello bayesiano viene implementato in Stan seguendo una struttura modulare che riflette le componenti concettuali del problema decisionale. La specificazione del codice procede attraverso i seguenti blocchi fondamentali:
+
+**Blocco delle funzioni**: definisce la funzione di utilità $U(g, h; \lambda) = g - \lambda h$, che combina voti e ore in un unico indice di preferenza.
+
+**Blocco dei dati**: dichiara le variabili osservate, tra cui il numero di osservazioni $N$, il metodo di studio scelto $d$, le ore di studio $h$, i voti ottenuti $g$ e il parametro di trade-off $\lambda$.
+
+**Blocco dei parametri**: include i parametri da stimare, specifici per ciascun metodo:
+
+- parametri della distribuzione lognormale per le ore di studio ($\mu_h$, $\sigma_h$),
+- coefficienti della relazione tra log(ore) e voto ($\alpha$, $\beta$),
+- deviazione standard residua del voto ($\sigma_g$).
+
+**Blocco del modello**: specifica le distribuzioni a priori debolmente informative e la verosimiglianza dei dati. Le ore seguono una distribuzione lognormale, mentre i voti sono modellati con una normale la cui media dipende dal logaritmo delle ore.
+
+**Blocco delle quantità generate**: simula valori predittivi per ore e voti per ciascun metodo, calcolando quindi l'utilità corrispondente. Queste simulazioni permettono di stimare l'utilità attesa e confrontare i metodi.
 
 ```{r}
 stancode <- "
@@ -289,88 +219,9 @@ generated quantities {
 "
 ```
 
+Il modello integra quindi tre componenti essenziali: (1) una funzione di utilità che sintetizza il trade-off tra risultati accademici e impegno temporale; (2) un meccanismo generativo che cattura la relazione tra ore di studio e performance; (3) simulazioni predittive che incorporano l'incertezza parametrica e la variabilità intrinseca degli esiti.
 
-Nel blocco `functions` di Stan, definiamo una funzione personalizzata `U` che quantifica l’utilità di un esito, combinando voto (`g`) e ore di studio (`h`) in un unico indice scalare:  
-
-```stan
-real U(real g, real h, real lambda) {
-  return g - lambda * h;
-}
-```
-
-*Parametri:* 
-
-- `g`: Voto d’esame (scala 0–100). Valori più alti indicano migliori risultati.  
-- `h`: Ore di studio dedicate. Valori più alti implicano un maggior "costo" temporale.  
-- `lambda`: Coefficiente che esprime il *trade-off* tra voto e tempo (es. λ = 0.5 ⇒ 2 ore "valgono" 1 punto di voto).  
-
-*Interpretazione:*  
-
-La funzione implementa il modello lineare $U(g, h) = g - \lambda h$ dove `g` (voto) contribuisce positivamente all’utilità e `h` (ore) contribuiscono negativamente, ponderate da `lambda`.  
-
-Il blocco `model` lega i dati osservati ai parametri del modello:  
-
-```stan
-for (n in 1:N) {
-  h[n] ~ lognormal(mu_h[d[n]], sigma_h[d[n]]);  // Ore ~ Lognormale
-  g[n] ~ normal(alpha[d[n]] + beta[d[n]] * log1p(h[n]), sigma_g);  // Voto ~ Normale
-}
-```
-
-*Spiegazione:*  
-
-- Ore di studio (`h`):  
-  - Modellate come lognormali per garantire positività (`h > 0`) e catturare asimmetria (coda lunga a destra).  
-  - Parametri specifici per metodo `d[n]`:  
-    - `mu_h[d[n]]`: Media logaritmica.  
-    - `sigma_h[d[n]]`: Deviazione standard logaritmica.  
-
-- Voto (`g`):  
-  - Modellato come normale con media dipendente dalle ore:  
-    - `alpha[d[n]]`: Voto base (intercetta).  
-    - `beta[d[n]]`: Effetto marginale delle ore (trasformate con `log1p` per rendimenti decrescenti).  
-  - `sigma_g`: Variabilità residua (comune a tutti i metodi).  
-
-*Nota:*
-
-- `log1p(h[n])` equivale a $\log(1 + h)$ e garantisce un effetto positivo ma decrescente delle ore sul voto.  
-
-
-Il blocco `generated quantities` genera scenari futuri e calcola l’utilità per ciascun metodo:  
-
-```stan
-for (k in 1:3) {
-  h_tilde[k] = lognormal_rng(mu_h[k], sigma_h[k]);          // 1. Simula ore
-  real mu_g = alpha[k] + beta[k] * log1p(h_tilde[k]);      // 2. Calcola voto atteso
-  g_tilde[k] = normal_rng(mu_g, sigma_g);                  // 3. Simula voto
-  util[k] = U(g_tilde[k], h_tilde[k], lambda);             // 4. Calcola utilità
-}
-```
-
-*Passaggi chiave:*
-
-1. Simulazione delle ore (`h_tilde`):  
-   - Campionamento da una lognormale con parametri stimati per il metodo `k`.  
-2. Calcolo del voto atteso (`mu_g`):  
-   - Usa la relazione stimata tra ore e voto (lineare in $\log(1+h)$).  
-3. Simulazione del voto (`g_tilde`):  
-   - Campionamento da una normale centrata su `mu_g` con variabilità `sigma_g`.  
-4. Calcolo dell’utilità (`util[k]`):  
-   - Applica la funzione `U` per valutare lo scenario simulato.  
-
-*Propagazione dell’incertezza:*  
-
-- Ogni iterazione MCMC usa parametri diversi (riflettendo l’incertezza posteriore).  
-- La variabilità intrinseca di `h_tilde` e `g_tilde` cattura l’eterogeneità negli esiti.
-
-I campioni generati in `generated quantities` permettono di:  
-
-1. Stimare l’utilità attesa per metodo:  
-   - Media posteriore di `util[k]` (es. `mean(util[1])` vs `mean(util[2])`).  
-2. Valutare la probabilità di optimalità:  
-   - Frequenza con cui `util[k]` è il massimo tra i 3 metodi.  
-3. Analizzare distribuzioni predittive:  
-   - Distribuzioni di `h_tilde`, `g_tilde`, e `util` per confrontare metodi.  
+Questa implementazione consente non solo di stimare i parametri del modello, ma anche di confrontare le alternative decisionali attraverso il calcolo dell'utilità attesa, fornendo così una base quantitativa solida per la scelta del metodo di studio ottimale.
 
 
 ### Compilazione ed esecuzione del modello  
@@ -404,28 +255,34 @@ Riepilogo dei parametri principali:
 print(fit$summary(c("mu_h","sigma_h","alpha","beta","sigma_g")))
 ```
 
-Estrai utilità generate:
+
+### Estrazione e analisi delle utilità predittive
+
+Dopo aver adattato il modello in Stan, estraiamo le *utilità predittive* per ciascun metodo. Queste derivano dalle simulazioni MCMC e incorporano sia l’incertezza sui parametri sia la variabilità intrinseca degli esiti.
 
 ```{r}
 method_names <- c("classico", "AI", "gruppo")
 
+# Estrazione della matrice delle utilità
 Umat <- fit$draws(variables = "util", format = "draws_matrix") |> 
   as.matrix()
-# Colonne sono "util[1]","util[2]","util[3]"
 colnames(Umat) <- method_names
 ```
 
-Utilità attese e metodo migliore:
+#### Utilità attesa e metodo ottimale
+
+Calcoliamo la media delle utilità per ciascun metodo e identifichiamo quello con valore più alto, cioè l’alternativa ottimale per il valore di $\lambda$ scelto.
 
 ```{r}
 U_means <- colMeans(Umat)
 U_means
 best_method <- names(U_means)[which.max(U_means)]
-cat("\nMetodo con utilità attesa maggiore (lambda =", stan_data$lambda, "):",
-    best_method, "\n")
+best_method
 ```
 
-Probabilità che ciascun metodo sia ottimale (per draw):
+#### Probabilità di optimalità
+
+Oltre al confronto delle medie, possiamo stimare la *probabilità che ciascun metodo sia davvero il migliore*. Questo si ottiene verificando, in ogni simulazione, quale metodo raggiunge l’utilità massima e calcolando le frequenze relative.
 
 ```{r}
 best_idx <- max.col(Umat, ties.method = "first")
@@ -433,7 +290,9 @@ p_opt <- prop.table(table(factor(best_idx, levels = 1:3, labels = method_names))
 p_opt
 ```
 
-Riepilogo e grafico delle distribuzioni predittive di utilità:
+#### Analisi delle distribuzioni
+
+Per avere un quadro completo non basta confrontare le medie: è utile osservare anche la forma delle distribuzioni delle utilità predittive. Possiamo calcolare statistiche descrittive e visualizzare le densità per ciascun metodo.
 
 ```{r}
 util_long <- as.data.frame(Umat) |>
@@ -450,281 +309,183 @@ util_sum <- util_long |>
             q50  = median(util),
             q95  = quantile(util, 0.95),
             .groups = "drop")
+
 util_sum
 ```
 
+#### Visualizzazione grafica
 
 ```{r}
 ggplot(util_long, aes(x = util, fill = method)) +
   geom_density(alpha = 0.4) +
-  labs(x = "Utilità predittiva (per draw)",
-       y = "Densità",
-       title = "Confronto delle distribuzioni predittive di utilità")
+  labs(x = "Utilità predittiva", y = "Densità") +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set1", name = "Metodo")
 ```
 
-Nel grafico, l’asse *x* mostra l’*utilità predittiva* calcolata per ogni *draw* MCMC, cioè per ogni scenario simulato nel blocco `generated quantities` del modello.
+### Interpretazione dei risultati
 
-Questi valori derivano dalla formula:
+Il grafico presenta la distribuzione dell'utilità predittiva associata a ciascun metodo di studio, calcolata mediante la relazione:
 
 $$
-U = G - \lambda H ,
+U = G - \lambda H
 $$
+dove $G$ rappresenta il voto ottenuto e $H$ le ore di studio investite. Valori elevati di utilità indicano combinazioni favorevoli caratterizzate da voti alti ottenuti con un impegno temporale contenuto, mentre valori ridotti segnalano esiti meno soddisfacenti, dovuti a performance modeste e/o a un elevato numero di ore dedicate.
 
-dove:
+L'analisi delle distribuzioni consente di valutare tre aspetti fondamentali. La *posizione centrale* dell'utilità (sintetizzata dalla media o dalla mediana) fornisce una stima del vantaggio atteso associato a ciascun metodo, indicando quale approccio tende a produrre i risultati più desiderabili in condizioni medie.
 
-* $G$ = voto simulato (0–100)
-* $H$ = ore di studio simulate ($\ge 0$)
-* $\lambda$ = costo di un’ora di studio espresso in punti di voto
+La *dispersione* della distribuzione riflette invece il grado di incertezza e variabilità negli esiti possibili. Una maggiore dispersione segnala che i risultati individuali possono discostarsi significativamente dal valore atteso, mentre una distribuzione più concentrata suggerisce outcomes più prevedibili.
 
-L’unità di misura dell’utilità è quindi *punti di voto “netti”*, già corretti per il “costo” del tempo di studio.
+Infine, la *sovrapposizione* tra le distribuzioni dei diversi metodi rivela in quali scenari le alternative producono risultati simili. Aree di sovrapposizione estesa indicano che la scelta tra metodi potrebbe essere meno netta in certe condizioni, mentre distribzioni ben separate suggeriscono differenze più marcate nelle performance attese.
 
-
-*Interpretazione intuitiva:*
-
-* *Utilità alta* → voto alto con poche ore, o tempo poco penalizzato dal valore di $\lambda$.
-* *Utilità bassa* → voto basso e/o molte ore, fortemente penalizzate da $\lambda$.
-
-Ogni punto della distribuzione corrisponde a:
-
-1. Un set di parametri campionato dalla *distribuzione a posteriori* $(\mu_h, \sigma_h, \alpha, \beta, \sigma_g)$
-2. Un paio di valori $(H, G)$ simulati da quel set di parametri
-
-In questo modo la distribuzione riflette *sia l’incertezza sui parametri* sia *la variabilità naturale degli esiti*.
+Questo approccio analitico supera la semplice identificazione del "miglior metodo in media" per considerare l'intero spettro di possibili esiti, offrendo così una valutazione completa che tiene conto tanto del valore atteso quanto dell'incertezza predittiva. 
 
 
-**Cosa osservare nel grafico:**
+### Analisi comparativa a parità di input
 
-* *Ampiezza*: quanta incertezza/variabilità c’è nell’utilità per quel metodo
-* *Posizione media*: utilità attesa → più a destra = metodo mediamente più vantaggioso
-* *Sovrapposizione*: quanta incertezza in comune → più sovrapposizione = scelta meno netta
+Per confrontare i tre metodi in modo intuitivo, possiamo considerare due scenari:
 
-
-**A parità di ore di studio.**
-
-Se confrontiamo i metodi mantenendo costanti le ore di studio ($H$), le differenze nell’utilità dipendono *solo* dal voto atteso ($G$) di ciascun metodo:
-
-* A parità di tempo, un voto più alto → utilità maggiore
-* Se due metodi danno lo stesso voto medio, ma uno richiede più ore, la penalizzazione $-\lambda H$ riduce la sua utilità
+1. fissiamo il tempo di studio ($H$) e confrontiamo quale metodo produce il voto atteso più alto;
+2. fissiamo invece un obiettivo di voto ($G\_0$) e vediamo quanto tempo richiede ciascun metodo per raggiungerlo.
 
 
-**Esempio numerico**
+#### Confronto a ore costanti
 
-Supponiamo $\lambda = 0.5$ (1 punto di voto “vale” 2 ore di studio) e $H = 12$ ore per tutti i metodi:
+Quando manteniamo costanti le ore di studio, l’unica differenza tra metodi riguarda la performance attesa ($G$). A parità di tempo, il metodo che garantisce un voto più alto produce anche un’utilità maggiore.
+
+Un esempio numerico lo chiarisce: con $\lambda = 0.5$ (due ore di studio equivalgono a un punto di voto) e $H=12$ ore per tutti:
 
 | Metodo   | Voto atteso $G$ | Ore $H$ | Utilità $U = G - \lambda H$ |
-| -------- | --------------- | ------- | --------------------------- |
-| Classico | 78              | 12      | $78 - 0.5\cdot 12 = 72$     |
-| AI       | 82              | 12      | $82 - 0.5\cdot 12 = 76$     |
-| Gruppo   | 79              | 12      | $79 - 0.5\cdot 12 = 73$     |
+| -------- | ----------------- | --------- | ----------------------------- |
+| Classico | 78                | 12        | 72                            |
+| AI       | 82                | 12        | 76                            |
+| Gruppo   | 79                | 12        | 73                            |
 
-Qui l’AI ottiene utilità maggiore **solo grazie** al voto più alto, a parità di ore.
-Se invece l’AI richiedesse più ore (es. 15), con lo stesso voto 82:
-
-$$
-U_{\text{AI}} = 82 - 0.5 \cdot 15 = 74.5
-$$
-
-resterebbe superiore al “classico” (72), ma con un margine ridotto.
-
-
-**Grafico a barre per ore fissate**
-
-Nel grafico seguente, fissiamo $H$ a valori specifici (8, 12, 16 ore) e confrontiamo l’utilità attesa per ogni metodo. Questo evidenzia come, a ore costanti, la differenza di utilità dipenda solo dal voto atteso:
+In questo scenario il metodo AI prevale. Tuttavia, se richiedesse più tempo (ad esempio 15 ore anziché 12), l’utilità si ridurrebbe a:
 
 ```{r}
-method_names <- c("classico","AI","gruppo")
-lambda <- stan_data$lambda  
-
-sum_ab <- fit$summary(variables = c("alpha","beta")) %>% select(variable, mean)
-alpha_hat <- sum_ab %>% filter(str_detect(variable, "^alpha\\[")) %>% arrange(variable) %>% pull(mean)
-beta_hat  <- sum_ab %>% filter(str_detect(variable, "^beta\\[")) %>% arrange(variable) %>% pull(mean)
-
-fixed_H <- c(8, 12, 16)
-
-df_H <- expand.grid(method = 1:3, H = fixed_H) %>%
-  as_tibble() %>%
-  mutate(
-    method_name = factor(method_names[method], levels = method_names),
-    G_hat = alpha_hat[method] + beta_hat[method] * log1p(H),
-    U_hat = G_hat - lambda * H
-  )
-
-ggplot(df_H, aes(x = factor(H), y = U_hat, fill = method_name)) +
-  geom_col(position = position_dodge(width = 0.75)) +
-  labs(x = "Ore fissate (H)",
-       y = "Utilità attesa U = Ĝ(H) - λ·H",
-       fill = "Metodo",
-       title = "A parità di ore di studio: confronto dell'utilità attesa") 
+G_AI <- 82
+H_AI <- 15
+lambda <- 0.5
+U_AI <- G_AI - lambda * H_AI
+U_AI
 ```
 
-**A parità di voto.** 
+Pur restando vantaggioso rispetto al metodo classico (72), il margine si ridurrebbe sensibilmente.
 
-Mostriamo, per alcuni target $G_0$ (es. 75, 80, 85), quante ore servono a ciascun metodo e l’utilità corrispondente $U = G_0 - \lambda H^\*$. Vince il metodo che richiede *meno ore* (penalità minore).
 
-* *A voto fissato*, la differenza di utilità deriva solo dalle *ore richieste*: meno ore ⇒ penalità minore ⇒ utilità più alta.
-* Il grafico rende visibile l’*efficienza* del metodo: per lo stesso traguardo $G_0$, quale metodo “costa” meno tempo?
+#### Confronto a voto costante
+
+Un’altra prospettiva è chiedersi quante ore servono per raggiungere un certo *voto obiettivo*. Questo ci permette di valutare l’efficienza temporale dei metodi.
+
+Partiamo stimando i parametri del modello e fissiamo tre obiettivi di voto:
 
 ```{r}
-# Estrai tutti i draw di alpha[ ] e beta[ ]
+# Estrazione dei parametri stimati
 pars <- c(paste0("alpha[",1:3,"]"), paste0("beta[",1:3,"]"))
 draws <- fit$draws(variables = pars, format = "draws_matrix") |> as.matrix()
 
+# Obiettivi di voto
 G_targets <- c(75, 80, 85)
-method_names <- c("classico","AI","gruppo")
+method_names <- c("classico", "AI", "gruppo")
+```
 
-# Funzione: ore richieste H* per un draw e un metodo
-Hreq_fun <- function(G0, alpha, beta){
+Calcoliamo quindi le ore richieste per ogni obiettivo:
+
+```{r}
+# Funzione: ore necessarie per raggiungere G0
+Hreq_fun <- function(G0, alpha, beta) {
   pmax(exp((G0 - alpha)/beta) - 1, 0)
 }
 
-out <- lapply(G_targets, function(G0){
-  # per ogni draw, calcola H* dei 3 metodi
-  Hreq_mat <- sapply(1:3, function(k){
-    alpha_k <- draws[, paste0("alpha[",k,"]")]
-    beta_k  <- draws[, paste0("beta[",k,"]")]
+# Calcoli su tutti i target e metodi
+out <- lapply(G_targets, function(G0) {
+  Hreq_mat <- sapply(1:3, function(k) {
+    alpha_k <- draws[, paste0("alpha[", k, "]")]
+    beta_k  <- draws[, paste0("beta[", k, "]")]
     Hreq_fun(G0, alpha_k, beta_k)
   })
   colnames(Hreq_mat) <- method_names
   as_tibble(Hreq_mat) |> mutate(G0 = G0, .draw = row_number())
 }) |> bind_rows()
-
-# Probabilità che AI richieda meno ore degli altri (per ogni G0)
-prob_AI_best <- out |>
-  group_by(G0) |>
-  summarize(
-    p_AI_lt_classico = mean(AI < classico),
-    p_AI_lt_gruppo   = mean(AI < gruppo),
-    p_AI_best        = mean(AI == pmin(AI, classico, gruppo)),
-    .groups = "drop"
-  )
-prob_AI_best
-
-# Riassunto delle H* (mediana e IQR)
-Hreq_summary <- out |>
-  pivot_longer(all_of(method_names), names_to = "metodo", values_to = "Hreq") |>
-  group_by(G0, metodo) |>
-  summarize(mediana = median(Hreq),
-            q25 = quantile(Hreq, .25),
-            q75 = quantile(Hreq, .75),
-            .groups = "drop")
-Hreq_summary
-
-# Versione con mediana per draw (più stabile)
-EU_G <- out |>
-  pivot_longer(all_of(method_names), names_to = "metodo", values_to = "Hreq") |>
-  mutate(U = G0 - stan_data$lambda * Hreq) |>
-  group_by(G0, metodo) |>
-  summarize(U_med = median(U), .groups = "drop")
-
-EU_G
 ```
+
+Riassumiamo i risultati con mediane e intervalli interquartili:
 
 ```{r}
-method_names <- c("classico","AI","gruppo")
-
-# Riepilogo H* (mediana e IQR) già calcolato in 'Hreq_summary'
-# Se non esiste ancora, ricrealo da 'out':
 Hreq_summary <- out |>
   pivot_longer(all_of(method_names), names_to = "metodo", values_to = "Hreq") |>
-  mutate(metodo = factor(metodo, levels = method_names)) |>
   group_by(G0, metodo) |>
-  summarize(mediana = median(Hreq),
-            q25 = quantile(Hreq, .25),
-            q75 = quantile(Hreq, .75),
-            .groups = "drop")
-
-# (1) Barre: ore necessarie H* per raggiungere G0 (mediana + IQR)
-ggplot(Hreq_summary, aes(x = factor(G0), y = mediana, fill = metodo)) +
-  geom_col(position = position_dodge(width = 0.8)) +
-  labs(x = "Voto fissato (G0)",
-       y = expression(paste("Ore necessarie ", H^"*")),
-       fill = "Metodo",
-       title = "A parità di voto: ore richieste per raggiungere G0")
+  summarize(
+    mediana = median(Hreq),
+    q25 = quantile(Hreq, 0.25),
+    q75 = quantile(Hreq, 0.75),
+    .groups = "drop"
+  )
 ```
 
-* Le *barre* mostrano la *mediana* su tutti i draw MCMC (incertezza parametrica).
-* A voto fissato $G_0$, vince il metodo con *H* più bassa (meno ore) e quindi *utilità residua* più alta.
+Visualizziamo i confronti:
+
+```{r}
+ggplot(Hreq_summary, aes(x = factor(G0), y = mediana, fill = metodo)) +
+  geom_col(position = position_dodge(width = 0.8)) +
+  geom_errorbar(aes(ymin = q25, ymax = q75),
+                position = position_dodge(width = 0.8),
+                width = 0.2) +
+  labs(x = "Voto obiettivo (G0)",
+       y = "Ore di studio necessarie\n(mediana con IQR)",
+       fill = "Metodo") 
+```
 
 
-## Limiti della funzione di utilità lineare e modelli avanzati
+### Interpretazione
 
-La funzione di utilità lineare  
+* *Efficienza a parità di ore*: il metodo AI tende a produrre voti più alti e quindi maggiore utilità, ma il vantaggio può ridursi se richiede più tempo.
+* *Efficienza a parità di voto*: i metodi che necessitano meno ore per raggiungere lo stesso obiettivo sono più efficienti; il grafico mostra chiaramente queste differenze.
+* *Incertezza*: gli intervalli interquartili (IQR) indicano che non c’è una separazione netta: alcuni studenti possono ottenere risultati simili con metodi diversi.
+
+In questo modo, il confronto tra metodi diventa più ricco: non ci fermiamo a dire “chi è il migliore”, ma vediamo *in quali condizioni* un metodo può risultare più vantaggioso.
+
+
+### Verso modelli più realistici: oltre la funzione di utilità lineare
+
+La funzione di utilità lineare qui adottata,
 
 $$
-U(g,h;\lambda) = g - \lambda h, \quad \lambda \geq 0  
-$$  
+U(g,h;\lambda) = g - \lambda h, \quad \lambda \geq 0,
+$$
+presenta il pregio di una notevole semplicità interpretativa: ogni ora di studio viene infatti associata a un "costo" costante, pari a $\lambda$ punti di voto. Tuttavia, questa formulazione poggia su due ipotesi semplificatrici che possono discostarsi dal comportamento effettivo degli studenti. In primo luogo, la linearità nel voto implica che il valore marginale di ciascun punto sia identico a qualsiasi livello della scala di valutazione, equiparando ad esempio il passaggio da 60 a 61 a quello da 90 a 91. In secondo luogo, la linearità nel tempo presuppone che il disagio associato a un'ora aggiuntiva di studio rimanga invariato, indipendentemente dal numero di ore già dedicate.
 
-rappresenta un modello di riferimento per la sua *semplicità* e *trasparenza interpretativa* ("1 ora di studio equivale a λ punti di voto"). Tuttavia, questa formulazione poggia su due ipotesi restrittive:  
+Queste assunzioni, sebbene utili in una fase introduttiva, possono risultare limitanti nel momento in cui si desideri cogliere la complessità delle preferenze individuali. È pertanto opportuno considerare alcune estensioni del modello in grado di conferirle maggiore realismo.
 
-1. **Linearità nel voto (g)**: il valore marginale di un punto è costante (es. 60→61 ≡ 90→91).  
-2. **Linearità nel tempo (h)**: il costo psicologico di un'ora aggiuntiva è indipendente dal carico di studio accumulato.  
+Una prima direzione di sviluppo riguarda l'introduzione di non linearità nella componente relativa al voto. È plausibile, ad esempio, che i voti presentino rendimenti decrescenti, per cui guadagnare punti in prossimità della sufficienza venga percepito come più rilevante che incrementare il punteggio in regioni già elevate della scala. Allo stesso modo, si potrebbero incorporare soglie minime al di sotto delle quali un esito viene considerato inaccettabile, indipendentemente dal tempo investito.
 
-Queste assunzioni possono risultare inadatte in contesti realistici. Esploriamo quindi alcune possibili estensioni del modello. 
+Anche la relazione tra utilità e tempo potrebbe essere arricchita per riflettere in modo più fedele l'esperienza soggettiva. La fatica associata allo studio tende infatti ad aumentare in modo non lineare con il numero di ore, suggerendo l'adozione di funzioni con esponente (quali $h^2$ o $h^{1.5}$) in grado di catturare questa progressione.
 
+Ulteriori aspetti rilevanti includono il ruolo degli obiettivi personali, poiché gli studenti potrebbero mostrare avversione alle perdite, attribuendo un peso maggiore al mancato raggiungimento di un traguardo rispetto al superamento dello stesso. Allo stesso modo, la gestione del rischio e dell'incertezza merita particolare attenzione: alcuni individui potrebbero preferire metodi che offrono risultati più stabili, anche se meno brillanti in media, richiedendo quindi di considerare non solo il valore atteso dell'utilità ma anche la sua variabilità o il suo comportamento in scenari sfavorevoli.
 
-### Come rendere il modello più realistico
+Infine, è importante riconoscere che il trade-off tra voto e tempo può variare notevolmente tra diversi profili di studenti, come nel caso di lavoratori part-time rispetto a studenti a tempo pieno. Modelli gerarchici consentono di stimare tale variabilità individuale preservando al contempo una struttura comune.
 
-1. **Utilità non lineare nel voto**
-
-   * *Rendimenti decrescenti*: un aumento da 60 a 65 è più “prezioso” che da 90 a 95 → funzioni come log(g) o √g.
-   * *Soglie*: sotto un certo voto minimo il risultato è inaccettabile, anche se richiede poco studio.
-
-2. **Utilità non lineare nel tempo**
-
-   * *Fatica crescente*: dopo molte ore, ogni ora extra “pesa” di più.
-   * Modelli con potenze (h², h¹·⁵) per catturare questo effetto.
-
-3. **Riferimenti e obiettivi personali**
-
-   * Un voto sotto il proprio target pesa più di quanto un voto sopra dia soddisfazione (avversione alle perdite).
-
-4. **Rischio e incertezza**
-
-   * Se i risultati sono incerti, non basta guardare la media: si può penalizzare la variabilità o ottimizzare scenari “pessimi” (es. percentile più basso atteso).
-
-5. **Preferenze diverse tra individui**
-
-   * Studenti con lavori part-time o carichi diversi possono avere λ personali → modelli gerarchici permettono di stimare questa variabilità.
-
-In sintesi,
-
-* un ricercatore può iniziare a verificare il modello lineare per la sua chiarezza;
-* poi verifica se i dati mostrano non linearità o effetti di rischio;
-* aggiunge complessità solo se serve, per migliorare realismo e capacità predittiva.
+Per un ricercatore che si accinga ad affrontare questo tipo di analisi, si raccomanda un approccio progressivo. È preferibile iniziare con il modello lineare, apprezzabile per la sua trasparenza e facilità di comunicazione, per poi verificare—attraverso un'attenta analisi esplorativa dei dati—l'eventuale presenza di non linearità o altri effetti complessi. Solo in seguito all'identificazione di tali pattern dovrebbe essere contemplata l'introduzione di complessità aggiuntive, sempre nel rispetto di un equilibrio tra realismo e interpretabilità dei risultati.
 
 
 ## Riflessioni conclusive {.unnumbered .unlisted}
 
-In questo capitolo abbiamo visto come l’analisi decisionale bayesiana permetta di integrare in un unico quadro:
+In questo capitolo abbiamo esplorato come l’analisi decisionale bayesiana offra un quadro coerente per integrare diverse componenti fondamentali: le previsioni sugli esiti, attraverso distribuzioni predittive che riflettono la nostra incertezza; la formalizzazione delle preferenze, mediante funzioni di utilità che quantificano la desiderabilità dei risultati; e infine un criterio di scelta razionale, rappresentato dalla massimizzazione dell’utilità attesa.
 
-* *previsioni sugli esiti* (distribuzione predittiva posteriore),
-* *preferenze esplicite* (funzione di utilità),
-* *criteri di scelta* (massimizzazione dell’utilità attesa).
+Abbiamo iniziato con un modello semplice, caratterizzato da una funzione di utilità lineare sia nel voto che nel tempo. Questa scelta, sebbene simplificata, si è rivelata preziosa per introdurre i concetti cardine del metodo: tradurre in valori numerici il grado di soddisfazione associato a diversi esiti, calcolare utilità attese che incorporino l'incertezza predittiva e confrontare in modo sistematico alternative complesse. Successivamente, abbiamo discusso come estendere questo modello per cogliere aspetti più realistici del processo decisionale, come la presenza di rendimenti decrescenti nel voto, costi marginali crescenti del tempo di studio, il ruolo degli obiettivi personali e l'avversione al rischio, nonché la possibile eterogeneità delle preferenze tra individui.
 
-Partendo da un modello semplice, con utilità lineare nel voto e nel tempo, abbiamo compreso come questa formulazione sia utile per introdurre i concetti fondamentali:
+Dal punto di vista applicativo, emerge con chiarezza il valore di un approccio incrementale. È consigliabile iniziare con un modello lineare semplice, che garantisce trasparenza e facilità di comunicazione, per poi verificare empiricamente—attraverso l'analisi dei dati—la validità delle sue assunzioni. Solo qualora emergano evidenze di non linearità, effetti soglia o sensibilità al rischio, ha senso considerare modelli più complessi, sempre mantenendo un attento equilibrio tra realismo e interpretabilità.
 
-* tradurre in numeri la desiderabilità di un esito,
-* calcolare e confrontare utilità attese,
-* tenere conto dell’incertezza nelle previsioni.
+Il vantaggio distintivo dell’approccio bayesiano risiede nella sua capacità di propagare in modo coerente tutte le fonti di incertezza—sui parametri del modello e sulla variabilità degli esiti—fino alla quantificazione dell'utilità attesa. Questo permette non solo di identificare l'opzione mediamente migliore, ma anche di valutare la robustezza di questa conclusione, esprimendo ad esempio la probabilità che una data alternativa sia da preferire.
 
-Abbiamo poi discusso *estensioni più realistiche*, che possono catturare aspetti psicologici ed empirici complessi: rendimenti decrescenti, costi crescenti nel tempo, obiettivi personali, avversione al rischio e differenze individuali nei parametri.
+In definitiva, l’analisi decisionale bayesiana si configura non solo come una tecnica per supportare scelte ottimali in condizioni di incertezza, ma anche come una metodologia per rendere esplicito, trasparente e criticabile il processo attraverso cui valutiamo e confrontiamo le alternative a nostra disposizione.
 
-Dal punto di vista pratico, il flusso di lavoro suggerito è:
-
-1. *Iniziare semplice*: un modello lineare è trasparente e facile da comunicare.
-2. *Verificare le assunzioni* sui dati: se emergono non linearità o effetti di rischio, valutare modelli più ricchi.
-3. *Aggiungere complessità solo se necessaria*, bilanciando realismo e interpretabilità.
-
-Il vantaggio dell’approccio bayesiano è la capacità di *propagare l’incertezza* — sia sui parametri sia sugli esiti — fino alla decisione finale. Ciò consente di quantificare non solo *quale* opzione è in media la migliore, ma anche *quanto siamo sicuri* di questa scelta.
-
-In sintesi, l’analisi decisionale bayesiana non è solo uno strumento per “fare la scelta giusta”, ma un metodo per rendere *esplicito, trasparente e verificabile* il processo con cui valutiamo e confrontiamo le alternative in condizioni di incertezza.
-
-
-## Informazioni sull'ambiente di sviluppo {.unnumbered .unlisted} 
-
+::: {.callout-note collapse=true title="Informazioni sull'ambiente di sviluppo"}
 ```{r}
 sessionInfo()
 ```
+:::
 
 ## Bibliografia {.unnumbered .unlisted}
 

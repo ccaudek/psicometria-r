@@ -6,7 +6,6 @@
 > -- **John W. Tukey**, Exploratory Data Analysis (1977)
 :::
 
-
 ## Introduzione {.unnumbered .unlisted}
 
 <p class="capo">
@@ -318,7 +317,7 @@ ggplot(df, aes(x = bdi)) +
     linewidth = 0.5
   ) +
   labs(
-    title = "Istogramma delle frequenze relative", 
+    title = "Frequenze relative", 
     x = "BDI-II", 
     y = "Densità"
   ) 
@@ -332,7 +331,7 @@ ggplot(df, aes(x = bdi)) +
     aes(y = after_stat(density))
   ) +
   labs(
-    title = "Istogramma delle frequenze relative", 
+    title = "Frequenze relative", 
     x = "BDI-II", 
     y = "Densità"
   )
@@ -419,9 +418,14 @@ p1 <- p +
 p2 <- p +
   geom_line(stat = "density", adjust = 2) +
   labs(subtitle = "Smoothing attenuato (adjust = 2)")
+```
 
-# Composizione coerente con patchwork
-p1 + p2
+```{r}
+p1
+```
+
+```{r}
+p2
 ```
 
 Per illustrare ulteriormente l’uso della KDE, ora consideriamo i punteggi BDI-II di  @zetsche_2019future. Con il codice seguente creiamo due curve di densità, una per ogni gruppo:
@@ -430,7 +434,7 @@ Per illustrare ulteriormente l’uso della KDE, ora consideriamo i punteggi BDI-
 ggplot(df, aes(x = bdi, fill = group)) +
   geom_density() +
   labs(
-    title = "Curva di densità (KDE) per i punteggi BDI-II",
+    title = "KDE per i punteggi BDI-II",
     x = "BDI-II",
     y = "Densità"
   )
@@ -476,7 +480,7 @@ ggplot(tmp, aes(x = height, y = density)) +
     alpha = 0.3
   ) +
   labs(
-    title = "Distribuzione dell'altezza nei maschi",
+    title = "Altezza dei maschi",
     subtitle = "Area evidenziata tra 65 e 68 pollici",
     x = "Altezza (in pollici)",
     y = "Densità"
@@ -501,7 +505,7 @@ heights |>
     alpha = 0.3
   ) +
   labs(
-    title = "Distribuzione stimata dell'altezza (maschi)",
+    title = "Distribuzione stimata dell'altezza",
     x = "Altezza (in pollici)",
     y = "Densità"
   )
@@ -592,7 +596,7 @@ I grafici a violino combinano le caratteristiche dei box plot e dei grafici di d
 ggplot(df, aes(x = group, y = bdi, fill = group)) +
   geom_violin() +
   labs(
-    title = "Violin plot con overlay dei punti grezzi",
+    title = "Violin plot",
     x = "Gruppo",
     y = "BDI-II"
   )
@@ -613,137 +617,6 @@ ggplot(df, aes(x = group, y = bdi, color = group)) +
   ) 
 ```
 
-
-### Raincloud Plot
-
-I grafici tradizionali, come i semplici istogrammi o i bar plot con barre d’errore, spesso non riescono a comunicare la vera natura dei dati. Queste rappresentazioni, sebbene intuitive, nascondono informazioni cruciali come la dispersione, la presenza di outlier o la forma della distribuzione. Per questo motivo, negli ultimi anni si è diffuso l’uso di visualizzazioni più ricche, tra cui il raincloud plot, che combina in un unico grafico i vantaggi di boxplot, violin plot e la rappresentazione dei dati grezzi [@spitzer2014boxplotr]. Di seguito mostriamo lo stesso dataset rappresentato con quattro approcci diversi.
-
-
-#### Bar plot con media e errore standard
-
-```{r}
-#| fig-width: 7
-#| out-width: 90%
-
-palette_group <- setNames(
-  c(okabe_ito["blue"], okabe_ito["vermillion"]),
-  c("ctl", "mdd")
-)
-
-# Assicura livelli ordinati
-df <- df |> mutate(group = factor(group, levels = c("ctl", "mdd")))
-
-# Helper: mean ± SE
-mean_se <- function(x, mult = 1) {
-  m  <- mean(x, na.rm = TRUE)
-  se <- stats::sd(x, na.rm = TRUE) / sqrt(sum(!is.na(x)))
-  data.frame(x = m, xmin = m - mult*se, xmax = m + mult*se)
-}
-
-ggplot(df, aes(y = group, x = bdi)) +
-  # "Barre" orizzontali come media (geom_col con stat='summary')
-  stat_summary(
-    fun = mean,
-    geom = "col",
-    aes(fill = group),
-    width = 0.6
-  ) +
-  # Barre d'errore: mean ± SE
-  stat_summary(
-    fun.data = mean_se,
-    fun.args = list(mult = 1),
-    geom = "errorbarh",
-    height = 0.2,
-    color = "black",
-    linewidth = 0.6
-  ) +
-  scale_fill_manual(values = palette_group, drop = FALSE) +
-  labs(
-    x = "BDI-II",
-    y = "Gruppo",
-    title = "(A) Media con errore standard (orizzontale)"
-  ) +
-  theme(plot.title = element_text(hjust = 0.5))
-
-```
-
-Il classico bar plot si limita a mostrare la media e l’errore standard. È molto diffuso, ma rischia di essere fuorviante perché non rivela la forma della distribuzione, eventuali asimmetrie o la presenza di valori anomali.
-
-
-#### Boxplot
-
-```{r}
-#| fig-width: 6
-#| out-width: 80%
-
-ggplot(df, aes(y = group, x = bdi, fill = group)) +
-  geom_boxplot(width = 0.5, outlier.size = 0.8) +
-  scale_fill_manual(values = palette_group, drop = FALSE) +
-  labs(
-    x = "BDI-II",
-    y = "Gruppo",
-    title = "(B) Boxplot (orizzontale)"
-  ) +
-  theme(plot.title = element_text(hjust = 0.5))
-```
-
-Il boxplot è un passo avanti: mostra mediana, quartili e valori estremi. Tuttavia rimane una rappresentazione sintetica che può non rendere pienamente l’idea della distribuzione complessiva.
-
-
-#### Violin plot
-
-```{r}
-#| fig-width: 6
-#| out-width: 80%
-
-ggplot(df, aes(y = group, x = bdi, fill = group)) +
-  geom_violin(trim = FALSE, width = 0.8) +
-  scale_fill_manual(values = palette_group, drop = FALSE) +
-  labs(
-    x = "BDI-II",
-    y = "Gruppo",
-    title = "(C) Violin plot (orizzontale)"
-  ) +
-  theme(plot.title = element_text(hjust = 0.5))
-```
-
-Il violin plot aggiunge un’informazione preziosa: la curva di densità, che consente di cogliere la forma della distribuzione (per esempio unimodale o bimodale). Manca però la rappresentazione puntuale dei dati osservati.
-
-
-#### Raincloud plot
-
-```{r}
-#| fig-width: 6
-#| out-width: 80%
-
-# if (!require(remotes)) {
-#     install.packages("remotes")
-# }
-# remotes::install_github('njudd/ggrain')
-library(ggrain)  # package dedicato per Raincloud plots
-
-ggplot(df, aes(x = group, y = bdi, fill = group)) +
-  geom_rain(
-    rain.side = "l",          # densità e punti sul lato sinistro
-    alpha = 0.6,              # trasparenza
-    boxplot.args = list(color = "black", outlier.shape = NA),
-    boxplot.args.pos = list(position = position_nudge(x = 0.1), width = 0.05),
-    violin.args = list(alpha = 0.5),
-    violin.args.pos = list(side = "r", width = 0.6, position = position_nudge(x = 0.2)),
-    point.args = list(size = 1, color = "black", alpha = 0.7),
-    point.args.pos = list(position = position_jitter(width = 0.02, height = 0))
-  ) +
-  coord_flip() +  # orienta orizzontalmente: categorie sull'asse Y, valori sull'asse X
-  scale_fill_manual(values = palette_group, drop = FALSE) +
-  labs(
-    x = "BDI-II",
-    y = "Gruppo",
-    title = "(D) Raincloud plot (orizzontale, con ggrain)"
-  ) +
-  theme(plot.title = element_text(hjust = 0.5), legend.position = "none")
-```
-
-Il raincloud plot integra tre elementi: una *nuvola* (densità, simile a un violin plot), una *pioggia* di punti che mostra i dati grezzi e un *boxplot orizzontale* che sintetizza le statistiche principali. Questa combinazione lo rende particolarmente utile nell’analisi esplorativa, perché permette di individuare a colpo d’occhio skewness, cluster e outliers, soprattutto nel confronto tra gruppi. Diversi studi, tra cui @weissgerber2015beyond e @weissgerber2019reveal, hanno dimostrato che visualizzazioni ricche come il *raincloud plot* riducono il rischio di interpretazioni errate.
 
 
 ## Riflessioni conclusive {.unnumbered .unlisted}

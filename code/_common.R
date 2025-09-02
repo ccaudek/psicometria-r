@@ -16,7 +16,7 @@ conflict_prefer("var", "stats")
 conflict_prefer("sd", "stats")
 conflict_prefer("filter", "dplyr")
 conflict_prefer("select", "dplyr")
-conflicts_prefer(stats::chisq.test)
+conflict_prefer("chisq.test", "stats")
 
 ## ─────────────────────────────────────────────────────────────────────
 ## 2. Pacchetti per analisi bayesiana
@@ -36,7 +36,7 @@ conflict_prefer("ess_tail", "posterior")
 options(
   brms.backend = "cmdstanr",
   mc.cores = parallel::detectCores(logical = FALSE),
-  posterior.num_args = list(digits = 2) # Increased precision for academic work
+  posterior.num_args = list(digits = 3) # Coordinato con CSS precision
 )
 
 ## ─────────────────────────────────────────────────────────────────────
@@ -49,206 +49,452 @@ library(ggdist)
 library(patchwork)
 
 ## ─────────────────────────────────────────────────────────────────────
-## 4. Stile tabelle (enhanced for classical typography)
+## 4. COORDINAZIONE COLORI E VARIABILI CSS
 ## ─────────────────────────────────────────────────────────────────────
-library(tinytable)
-options(
-  tinytable_format_num_fmt = "significant_cell",
-  tinytable_format_digits = 3, # Increased precision
-  tinytable_tt_digits = 3,
-  tinytable_theme = "void" # Minimal styling to match book aesthetic
+
+# Palette esatta dal CSS con conversione RGB precisa
+css_palette <- list(
+  # Colori principali dal :root CSS
+  paper_warm = "#fdfcf8", # --bs-body-bg
+  paper_cream = "#f8f6f0", # --paper-cream (per sfondi delicati)
+  text_primary = "#2d2926", # --bs-body-color (inchiostro seppia scuro)
+  text_secondary = "#5d5349", # --bs-secondary-color
+  text_muted = "#8b8680", # --bs-muted-color
+  accent_warm = "#8B4513", # --accent-warm (marrone sella)
+  accent_light = "#A0522D", # --accent-light (sienna per rubriche)
+
+  # Colori derivati per bordi e effetti
+  border_warm = "#2d292633", # color-mix(in srgb, #2d2926 20%, transparent)
+  border_light = "#2d29261f", # color-mix(in srgb, #2d2926 12%, transparent)
+  shadow_subtle = "#0000000a", # rgba(0, 0, 0, 0.03)
+
+  # Colori enhanced dal CSS avanzato
+  ink_primary = "#1a1611", # Deep warm black
+  ink_secondary = "#3d342a", # Warm dark brown
+  ink_tertiary = "#6b5b4a", # Medium brown
+  rubric_red = "#a0522d", # Sienna per enfasi
+  illumination_blue = "#4a5568" # Muted blue per accenti
 )
 
-## ─────────────────────────────────────────────────────────────────────
-## 5. Opzioni di stampa console (enhanced for readability)
-## ─────────────────────────────────────────────────────────────────────
-library(pillar)
-options(
-  pillar.negative = FALSE,
-  pillar.subtle = FALSE,
-  pillar.bold = TRUE,
-  pillar.width = Inf,
-  pillar.max_footer_lines = 2,
-  pillar.min_chars = 15,
-  tibble.width = Inf,
-  width = 72, # Golden ratio derived from 72ch CSS setting
-  scipen = 3, # Avoid scientific notation in most cases
-  digits = 4,
-  show.signif.stars = FALSE
-)
-
-## ─────────────────────────────────────────────────────────────────────
-## 6. Font detection with Renaissance hierarchy
-## ─────────────────────────────────────────────────────────────────────
-detect_renaissance_fonts <- function() {
-  available_fonts <- systemfonts::system_fonts()$family
-
-  # Primary serif fonts matching CSS
-  primary_serif <- c(
-    "Palatino",
-    "Palatino nova Pro",
-    "ETBook",
-    "EB Garamond",
-    "TeX Gyre Pagella",
-    "Palatino Linotype"
+# Funzione per convertire hex in RGB per mix-color CSS-like
+color_mix_rgb <- function(color1, color2, percentage) {
+  col1_rgb <- col2rgb(color1)[, 1]
+  col2_rgb <- col2rgb(color2)[, 1]
+  mixed_rgb <- round(
+    col1_rgb * (percentage / 100) + col2_rgb * (1 - percentage / 100)
   )
+  rgb(mixed_rgb[1], mixed_rgb[2], mixed_rgb[3], maxColorValue = 255)
+}
 
-  # Secondary classical alternatives
-  secondary_serif <- c(
-    "Book Antiqua",
-    "URW Palladio L",
-    "Adobe Jenson Pro",
+## ─────────────────────────────────────────────────────────────────────
+## 5. TIPOGRAFIA - Coordinazione con stack CSS
+## ─────────────────────────────────────────────────────────────────────
+
+# ── 5. TIPOGRAFIA - Selezione robusta del serif coerente col CSS ───────────────
+
+# Ritorna un family name ESATTO presente in systemfonts::system_fonts()
+locate_serif_family <- function() {
+  sf <- systemfonts::system_fonts()
+
+  # Elenco di preferenze (in ordine): personalizza come vuoi
+  prefer <- c(
+    "Palatino nova Pro", # tua prima scelta (se registrata)
+    "Palatino", # macOS: /System/Library/Fonts/Palatino.ttc
+    "Palatino Linotype", # spesso su Windows
     "Georgia"
   )
 
-  # Find best available font
-  found_primary <- primary_serif[primary_serif %in% available_fonts]
-  if (length(found_primary)) {
-    return(found_primary[1])
+  # normalizza per confronto case-insensitive
+  fams <- unique(sf$family)
+
+  for (p in prefer) {
+    hit <- fams[grepl(paste0("^", p, "$"), fams, ignore.case = TRUE)]
+    if (length(hit) > 0) return(hit[1])
   }
 
-  found_secondary <- secondary_serif[secondary_serif %in% available_fonts]
-  if (length(found_secondary)) {
-    return(found_secondary[1])
-  }
-
-  return("serif")
+  # fallback finale
+  "serif"
 }
 
-renaissance_serif <- detect_renaissance_fonts()
+# Se vuoi registrare manualmente Palatino nova Pro (se hai i file .ttf/.otf),
+# fallo QUI prima di chiamare locate_serif_family():
+# systemfonts::register_font(
+#   name = "Palatino nova Pro",
+#   plain = "/percorso/PalatinoNovaPro-Regular.ttf",
+#   italic = "/percorso/PalatinoNovaPro-Italic.ttf",
+#   bold = "/percorso/PalatinoNovaPro-Bold.ttf",
+#   bolditalic = "/percorso/PalatinoNovaPro-BoldItalic.ttf"
+# )
+
+renaissance_serif <- locate_serif_family()
+message("Font serif selezionato per i grafici: ", renaissance_serif)
+
 
 ## ─────────────────────────────────────────────────────────────────────
-## 7. Tema ggplot2 rinascimentale (enhanced to match CSS)
+## 6. TEMA GGPLOT2 - Perfetta integrazione con CSS
 ## ─────────────────────────────────────────────────────────────────────
-theme_rinascimentale <- function(
+
+theme_manuscript <- function(
   base_family = renaissance_serif,
-  base_size = 15.5
+  base_size = 16.5 # Coordinato con CSS font-size-root: 19px * 0.9
 ) {
+  # Calcolo delle dimensioni basato su scala CSS
+  scale_minor_third <- 1.2
+  scale_major_third <- 1.25
+  scale_perfect_fourth <- 1.333
+
   theme_minimal(base_size = base_size, base_family = base_family) %+replace%
     theme(
-      # Typography hierarchy matching CSS
+      # Sfondo coordinato esattamente con CSS
+      plot.background = element_rect(
+        fill = css_palette$paper_warm,
+        color = NA
+      ),
+      panel.background = element_rect(
+        fill = css_palette$paper_warm,
+        color = NA
+      ),
+
+      # Tipografia che replica la gerarchia CSS h1-h6
       plot.title = element_text(
+        family = base_family,
         face = "plain",
-        size = rel(1.25), # Slightly larger for prominence
-        margin = margin(b = 10),
-        color = "#2d2926", # --text-primary from CSS
-        family = base_family
+        size = base_size * scale_perfect_fourth^2, # h1-size equivalente
+        color = css_palette$text_primary,
+        margin = margin(b = 12),
+        lineheight = 1.2
       ),
 
       plot.subtitle = element_text(
+        family = base_family,
         face = "italic",
-        size = rel(0.95),
-        margin = margin(b = 12),
-        color = "#5d5349" # --text-secondary from CSS
-      ),
-
-      plot.caption = element_text(
-        size = rel(0.88),
-        face = "italic",
-        color = "#5d5349",
-        hjust = 0,
-        margin = margin(t = 12),
+        size = base_size * scale_major_third, # h2-size equivalente
+        color = css_palette$text_secondary,
+        margin = margin(b = 10),
         lineheight = 1.4
       ),
 
-      # Axis styling with classical proportions
+      plot.caption = element_text(
+        family = base_family,
+        size = base_size * 0.9, # Leggermente ridotto
+        face = "italic",
+        color = css_palette$text_muted,
+        hjust = 0,
+        margin = margin(t = 15),
+        lineheight = 1.5
+      ),
+
+      # Assi con colori CSS esatti
       axis.title = element_text(
-        size = rel(0.92),
-        color = "#2d2926",
-        margin = margin(t = 10),
-        face = "plain"
+        size = base_size * 0.95,
+        color = css_palette$text_primary,
+        family = base_family,
+        face = "plain",
+        margin = margin(8)
       ),
 
       axis.text = element_text(
-        size = rel(0.85),
-        color = "#5d5349",
+        size = base_size * 0.87,
+        color = css_palette$text_secondary,
         family = base_family
       ),
 
-      # Facet labels in small caps style
-      strip.text = element_text(
-        size = rel(0.9),
-        face = "plain",
-        color = "#2d2926",
-        margin = margin(8, 8, 8, 8)
-      ),
-
-      # Refined grid system matching hairline aesthetic
+      # Griglia che replica i bordi CSS
       panel.grid.minor = element_blank(),
       panel.grid.major = element_line(
-        linewidth = 0.2, # Slightly thicker for better visibility
-        color = "#00000020", # Softer than CSS version
+        color = css_palette$border_light,
+        linewidth = 0.3,
         linetype = "solid"
       ),
 
-      # Hairline borders matching CSS border colors
-      axis.line = element_line(
-        linewidth = 0.3,
-        color = "#00000035"
+      # Bordi panel coordinati con tabelle CSS
+      panel.border = element_rect(
+        fill = NA,
+        color = css_palette$border_warm,
+        linewidth = 0.5
       ),
 
-      axis.ticks = element_line(
-        linewidth = 0.25,
-        color = "#00000050"
+      # Facet che replica .callout/.figure styling
+      strip.background = element_rect(
+        fill = css_palette$paper_cream,
+        color = css_palette$border_warm,
+        linewidth = 0.3
       ),
 
-      axis.ticks.length = unit(4, "pt"),
+      strip.text = element_text(
+        size = base_size * 0.92,
+        color = css_palette$text_primary,
+        family = base_family,
+        face = "plain",
+        margin = margin(6, 8, 6, 8)
+      ),
 
-      # Legend styling for academic presentation
+      # Legenda con spaziatura CSS
       legend.position = "bottom",
       legend.justification = "center",
       legend.title = element_text(
         face = "plain",
-        size = rel(0.9),
-        color = "#2d2926"
+        size = base_size * 0.92,
+        color = css_palette$text_primary,
+        family = base_family
       ),
       legend.text = element_text(
-        size = rel(0.85),
-        margin = margin(r = 8)
+        size = base_size * 0.87,
+        color = css_palette$text_secondary,
+        family = base_family,
+        margin = margin(r = 10, t = 2, b = 2)
       ),
-      legend.spacing.y = unit(3, "pt"),
-      legend.margin = margin(t = 15),
+      legend.spacing.y = unit(4, "pt"),
+      legend.margin = margin(t = 18),
 
-      # Panel styling with warm paper background
-      panel.border = element_rect(
-        fill = NA,
-        color = "#e6e2d9", # Matching CSS warm border
+      # Asse con tick style CSS
+      axis.line = element_line(
+        color = css_palette$border_warm,
         linewidth = 0.4
       ),
 
-      plot.background = element_rect(
-        fill = "#fdfcf8", # --paper-warm from CSS
-        color = NA
-      ),
-
-      panel.background = element_rect(
-        fill = "#fdfcf8",
-        color = NA
-      ),
-
-      strip.background = element_rect(
-        fill = "#f8f6f0", # --paper-cream from CSS
-        color = "#e6e2d9",
+      axis.ticks = element_line(
+        color = css_palette$border_warm,
         linewidth = 0.3
       ),
 
-      panel.spacing = unit(12, "pt"),
+      axis.ticks.length = unit(5, "pt"),
 
-      # Title positioning for better hierarchy
+      # Spaziatura coordinata con CSS --space-*
+      panel.spacing = unit(15, "pt"), # --space-sm equivalente
+      plot.margin = margin(t = 25, r = 25, b = 20, l = 20),
+
+      # Posizionamento titoli
       plot.title.position = "plot",
-      plot.caption.position = "plot",
-
-      # Enhanced spacing for readability
-      plot.margin = margin(t = 20, r = 20, b = 15, l = 15)
+      plot.caption.position = "plot"
     )
 }
 
-# Apply theme globally
-theme_set(theme_rinascimentale())
+# Applica il tema globalmente
+theme_set(theme_manuscript())
+
+theme_set(theme_manuscript(base_family = renaissance_serif))
+
+# Forza il family di default del testo in ggplot (utile per geoms testuali)
+theme_update(text = element_text(family = renaissance_serif))
+
 
 ## ─────────────────────────────────────────────────────────────────────
-## 8. Opzioni knitr ottimizzate per il design rinascimentale
+## 7. PALETTE COLORI — Colorblind-safe e coerenti con il CSS
 ## ─────────────────────────────────────────────────────────────────────
+
+# NOTA: evitiamo il nero/nero-antico per i dati (lo teniamo per testi/assi se serve).
+# Base colorblind-safe (Okabe–Ito) + coerenza con i tuoi brand colors.
+# Ordine pensato per massimizzare distinguibilità in dicromatismo rosso–verde.
+
+palette_cb_main <- c(
+  blue = "#0072B2", # OI Blue
+  orange = "#E69F00", # OI Orange
+  sky = "#56B4E9", # OI Sky
+  purple = "#CC79A7", # OI Reddish purple
+  teal = "#009E73", # OI Bluish green (ok, ma evita confronti diretti col rosso saturo)
+  brand_blue = css_palette$illumination_blue, # tuo blu ardesia
+  sienna = css_palette$accent_light, # tua sienna (arancio/marrone)
+  grey = "#7F7F7F" # neutro al posto del nero
+)
+
+# Per retro-compatibilità con le tue funzioni scale_*_manuscript():
+manuscript_palette <- unname(palette_cb_main)
+
+# Scala monocromatica neutra (NO nero)
+sepia_scale <- c(
+  "#6B5B4A",
+  color_mix_rgb("#6B5B4A", css_palette$paper_warm, 75),
+  color_mix_rgb("#6B5B4A", css_palette$paper_warm, 85),
+  color_mix_rgb("#6B5B4A", css_palette$paper_warm, 92),
+  color_mix_rgb("#6B5B4A", css_palette$paper_warm, 97)
+)
+
+# Sequenziali (colorblind-safe)
+seq_blue_pal <- grDevices::colorRampPalette(c(
+  "#EAF3FB",
+  "#56B4E9",
+  "#1F5A89",
+  "#003B66"
+))
+seq_orange_pal <- grDevices::colorRampPalette(c(
+  "#FFF4DF",
+  "#F2C66A",
+  "#E69F00",
+  "#9A6A00"
+))
+
+# Divergente (blu ↔ arancio) con carta al centro
+div_blue_orange_pal <- grDevices::colorRampPalette(c(
+  "#0072B2",
+  css_palette$paper_warm,
+  "#E69F00"
+))
+
+# ── Scale wrapper (discrete) coerenti col tema ─────────────────────────
+scale_color_manuscript <- function(..., na.value = "#BFBFBF", drop = FALSE) {
+  ggplot2::scale_color_manual(
+    values = manuscript_palette,
+    ...,
+    na.value = na.value,
+    drop = drop
+  )
+}
+scale_fill_manuscript <- function(..., na.value = "#BFBFBF", drop = FALSE) {
+  ggplot2::scale_fill_manual(
+    values = manuscript_palette,
+    ...,
+    na.value = na.value,
+    drop = drop
+  )
+}
+
+# Sepia (discrete) per compatibilità API precedente
+scale_color_sepia <- function(..., na.value = "#BFBFBF", drop = FALSE) {
+  ggplot2::scale_color_manual(
+    values = sepia_scale,
+    ...,
+    na.value = na.value,
+    drop = drop
+  )
+}
+scale_fill_sepia <- function(..., na.value = "#BFBFBF", drop = FALSE) {
+  ggplot2::scale_fill_manual(
+    values = sepia_scale,
+    ...,
+    na.value = na.value,
+    drop = drop
+  )
+}
+
+# ── Gradienti (continui) ───────────────────────────────────────────────
+scale_color_seq_blue <- function(..., limits = NULL)
+  ggplot2::scale_color_gradientn(
+    colors = seq_blue_pal(256),
+    ...,
+    limits = limits
+  )
+scale_fill_seq_blue <- function(..., limits = NULL)
+  ggplot2::scale_fill_gradientn(
+    colors = seq_blue_pal(256),
+    ...,
+    limits = limits
+  )
+scale_color_seq_orange <- function(..., limits = NULL)
+  ggplot2::scale_color_gradientn(
+    colors = seq_orange_pal(256),
+    ...,
+    limits = limits
+  )
+scale_fill_seq_orange <- function(..., limits = NULL)
+  ggplot2::scale_fill_gradientn(
+    colors = seq_orange_pal(256),
+    ...,
+    limits = limits
+  )
+
+# Divergente (continua)
+scale_color_div_blue_orange <- function(..., limits = NULL)
+  ggplot2::scale_color_gradientn(
+    colors = div_blue_orange_pal(256),
+    ...,
+    limits = limits
+  )
+scale_fill_div_blue_orange <- function(..., limits = NULL)
+  ggplot2::scale_fill_gradientn(
+    colors = div_blue_orange_pal(256),
+    ...,
+    limits = limits
+  )
+
+
+## ─────────────────────────────────────────────────────────────────────
+## 8. DEFAULTS GEOMETRICI - Coordinati con CSS styling
+## ─────────────────────────────────────────────────────────────────────
+
+# Aggiorna i defaults per coordinare con lo stile CSS
+update_geom_defaults(
+  "point",
+  list(
+    size = 2.5,
+    alpha = 0.85,
+    stroke = 0.4,
+    color = palette_cb_main[["grey"]] # prima: css_palette$text_primary
+  )
+)
+
+update_geom_defaults(
+  "line",
+  list(
+    linewidth = 0.7,
+    color = palette_cb_main[["brand_blue"]], # prima: css_palette$text_primary
+    alpha = 0.9
+  )
+)
+
+update_geom_defaults(
+  "segment",
+  list(
+    linewidth = 0.5,
+    color = css_palette$text_secondary,
+    alpha = 0.8
+  )
+)
+
+update_geom_defaults(
+  "rect",
+  list(
+    color = css_palette$border_warm,
+    fill = css_palette$paper_cream,
+    alpha = 0.7
+  )
+)
+
+update_geom_defaults(
+  "text",
+  list(
+    family = renaissance_serif,
+    color = css_palette$text_primary,
+    size = 3.8
+  )
+)
+
+update_geom_defaults(
+  "bar",
+  list(
+    fill = css_palette$accent_warm,
+    color = css_palette$paper_warm,
+    alpha = 0.85,
+    linewidth = 0.3
+  )
+)
+
+# Densità e stat_bin per histogram coordinati con figure CSS
+update_geom_defaults(
+  "density",
+  list(
+    fill = palette_cb_main[["sky"]], # prima: css_palette$text_secondary
+    color = palette_cb_main[["blue"]], # prima: css_palette$text_primary
+    alpha = 0.55,
+    linewidth = 0.7
+  )
+)
+
+update_stat_defaults(
+  "bin",
+  list(
+    fill = css_palette$text_secondary,
+    color = css_palette$paper_warm,
+    alpha = 0.75,
+    linewidth = 0.2,
+    bins = 30
+  )
+)
+
+## ─────────────────────────────────────────────────────────────────────
+## 9. KNITR - Settings coordinati con CSS figure styling
+## ─────────────────────────────────────────────────────────────────────
+
 knitr::opts_chunk$set(
   comment = "#>",
   collapse = TRUE,
@@ -258,184 +504,168 @@ knitr::opts_chunk$set(
   eval = TRUE,
   error = FALSE,
   dev = "ragg_png",
-  dpi = 192,
-  out.width = "85%", # Better proportion for 72ch text width
+  dpi = 200,
+  out.width = "85%",
   fig.align = "center",
-  fig.asp = 0.618, # Golden ratio aspect
+  fig.asp = 0.618,
   fig.width = 7,
-  fig.height = 4.33, # 7 * 0.618
-  dev.args = list(bg = "#fdfcf8"), # Warm paper background
-  R.options = list(digits = 4, width = 72) # Match CSS max-width
+  fig.height = 4.33,
+  dev.args = list(
+    background = css_palette$paper_warm # <- corretto per ragg
+  ),
+  R.options = list(
+    digits = 3,
+    width = 80,
+    scipen = 4
+  )
 )
 
 ## ─────────────────────────────────────────────────────────────────────
-## 9. Palette rinascimentali (expanded and refined)
+## 10. TABELLE - Styling coordinato con CSS table rules
 ## ─────────────────────────────────────────────────────────────────────
 
-# Primary Renaissance palette matching CSS color scheme
-rinascimentale_primaria <- c(
-  nero_antico = "#2d2926", # --text-primary
-  seppia_scuro = "#5d5349", # --text-secondary
-  terra_bruciata = "#8B4513", # --accent-warm
-  siena_bruciata = "#A0522D", # Warm red
-  blu_oltremare = "#4682B4", # Warm blue
-  verde_oliva = "#6B8E23", # Warm green
-  porpora_antico = "#8B4789", # Warm purple
-  ocra_dorata = "#CD853F" # Warm orange
+library(tinytable)
+
+# Opzioni coordinated con il CSS table styling
+options(
+  tinytable_format_num_fmt = "significant_cell",
+  tinytable_format_digits = 3,
+  tinytable_tt_digits = 3,
+  tinytable_theme = "void"
 )
 
-# Secondary palette for complex visualizations
-rinascimentale_secondaria <- c(
-  rosso_veneziano = "#C41E3A",
-  blu_lapislazzuli = "#26619C",
-  verde_malachite = "#0BDA51",
-  giallo_oro = "#FFD700",
-  violetto_ametista = "#9966CC",
-  marrone_umber = "#635147"
-)
+# CSS personalizzato che replica esattamente lo styling delle tabelle
+tabella_css_manuscript <- function(data, caption = NULL, note = NULL) {
+  tt(data) %>%
+    style_tt(
+      # Font coordinato con CSS
+      family = renaissance_serif,
+      fontsize = "0.95em",
 
-# Monochromatic scale for academic precision
-scala_seppia <- c(
-  "#2d2926",
-  "#443f3a",
-  "#5d5349",
-  "#756b5d",
-  "#8d8272",
-  "#a59a87",
-  "#bdb29c",
-  "#d5cab1"
-)
+      # Colori header che replicano thead th CSS
+      background = list(
+        "tinytable_header" = css_palette$ink_secondary
+      ),
 
-# Function factories for consistent theming
-crea_scala_colori <- function(palette) {
-  function(...) ggplot2::scale_color_manual(values = palette, ...)
-}
+      color = list(
+        "tinytable_header" = css_palette$paper_warm,
+        "tinytable_body" = css_palette$text_primary
+      ),
 
-crea_scala_riempimenti <- function(palette) {
-  function(...) ggplot2::scale_fill_manual(values = palette, ...)
-}
+      # Bordi coordinati con CSS table rules
+      line_color = css_palette$border_warm,
+      line_width = 0.5
+    ) %>%
 
-# Export scale functions
-scale_color_rinascimentale <- crea_scala_colori(rinascimentale_primaria)
-scale_fill_rinascimentale <- crea_scala_riempimenti(rinascimentale_primaria)
-scale_color_seppia <- crea_scala_colori(scala_seppia)
-scale_fill_seppia <- crea_scala_riempimenti(scala_seppia)
+    # Formattazione numeri italiana
+    format_tt(
+      digits = 3,
+      num_fmt = function(x) format(x, decimal.mark = ",", big.mark = ".")
+    ) %>%
 
-# Accessibility-compliant backup (Okabe-Ito)
-okabe_ito <- c(
-  black = "#000000",
-  orange = "#E69F00",
-  sky = "#56B4E9",
-  bluishgreen = "#009E73",
-  yellow = "#F0E442",
-  blue = "#0072B2",
-  vermillion = "#D55E00",
-  reddishpurple = "#CC79A7"
-)
+    # Aggiunta caption se presente
+    {
+      if (!is.null(caption)) {
+        group_tt(., j = list(caption = 1:ncol(data)), caption = caption)
+      } else .
+    } %>%
 
-okabe_ito_senza_nero <- okabe_ito[c(
-  "sky",
-  "vermillion",
-  "bluishgreen",
-  "orange",
-  "blue",
-  "reddishpurple",
-  "yellow"
-)]
-
-scale_fill_accessibile <- function(..., usa_nero = FALSE) {
-  vals <- if (usa_nero) okabe_ito else okabe_ito_senza_nero
-  ggplot2::scale_fill_manual(values = vals, ...)
-}
-
-scale_color_accessibile <- function(..., usa_nero = FALSE) {
-  vals <- if (usa_nero) okabe_ito else okabe_ito_senza_nero
-  ggplot2::scale_color_manual(values = vals, ...)
+    # Aggiunta nota se presente
+    {
+      if (!is.null(note)) {
+        footnote(., note, i = nrow(data))
+      } else .
+    }
 }
 
 ## ─────────────────────────────────────────────────────────────────────
-## 10. Defaults geometrici e funzioni helper raffinate
+## 11. CONFIGURAZIONI BAYESIANE - Coordinate con l'estetica CSS
 ## ─────────────────────────────────────────────────────────────────────
 
-# Update geometric defaults with renaissance aesthetics
-update_geom_defaults(
-  "point",
-  list(
-    size = 2.2,
-    alpha = 0.85,
-    stroke = 0.3,
-    color = "#2d2926"
-  )
+# Tema predefinito di bayesplot (indipendente dal tuo ggplot theme globale)
+bayesplot::bayesplot_theme_set(bayesplot::theme_default())
+
+# Schema colori predefinito
+bayesplot::color_scheme_set("darkgray")
+
+## ─────────────────────────────────────────────────────────────────────
+## 12. FUNZIONI HELPER - Coordinate con utilità CSS
+## ─────────────────────────────────────────────────────────────────────
+
+# Modificatori tema che replicano le CSS utility classes
+griglia_sottile_y <- theme(
+  panel.grid.major.x = element_blank(),
+  panel.grid.minor.x = element_blank()
 )
-update_geom_defaults(
-  "line",
-  list(
-    linewidth = 0.6,
-    color = "#2d2926",
-    alpha = 0.9
-  )
+
+griglia_sottile_x <- theme(
+  panel.grid.major.y = element_blank(),
+  panel.grid.minor.y = element_blank()
 )
-update_geom_defaults(
-  "segment",
-  list(
-    linewidth = 0.4,
-    color = "#5d5349"
-  )
+
+nessuna_griglia <- theme(panel.grid = element_blank())
+
+# Posizioni legenda coordinate con CSS
+legenda_in_alto <- theme(
+  legend.position = "top",
+  legend.justification = "center",
+  legend.margin = margin(b = 15)
 )
-update_geom_defaults(
-  "rect",
-  list(
-    color = "#00000025",
-    fill = "#fdfcf8"
-  )
+
+legenda_destra <- theme(
+  legend.position = "right",
+  legend.justification = "top",
+  legend.margin = margin(l = 15)
 )
-update_geom_defaults(
-  "text",
-  list(
-    family = renaissance_serif,
-    color = "#2d2926",
-    size = 3.5
+
+# Funzione per ombreggiature che replica CSS box-shadow
+ombra_figure <- theme(
+  panel.border = element_rect(
+    color = css_palette$border_warm,
+    fill = NA,
+    linewidth = 0.5
+  ),
+  plot.background = element_rect(
+    fill = css_palette$paper_warm,
+    color = NA
   )
 )
 
-# Classical annotation functions
-aggiungi_colofone <- function(plot, testo, fonte = NULL) {
-  caption_text <- if (!is.null(fonte)) {
-    paste0(testo, "\n", "Fonte: ", fonte)
+# Annotazioni nel stile delle note CSS
+aggiungi_nota_manuscritta <- function(plot, nota, posizione = "caption") {
+  if (posizione == "caption") {
+    plot +
+      labs(caption = paste("Nota:", nota)) +
+      theme(
+        plot.caption = element_text(
+          hjust = 0,
+          family = renaissance_serif,
+          face = "italic",
+          size = rel(0.85),
+          color = css_palette$text_muted,
+          lineheight = 1.4
+        )
+      )
   } else {
-    testo
+    plot +
+      labs(subtitle = nota) +
+      theme(
+        plot.subtitle = element_text(
+          face = "italic",
+          size = rel(0.92),
+          color = css_palette$text_secondary,
+          lineheight = 1.4,
+          margin = margin(b = 12)
+        )
+      )
   }
-
-  plot +
-    labs(caption = caption_text) +
-    theme(
-      plot.caption = element_text(
-        hjust = 0,
-        family = renaissance_serif,
-        face = "italic",
-        size = rel(0.85)
-      )
-    )
 }
 
-aggiungi_nota_marginale <- function(plot, nota) {
-  plot +
-    labs(subtitle = paste("Nota:", nota)) +
-    theme(
-      plot.subtitle = element_text(
-        face = "italic",
-        size = rel(0.9),
-        color = "#5d5349",
-        lineheight = 1.4
-      )
-    )
-}
-
-# Italian formatting functions
-formato_italiano <- function(accuracy = 0.01, scala = 1) {
+# Formattazione italiana coordinata con CSS
+formato_italiano <- function(accuracy = 0.01, scale = 1) {
   scales::label_number(
     accuracy = accuracy,
-    scale = scala,
+    scale = scale,
     decimal.mark = ",",
     big.mark = "."
   )
@@ -449,158 +679,54 @@ formato_percentuale_it <- function(accuracy = 1) {
   )
 }
 
-# Default per histogram:
-update_geom_defaults(
-  "bar",
-  list(
-    fill = unname(rinascimentale_primaria["seppia_scuro"]),
-    colour = "white", # puoi usare "color" ma internamente è "colour"
-    alpha = 0.85,
-    linewidth = 0.3
-  )
-)
-
 ## ─────────────────────────────────────────────────────────────────────
-## 11. Configurazione pacchetti specialistici
+## 13. CONFIGURAZIONI FINALI
 ## ─────────────────────────────────────────────────────────────────────
 
-# Bayesplot theme alignment
-bayesplot::bayesplot_theme_set(theme_rinascimentale(
-  base_family = renaissance_serif,
-  base_size = 14
-))
-
-# Use sepia color scheme for Bayesian plots
-bayesplot::color_scheme_set("gray")
-
-# ggdist/tidybayes Renaissance styling
+# Impostazioni console coordinate con CSS readability
+library(pillar)
 options(
-  ggdist.distributions_contour_color = "#2d292620",
-  ggdist.slab_fill = "#8B451320",
-  ggdist.interval_color = "#2d2926",
-  ggdist.point_color = "#8B4513"
+  pillar.negative = FALSE,
+  pillar.subtle = FALSE,
+  pillar.bold = TRUE,
+  pillar.width = Inf,
+  pillar.max_footer_lines = 2,
+  pillar.min_chars = 15,
+  tibble.width = Inf,
+  width = 80, # Coordinato con text wrapping
+  scipen = 4,
+  digits = 3, # Precisione coordinata
+  show.signif.stars = FALSE
 )
 
-# Patchwork settings for multi-panel figures
-patchwork_theme <- theme_rinascimentale() +
+# Patchwork coordinato con figure CSS
+patchwork_theme_manuscript <- theme_manuscript() +
   theme(
     plot.tag = element_text(
-      size = rel(1.1),
+      size = rel(1.05),
       face = "plain",
-      color = "#2d2926",
+      color = css_palette$text_primary,
+      family = renaissance_serif,
       hjust = 0
     ),
     plot.tag.position = c(0.02, 0.98)
   )
 
 options(
-  patchwork.plot.tag = "Pannello ",
-  patchwork.annotation.theme = patchwork_theme
+  patchwork.annotation.theme = patchwork_theme_manuscript
 )
 
-# tinytable classical styling
-options(
-  tinytable_css_output = list(
-    "table" = "font-family: serif; border-collapse: separate; border-spacing: 0;",
-    "th" = "font-variant: small-caps; letter-spacing: 0.5px; padding: 0.5em 0.75em;",
-    "td" = "padding: 0.4em 0.75em; font-variant-numeric: oldstyle-nums;"
-  )
-)
-
-## ─────────────────────────────────────────────────────────────────────
-## 12. Funzioni helper per l'estetica rinascimentale
-## ─────────────────────────────────────────────────────────────────────
-
-# Quick theme modifications
-griglia_sottile_y <- theme(panel.grid.major.x = element_blank())
-griglia_sottile_x <- theme(panel.grid.major.y = element_blank())
-nessuna_griglia <- theme(panel.grid = element_blank())
-
-# Legend positioning shortcuts
-legenda_in_alto <- theme(
-  legend.position = "top",
-  legend.justification = "center"
-)
-
-legenda_destra <- theme(
-  legend.position = "right",
-  legend.justification = "top"
-)
-
-# Guide configurations for multiple aesthetics
-guide_rinascimentale <- guides(
-  color = guide_legend(
-    nrow = 1,
-    byrow = TRUE,
-    override.aes = list(size = 3, alpha = 1)
-  ),
-  fill = guide_legend(
-    nrow = 1,
-    byrow = TRUE,
-    override.aes = list(alpha = 0.8)
-  )
-)
-
-# Figure sizing based on golden ratio
-dimensioni_aurea <- function(larghezza = 7) {
-  list(
-    fig.width = larghezza,
-    fig.height = larghezza / 1.618,
-    fig.asp = 0.618
-  )
-}
-
-# Apply classical spacing to legends globally
+# Aggiornamento globale theme per coordinate tutte le geometrie
 theme_update(
-  legend.spacing.y = unit(3, "pt"),
-  legend.text = element_text(margin = margin(b = 3)),
-  legend.key.spacing.y = unit(2, "pt")
+  legend.spacing.y = unit(4, "pt"),
+  legend.text = element_text(margin = margin(b = 3, r = 8)),
+  legend.key.spacing.y = unit(3, "pt"),
+  legend.key.size = unit(12, "pt")
 )
 
-## ─────────────────────────────────────────────────────────────────────
-## 13. Funzioni di utilità per la stampa accademica
-## ─────────────────────────────────────────────────────────────────────
-
-# Format Bayesian summaries in Italian style
-formatta_sommario_bayesiano <- function(fit, digits = 3) {
-  summary(fit) %>%
-    as_tibble(rownames = "parametro") %>%
-    mutate(
-      across(
-        where(is.numeric),
-        ~ format(.x, digits = digits, decimal.mark = ",")
-      )
-    )
-}
-
-# Classical table styling function
-tabella_rinascimentale <- function(data, caption = NULL, note = NULL) {
-  tt(data) %>%
-    style_tt(
-      theme = "void",
-      family = renaissance_serif,
-      fontsize = "0.9em"
-    ) %>%
-    format_tt(digits = 3, num_fmt = "decimal_it") %>%
-    {
-      if (!is.null(caption))
-        # PRIMA: j = list("" = names(data))  # <-- causa l'errore
-        group_tt(., j = setNames(list(names(data)), ""), caption = caption) else
-        .
-    } %>%
-    {
-      if (!is.null(note)) footnote(., note, i = nrow(data)) else .
-    }
-}
-
-# Confidence interval formatter
-formato_ic <- function(stima, inf, sup, digits = 3) {
-  paste0(
-    format(stima, digits = digits, decimal.mark = ","),
-    " [",
-    format(inf, digits = digits, decimal.mark = ","),
-    "; ",
-    format(sup, digits = digits, decimal.mark = ","),
-    "]"
-  )
-}
+# if (!requireNamespace("colorspace", quietly = TRUE)) install.packages("colorspace")
+# colorspace::swatchplot(list(
+#   main   = manuscript_palette,
+#   deutan = colorspace::simulate_cvd(manuscript_palette, "deutan"),
+#   protan = colorspace::simulate_cvd(manuscript_palette, "protan")
+#), off = 0.02)

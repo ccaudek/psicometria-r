@@ -10,7 +10,7 @@
 
 <p class="capo">
   <span class="capo-initial" data-bg="1">S</span>
-eguendo la discussione di @knight2023tutorial, in questo capitolo estenderemo il modello di gruppo esaminato nel capitolo precedente in modo da esaminare il modello a livello individuale, nel quale si stima un $\alpha$ e un $\beta$ per ogni partecipante. Considereremo poi il modello gerarchico (*multilevel*), nel quale i parametri individuali sono estratti da una distribuzione comune (ad esempio, una distribuzione normale). Esamineremo infine il modello per gruppi noti, in cui si confrontano i parametri tra le condizioni sperimentali (nel caso presente, il gruppo "approach" vs. il gruppo "avoidance").
+eguendo la discussione di @knight2023tutorial, in questo capitolo estenderemo il modello di gruppo esaminato nel capitolo precedente in modo da esaminare il modello a livello individuale, nel quale si stima un $\alpha$ e un $\beta$ per ogni partecipante; il modello gerarchico (multilevel), nel quale i parametri individuali sono estratti da una distribuzione comune (ad esempio, una distribuzione normale); il modello per gruppi noti, in cui si confrontano i parametri tra le condizioni sperimentali (ad esempio, il gruppo "approach" vs. il gruppo "avoidance").
 </p>
 
 ### Panoramica del capitolo {.unnumbered .unlisted}
@@ -48,8 +48,7 @@ conflicts_prefer(dplyr::count)
 
 Nel *Group-Level Model* (o modello di gruppo) abbiamo stimato un unico set di parametri $(\alpha, \beta)$ per tutti i partecipanti, ignorando le differenze individuali.  Possiamo però estendere il modello per stimare un valore distinto di $\alpha$ e $\beta$ per ciascun soggetto: è il *Person-Level Model*.  
 
-In questo caso, ogni partecipante ha i propri parametri di aggiornamento e drift, mentre $\sigma$ (la variabilità residua) resta comune. Questo approccio permette di descrivere l’eterogeneità individuale, ma senza ancora introdurre alcuna “condivisione forzata” tra soggetti (caratteristica del modello gerarchico che vedremo in seguito).
-
+In questo caso, ogni partecipante ha i propri parametri di aggiornamento e drift, mentre $\sigma$ (la variabilità residua) resta comune. Questo approccio permette di descrivere l’eterogeneità individuale, ma senza ancora introdurre alcuna “condivisione di forza” tra soggetti (caratteristica del modello gerarchico che vedremo in seguito).
 
 ### Preparazione dei dati
 
@@ -157,7 +156,6 @@ generated quantities {
 ```
 
 Questo modello presuppone che i dati siano *ordinati per soggetto e per trial*, altrimenti la dinamica `i - 1` non corrisponde al trial precedente dello stesso soggetto. 
-
 Esaminiamo in dettaglio cosa significano `alpha[subject[i]]` e `beta[subject[i]]`. Nel modello Stan, ogni trial `i` è associato a un certo soggetto. Questa informazione è contenuta nel vettore:
 
 ```stan
@@ -212,7 +210,7 @@ stanmod <- cmdstan_model(
 fit1 <- stanmod$sample(
   data = stan_data,
   iter_warmup = 1000,
-  iter_sampling = 5000,
+  iter_sampling = 4000,
   chains = 4,
   parallel_chains = 4,
   refresh = 1000,
@@ -302,7 +300,7 @@ plot_person_alphabeta
 
 Stimare i parametri per ogni partecipante separatamente (come nel *Person-Level Model*) permette di rappresentare le differenze individuali, ma presenta un limite cruciale: le stime restano isolate. Analizzare i dati *persona per persona* equivale a fare tante analisi indipendenti quanti sono i soggetti, senza “riutilizzare” le informazioni presenti negli altri individui. Questo riduce il potere statistico, aumenta la variabilità delle stime quando i dati per soggetto sono pochi e rende più difficile trarre conclusioni a livello di popolazione.
 
-In molti contesti, però, l’interesse del ricercatore non è solo descrivere le differenze tra individui, ma anche cogliere regolarità comuni alla popolazione. Per questo i *modelli gerarchici bayesiani* (o *multilevel*) offrono una soluzione particolarmente efficace (Turner et al., 2013; Vincent, 2016; Kruschke & Vanpaemel, 2015).
+In molti contesti, però, l’interesse del ricercatore non è solo descrivere le differenze tra individui, ma anche cogliere regolarità comuni alla popolazione. Per questo i **modelli gerarchici bayesiani** (o *multilevel*) offrono una soluzione particolarmente efficace (Turner et al., 2013; Vincent, 2016; Kruschke & Vanpaemel, 2015).
 
 L’idea di fondo è semplice:
 
@@ -533,11 +531,11 @@ Nel grafico bivariato, lo shrinkage si traduce in una distribuzione più compatt
 
 ## Differenze tra gruppi
 
-In questo terzo modello estendiamo la struttura gerarchica introducendo le *condizioni sperimentali* (*approach* vs *avoidance*). L’idea è che i parametri individuali $\alpha_s$ e $\beta_s$ non siano estratti da un’unica distribuzione comune, ma da *distribuzioni diverse a seconda del gruppo* di appartenenza del soggetto.
+In questo terzo modello estendiamo la struttura gerarchica introducendo le *condizioni sperimentali* (*approach* vs *avoidance*). L’idea è che i parametri individuali $\alpha_s$ e $\beta_s$ non siano estratti da un’unica distribuzione comune, ma da **distribuzioni diverse a seconda del gruppo** di appartenenza del soggetto.
 
 In questo modo possiamo stimare, per ciascuna condizione, una media e una deviazione standard a livello di popolazione:
 
-* $\alpha_{\text{mean},c}, \alpha_{\text{sd},c}$,
+* $\alpha_{\text{mean},c}, \alpha_{\text{sd},c}$
 * $\beta_{\text{mean},c}, \beta_{\text{sd},c}$
   con $c \in \{1,2\}$.
 
@@ -689,7 +687,7 @@ generated quantities {
    In `transformed parameters`, i parametri dei singoli soggetti vengono generati in base alla condizione di appartenenza.
    Così, i soggetti *approach* e quelli *avoidance* condividono rispettivamente due diverse distribuzioni di partenza.
 
-In sintesi, il modello permette di stimare non solo le differenze tra individui, ma anche *le differenze sistematiche tra condizioni sperimentali*.
+In sintesi, il modello permette di stimare non solo le differenze tra individui, ma anche **le differenze sistematiche tra condizioni sperimentali**.
 
 
 ### Compilazione ed esecuzione
@@ -713,6 +711,11 @@ fit3 <- stanmod$sample(
 ```
 
 
+
+
+
+
+
 ### Risultati
 
 #### Ispezione rapida delle variabili (opzionale)
@@ -722,18 +725,9 @@ draws_df <- as_draws_df(fit3$draws())   # oppure: fit3$draws(format = "df")
 names(draws_df)[grepl("alpha_mean|beta_mean|alpha\\[|beta\\[", names(draws_df))]
 ```
 
-
-
 #### Differenze tra condizioni sugli iper-parametri
 
-L’obiettivo è verificare se i parametri di popolazione *$\alpha$* (tasso di aggiornamento) e *$\beta$* (drift/tendenza) differiscono tra le due condizioni sperimentali (*approach* vs *avoidance*). Per rispondere a questa domanda procediamo in quattro passaggi:  
-1. recuperiamo le etichette delle condizioni dal dataset;  
-2. calcoliamo il contrasto tra condizioni ($\Delta =$ condizione$_2$ − condizione$_1$);  
-3. stimiamo la media della differenza, il 95% CrI e la probabilità a posteriori che la differenza sia negativa;  
-4. visualizziamo i risultati per facilitarne l’interpretazione.  
-
-
-##### Step 1. Etichette di condizione
+Per comodità, recuperiamo le **etichette di condizione** dalla tabella dei dati (assumendo `cond_id = 1`→“approach”, `cond_id = 2`→“avoidance”; adattale se l’ordine/fattore è diverso nel tuo dataset):
 
 ```{r}
 cond_labels <- dat %>%
@@ -742,52 +736,50 @@ cond_labels <- dat %>%
   pull(condition)
 
 cond_labels
-# Esempio: c("approach", "avoidance")
+# Esempio atteso: c("approach", "avoidance")
 ```
 
-
-##### Step 2. Contrasto su α (media per condizione)
-
-Calcoliamo $\Delta_\alpha = \alpha_{\text{avoidance}} - \alpha_{\text{approach}}$.
+**Contrasto su α (media per condizione)**
 
 ```{r}
 delta_alpha <- fit3 |>
   spread_draws(alpha_mean[cond]) |>
   mutate(cond = factor(cond, levels = 1:2, labels = cond_labels)) |>
   pivot_wider(names_from = cond, values_from = alpha_mean, names_prefix = "alpha_mean_") |>
-  mutate(delta_alpha_mean = alpha_mean_avoidance - alpha_mean_approach)
+  mutate(delta_alpha_mean = .data[[paste0("alpha_mean_", cond_labels[2])]] -
+                           .data[[paste0("alpha_mean_", cond_labels[1])]])
 
 delta_alpha |> 
   summarise(
     mean   = mean(delta_alpha_mean),
     low95  = quantile(delta_alpha_mean, 0.025),
     upp95  = quantile(delta_alpha_mean, 0.975),
-    p_lt0  = mean(delta_alpha_mean < 0)
+    p_lt0  = mean(delta_alpha_mean < 0)         # P(Δ < 0 | dati)
   )
 ```
 
-##### Step 3. Contrasto su β (media per condizione)
-
-In modo analogo, calcoliamo $\Delta_\beta = \beta_{\text{avoidance}} - \beta_{\text{approach}}$.
+**Contrasto su β (media per condizione)**
 
 ```{r}
 delta_beta <- fit3 |>
   spread_draws(beta_mean[cond]) |>
   mutate(cond = factor(cond, levels = 1:2, labels = cond_labels)) |>
   pivot_wider(names_from = cond, values_from = beta_mean, names_prefix = "beta_mean_") |>
-  mutate(delta_beta_mean = beta_mean_avoidance - beta_mean_approach)
+  mutate(delta_beta_mean = .data[[paste0("beta_mean_", cond_labels[2])]] -
+                          .data[[paste0("beta_mean_", cond_labels[1])]])
 
 delta_beta |> 
   summarise(
     mean   = mean(delta_beta_mean),
     low95  = quantile(delta_beta_mean, 0.025),
     upp95  = quantile(delta_beta_mean, 0.975),
-    p_lt0  = mean(delta_beta_mean < 0)
+    p_lt0  = mean(delta_beta_mean < 0)          # P(Δ < 0 | dati)
   )
 ```
 
+> Nota: il segno di Δ è definito come **condizione 2 − condizione 1**. Se vuoi l’opposto, scambia i termini.
 
-##### Step 4. Visualizzazione delle posterior
+#### Visualizzazione delle posterior per le medie di condizione
 
 ```{r}
 post_alpha <- fit3 |>
@@ -811,15 +803,35 @@ ggplot(posterior_both, aes(x = value, fill = condition)) +
   theme(legend.position = "top")
 ```
 
-##### Risultati numerici
+#### Interpretazione
+
+* Riporta per ciascun parametro ($\alpha$ e $\beta$) **la differenza di media tra condizioni** (Δ = condizione$_2$ − condizione$_1$), l’**intervallo credibile al 95%** e la **probabilità a posteriori** che Δ sia negativa (o positiva, a seconda dell’ipotesi).
+* **Se l’intervallo credibile include 0**, le evidenze per una differenza sistematica sono deboli con questo modello e questi dati: la direzione suggerita dalla media può essere interessante, ma **incerta**.
+* **Se l’intervallo credibile esclude 0**, puoi parlare di una differenza credibile tra condizioni per quel parametro, e la probabilità a posteriori (es. $P(\Delta<0)$) quantifica la forza di questa evidenza.
+* La **densità delle posterior** per $\alpha_{\text{mean}}$ e $\beta_{\text{mean}}$ per ciascuna condizione aiuta a verificare **quanto** e **in che direzione** le distribuzioni si separano.
+
+> Suggerimento per il testo del manoscritto:
+> *“We estimated condition-specific population means for the learning rate ($\alpha$) and drift ($\beta$). The posterior contrast $\Delta = \mu_{\text{cond2}} - \mu_{\text{cond1}}$ yielded $\Delta_\alpha = \hat{m}$ \[95% CrI: $l, u$], $P(\Delta_\alpha < 0) = p$; and $\Delta_\beta = \hat{m}'$ \[95% CrI: $l', u'$], $P(\Delta_\beta < 0) = p'$. While point estimates suggested \[direzione], the credible intervals \[include/escludono] zero, indicating \[weak/credible] evidence for a condition effect.”*
+
+
+
+
+
 
 ```{r}
+# Calcola probabilità a posteriori per delta_alpha_mean < 0 e delta_beta_mean < 0
+# (supponiamo che draws_df contenga le colonne `alpha_mean[1]`, `alpha_mean[2]`, ecc.)
+
+# Calcola e stampa probabilità a posteriori
 prob_delta_alpha_neg <- mean(draws_df$`alpha_mean[2]` - draws_df$`alpha_mean[1]` < 0)
 prob_delta_beta_neg  <- mean(draws_df$`beta_mean[2]` - draws_df$`beta_mean[1]` < 0)
 
 cat("P(delta_alpha_mean < 0):", round(prob_delta_alpha_neg, 3), "\n")
 cat("P(delta_beta_mean < 0):", round(prob_delta_beta_neg, 3), "\n")
+```
 
+```{r}
+# Costruisci una tabella riassuntiva con la dimensione dell'effetto
 summary_df <- tibble(
   parameter = c("alpha_mean", "beta_mean"),
   delta_mean = c(
@@ -834,13 +846,19 @@ summary_df <- tibble(
     quantile(draws_df$`alpha_mean[2]` - draws_df$`alpha_mean[1]`, 0.975),
     quantile(draws_df$`beta_mean[2]` - draws_df$`beta_mean[1]`, 0.975)
   ),
-  prob_below_0 = c(prob_delta_alpha_neg, prob_delta_beta_neg)
+  prob_below_0 = c(
+    prob_delta_alpha_neg,
+    prob_delta_beta_neg
+  )
 )
 
 summary_df
 ```
 
+
 ```{r}
+# Grafico a barre con intervallo credibile
+
 summary_df |> 
   ggplot(aes(x = parameter, y = delta_mean)) +
   geom_bar(stat = "identity", fill = "steelblue", width = 0.5) +
@@ -849,26 +867,45 @@ summary_df |>
   labs(
     x = "Parametro",
     y = "Differenza media\n(cond2 - cond1)"
-  )
+  ) 
 ```
 
-##### Interpretazione dei risultati
 
-* **$\Delta_\alpha$ (avoidance − approach)**
-  Media = −0.247; CrI 95% = [−0.481, −0.035]; $P(\Delta<0) = 0.989$.
-  → Evidenza forte che l’aggiornamento ($\alpha$) è più basso in *avoidance*. L’effetto è moderato (≈0.25 SD).
+Per quantificare la differenza tra condizioni sugli iper-parametri di popolazione, abbiamo calcolato il contrasto $\Delta = \text{cond2} - \text{cond1}$ (applicato alle medie di condizione $\alpha_{\text{mean}}$ e $\beta_{\text{mean}}$). Nel nostro codice, **cond2 − cond1** corrisponde a *(avoidance − approach)*\*.
 
-* **$\Delta_\beta$ (avoidance − approach)**
-  Media = −0.126; CrI 95% = [−0.251, 0.002]; $P(\Delta<0) = 0.974$.
-  → La probabilità che $\beta$ sia più basso in *avoidance* è elevata, ma l’intervallo credibile include lo zero. Evidenza suggestiva ma non conclusiva.
+Il calcolo diretto sui draw posteriori restituisce:
 
+* **$\Delta_{\alpha}$** (*avoidance − approach*): media = **−0.247**, CrI 95% = **\[−0.481, −0.035]**, $P(\Delta_{\alpha}<0)=$**0.989**.
+  → Evidenza **credibile** di una media di $\alpha$ più bassa in *avoidance* rispetto ad *approach*. Poiché i dati sono standardizzati, l’ordine di grandezza è \~**0.25 SD**: un effetto non enorme ma non trascurabile.
 
-##### Significato sostantivo
+* **$\Delta_{\beta}$** (*avoidance − approach*): media = **−0.126**, CrI 95% = **\[−0.251, 0.002]**, $P(\Delta_{\beta}<0)=$**0.974**.
+  → La massa a sinistra di zero è elevata, ma il **95% CrI include lo zero** per un soffio: l’evidenza a favore di $\beta$ più bassa in *avoidance* è **suggestiva ma non conclusiva** con questa soglia di credibilità.
 
-* In *avoidance*, i partecipanti *aggiornano più lentamente* le loro credenze (α più basso).
-* Anche la tendenza (β) appare più bassa, ma con incertezza residua.
+\* *Nota*: se l’ordinamento dei livelli del fattore fosse diverso nel dataset, occorre aggiornare le etichette (il codice di preparazione dati lo rende esplicito).
 
-Questi risultati indicano che la manipolazione sperimentale ha un impatto soprattutto sulla velocità di apprendimento, mentre l’effetto sulla componente di drift resta da confermare con più dati o modelli più sensibili.
+#### Come leggere il grafico a barre
+
+Il grafico riassume per ciascun parametro la **differenza media a posteriori** (barra) con il **95% CrI** (linee).
+La linea tratteggiata a $0$ indica “assenza di differenza” tra condizioni:
+
+* Per $\alpha$, l’intervallo è interamente **sotto** lo zero → differenza credibile a favore di *approach* (valori medi più alti di $\alpha$ in *approach*).
+* Per $\beta$, la barra è sotto lo zero ma l’intervallo **tocca** lo zero → la direzione è coerente con $\alpha$, ma l’incertezza non consente un’affermazione forte al 95%.
+
+#### Significato sostantivo
+
+* **$\alpha$ (tasso di aggiornamento)**: in *avoidance* i partecipanti aggiornano **più lentamente** (valori medi più bassi di $\alpha$) rispetto ad *approach*. In termini standardizzati, l’effetto medio è \~0.25 SD: **moderato**.
+* **$\beta$ (drift/termine di tendenza)**: tendenza **coerente** (più basso in *avoidance*), ma evidenza **debole** al 95%.
+
+#### Nota metodologica e onestà interpretativa
+
+* Le stime derivano da un **modello gerarchico** (non-centrato), con priors debolmente informativi e dati z-standardizzati; le conclusioni sono **model-based**.
+* Riportare **sia** il 95% CrI **sia** la probabilità a posteriori $P(\Delta<0)$ aiuta a distinguere **direzione** dell’effetto (qui molto probabile negativa) da **forza dell’evidenza** ai livelli di credibilità scelti.
+* Se la **rilevanza pratica** è cruciale, si può integrare con una ROPE (es. $[-0.1, 0.1]$ in unità z) per quantificare quanta parte della distribuzione di $\Delta$ ricade in una “zona di equivalenza pratica”.
+
+#### Box (per il manoscritto)
+
+> *“We contrasted condition-specific population means (avoidance − approach). For the learning rate, $\Delta_\alpha = -0.247$ \[95% CrI: −0.481, −0.035], $P(\Delta_\alpha<0)=0.989$; for the drift, $\Delta_\beta = -0.126$ \[95% CrI: −0.251, 0.002], $P(\Delta_\beta<0)=0.974$. Thus, while point estimates consistently favored lower values under avoidance, only the effect on $\alpha$ reached credible separation from zero at the 95% level.”*
+
 
 
 
@@ -891,21 +928,22 @@ model_comparison <- loo_compare(loo1, loo2, loo3)
 print(model_comparison)
 ```
 
-Il modello *gerarchico con condizione (Model 3)* ottiene la predizione migliore. Tuttavia, il confronto con il *modello gerarchico senza condizione (Model 2)* mostra una differenza di ELPD pari a −4.7, con un errore standard di 3.9. Questa differenza è *piccola rispetto all’incertezza della stima*, quindi non possiamo affermare con sicurezza che includere la condizione migliori la predizione, anche se la tendenza è in quella direzione.
+Il modello **gerarchico con condizione (Model 3)** ottiene la predizione migliore. Tuttavia, il confronto con il **modello gerarchico senza condizione (Model 2)** mostra una differenza di ELPD pari a −4.7, con un errore standard di 3.9. Questa differenza è **piccola rispetto all’incertezza della stima**, quindi non possiamo affermare con sicurezza che includere la condizione migliori la predizione, anche se la tendenza è in quella direzione.
 
-Diverso il discorso per il *modello non gerarchico (Model 1)*: la perdita di ELPD rispetto a Model 3 è molto ampia (−23.3, con SE = 7.6). In questo caso la differenza è sufficientemente grande da concludere che Model 1 produce predizioni nettamente peggiori.
+Diverso il discorso per il **modello non gerarchico (Model 1)**: la perdita di ELPD rispetto a Model 3 è molto ampia (−23.3, con SE = 7.6). In questo caso la differenza è sufficientemente grande da concludere che Model 1 produce predizioni nettamente peggiori.
 
 
 #### Cosa impariamo
 
-1. *La gerarchia è cruciale*: i modelli gerarchici (Model 2 e 3) descrivono i dati molto meglio del modello non gerarchico. Questo conferma l’importanza di “condividere informazione” tra soggetti per ottenere stime più stabili e predizioni più accurate.
+1. **La gerarchia è cruciale**: i modelli gerarchici (Model 2 e 3) descrivono i dati molto meglio del modello non gerarchico. Questo conferma l’importanza di “condividere informazione” tra soggetti per ottenere stime più stabili e predizioni più accurate.
 
-2. *L’effetto della condizione è plausibile, ma non certo*: il modello con condizione (Model 3) tende a comportarsi meglio, ma il vantaggio rispetto al modello gerarchico semplice (Model 2) non è statisticamente robusto. Questo risultato è coerente con le stime dei parametri: la differenza tra condizioni sembra più marcata per $\alpha$, meno per $\beta$.
+2. **L’effetto della condizione è plausibile, ma non certo**: il modello con condizione (Model 3) tende a comportarsi meglio, ma il vantaggio rispetto al modello gerarchico semplice (Model 2) non è statisticamente robusto. Questo risultato è coerente con le stime dei parametri: la differenza tra condizioni sembra più marcata per $\alpha$, meno per $\beta$.
 
-3. *Scelta del modello*:
+3. **Scelta del modello**:
 
    * Se l’obiettivo principale è la parsimonia, Model 2 è già soddisfacente.
    * Se vogliamo testare esplicitamente l’effetto della condizione, Model 3 è preferibile, anche se il guadagno predittivo rimane incerto.
+
 
 
 

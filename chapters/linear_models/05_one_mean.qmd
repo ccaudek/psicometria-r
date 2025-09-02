@@ -7,6 +7,7 @@
 > — ispirato a **Harold Jeffreys**
 :::
 
+
 ## Introduzione {.unnumbered .unlisted}
 
 <p class="capo">
@@ -685,48 +686,70 @@ dplyr::bind_rows(summ_brm, summ_stan) |>
 #| label: plot-fm3
 #| message: false
 #| warning: false
+#| echo: false
+col_brms <- css_palette$illumination_blue   # brms
+col_stan <- css_palette$accent_warm         # Stan
 
-# brms = sky, stan = vermillion (Okabe–Ito)
-col_brms <- okabe_ito["sky"]
-col_stan <- okabe_ito["vermillion"]
-
+# --- Dati in long --------------------------------------------------------------
 post_long <- dplyr::bind_rows(
   draws_brm  |> dplyr::mutate(modello = "brms"),
   draws_stan |> dplyr::mutate(modello = "stan")
 ) |>
   tidyr::pivot_longer(c(mu, sigma), names_to = "parametro", values_to = "value")
 
+# --- Mediane per le linee verticali -------------------------------------------
+med_brm  <- post_long |>
+  dplyr::filter(modello == "brms") |>
+  dplyr::group_by(parametro) |>
+  dplyr::summarise(x0 = median(value), .groups = "drop")
+
+med_stan <- post_long |>
+  dplyr::filter(modello == "stan") |>
+  dplyr::group_by(parametro) |>
+  dplyr::summarise(x0 = median(value), .groups = "drop")
+
+# --- Plot nello stile manuscript ----------------------------------------------
 p <- ggplot() +
   # brms
   geom_density(
     data = dplyr::filter(post_long, modello == "brms"),
     aes(x = value),
-    fill = scales::alpha(col_brms, 0.25),
-    color = col_brms, linewidth = 0.9
+    fill  = scales::alpha(col_brms, 0.25),
+    color = col_brms,
+    linewidth = 0.9
   ) +
-  # stan
+  # Stan
   geom_density(
     data = dplyr::filter(post_long, modello == "stan"),
     aes(x = value),
-    fill = scales::alpha(col_stan, 0.25),
-    color = col_stan, linewidth = 0.9
+    fill  = scales::alpha(col_stan, 0.25),
+    color = col_stan,
+    linewidth = 0.9
   ) +
-  facet_wrap(~ parametro, scales = "free", ncol = 1) +
-  labs(x = NULL, y = "Densità",
-       title = "Posteriori: confronto brms (sky) vs Stan (vermillion)") +
-  theme(legend.position = "none")
+  # mediane
+  geom_vline(data = med_brm,  aes(xintercept = x0),
+             color = col_brms,  linetype = 2, linewidth = 0.8) +
+  geom_vline(data = med_stan, aes(xintercept = x0),
+             color = col_stan, linetype = 2, linewidth = 0.8) +
+  facet_wrap(~ parametro, scales = "free_x", ncol = 1) +
+  labs(
+    x = NULL, y = "Densità",
+    title = stringr::str_wrap("Confronto brms vs Stan", width = 60),
+    subtitle = "brms = blu · Stan = marrone"
+  ) +
+  theme_manuscript() +
+  griglia_sottile_x +                                   # niente griglia verticale
+  theme(
+    legend.position = "none",
+    plot.margin = margin(t = 18, r = 14, b = 10, l = 14),
+    strip.text = element_text(margin = margin(6, 8, 6, 8))
+  ) +
+  coord_cartesian(clip = "off")                          # evita tagli del titolo
 
-# mediane (stesso trucco, due layer distinti)
-med_brm  <- post_long |> dplyr::filter(modello=="brms") |> dplyr::group_by(parametro) |> dplyr::summarise(x0=median(value), .groups="drop")
-med_stan <- post_long |> dplyr::filter(modello=="stan") |> dplyr::group_by(parametro) |> dplyr::summarise(x0=median(value), .groups="drop")
-
-p +
-  geom_vline(data = med_brm,  aes(xintercept = x0), color = col_brms,  linetype = 2, linewidth = 0.8) +
-  geom_vline(data = med_stan, aes(xintercept = x0), color = col_stan, linetype = 2, linewidth = 0.8)
+p
 ```
 
 Se le aree colorate e le linee dei due modelli si sovrappongono quasi perfettamente in ciascun pannello, le *posterior* coincidono entro il rumore Monte Carlo.
-
 
 ### Posterior predictive check
 
@@ -746,14 +769,14 @@ yrep_mean <- rowMeans(as.matrix(yrep_df))
 
 ppc_df <- data.frame(stat = yrep_mean)
 
-base_col  <- if (exists("okabe_ito")) okabe_ito["sky"]       else "#56B4E9"
-line_col  <- if (exists("okabe_ito")) okabe_ito["vermillion"] else "#D55E00"
+base_col  <- "#56B4E9"
+line_col  <- "#D55E00"
 
 ggplot(ppc_df, aes(x = stat)) +
   geom_histogram(aes(y = after_stat(density)), bins = 50, color = "white", fill = base_col) +
   geom_vline(xintercept = obs_mean, color = line_col, linewidth = 1) +
   labs(x = "Media(y_rep)", y = "Densità",
-       title = "Posterior predictive check: media osservata vs replicate")
+       title = "PPC: media osservata vs replicate")
 ```
 
 ### Nota sulle prior
