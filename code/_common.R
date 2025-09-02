@@ -730,3 +730,5 @@ theme_update(
 #   deutan = colorspace::simulate_cvd(manuscript_palette, "deutan"),
 #   protan = colorspace::simulate_cvd(manuscript_palette, "protan")
 #), off = 0.02)
+
+conflicts_prefer(ggplot2::theme_void)
