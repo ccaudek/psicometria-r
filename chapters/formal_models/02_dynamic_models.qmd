@@ -44,11 +44,22 @@ conflicts_prefer(dplyr::count)
 :::
 
 
-## Person-Level Model
+### Modello a livello individuale 
 
-Nel *Group-Level Model* (o modello di gruppo) abbiamo stimato un unico set di parametri $(\alpha, \beta)$ per tutti i partecipanti, ignorando le differenze individuali.  Possiamo però estendere il modello per stimare un valore distinto di $\alpha$ e $\beta$ per ciascun soggetto: è il *Person-Level Model*.  
+Il modello *sample-level* stima un unico insieme di parametri $(\alpha, \beta)$ per l'intero campione, ignorando le differenze individuali. Per cogliere questa eterogeneità, è possibile introdurre il *modello a livello individuale* (*person-level*), che stima parametri distinti $(\alpha_i, \beta_i)$ per ogni partecipante $i$.
 
-In questo caso, ogni partecipante ha i propri parametri di aggiornamento e drift, mentre $\sigma$ (la variabilità residua) resta comune. Questo approccio permette di descrivere l’eterogeneità individuale, ma senza ancora introdurre alcuna “condivisione forzata” tra soggetti (caratteristica del modello gerarchico che vedremo in seguito).
+In questa formulazione:
+
+- ogni individuo possiede il proprio tasso di apprendimento $\alpha_i$ e la propria deriva motivazionale $\beta_i$;
+- il parametro $\sigma$, che cattura la variabilità residua (rumore decisionale), rimane comune a tutti i soggetti.
+
+Questo approccio consente di:
+
+- mappare la variabilità interindividuale nei processi di aggiornamento degli obiettivi;
+- identificare profili comportamentali distinti (es. soggetti molto reattivi al feedback vs. poco adattivi);
+- evitare l'assunzione – spesso irrealistica – che tutti i partecipanti rispondano allo stesso modo.
+
+Tuttavia, il modello a livello individuale non incorpora alcun meccanismo di "condivisione dell'informazione" tra i soggettii, ma ogni partecipante viene modellato in modo indipendente dagli altri. Questa caratteristica lo distingue dal modello gerarchico (o multilevel), in cui i parametri individuali sono considerati provenienti da una distribuzione di gruppo, il che migliora la robustezza delle stime, soprattutto quando i dati sono limitati o rumorosi.
 
 
 ### Preparazione dei dati
@@ -223,8 +234,7 @@ fit1 <- stanmod$sample(
 
 ### Analisi dei risultati
 
-Questo modello genera un insieme di campioni posteriori per i parametri $\alpha$ e $\beta$, uno per ciascun partecipante. I primi due grafici mostrano gli intervalli credibili al 95% per $\alpha$ e $\beta$ relativi a ogni partecipante. Come si può osservare, emerge un'eterogeneità tra i partecipanti sia per il parametro $\alpha$ che per $\beta$. Il pannello di destra mostra i parametri $\alpha$ e $\beta$ di ciascun partecipante tracciati l'uno contro l'altro (con le croci che rappresentano gli intervalli credibili per ciascun parametro).
-
+Questo modello genera un insieme di campioni posteriori per i parametri $\alpha$ e $\beta$, uno per ciascun partecipante. 
 
 ```{r}
 # Estrazione dei campioni
@@ -285,24 +295,46 @@ plot_person_alphabeta = ggplot(data=CIs_person) +
 ```
 
 ```{r}
+#| echo: false
 plot_person_alpha 
 ```
 
 
 ```{r}
+#| echo: false
 plot_person_beta 
 ```
 
 ```{r}
+#| echo: false
 plot_person_alphabeta
 ```
+
+I grafici mostrano una marcata eterogeneità tra i partecipanti nei parametri $\alpha$ (tasso di apprendimento) e $\beta$ (drift motivazionale), con intervalli credibili al 95% calcolati per ciascun $\alpha_i$ e $\beta_i$.
+
+* **Per $\alpha$**: i partecipanti mostrano valori distribuiti lungo quasi tutto l’intervallo [0,1]. Alcuni soggetti hanno $\alpha$ molto vicino a 0 (poca sensibilità al feedback), mentre altri si avvicinano a 1 (forte aggiornamento in risposta all’errore). L’ampiezza degli intervalli credibili varia, ma nella maggior parte dei casi suggerisce stime sufficientemente informative.
+
+**Per $\beta$**: i valori si distribuiscono attorno a 0, ma con differenze individuali marcate: alcuni soggetti mostrano un drift positivo (tendenza ad aumentare sistematicamente gli obiettivi), altri un drift negativo (tendenza a ridurli). Gli intervalli credibili confermano questa eterogeneità.
+
+Il punto chiave è che questa variabilità *non può essere colta dal modello sample-level*. Quest’ultimo, stimando un unico $\alpha$ e un unico $\beta$ comuni a tutti, restituisce una sorta di “media” del comportamento dei partecipanti. In pratica:
+
+* un soggetto con $\alpha \approx 0$ e uno con $\alpha \approx 0.9$ verrebbero descritti dallo stesso parametro $\alpha$, che potrebbe cadere a metà strada ma non rappresenta bene né l’uno né l’altro;
+* analogamente, le derive motivazionali individuali $\beta$ (positive, negative o vicine a zero) verrebbero tutte appiattite su un valore medio.
+
+I grafici dimostrano quindi l’utilità del modello a livello individuale: esso permette di mappare differenze sostanziali tra soggetti, che nel modello a livello di campione vengono perse.
+
+In sintesi:
+
+* il modello *sample-level* offre una descrizione parsimoniosa, ma rischia di mascherare differenze psicologicamente importanti;
+* il modello *person-level* mostra che i partecipanti non solo differiscono nel grado di apprendimento dal feedback ($\alpha$), ma anche nella direzione e nell’intensità della deriva motivazionale ($\beta$);
+* questa eterogeneità costituisce un’informazione preziosa per comprendere i profili comportamentali individuali, impossibile da cogliere con un modello che assume parametri omogenei per tutto il campione.
 
 
 ## Modello gerarchico
 
-Stimare i parametri per ogni partecipante separatamente (come nel *Person-Level Model*) permette di rappresentare le differenze individuali, ma presenta un limite cruciale: le stime restano isolate. Analizzare i dati *persona per persona* equivale a fare tante analisi indipendenti quanti sono i soggetti, senza “riutilizzare” le informazioni presenti negli altri individui. Questo riduce il potere statistico, aumenta la variabilità delle stime quando i dati per soggetto sono pochi e rende più difficile trarre conclusioni a livello di popolazione.
+Stimare i parametri per ogni partecipante separatamente (come nel modello a livello individuale) permette di rappresentare le differenze individuali, ma presenta un limite cruciale: le stime rimangono isolate. Analizzare i dati "persona per persona" equivale a condurre un'analisi indipendente per ciascun soggetto, senza "riutilizzare" le informazioni presenti negli altri individui. Ciò riduce il potere statistico, aumenta la variabilità delle stime quando i dati per soggetto sono pochi e rende più difficile trarre conclusioni a livello di popolazione.
 
-In molti contesti, però, l’interesse del ricercatore non è solo descrivere le differenze tra individui, ma anche cogliere regolarità comuni alla popolazione. Per questo i *modelli gerarchici bayesiani* (o *multilevel*) offrono una soluzione particolarmente efficace (Turner et al., 2013; Vincent, 2016; Kruschke & Vanpaemel, 2015).
+In molti contesti, però, l'interesse del ricercatore non è solo quello di descrivere le differenze tra gli individui, ma anche di cogliere le regolarità comuni alla popolazione. Per questo motivo, i modelli gerarchici bayesiani (o multilevel) offrono una soluzione particolarmente efficace (Turner et al., 2013; Vincent, 2016; Kruschke & Vanpaemel, 2015).
 
 L’idea di fondo è semplice:
 
