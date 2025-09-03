@@ -8,25 +8,18 @@
 
 ## Introduzione {.unnumbered .unlisted}
 
+
 <p class="capo">
   <span class="capo-initial" data-bg="1">Q</span>
-uesto capitolo introduce il modello di *Rescorla–Wagner (RW)* con regola di scelta *Softmax*. Si tratta di un’estensione naturale del modello di revisione degli obiettivi discusso nel capitolo precedente. In quel modello, l’aggiornamento dell’obiettivo era un semplice *termine additivo*: ad ogni trial, la stima veniva spostata un po’ più vicino al valore osservato, con un ritmo determinato dal parametro di apprendimento.
+uesto capitolo introduce il modello di *Rescorla–Wagner (RW)* con regola di scelta *Softmax* [@rescorla1972theory]. Si tratta di un’estensione naturale del modello di revisione degli obiettivi discusso nel capitolo precedente. In quel modello, l’aggiornamento dell’obiettivo era un semplice *termine additivo*: ad ogni trial, la stima veniva spostata un po’ più vicino al valore osservato, con un ritmo determinato dal parametro di apprendimento.  Nel modello di Rescorla–Wagner, invece, l’aggiornamento è guidato dall’*errore di predizione del rinforzo* (*reward prediction error*, RPE), ovvero la differenza tra il rinforzo ottenuto e quello atteso. Questo rende il modello più psicologicamente plausibile, perché riflette il meccanismo di apprendimento osservato in numerosi studi di psicologia e neuroscienze, nei quali le nuove informazioni vengono integrate in proporzione alla discrepanza tra risultato ed aspettative.
 </p>
 
-Nel modello di Rescorla–Wagner, invece, l’aggiornamento è guidato dall’*errore di predizione del rinforzo* (*reward prediction error*, RPE): la differenza tra il rinforzo ottenuto e quello atteso. Questo rende il modello più psicologicamente plausibile, perché riflette il meccanismo di apprendimento osservato in molti studi di psicologia e neuroscienze, dove le nuove informazioni vengono integrate in proporzione a quanto il risultato differisce dalle aspettative.
+Per completare il quadro, al processo di apprendimento si affianca un *livello decisionale*: le scelte non seguono meccanicamente l’opzione con il valore più alto, ma riflettono un bilanciamento tra due tendenze opposte, ovvero l’esplorazione di alternative nuove e lo sfruttamento delle opzioni già note come vantaggiose. In questo modo, il modello integra esplicitamente due componenti distinte ma interconnesse:
 
-A questa componente di apprendimento si aggiunge un livello decisionale: le scelte non sono deterministiche, ma bilanciano esplorazione e sfruttamento. Nei compiti binari (due opzioni) la trasformazione dei valori appresi in probabilità di scelta è ben descritta dalla funzione logistica (equivalente alla Softmax a due opzioni):
+1. *Apprendimento*: come le aspettative si aggiornano in base all’esperienza;
+2. *Decisione*: come queste aspettative vengono trasformate in probabilità di scelta, tenendo conto del compromesso tra esplorazione e sfruttamento.
 
-$$
-P(\text{scegliere B}) = \text{inv\_logit}\!\big(\tau \,[Q_t(B)-Q_t(A)]\big),
-$$
-dove $\tau>0$ (inverse temperature) regola quanto le differenze di valore si traducano in scelte deterministiche (τ alta) o esplorative (τ bassa).
-
-In questo modo, il modello collega in maniera esplicita due livelli fondamentali:
-
-1. *Livello dell’apprendimento* – come i valori associati agli stimoli vengono aggiornati in base all’esperienza.
-2. *Livello decisionale* – come questi valori vengono trasformati in scelte effettive.
-
+Questa distinzione permette di analizzare il comportamento in modo più ricco e realistico, separando i meccanismi che riguardano l’aggiornamento delle conoscenze da quelli che regolano le decisioni concrete.
 
 ::: {.callout-caution collapse=true title="Preparazione del Notebook"}
 ```{r}
@@ -544,33 +537,30 @@ Il confronto tra $lr_{\text{food}}$ e $lr_{\text{neutral}}$ (e analogamente per 
 
 ## Riflessioni conclusive {.unnumbered .unlisted}
 
-Il modello di *Rescorla–Wagner con regola di scelta logistica* arricchisce la semplice dinamica di aggiornamento dei valori introducendo un *livello decisionale* che traduce i valori appresi (*Q-values*) in probabilità di scelta. In questo modo possiamo distinguere due componenti fondamentali del comportamento:
+Il modello di *Rescorla–Wagner* estende la semplice dinamica di aggiornamento introducendo un *livello decisionale*, che trasforma i valori appresi (*Q-values*) in probabilità di scelta. Questo ci permette di distinguere due componenti fondamentali del comportamento:
 
-1. **Apprendimento dagli esiti** (*learning*), governato dal parametro `lr`, che determina la rapidità con cui il soggetto aggiorna le proprie aspettative in base al *prediction error* (quanto l’esito è diverso da ciò che ci si aspettava).
+1.  **Apprendimento dagli esiti** (*learning*), controllato dal parametro `lr` (*learning rate*), che determina quanto rapidamente il soggetto aggiorna le proprie aspettative in base all'errore di predizione (la differenza tra quanto atteso e quanto effettivamente ottenuto).
 
-   * `lr` alto → adattamento veloce, ma anche maggiore sensibilità al rumore;
-   * `lr` basso → apprendimento lento, più stabile ma meno flessibile ai cambiamenti.
+    *  Un valore basso di `lr` corrisponde a un apprendimento più lento e stabile, ma meno reattivo ai cambiamenti.
+    *  Un valore alto di `lr` corrisponde a un adattamento veloce, ma a una maggiore sensibilità al rumore.
 
-2. **Politica decisionale** (*decision policy*), rappresentata dal parametro `tau`, che regola il grado di coerenza delle scelte con i valori stimati.
+2.  **Politica decisionale** (*decision policy*), governata dal parametro `tau` (*inverse temperature*), che regola la coerenza tra le scelte e i valori appresi.
+    *   `tau` alto: scelte deterministiche e coerenti con l'opzione migliore (alto sfruttamento).
+    *   `tau` basso: comportamento più esplorativo e meno prevedibile.
 
-   * `tau` alto → scelte deterministiche e coerenti con l’opzione migliore;
-   * `tau` basso → comportamento più esplorativo o meno consistente.
+Questa distinzione è cruciale in ambito clinico. In uno studio sull'anoressia nervosa e l'apprendimento, ad esempio, abbiamo osservato che le difficoltà non sono generalizzate, ma *specifiche del contesto alimentare*: le pazienti presentano un tasso di apprendimento ridotto (`lr` più basso) quando gli stimoli sono legati al cibo, mentre il loro comportamento è simile a quello dei controlli in contesti neutri [@colpizzi2025food].
 
-Questa distinzione è particolarmente rilevante negli studi clinici. Nel nostro lavoro sull’anoressia nervosa e il *Probabilistic Reversal Learning* (PRL), ad esempio, è emerso che i deficit non sono globali, ma *specifici per il contesto alimentare*: le pazienti aggiornano più lentamente le loro aspettative (`lr` ridotto) quando sono coinvolti stimoli *food*, mentre si comportano come i controlli in condizioni neutrali [@colpizzi2025food].
+Il modello RW offre quindi un'analisi più ricca della semplice prestazione media:
 
-Il modello RW + logit permette quindi di andare oltre la semplice prestazione media:
+*   consente di identificare differenze nei *meccanismi di apprendimento* (`lr`) tra diverse condizioni;
+*   permette di verificare se a queste diffeerenze si associano anche differenze nello *stile decisionale* (`tau`).
 
-* da un lato, evidenzia differenze nei *meccanismi di apprendimento* (`lr`) tra condizioni,
-* dall’altro, consente di verificare se tali differenze si accompagnano a uno *stile decisionale* diverso (`tau`).
+Per uno psicologo, questo si traduce in due vantaggi concreti:
 
-Per uno psicologo questo comporta due vantaggi:
+*   **Chiarezza teorica:** permette di formulare ipotesi precise e separate sui processi di apprendimento e sulle strategie decisionali, andando oltre le semplici misure di accuratezza.
+*   **Rilevanza clinica:** distinguere un deficit nell'apprendimento da uno nella scelta ha implicazioni dirette per la progettazione di interventi mirati (es., potenziare la sensibilità al feedback o riequilibrare l'esplorazione e lo sfruttamento).
 
-* **Chiarezza teorica:** si possono formulare ipotesi distinte sui processi di aggiornamento e sulle strategie decisionali, evitando interpretazioni riduttive basate solo sull’accuratezza.
-* **Rilevanza clinica:** distinguere tra un problema di apprendimento e uno di scelta ha implicazioni dirette per interventi mirati, ad esempio potenziando la sensibilità al feedback o modulando l’equilibrio tra esplorazione e sfruttamento.
-
-In conclusione, il modello RW + logit non è soltanto uno strumento computazionale: è un *ponte tra il comportamento osservato e i processi psicologici sottostanti*, utile per isolare deficit specifici di contesto e per comprendere come le strategie decisionali possano variare nei diversi individui e gruppi clinici.
-
-Operativamente, la versione gerarchica multi-soggetto del modello è spesso preferibile: stabilizza le stime individuali, consente confronti tra gruppi/condizioni e integra naturalmente la variabilità inter-individuale.
+In sintesi, il modello Rescorla-Wagner non è solo uno strumento computazionale: è un *ponte fra comportamento osservato e processi mentali*, fondamentale per isolare deficit contestuali specifici e comprendere come le strategie decisionali varino tra individui e gruppi clinici.
 
 
 ::: {.callout-note collapse=true title="Informazioni sull'ambiente di sviluppo"}

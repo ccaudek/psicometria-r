@@ -236,13 +236,15 @@ fit1 <- stanmod$sample(
 
 Questo modello genera un insieme di campioni posteriori per i parametri $\alpha$ e $\beta$, uno per ciascun partecipante. 
 
+Estrazione dei campioni in formato "draws_matrix" (per summary tabellari):
+
 ```{r}
-# Estrazione dei campioni
 standraws <- fit1$draws(format = "draws_matrix")
 ```
 
+Statistiche descrittive compatte per $\alpha_i$, $\beta_i$ e $\sigma$: media, mediana e intervalli credibili al 95% (2.5% - 97.5%):
+
 ```{r}
-# Statistiche descrittive
 standraws |> 
   subset_draws(variable = c("alpha", "beta", "sigma")) |> 
   summarise_draws(
@@ -252,10 +254,23 @@ standraws |>
   print()
 ```
 
+Diagnostica rapida (Rhat ed ESS): 
+
 ```{r}
-#extract posterior samples for person-level parameters
+# Se qualche Rhat > 1.01 o ESS basso, considerare run più lunghi o reparametrizzazioni
+fit1$summary(variables = c("alpha", "beta", "sigma")) |>
+  dplyr::select(variable, rhat, ess_bulk, ess_tail) |>
+  dplyr::arrange(dplyr::desc(rhat)) |>
+  print(n = 10)
+```
+
+Estrazione "tidy" dei parametri livello-persona con `tidybayes::spread_draws`. Questo produce le colonne: `.draw, subject, alpha, beta`.
+
+```{r}
 posteriors_person = spread_draws(fit1, alpha[subject], beta[subject])
 ```
+
+Calcolo della media e dell'intervallo credibile al 95% per ciascun soggetto: 
 
 ```{r}
 # Calcolo media e intervallo credibile al 95% per ciascun soggetto
@@ -274,24 +289,13 @@ CIs_person <- posteriors_person %>%
   mutate(beta_order = row_number())
 ```
 
+Grafico 1: CI al 95% per $\alpha_i$, ordinati per `alpha_mean`:
 
 ```{r}
 plot_person_alpha = ggplot(data=CIs_person) +
   geom_point(aes(y=alpha_order,x=alpha_mean)) +
   geom_errorbarh(aes(y=alpha_order,xmin=alpha_lower,xmax=alpha_upper),color="red") +
   labs(x= expression(alpha) ,y="Subject") 
-
-plot_person_beta <- ggplot(data = CIs_person) +
-  geom_point(aes(y = beta_order, x = beta_mean)) +
-  geom_errorbarh(aes(y = beta_order, xmin = beta_lower, xmax = beta_upper), color = "red") +
-  # geom_density(data = posteriors_person, aes(x = beta), fill = "blue", alpha = 0.15, inherit.aes = FALSE) +
-  labs(x = expression(beta), y = "Subject") 
-
-plot_person_alphabeta = ggplot(data=CIs_person) +
-  geom_point(aes(x=alpha_mean,y=beta_mean)) +
-  geom_errorbar(aes(x=alpha_mean,ymin=beta_lower,ymax=beta_upper),color="red",alpha=0.25) +
-  geom_errorbarh(aes(y=beta_mean,xmin=alpha_lower,xmax=alpha_upper),color="red",alpha=0.25) +
-  labs(x= expression(alpha) ,y=expression(beta)) 
 ```
 
 ```{r}
@@ -299,10 +303,28 @@ plot_person_alphabeta = ggplot(data=CIs_person) +
 plot_person_alpha 
 ```
 
+Grafico 2: CI al 95% per $\beta_i$, ordinati per `beta_mean`:
+
+```{r}
+plot_person_beta <- ggplot(data = CIs_person) +
+  geom_point(aes(y = beta_order, x = beta_mean)) +
+  geom_errorbarh(aes(y = beta_order, xmin = beta_lower, xmax = beta_upper), color = "red") +
+  labs(x = expression(beta), y = "Subject") 
+```
 
 ```{r}
 #| echo: false
 plot_person_beta 
+```
+
+Grafico 3: Dispersione bivariata (`alpha_mean` vs `beta_mean`) + croci di CI 95%.  Le barre (verticali e orizzontali) danno il colpo d'occhio sulla (co)variabilità individuale:
+
+```{r}
+plot_person_alphabeta = ggplot(data=CIs_person) +
+  geom_point(aes(x=alpha_mean,y=beta_mean)) +
+  geom_errorbar(aes(x=alpha_mean,ymin=beta_lower,ymax=beta_upper),color="red",alpha=0.25) +
+  geom_errorbarh(aes(y=beta_mean,xmin=alpha_lower,xmax=alpha_upper),color="red",alpha=0.25) +
+  labs(x= expression(alpha) ,y=expression(beta)) 
 ```
 
 ```{r}
@@ -467,7 +489,7 @@ fit2 <- stanmod$sample(
 Eseguiamo l'analisi dei risultati seguendo lo schema usato sopra.
 
 ```{r}
-# Estrazione dei campioni posteriori come matrice (opzionale)
+# Estrazione dei campioni posteriori come matrice 
 standraws <- fit2$draws(format = "draws_matrix")
 ```
 
@@ -526,14 +548,17 @@ plot_person_alphabeta <- ggplot(CIs_person) +
 ```
 
 ```{r}
+#| echo: false
 plot_person_alpha 
 ```
 
 ```{r}
+#| echo: false
 plot_person_beta 
 ```
 
 ```{r}
+#| echo: false
 plot_person_alphabeta
 ```
 
@@ -755,7 +780,6 @@ names(draws_df)[grepl("alpha_mean|beta_mean|alpha\\[|beta\\[", names(draws_df))]
 ```
 
 
-
 #### Differenze tra condizioni sugli iper-parametri
 
 L’obiettivo è verificare se i parametri di popolazione *$\alpha$* (tasso di aggiornamento) e *$\beta$* (drift/tendenza) differiscono tra le due condizioni sperimentali (*approach* vs *avoidance*). Per rispondere a questa domanda procediamo in quattro passaggi:  
@@ -903,7 +927,6 @@ summary_df |>
 Questi risultati indicano che la manipolazione sperimentale ha un impatto soprattutto sulla velocità di apprendimento, mentre l’effetto sulla componente di drift resta da confermare con più dati o modelli più sensibili.
 
 
-
 ## Confronto tra modelli
 
 Per valutare quale modello descriva meglio i dati abbiamo utilizzato la cross-validazione leave-one-out (LOO-CV), che stima la expected log predictive density (ELPD). Un ELPD più alto indica predizioni più accurate.
@@ -936,9 +959,8 @@ Diverso il discorso per il *modello non gerarchico (Model 1)*: la perdita di ELP
 
 3. *Scelta del modello*:
 
-   * Se l’obiettivo principale è la parsimonia, Model 2 è già soddisfacente.
-   * Se vogliamo testare esplicitamente l’effetto della condizione, Model 3 è preferibile, anche se il guadagno predittivo rimane incerto.
-
+   * se l’obiettivo principale è la parsimonia, Model 2 è già soddisfacente;
+   * se vogliamo testare esplicitamente l’effetto della condizione, Model 3 è preferibile, anche se il guadagno predittivo rimane incerto.
 
 
 ## Riflessioni conclusive {.unnumbered .unlisted}
@@ -955,7 +977,9 @@ Dal punto di vista metodologico, questo percorso dimostra l'importanza di:
 - incorporare sistematicamente le informazioni sperimentali nei livelli iperparametrici;
 - bilanciare complessità e generalizzazione attraverso confronti basati su evidenza predittiva.
 
-Il modello presentato - autoregressivo non lineare a tempo discreto in un framework bayesiano multilivello - si conferma come una cornice flessibile ed efficace per rappresentare processi dinamici che evolvono nel tempo, variano tra individui e differiscono tra gruppi sperimentali. Le tecniche illustrate in questo capitolo pongono solide basi per affrontare scenari ancor più complessi, come i modelli di miscela per classificazioni non supervisionate [per approfondimenti, si veda il tutorial di @knight2023tutorial].
+Il modello presentato in questo capitolo è uno strumento potente e flessibile per studiare come le persone modificano il propri comportamenti nel tempo, come tali comportamenti variano da individuo a individuo, e come ciascuno reagisce a diverse condizioni sperimentali. Sebbene la sua formalizzazione possa apparire tecnica, l'idea di base è intuitiva: utilizziamo metodi statistici avanzati per descrivere in modo più realistico i processi di apprendimento e adattamento.
+
+Le tecniche illustrate forniscono le basi per affrontare problemi ancora più complessi. Un'estensione particolarmente utile è rappresentata dai modelli di miscela (*mixture models*), che permettono di identificare automaticamente gruppi di partecipanti con comportamenti simili, senza dover definire queste categorie in anticipo [un'illustrazione è fornita nel tutorial di @knight2023tutorial].
 
 
 ::: {.callout-note collapse=true title="Informazioni sull'ambiente di sviluppo"}
