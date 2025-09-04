@@ -8,14 +8,12 @@
 
 ## Introduzione {.unnumbered .unlisted}
 
-<p class="capo">
-  <span class="capo-initial" data-bg="1">N</span>
-ei capitoli precedenti abbiamo esaminato diversi esempi di inferenza bayesiana, concentrandoci su modelli parametrici semplici come il caso unidimensionale del modello bernoulliano. In questi scenari elementari, abbiamo utilizzato due approcci principali: l’*approssimazione discreta su griglia*, che valuta la distribuzione a posteriori su un insieme finito di valori parametrali, e l’uso di *distribuzioni a priori coniugate*, che, grazie alla loro forma analiticamente trattabile, permettono di derivare la posterior in modo esatto.  
-</p>
+Nei capitoli precedenti abbiamo visto che l’inferenza bayesiana può essere risolta esattamente in alcuni casi fortunati, grazie alle famiglie coniugate, oppure approssimata con metodi semplici come l’uso di una griglia di valori. Questi strumenti ci hanno permesso di comprendere a fondo la logica dell’aggiornamento bayesiano, ma hanno anche mostrato chiaramente i loro limiti: i casi coniugati sono eccezioni, e l’approccio su griglia diventa rapidamente impraticabile quando il numero di parametri cresce oltre uno o due.
+Per affrontare problemi realistici, che in psicologia riguardano quasi sempre modelli con più parametri e strutture complesse, dobbiamo introdurre un metodo generale che ci consenta di ottenere campioni dalla distribuzione a posteriori senza doverla calcolare in forma chiusa. Questo metodo esiste, ed è noto come algoritmo di Metropolis [@metropolist_etal_1953; @hastings_1970].
 
-Tuttavia, questi metodi presentano limitazioni significative non appena ci si allontana da contesti idealizzati. In particolare, diventano rapidamente inefficienti in presenza di modelli con molteplici parametri, relazioni complesse tra variabili, o distribuzioni a priori non coniugate. In tali casi, il calcolo analitico risulta spesso intrattabile, mentre l’approssimazione su griglia diventa computazionalmente proibitiva a causa della crescita esponenziale del numero di valutazioni necessarie al crescere della dimensionalità dello spazio parametrico.  
+L’algoritmo di Metropolis rappresenta una svolta concettuale: offre una soluzione universale per generare campioni dalla distribuzione a posteriori, indipendentemente dalla forma della verosimiglianza e del prior. In questo senso, risolve in modo definitivo il problema di come rendere praticabile l’inferenza bayesiana. Tuttavia, presenta anche due limiti: è relativamente inefficiente dal punto di vista computazionale e richiede di scrivere codice su misura per ogni modello. Nonostante ciò, la sua logica è così generale e potente che costituisce la base di tutti gli algoritmi moderni di campionamento, incluso il metodo NUTS implementato in Stan.
 
-Per affrontare queste sfide, l’inferenza bayesiana moderna fa ricorso a tecniche numeriche avanzate, tra cui spicca il *Metodo Monte Carlo a Catena di Markov (MCMC)*. Questo approccio innovativo supera i limiti dei metodi tradizionali generando campioni dalla distribuzione a posteriori attraverso un processo iterativo che combina l’efficienza del campionamento stocastico con la flessibilità degli algoritmi markoviani. Il risultato è una metodologia potente e generale, in grado di fornire stime accurate anche per modelli complessi e ad alta dimensionalità, senza richiedere soluzioni analitiche chiuse.  
+In questo capitolo introdurremo passo dopo passo l’algoritmo di Metropolis, ne vedremo il funzionamento intuitivo e lo applicheremo a casi concreti. Questo ci permetterà di capire la logica alla base di gran parte dell’inferenza bayesiana moderna, che rimane immutata anche nei metodi più sofisticati.
 
 
 ### Panoramica del capitolo {.unnumbered .unlisted}
@@ -1069,20 +1067,12 @@ In conclusione, questo esempio illustra l'applicazione dell'algoritmo di Metropo
 
 ## Riflessioni conclusive {.unnumbered .unlisted}
 
-In molti casi, la distribuzione a posteriori dei parametri di un modello statistico non ha una forma analitica risolvibile. Per affrontare questa limitazione, si utilizzano metodi Monte Carlo basati su catene di Markov (MCMC). Questi algoritmi permettono di campionare efficacemente dalla distribuzione a posteriori, anche per modelli complessi, generando una sequenza di valori che approssima la distribuzione desiderata. L'algoritmo di Metropolis-Hastings [@hastings_1970], un'estensione dell'algoritmo di Metropolis originale [@metropolist_etal_1953], è uno dei metodi MCMC più ampiamente utilizzati.
+L’algoritmo di Metropolis segna un punto di svolta nell’inferenza bayesiana. Prima della sua introduzione, l’analisi bayesiana era praticabile solo in casi molto semplici, con distribuzioni coniugate o con un numero ridotto di parametri. Con Metropolis, invece, diventa possibile ottenere un campione casuale dalla distribuzione a posteriori in modo generale, senza bisogno di conoscere la sua forma analitica.
 
-In sintesi, l'algoritmo segue questi passaggi principali:
+Questa è la sua forza: concettualmente, il problema dell’inferenza bayesiana è risolto. Possiamo sempre, almeno in linea di principio, campionare dalla posterior. I limiti che rimangono sono di tipo pratico: efficienza computazionale e complessità di implementazione. Non a caso, gran parte dello sviluppo successivo – da Metropolis-Hastings fino all’algoritmo NUTS usato da Stan – può essere visto come un raffinamento tecnico per rendere più veloce e più automatizzato ciò che Metropolis aveva già reso possibile.
+Dal punto di vista didattico, questo rende l’algoritmo di Metropolis un capitolo fondamentale del nostro percorso: non è solo un algoritmo storico, ma il cuore concettuale dell’inferenza bayesiana moderna. Comprenderne la logica permette di interpretare con maggiore consapevolezza anche i metodi più avanzati, che pur nella loro complessità tecnica non fanno che sviluppare ulteriormente questa idea di base [@duane1987hybrid; @hanada2022mcmc; @geman_geman_1984; @hoffman2014no].
 
-- *Generazione del nuovo stato proposto*: Si crea un nuovo stato vicino a quello corrente utilizzando una distribuzione di proposta.
-- *Confronto tra densità posteriori*: Si confrontano le densità a posteriori del nuovo stato proposto e dello stato corrente.
-- *Accettazione probabilistica*: Il nuovo stato viene sempre accettato se ha una densità posteriore maggiore, oppure accettato con una certa probabilità se ha una densità minore.
-- *Burn-in e tasso di accettazione*: I primi campioni vengono scartati (fase di burn-in) per garantire che la catena abbia raggiunto la distribuzione stazionaria, e si monitora il tasso di accettazione per ottimizzare l'efficienza del campionamento.
-
-Questo approccio consente di ottenere campioni che approssimano la distribuzione a posteriori, ma l'algoritmo di Metropolis può presentare limiti di efficienza, soprattutto per problemi ad alta dimensionalità o distribuzioni con geometrie complesse. Un aspetto cruciale è il *tasso di accettazione*, che rappresenta il rapporto tra il numero di proposte accettate e il numero totale di proposte. Un tasso troppo basso può indicare che la catena esplora lo spazio dei parametri in modo inefficiente, mentre un tasso troppo alto può segnalare che i passi effettuati sono troppo piccoli per consentire una buona esplorazione.
-
-Rispetto alle varianti più moderne, l'algoritmo di Metropolis tende a essere meno efficiente. Metodi come il *No-U-Turn Sampler (NUTS)* e l'*Hamiltonian Monte Carlo (HMC)* offrono importanti miglioramenti, specialmente in spazi di parametri di grandi dimensioni. NUTS, ad esempio, viene utilizzato in strumenti avanzati come *Stan* e *PyMC* [@hoffman2014no], permettendo un'esplorazione più rapida e accurata della distribuzione a posteriori.
-
-Tra gli altri algoritmi MCMC degni di nota troviamo il *campionatore di Gibbs* [@geman_geman_1984] e l'*Hamiltonian Monte Carlo* [@duane1987hybrid]. Questi metodi, insieme a Metropolis-Hastings, formano la base di numerose tecniche moderne per il campionamento da distribuzioni complesse. Per un approfondimento dettagliato sulle tecniche MCMC, si consiglia di consultare @hanada2022mcmc.
+In conclusione, l’algoritmo di Metropolis ci insegna due lezioni fondamentali: primo, che l’inferenza bayesiana non è limitata ai casi speciali, ma è sempre possibile; secondo, che ogni modello psicologico, anche il più complesso, può essere affrontato con questa logica, a patto di disporre degli strumenti computazionali adeguati.
 
 
 ::: {.callout-important title="Esercizio 1: Autostima negli Studenti Universitari" collapse="true"}

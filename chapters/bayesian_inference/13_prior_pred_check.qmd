@@ -8,13 +8,12 @@
 
 ## Introduzione {.unnumbered .unlisted}
 
+Nei capitoli precedenti abbiamo visto che l’inferenza bayesiana nasce dall’integrazione tra ciò che sappiamo prima (i *priori*) e ciò che osserviamo nei dati (la *verosimiglianza*). Abbiamo anche discusso il problema del bilanciamento tra assunzioni iniziali ed evidenza empirica, sottolineando che i priori non sono un dettaglio tecnico, ma una parte essenziale del ragionamento statistico. A questo punto si impone una domanda pratica: *come possiamo valutare se i priori che abbiamo scelto sono ragionevoli?*
 
-<p class="capo">
-  <span class="capo-initial" data-bg="1">N</span>
-  ell'analisi bayesiana, la specificazione della *distribuzione a priori* (*prior*) rappresenta un passaggio cruciale e delicato. Attraverso la prior, formalizziamo matematicamente le nostre convinzioni o aspettative riguardo ai parametri del modello *prima di osservare i dati*. Ma come possiamo valutare se la nostra scelta è appropriata?  
-</p>
+Un modo diretto e intuitivo è ricorrere ai *controlli predittivi sui priori* [*prior predictive checks*; @gelman2020bayesianworkflow]. L’idea è semplice: se i priori rappresentano le nostre credenze prima di vedere i dati, allora dovremmo poterli usare per simulare dei dati “ipotetici” e chiederci se questi assomigliano a ciò che potremmo realisticamente osservare in psicologia. Se i dati simulati appaiono del tutto implausibili, significa che i nostri priori non stanno catturando in modo adeguato le conoscenze di partenza.
 
-Uno strumento essenziale per questa verifica è il *controllo predittivo a priori* (*prior predictive check*, *PPC*; @gelman2020bayesianworkflow).
+In questo capitolo introdurremo il concetto e la pratica dei controlli predittivi sui priori. Vedremo come si eseguono, perché sono fondamentali per una modellazione coerente e quali errori comuni ci aiutano a evitare.
+
 
 ### Panoramica del capitolo {.unnumbered .unlisted}
 
@@ -176,8 +175,7 @@ y_sim <- rbinom(S, size = n, prob = p_sim)
 tibble(y = y_sim) |>
   ggplot(aes(x = y)) +
   geom_histogram(aes(y = after_stat(density)), bins = 11) +
-  labs(title = "Predittiva a priori con Beta(2,2)",
-       x = "Numero di risposte corrette su 10", y = "Densità")
+  labs(x = "Numero di risposte corrette su 10", y = "Densità")
 ```
 
 **Lettura.** Il modello utilizza un *prior* eccessivamente permissivo, adatto a una popolazione di studenti molto eterogenea (che include sia individui con prestazioni quasi sempre perfette, sia altri quasi sempre insufficienti). Il risultato è una distribuzione predittiva che assegna probabilità irrealisticamente elevate agli estremi (0/10 e 10/10), un chiaro indicatore che il prior è troppo debole (ovvero, troppo diffuso).
@@ -203,8 +201,7 @@ y_sim2 <- rbinom(S, size = n, prob = p_sim2)
 tibble(y = y_sim2) |>
   ggplot(aes(x = y)) +
   geom_histogram(aes(y = after_stat(density)), bins = 11) +
-  labs(title = "Predittiva a priori con Beta(10,3)",
-       x = "Numero di risposte corrette su 10", y = "Densità")
+  labs(x = "Numero di risposte corrette su 10", y = "Densità")
 ```
 
 **Lettura.** Gli esiti molto bassi (0–3) diventano poco probabili; la massa si concentra su esiti coerenti con studenti preparati.
@@ -254,8 +251,7 @@ fit_prior_only <- brm(
 ```{r}
 #| label: brms-binomial-prior-ppc
 yrep <- posterior_predict(fit_prior_only)
-ppc_bars(y = rep(0, n_studenti), yrep = yrep[1:200, ]) +
-  ggtitle("Prior Predictive Check (modello binomiale, intercetta in scala logit)")
+ppc_bars(y = rep(0, n_studenti), yrep = yrep[1:200, ]) 
 ```
 
 **Interpretazione.**
@@ -366,8 +362,7 @@ bind_rows(
 ) |>
   ggplot(aes(x = y, fill = scenario)) +
   geom_density(alpha = 0.35) +
-  labs(title = "Predittiva a priori (gaussiana)",
-       x = "y (es. punteggio 0–100)", y = "Densità")
+  labs(x = "y (es. punteggio 0–100)", y = "Densità")
 ```
 
 **Interpretazione.** Se è noto che i punteggi della variabile di interesse sono compresi tra 0 e 100, lo Scenario A potrebbe generare una proporzione eccessiva di valori negativi o superiori a 100, indicando che le distribuzioni precedenti sono troppo poco informative e necessitano di essere ricalibrate (rendendole più informative sia per $\mu$ che per $\sigma$).
@@ -419,8 +414,7 @@ yrep_g <- fit_gauss$draws("y_rep", format = "draws_matrix")
 as_tibble(yrep_g) |>
   pivot_longer(everything(), values_to = "y") |>
   ggplot(aes(x = y)) +
-  geom_density() +
-  labs(title = "Stan: predittiva a priori (gaussiana)", x = "y", y = "Densità")
+  geom_density() 
 ```
 
 
@@ -484,8 +478,7 @@ bind_rows(
 ) |>
   ggplot(aes(x = y, fill = scenario)) +
   geom_density(alpha = 0.35) +
-  labs(title = "Predittiva a priori",
-       x = "Valori simulati di y", y = "Densità")
+  labs(x = "Valori simulati di y", y = "Densità")
 ```
 
 **Interpretazione.** Con distribuzioni precedenti debolmente informative, la distribuzione di $y$ mantiene un'ampiezza plausibile. Al contrario, distribuzioni precedenti eccessivamente diffuse producono una variabilità irrealistica di $y$.
@@ -544,8 +537,7 @@ as_tibble(yrep_l) |>
   pivot_longer(everything(), values_to = "y") |>
   ggplot(aes(x = y)) +
   geom_density() +
-  labs(title = "Stan: predittiva a priori",
-       x = "Valori simulati di y", y = "Densità")
+  labs(x = "Valori simulati di y", y = "Densità")
 ```
 
 #### Conclusioni
@@ -595,8 +587,7 @@ tibble(p = pE, scenario = "E: prior larga") |>
   bind_rows(tibble(p = pF, scenario = "F: prior W.I.")) |>
   ggplot(aes(x = p, fill = scenario)) +
   geom_density(alpha = 0.35) +
-  labs(title = "Probabilità implicite dalla prior",
-       x = "p(x) = P(y=1|x)", y = "Densità")
+  labs(x = "p(x) = P(y=1|x)", y = "Densità")
 ```
 
 **Interpretazione.**
@@ -662,8 +653,7 @@ as_tibble(post_p) |>
   pivot_longer(everything(), values_to = "p") |>
   ggplot(aes(x = p)) +
   geom_density() +
-  labs(title = "Stan: probabilità implicite dalla prior",
-       x = "p(x)", y = "Densità")
+  labs(x = "p(x)", y = "Densità")
 ```
 
 
@@ -739,8 +729,7 @@ fit_g_prior <- brm(
 
 ```{r}
 yrep_g <- posterior_predict(fit_g_prior)
-ppc_dens_overlay(y = df_g$y, yrep = yrep_g[1:200, ]) +
-  ggtitle("brms: predittiva a priori (gaussiana)")
+ppc_dens_overlay(y = df_g$y, yrep = yrep_g[1:200, ])
 ```
 
 **Regressione lineare.**
@@ -776,7 +765,6 @@ fit_l_prior <- brm(
 ```{r}
 yrep_l <- posterior_predict(fit_l_prior)
 ppc_dens_overlay(y = df_l$y, yrep = yrep_l[1:200, ]) +
-  ggtitle("brms: predittiva a priori (lineare)") +
   xlim(-5, 5)
 ```
 
@@ -811,34 +799,24 @@ fit_log_prior <- brm(
 
 ```{r}
 yrep_log <- posterior_predict(fit_log_prior)
-ppc_bars(y = df_log$y, yrep = yrep_log[1:200, ]) +
-  ggtitle("brms: prior predictive (logistica)")
+ppc_bars(y = df_log$y, yrep = yrep_log[1:200, ]) 
 ```
 :::
 
 
 ## Riflessioni conclusive {.unnumbered .unlisted}
 
-Il controllo predittivo a priori costituisce una fase fondamentale nell'analisi bayesiana, rappresentando il punto di incontro tra la formalizzazione matematica del modello e la conoscenza sostantiva del fenomeno indagato. Questa pratica trascende la mera verifica tecnica, configurandosi come un autentico esercizio epistemologico volto a valutare la coerenza tra le aspettative teoriche e le implicazioni quantitative del modello proposto.
+I controlli predittivi sui priori rappresentano una delle innovazioni più importanti portate dall’approccio bayesiano alla pratica della ricerca psicologica. Non ci limitiamo più a dichiarare i priori come un’astrazione matematica, ma li trattiamo come *ipotesi concrete* che generano conseguenze osservabili.
 
-Nella prassi della ricerca empirica, risulta essenziale documentare con precisione:
+Questo ha almeno tre implicazioni rilevanti:
 
--   le procedure di simulazione dei dati generate dalle distribuzioni a priori specificate,
--   le eventuali discordanze emerse tra i dati simulati e le aspettative teoriche di riferimento,
--   le modifiche apportate alle distribuzioni a priori in risposta a tali incongruenze,
--   i risultati definitivi ottenuti a seguito della ricalibrazione del modello.
+* *Trasparenza*: invece di nascondere le nostre assunzioni, le rendiamo visibili e criticabili, mostrando quali dati ci aspetteremmo prima ancora di fare l’esperimento.
+* *Coerenza con la teoria psicologica*: i priori possono e devono riflettere la letteratura, la teoria o l’esperienza accumulata. Se la simulazione produce risultati incompatibili con ciò che sappiamo, significa che stiamo imponendo assunzioni sbagliate.
+* *Robustezza inferenziale*: controllare i priori prima di analizzare i dati riduce il rischio di ottenere posteriori fuorvianti o difficili da interpretare.
 
-Questa documentazione non rappresenta un mero adempimento metodologico, bensì un elemento cruciale per garantire la trasparenza e la riproducibilità del processo analitico. Si consideri, a titolo esemplificativo, un test psicometrico composto da 10 item: l'adozione di una distribuzione Beta(2,2) riflette una sostanziale incertezza a priori, generando simulazioni caratterizzate da un'ampia variabilità di punteggi; al contrario, una Beta(10,2) esprime la convinzione che i partecipanti posseggano generalmente competenze elevate, concentrando le previsioni sui punteggi più alti.
+Dal punto di vista didattico, i prior predictive checks aiutano anche a chiarire agli studenti il significato dei priori: non sono semplici parametri arbitrari, ma veri e propri modelli di ciò che consideriamo plausibile *prima* di vedere i dati.
 
-In psicologia, disciplina caratterizzata da costrutti teorici spesso dai contorni sfumati, questo approccio metodologico assume particolare rilevanza. A differenza dei framework analitici che iniziano l'indagine solo successivamente alla raccolta dati, l'impianto bayesiano promuove una riflessione anticipata sulle ipotesi modellistiche e sulle loro conseguenze predittive, favorendo una più matura consapevolezza epistemologica.
-
-Il controllo predittivo a priori si rivela dunque uno strumento diagnostico di notevole efficacia:
-
--   segnala eventuali discrepanze tra le assunzioni del modello e la realtà empirica di riferimento,
--   orienta la riparametrizzazione delle distribuzioni a priori in coerenza con la conoscenza pregressa,
--   consolida la validità ecologica delle analisi successive.
-
-Rendendo esplicite le implicazioni connesse alle scelte modellistiche, questa pratica favorisce lo sviluppo di analisi maggiormente consapevoli e robuste. In definitiva, il controllo predittivo a priori non rappresenta un semplice passaggio tecnico, bensì un momento essenziale per costruire modelli che riflettano autenticamente la complessità dei fenomeni psicologici oggetto di indagine.
+In sintesi, questo capitolo mostra che i priori non devono essere accettati acriticamente: vanno testati e, se necessario, rivisti. Nei prossimi capitoli vedremo come un approccio analogo possa essere applicato anche ai posteriori, estendendo l’idea dei controlli predittivi all’intero processo di modellazione.
 
 
 ::: {.callout-note collapse=true title="Informazioni sull'ambiente di sviluppo"}

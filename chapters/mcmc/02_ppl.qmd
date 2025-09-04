@@ -9,196 +9,55 @@
 
 ## Introduzione {.unnumbered .unlisted}
 
-<p class="capo">
-  <span class="capo-initial" data-bg="1">L</span>a *programmazione probabilistica* è un paradigma della programmazione informatica che consente di creare modelli e algoritmi capaci di gestire l'incertezza e la casualità. Combina i principi della teoria delle probabilità con la programmazione, permettendo di costruire sistemi in grado di ragionare su dati incerti e di prendere decisioni informate. Questo approccio consente di esprimere modelli complessi in modo naturale e intuitivo, facilitando il processo di inferenza bayesiana.
-</p>
+Nel capitolo precedente abbiamo introdotto l’algoritmo di Metropolis come soluzione generale al problema dell’inferenza bayesiana. Abbiamo visto che, grazie a questo metodo, è sempre possibile generare campioni dalla distribuzione a posteriori, anche quando non conosciamo la sua forma analitica. Questo rappresenta una conquista concettuale decisiva: l’inferenza bayesiana non è limitata ai casi semplici delle famiglie coniugate, ma può essere applicata a qualunque modello.
 
-La programmazione probabilistica si colloca all'intersezione tra algoritmi di machine learning, statistica e linguaggi di programmazione. I suoi obiettivi principali sono semplificare il processo di inferenza e automatizzarlo.
+Tuttavia, la libertà concettuale offerta da Metropolis si scontra con difficoltà pratiche. Implementare l’algoritmo in modo efficiente per ciascun modello richiede di scrivere molto codice su misura, e non è banale stabilire buone regole di proposta per garantire un campionamento rapido e affidabile. In altre parole, sappiamo che l’inferenza è sempre possibile, ma non sempre è semplice metterla in pratica.
 
-### Panoramica del capitolo {.unnumbered .unlisted}
+Per superare questi limiti sono nati i *linguaggi probabilistici* (*probabilistic programming languages*, PPL). L’idea è elegante: invece di programmare a mano l’algoritmo per ogni modello, lo scienziato specifica direttamente il modello in un linguaggio formale vicino alla notazione statistica. Sarà poi il software a occuparsi di eseguire il campionamento in modo efficiente, utilizzando algoritmi avanzati che generalizzano e migliorano la logica di Metropolis.
 
-- Concetto di *Probabilistic Programming Language* (PPL) e il loro ruolo nell'inferenza bayesiana.
-- Vantaggi delle interfacce di alto livello come `brms` e `Bambi`, che semplificano l'uso dei PPL per l'inferenza bayesiana.
+Questo cambiamento ha avuto un impatto profondo sulla pratica della ricerca. Con i PPL, il ricercatore può concentrarsi sul *modello psicologico* che vuole esprimere – ad esempio un modello di apprendimento, un modello gerarchico o un modello di decisione – senza doversi preoccupare di tutti i dettagli computazionali del campionamento. È un passaggio simile a quello che, in altri campi scientifici, ha permesso di separare la formulazione delle teorie dalle tecniche di calcolo numerico necessarie per applicarle.
 
+Tra i PPL disponibili oggi, *Stan* occupa un posto di rilievo. È diventato lo standard in molti ambiti della statistica bayesiana e delle scienze sociali, grazie alla combinazione di tre caratteristiche: un linguaggio chiaro per specificare i modelli, algoritmi di campionamento all’avanguardia (come NUTS, una variante efficiente di Hamiltonian Monte Carlo) e una forte integrazione con strumenti di analisi dei dati come R e Python.
+
+Dal punto di vista didattico, è importante sottolineare che Stan non è una “scatola nera”. Il cuore concettuale rimane quello visto con l’algoritmo di Metropolis: generare campioni dalla distribuzione a posteriori per approssimarla numericamente. La differenza è che, invece di scrivere da zero il codice per ogni modello, ci limitiamo a dichiarare il modello e lasciamo che il software si occupi delle scelte tecniche necessarie.
+
+In questo senso, i PPL non rappresentano una rottura rispetto a quanto appreso finora, ma una naturale evoluzione. Ci permettono di spostare l’attenzione dall’aspetto computazionale all’aspetto scientifico: non tanto *come* campionare, ma *quale modello* vogliamo costruire per descrivere il fenomeno psicologico che ci interessa.
 
 ## Perché abbiamo bisogno della programmazione probabilistica?
 
-Scrivere un proprio campionatore per l'inferenza bayesiana è un compito estremamente difficile.  Richiede competenze matematiche avanzate e una profonda conoscenza degli algoritmi di campionamento (sia MCMC che approssimati). Inoltre, ci sono numerosi problemi potenziali legati alla stabilità numerica e ai costi computazionali. Questo significa che per riuscirci bisogna essere allo stesso tempo degli ottimi sviluppatori e degli esperti statistici.
+Abbiamo visto che l’algoritmo di Metropolis fornisce una soluzione generale: in linea di principio, possiamo sempre ottenere campioni dalla distribuzione a posteriori, qualunque sia il modello specificato. Tuttavia, questa libertà concettuale si accompagna a limiti pratici. Scrivere un campionatore funzionante per ogni modello richiede tempo, competenze tecniche avanzate e una grande attenzione agli aspetti numerici. Basta poco per ritrovarsi con algoritmi inefficienti o catene che non convergono. In altre parole, sappiamo che il problema dell’inferenza bayesiana è risolvibile, ma non è detto che sia agevole affrontarlo a mano ogni volta.
 
-È però possibile delegare tutti questi compiti a un sistema che li automatizzi, permettendoci di concentrarci sulla risoluzione dei problemi scientifici.
+Per rendere questa potenza utilizzabile anche nella pratica quotidiana, sono nati i *linguaggi di programmazione probabilistica* (*probabilistic programming languages*, PPL). Essi rappresentano un’evoluzione naturale: invece di programmare direttamente gli algoritmi di campionamento, lo scienziato dichiara semplicemente il modello in un linguaggio vicino alla notazione statistica. Sarà il software a occuparsi di tradurre questa dichiarazione in inferenza numerica, scegliendo algoritmi avanzati e ottimizzati.
 
-## Caratteristiche dei linguaggi di programmazione probabilistica 
 
-In questa sezione esamineremo il panorama moderno dei *linguaggi di programmazione probabilistica (PPLs)* e, nella sezione successiva, esploreremo le funzionalità di uno di questi, [Stan](https://mc-stan.org).
+## Dalle prime implementazioni a Stan
 
-Un *linguaggio di programmazione probabilistica (PPL)* consente di formalizzare modelli bayesiani e di eseguire inferenze utilizzando algoritmi avanzati. L'utente deve semplicemente definire il modello, selezionare un campionatore e avviare il processo di inferenza.
+I primi PPL, come *BUGS* e *WinBUGS*, hanno aperto la strada negli anni ’90. Per la prima volta era possibile scrivere un modello bayesiano in modo dichiarativo e ottenere automaticamente un campione dalla distribuzione a posteriori. Questa idea, che all’epoca sembrava quasi visionaria, ha cambiato il modo di concepire l’inferenza: non più come un calcolo complesso da eseguire a mano, ma come una specifica da fornire a un motore di calcolo.
 
-In generale, le funzionalità fondamentali richieste a un PPL sono:
+Nel tempo, questi strumenti si sono evoluti. A fianco di BUGS e del suo successore JAGS, sono nati PPL moderni come *PyMC* in ambiente Python e soprattutto *Stan*, che oggi rappresenta uno standard in molti ambiti della statistica applicata. Stan combina un linguaggio chiaro per dichiarare i modelli con algoritmi di campionamento estremamente efficienti, come NUTS (No-U-Turn Sampler), una variante avanzata dell’Hamiltonian Monte Carlo. Ciò che prima era accessibile solo a chi possedeva competenze molto specialistiche è diventato così patrimonio di una comunità scientifica molto più ampia.
 
-- *generare valori casuali* da distribuzioni probabilistiche;
-- *condizionare variabili* su dati osservati.
 
-I primi linguaggi di programmazione probabilistica, come *BUGS* e *WinBUGS*, hanno gettato le basi offrendo tre capacità essenziali:
+## Cosa cambia per la ricerca psicologica
 
-1. *`random`*: per definire variabili casuali.
-2. *`constraint`*: per vincolare variabili ai dati osservati.
-3. *`infer`*: per calcolare e restituire la distribuzione delle variabili di interesse.
+Per la psicologia e le scienze sociali, l’arrivo dei PPL ha significato un vero salto di qualità. I ricercatori possono finalmente concentrarsi sui *modelli teorici* che vogliono testare – modelli di apprendimento, di decisione, di effetti gerarchici nei dati – senza doversi preoccupare di reinventare ogni volta la parte algoritmica. Questo permette di sperimentare con strutture di modelli più ricche, di formalizzare meglio le ipotesi psicologiche e di tradurle direttamente in codice eseguibile.
 
-Nel corso del tempo, l'elenco dei PPL disponibili si è notevolmente ampliato, comprendendo una vasta gamma di strumenti in continua evoluzione. Ecco alcuni esempi rappresentativi:
+La conseguenza è una maggiore trasparenza e una più stretta connessione tra teoria e analisi empirica. I PPL, infatti, non nascondono i modelli dietro procedure automatiche, ma li rendono espliciti: ogni ipotesi è dichiarata in modo chiaro e tracciabile, e il processo inferenziale diventa riproducibile.
 
-- *BUGS, WinBUGS, JAGS*
-- *Stan*
-- *PyMC3, PyMC4, PyMC*
-- *Nimble*
-- *Pyro, NumPyro*
-- *Edward, TensorFlow Probability, Edward 2*
-- *Gen*
-- *Turing*
-- *Stheno*
-- *SOSS*
-- *Omega*
-- *Infer.NET*
 
-## Come scegliere un PPL?
+## Interfacce di alto livello
 
-Dal punto di vista pratico, come si può decidere quale linguaggio di programmazione probabilistica utilizzare? Ecco alcuni fattori chiave da considerare:
+Naturalmente, anche i PPL richiedono un certo impegno. Scrivere modelli complessi in Stan o in PyMC comporta comunque una buona familiarità con la programmazione e con la statistica bayesiana. Per ampliare l’accessibilità, negli ultimi anni sono state sviluppate interfacce di più alto livello, come *brms* (in R, basata su Stan) e *Bambi* (in Python, basata su PyMC).
 
-- *Documentazione*: La presenza di risorse ben strutturate, come guide, tutorial e documentazione ufficiale, è essenziale per facilitare l'apprendimento e migliorare la produttività. Un PPL con documentazione chiara e completa è sempre preferibile, specialmente per chi è alle prime armi.
-- *Performance*: Alcuni PPL sono ottimizzati per offrire prestazioni superiori, ad esempio mediante l'elaborazione parallela o l'uso di acceleratori hardware come le GPU. Valuta le prestazioni in relazione alla complessità e alla scala dei modelli che desideri costruire.
-- *Funzionalità*: È importante verificare se il PPL offre un'ampia gamma di distribuzioni probabilistiche e campionatori, oltre a strumenti avanzati per personalizzare i modelli e implementare inferenze specifiche.
-- *Supporto della comunità*: Una comunità attiva può fare la differenza quando incontri difficoltà. Forum, gruppi di discussione e risorse condivise dagli utenti (come esempi pratici o risposte a domande frequenti) sono fondamentali per risolvere problemi in modo rapido e imparare dalle esperienze di altri.
-- *Integrazione*: Considera quanto bene il PPL si integra con gli strumenti e i framework già in uso. Per esempio, se utilizzi librerie per la manipolazione dei dati, la visualizzazione o il machine learning, come pandas, ggplot o TensorFlow, verifica che il PPL scelto supporti queste interazioni senza complicazioni.
+Queste interfacce utilizzano una sintassi semplificata e familiare a chi lavora già con modelli statistici tradizionali. In R, ad esempio, *brms* consente di specificare un modello di regressione con la stessa logica di `lm` o `lmer`, aggiungendo la possibilità di definire priori e di stimare i parametri con algoritmi bayesiani. In questo modo, anche chi non ha esperienza di programmazione avanzata può avvicinarsi con relativa facilità all’inferenza bayesiana, beneficiando della potenza dei PPL senza doverne conoscere i dettagli più tecnici.
 
-### API
-
-I linguaggi di programmazione probabilistica (PPL) permettono agli utenti di definire con precisione le caratteristiche dei *priori*, della *verosimiglianza* e dell'intero modello bayesiano. Inoltre, offrono strumenti per effettuare le necessarie trasformazioni sui dati, garantendo la flessibilità richiesta per affrontare una vasta gamma di problemi statistici. Tuttavia, anche se i PPL cercano di semplificare queste operazioni, l'utente deve comunque scrivere codice che rispetti i vincoli sintattici e logici specifici del linguaggio. Questo richiede non solo competenze di programmazione, ma anche una buona conoscenza dei principi statistici e bayesiani.
-
-Per venire incontro a utenti che desiderano utilizzare l'inferenza bayesiana senza doversi addentrare nella programmazione, sono state sviluppate *interfacce di alto livello*. Queste interfacce permettono di specificare modelli statistici comuni in modo intuitivo, utilizzando una sintassi semplificata. Sebbene offrano meno controllo sui dettagli tecnici del modello, garantiscono comunque la possibilità di personalizzare elementi cruciali, come i *priori* e la *verosimiglianza*, rendendo l'inferenza bayesiana accessibile anche a chi non ha competenze di programmazione.
-
-### Principali interfacce di alto livello
-
-Tra le interfacce più popolari troviamo:
-
-- *`brms`*: utilizza Stan come motore sottostante per eseguire l'inferenza.
-- *`Bambi`*: si basa su PyMC per eseguire l'inferenza bayesiana.
-
-Entrambe queste librerie adottano una sintassi semplificata, nota come *sintassi di Wilkinson* [@wilkinson1973symbolic]. Questo approccio consente di specificare modelli in modo dichiarativo, usando una struttura simile a quella adottata da pacchetti R come `lm` (per modelli di regressione lineare) o `lme4` (per modelli multilivello con `lmer`).
-
-Ad esempio, in *brms* è possibile specificare un modello di regressione lineare con una sintassi simile a questa:
-
-```r
-fit <- brm(y ~ x1 + x2, data = dataset)
-```
-
-In questo esempio `y ~ x1 + x2` definisce la relazione tra la variabile dipendente (`y`) e le variabili indipendenti (`x1` e `x2`).
-
-### Vantaggi delle interfacce di alto livello
-
-1. *Accessibilità*: Riduzione della complessità sintattica, rendendo l'inferenza bayesiana più accessibile a un pubblico più ampio, inclusi studenti e ricercatori con competenze di programmazione limitate.
-2. *Flessibilità*: Sebbene più semplici, le interfacce consentono di specificare prior distribuiti in modo personalizzato e di modificare molteplici aspetti del modello.
-3. *Efficienza*: Automatizzano molti passaggi tecnici, permettendo di concentrarsi sulla definizione del modello e sull'interpretazione dei risultati.
-4. *Compatibilità*: Integrazione con strumenti statistici familiari, come il framework di modelli lineari in R.
-
-In questo corso, utilizzeremo principalmente *brms* per specificare e stimare modelli di regressione lineare e multilivello, sfruttandone la sintassi intuitiva e l'integrazione con R. Negli approfondimenti, invece, esploreremo come scrivere direttamente modelli in *Stan*, per comprendere meglio le basi dei PPL e avere maggiore controllo sui dettagli tecnici.
-
-Questa combinazione ci permetterà di bilanciare semplicità e potenza, rendendo l'inferenza bayesiana sia accessibile che personalizzabile, a seconda delle esigenze specifiche del progetto o dell'analisi.
-
-### Introduzione alla sintassi di Wilkinson
-
-La *sintassi di Wilkinson* in R fornisce un modo semplice ed efficace per specificare modelli di regressione lineare, consentendo di descrivere relazioni tra una variabile dipendente (risposta) e una o più variabili indipendenti (predittori) utilizzando una notazione simbolica. Questa sintassi si allinea direttamente al modello matematico, rendendo immediata la corrispondenza tra i termini simbolici e il codice.
-
-#### Modello simbolico e modello Wilkinson
-
-Supponiamo di voler specificare un modello di regressione lineare multipla con la seguente formula:
-
-$$
-y_i = \alpha + \beta_1 x_{1i} + \beta_2 x_{2i} + \varepsilon_i ,
-$$
-
-dove:
-
-- $y_i$ è la variabile dipendente per l'osservazione $i$,
-- $\alpha$ è l'intercetta,
-- $\beta_1$ e $\beta_2$ sono i coefficienti di regressione per i predittori $x_1$ e $x_2$,
-- $\varepsilon_i$ rappresenta l'errore residuo, normalmente distribuito ($\varepsilon_i \sim \mathcal{N}(0, \sigma^2)$).
-
-In R, questo modello può essere specificato con la sintassi Wilkinson:
-
-```R
-y ~ x1 + x2
-```
-
-#### Dettaglio dei componenti
-
-1. *Intercetta implicita*:  
-   La sintassi R include automaticamente l'intercetta ($\alpha$) quando si utilizza il simbolo `+`. Ad esempio:
-   ```R
-   y ~ x1 + x2
-   ```
-   equivale al modello:
-   $$
-   y_i = \alpha + \beta_1 x_{1i} + \beta_2 x_{2i} + \varepsilon_i
-   $$
-
-2. *Esclusione dell'intercetta*:  
-   Se si desidera escludere l'intercetta ($\alpha$), si utilizza `- 1` nella specifica:
-   ```R
-   y ~ x1 + x2 - 1
-   ```
-   Questo produce un modello senza intercetta:
-   $$
-   y_i = \beta_1 x_{1i} + \beta_2 x_{2i} + \varepsilon_i
-   $$
-
-3. *Inclusione esplicita dell'intercetta*:  
-   Anche se è implicita, l'intercetta può essere specificata esplicitamente con `1 +`:
-   ```R
-   y ~ 1 + x1 + x2
-   ```
-   Questo è equivalente al modello con intercetta implicita.
-
-4. *Interazione tra predittori*:  
-   La sintassi Wilkinson consente anche di specificare interazioni. Ad esempio, un'interazione tra $x_1$ e $x_2$:
-   ```R
-   y ~ x1 * x2
-   ```
-   Espande automaticamente il modello per includere:
-   $$
-   y_i = \alpha + \beta_1 x_{1i} + \beta_2 x_{2i} + \beta_3 (x_{1i} \cdot x_{2i}) + \varepsilon_i
-   $$
-
-#### Esempio pratico
-
-Supponiamo di avere un dataset con una variabile dipendente `y` e due predittori `x1` e `x2`. Ecco come specificare e adattare un modello di regressione lineare multipla in R:
-
-```R
-# Specifica del modello
-modello <- lm(y ~ x1 + x2, data = dataset)
-
-# Sommario del modello
-summary(modello)
-```
-
-Questo codice:
-
-- Specifica un modello con intercetta e due predittori.
-- Adatta il modello ai dati contenuti in `dataset`.
-- Calcola i coefficienti ($\alpha, \beta_1, \beta_2$), i valori di errore standard, i p-value (frequentisti) e altre statistiche di sintesi.
-
-In sintesi, la sintassi di Wilkinson in R permette di esprimere modelli di regressione lineare in modo conciso e leggibile, rendendo il passaggio dal modello matematico al codice intuitivo e diretto.
 
 ## Riflessioni conclusive {.unnumbered .unlisted}
 
-I linguaggi di programmazione probabilistica (PPL) rappresentano strumenti potenti per la specificazione completa e flessibile di modelli bayesiani, consentendo agli utenti di definire ogni aspetto del modello, dai *priori* alla *verosimiglianza*, fino agli algoritmi di inferenza. Strumenti come *Stan* e *PyMC* permettono un controllo dettagliato sui modelli, rendendoli ideali per analisi avanzate e progetti personalizzati.
+I linguaggi di programmazione probabilistica segnano un momento di svolta nella storia dell’inferenza bayesiana. Essi rappresentano il passaggio da una fase pionieristica, in cui ogni ricercatore doveva implementare da sé algoritmi complicati, a una fase matura, in cui l’attenzione può finalmente concentrarsi sulla costruzione dei modelli e sulla loro interpretazione scientifica.
 
-Tuttavia, questo livello di controllo richiede competenze di programmazione e una comprensione approfondita della statistica bayesiana. Per superare queste barriere e rendere l'inferenza bayesiana accessibile a un pubblico più ampio, sono state sviluppate interfacce di alto livello come *brms* (basata su Stan) e *Bambi* (basata su PyMC). Questi strumenti semplificano enormemente il processo, consentendo agli utenti di specificare modelli statistici complessi senza la necessità di scrivere codice dettagliato, grazie a una sintassi intuitiva come quella di Wilkinson.
+La logica di fondo rimane sempre quella introdotta con Metropolis: campionare dalla distribuzione a posteriori per approssimarla numericamente. La differenza è che, grazie ai PPL, non siamo più costretti a scrivere da zero codice specializzato per ogni problema. Possiamo dichiarare i nostri modelli in un linguaggio standardizzato, lasciare che il software si occupi del campionamento e concentrare le nostre energie sulla sostanza psicologica e teorica.
 
-In sintesi:
+Questo capitolo funge quindi da ponte: dall’algoritmo di Metropolis, che ci ha mostrato la logica generale, passiamo ora a strumenti concreti come Stan e le sue interfacce, che renderanno possibile mettere in pratica questa logica nei contesti complessi della ricerca psicologica contemporanea.
 
-- *I PPL* offrono flessibilità massima e un controllo completo, ma richiedono esperienza nella programmazione.
-- *Le interfacce di alto livello* rendono possibile l'inferenza bayesiana anche a chi preferisce evitare la programmazione, garantendo un compromesso tra semplicità e capacità di personalizzazione.
 
-La scelta tra un PPL e un'interfaccia di alto livello dipende quindi dalle esigenze specifiche: chi necessita di modelli estremamente personalizzati e complessi opterà per un PPL come Stan o PyMC, mentre chi desidera facilità d'uso senza rinunciare alla potenza dell'inferenza bayesiana troverà in brms o Bambi strumenti ideali. In ogni caso, la crescente disponibilità di strumenti e risorse rende oggi l’inferenza bayesiana più accessibile che mai, anche per chi non ha un background tecnico avanzato.
-
-## Bibliografia {.unnumbered .unlisted}
 
