@@ -1,0 +1,324 @@
+# ANOVA ad una via {#sec-anova1via}
+
+::: {.epigraph}
+> “The agricultural analogy is for [ANOVA] what the barnyard is to the city child—a romantic but inefficient source of fundamental concepts.”
+>
+> -- **David Bakan**, The Test of Significance in Psychological Research (1966)
+:::
+
+## Introduzione {.unnumbered .unlisted}
+
+Nel @sec-linear-models-two-groups ci siamo concentrati sul confronto tra due gruppi utilizzando una regressione lineare con variabili dummy. Questo approccio ci ha permesso di modellare in modo semplice l’effetto di un fattore binario e di stimare con incertezza l’ampiezza della differenza. Ora estendiamo quella logica al caso in cui il fattore abbia più di due livelli.
+
+Questo passaggio ci introduce al cuore dell'ANOVA a una via, che non è altro che un modello lineare con un fattore categoriale a $k$ livelli. In questo contesto, ci interessa capire quanta variabilità nei dati può essere attribuita alle differenze tra gruppi, e quanto invece rimane all'interno dei gruppi stessi. Come sempre in questo manuale, manterremo una lettura orientata all’incertezza e alla variabilità intra- e inter-individuale, trattando l’inferenza come uno strumento per quantificare la credibilità delle ipotesi.
+
+
+### Panoramica del capitolo {.unnumbered .unlisted}
+
+- Fare inferenza sulla media di un campione.
+- Trovare le distribuzioni a posteriori usando `brms`.
+- Verificare il modello usando i pp-check plots.
+
+::: {.callout-tip collapse=true}
+## Prerequisiti
+
+- Leggere il capitolo *Geocentric models* di Statistical rethinking [@McElreath_rethinking].
+:::
+
+::: {.callout-caution collapse=true title="Preparazione del Notebook"}
+
+```{r}
+#| output: false
+
+here::here("code", "_common.R") |> 
+  source()
+
+# Load packages
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(cmdstanr, posterior, bayestestR, brms, emmeans)
+```
+:::
+
+
+## Codifica del modello con variabili dummy
+
+Supponiamo un esperimento con tre gruppi. Per rappresentare questo fattore all’interno di un modello lineare, usiamo due variabili dummy e consideriamo il terzo gruppo come riferimento implicito. Il modello assume la forma:
+
+$$
+Y_i = \alpha + \gamma_1 D_{i1} + \gamma_2 D_{i2} + \varepsilon_i
+$$ {#eq-anova1}
+
+dove:
+
+* $\alpha$ è l’intercetta del modello,
+* $\gamma_1$ e $\gamma_2$ sono i coefficienti associati alle variabili dummy,
+* $D_{i1}$ e $D_{i2}$ indicano l’appartenenza dell’osservazione $i$ ai gruppi 1 e 2, rispettivamente,
+* $\varepsilon_i$ è l’errore aleatorio.
+
+La codifica delle dummy è la seguente:
+
+$$
+\begin{array}{c|cc}
+\text{Gruppo} & D_{1} & D_{2} \\
+\hline
+1 & 1 & 0 \\
+2 & 0 & 1 \\
+3 & 0 & 0
+\end{array}
+$$ {#eq-anova1a}
+
+
+### Interpretazione dei parametri
+
+Con questa codifica, possiamo esprimere le medie di ciascun gruppo come:
+  
+$$
+\begin{aligned}
+\mu_1 &= \alpha + \gamma_1 \\
+\mu_2 &= \alpha + \gamma_2 \\
+\mu_3 &= \alpha
+\end{aligned}
+$$
+  
+Da cui otteniamo:
+  
+$$
+\alpha = \mu_3, \quad \gamma_1 = \mu_1 - \mu_3, \quad \gamma_2 = \mu_2 - \mu_3.
+$$
+  
+Quindi:
+  
+* $\alpha$: media del gruppo 3 (riferimento),
+* $\gamma_1$: quanto il gruppo 1 si discosta da $\mu_3$,
+* $\gamma_2$: quanto il gruppo 2 si discosta da $\mu_3$.
+
+In un'ottica bayesiana, questi coefficienti possono essere pensati come distribuzioni: esprimono *quanto crediamo che ciascuna differenza sia plausibile*, date le osservazioni. Passiamo ora a una simulazione.
+
+
+## Simulazione
+
+Simuliamo un esperimento con tre condizioni: `controllo`, `psicoterapia1` e `psicoterapia2`. Ogni gruppo ha una media diversa ma la stessa deviazione standard. Ci interessa modellare la variabilità tra le condizioni e interpretare le differenze in modo probabilistico.
+
+```{r}
+set.seed(123)
+
+n <- 30  # numero di osservazioni per gruppo
+# Medie di ciascun gruppo
+mean_control <- 30
+mean_psico1  <- 25
+mean_psico2  <- 20
+# Deviazione standard comune
+sd_value <- 5
+
+# Generazione dei dati
+controllo     <- rnorm(n, mean_control, sd_value)
+psicoterapia1 <- rnorm(n, mean_psico1,  sd_value)
+psicoterapia2 <- rnorm(n, mean_psico2,  sd_value)
+
+# Creazione del data frame
+df <- data.frame(
+  condizione = rep(c("controllo", "psicoterapia1", "psicoterapia2"), each = n),
+  punteggio  = c(controllo, psicoterapia1, psicoterapia2)
+)
+
+df |> head()
+```
+
+
+### Esplorazione iniziale
+
+Visualizziamo le distribuzioni dei punteggi:
+
+```{r}
+ggplot(df, aes(x = condizione, y = punteggio, fill = condizione)) +
+  geom_violin(trim = FALSE, color = css_palette$text_primary, linewidth = 0.3) +
+  geom_boxplot(width = 0.22, outlier.shape = NA,
+               color = css_palette$text_primary, fill = scales::alpha("white", 0.55)) +
+  labs(x = "Condizione sperimentale", y = "Punteggio di depressione") +
+  scale_fill_manuscript(limits = levels(df$condizione), drop = FALSE) +  
+  theme_manuscript() +
+  theme(legend.position = "none")
+```
+
+Calcoliamo media e deviazione standard per ogni gruppo:
+
+```{r}
+df |> 
+  group_by(condizione) |> 
+  summarize(
+    media = mean(punteggio),
+    sd = sd(punteggio)
+  )
+```
+
+
+## Modello lineare con variabili dummy
+
+Convertiamo `condizione` in fattore e definiamo `controllo` come categoria di riferimento:
+
+```{r}
+df$condizione <- factor(df$condizione)
+df$condizione <- relevel(df$condizione, ref = "controllo")
+contrasts(df$condizione)
+```
+
+Il modello di regressione con le variabili dummy sarà:
+
+$$
+Y_i = \beta_0 + \beta_1 \cdot \text{psicoterapia1}_i + \beta_2 \cdot \text{psicoterapia2}_i + \varepsilon_i,
+$$
+
+dove:
+
+* $\beta_0$ è la media del gruppo di **controllo**;
+* $\beta_1$ e $\beta_2$ sono le differenze tra le rispettive psicoterapie e il gruppo di controllo.
+
+
+### Stima del modello
+
+Eseguiamo una prima analisi usando il metodo di massima verosimiglianza:
+
+```{r}
+fm1 <- lm(punteggio ~ condizione, data = df)
+```
+
+```{r}
+summary(fm1)
+```
+
+Verifica delle medie e differenze tra i gruppi:
+
+```{r}
+out <- tapply(df$punteggio, df$condizione, mean)
+out[2] - out[1]  # psicoterapia1 - controllo
+out[3] - out[1]  # psicoterapia2 - controllo
+```
+
+
+## Contrasti personalizzati
+
+I contrasti ci permettono di andare oltre il test globale e formulare ipotesi teoriche mirate. Ad esempio:
+
+- la media del gruppo controllo è diversa dalla media delle due psicoterapie?
+- le due psicoterapie differiscono tra loro?
+
+A questo fine, specifichiamo la seguente matrice dei contrasti:
+
+```{r}
+my_contrasts <- matrix(c(
+  0.6667,  0,     # controllo
+ -0.3333,  0.5,   # psicoterapia1
+ -0.3333, -0.5    # psicoterapia2
+), ncol = 2, byrow = TRUE)
+
+colnames(my_contrasts) <- c("Ctrl_vs_PsicoMean", "P1_vs_P2")
+rownames(my_contrasts) <- c("controllo", "psicoterapia1", "psicoterapia2")
+
+contrasts(df$condizione) <- my_contrasts
+```
+
+Adattiamo il modello:
+
+```{r}
+mod_custom <- lm(punteggio ~ condizione, data = df)
+```
+
+Esaminiamo i coefficienti:
+
+```{r}
+summary(mod_custom)
+```
+
+Interpretazione dei coefficienti:
+
+* **Intercetta**: non rappresenta più una singola media, ma una combinazione lineare dei gruppi.
+* **Ctrl\_vs\_PsicoMean**: confronta la media di `controllo` con la media combinata delle due psicoterapie.
+* **P1\_vs\_P2**: differenza tra le due psicoterapie.
+
+Verifica manuale:
+
+```{r}
+# Controllo - media delle psicoterapie
+out[1] - (out[2] + out[3]) / 2
+```
+
+```{r}
+# Psicoterapia1 - Psicoterapia2
+out[2] - out[3]
+```
+
+
+## Estensione bayesiana con `brms` e `emmeans`
+
+Usiamo ora il modello bayesiano:
+
+```{r}
+#| output: false
+mod <- brm(punteggio ~ condizione, data = df, backend = "cmdstanr")
+```
+
+```{r}
+summary(mod)
+```
+
+Le medie marginali e i confronti possono essere ottenuti con il pacchetto `emmeans`:
+
+```{r}
+em <- emmeans(mod, specs = "condizione")
+em
+```
+
+Confronti tra gruppi:
+
+```{r}
+pairs(em)  # confronti a coppie
+```
+
+Contrasti personalizzati:
+
+```{r}
+my_list <- list(
+  "Ctrl_vs_PsicoMean" = c(
+    "controllo" = 1, "psicoterapia1" = -0.5, "psicoterapia2" = -0.5
+  ),
+  "P1_vs_P2" = c(
+    "controllo" = 0, "psicoterapia1" = 1, "psicoterapia2" = -1
+  )
+)
+```
+
+```{r}
+contrast(em, method = my_list)
+```
+
+```{r}
+# Visualizzazione
+plot(em)
+```
+
+## Riflessioni conclusive {.unnumbered .unlisted}
+
+Ecco una proposta rivista delle **Riflessioni conclusive**, che integra il riferimento storico a Fisher e la riflessione critica di McArdle sull’uso dell’ANOVA in psicologia:
+
+---
+
+## Riflessioni conclusive {.unnumbered .unlisted}
+
+L’ANOVA a una via rappresenta un punto di passaggio fondamentale nella storia della statistica. Fisher la introdusse negli anni ’20 per risolvere problemi molto concreti di agricoltura sperimentale: ad esempio, confrontare le rese di diversi fertilizzanti su parcelle di terreno, in cui le variabili erano chiaramente definite e osservabili. In questo contesto, l’ANOVA si rivelò uno strumento elegante per separare la variabilità “tra trattamenti” dalla variabilità “entro trattamenti”.
+
+In psicologia, tuttavia, il quadro è radicalmente diverso. Come ha osservato ripetutamente John J. McArdle [ad es. @McArdle1994], i nostri oggetti di studio sono in larga misura *costrutti latenti* — ansia, depressione, intelligenza — che non possono essere osservati direttamente come la crescita di una pianta o il peso di un raccolto. Applicare in modo acritico tecniche nate per l’agricoltura rischia quindi di ridurre la complessità dei fenomeni psicologici a semplici confronti tra medie di punteggi osservati.
+
+Questo non significa che l’ANOVA non abbia avuto (e non abbia tuttora) un ruolo didattico e applicativo importante: il modello lineare sottostante resta una base utile per introdurre la logica del confronto tra gruppi. Tuttavia, per affrontare in modo adeguato i problemi della psicologia contemporanea, è spesso più appropriato ricorrere a tecniche che modellano esplicitamente la natura latente delle variabili, come l’*analisi fattoriale* o i *modelli a equazioni strutturali*. Questi approcci permettono di connettere in modo più diretto le osservazioni empiriche ai costrutti teorici che ci interessano davvero.
+
+In sintesi, l’ANOVA è uno strumento storico e concettualmente utile, ma deve essere vista come un trampolino: una tappa di apprendimento che prepara all’uso di modelli più adatti a catturare la complessità dei dati psicologici.
+
+
+
+::: {.callout-note collapse=true title="Informazioni sull'ambiente di sviluppo"}
+```{r}
+sessionInfo()
+```
+:::
+
+## Bibliografia {.unnumbered .unlisted}
+

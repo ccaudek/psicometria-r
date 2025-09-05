@@ -1,577 +1,310 @@
-# La predizione bayesiana {#sec-mcmc-prediction}
+# Controlli predittivi bayesiani (a priori e a posteriori) con `cmdstanr` {#sec-mcmc-prediction}
 
-::: callout-important
-## In questo capitolo imparerai a
 
-- 
+
+## Introduzione {.unnumbered .unlisted}
+
+
+Quando costruiamo un modello, possiamo chiederci due cose diverse: 
+
+1. *che cosa sappiamo dei parametri* dati i dati osservati (la *posterior*), e  
+2. *che cosa ci aspettiamo di osservare* in nuove rilevazioni (la *distribuzione predittiva a posteriori*).
+
+Nel lavoro psicologico applicato, la seconda domanda è spesso quella decisiva: vogliamo usare il modello per *prevedere* come si comporteranno nuovi dati e, soprattutto, per capire se il modello *riproduce in modo plausibile* le caratteristiche dei dati reali. Da qui nascono due strumenti pratici:
+
+- *Controlli predittivi a priori* (*prior predictive checks*): generiamo dati sintetici *prima* di vedere i dati reali, solo dalle ipotesi iniziali (prior). Se questi scenari “immaginati” risultano totalmente irrealistici, il problema è nelle nostre assunzioni di partenza.  
+- *Controlli predittivi a posteriori* (*posterior predictive checks*): generiamo dati sintetici *dopo* aver visto i dati, cioè dalla distribuzione dei parametri aggiornata (posteriori). Questo ci dice se il modello, una volta “istruito” dai dati, è in grado di produrre esiti simili a quelli osservati.
+
+In questo capitolo *mettiamo in pratica* queste idee: vedremo come simulare dati dal modello, visualizzarli e confrontarli con i dati reali per giudicare la coerenza del modello. L’obiettivo non è aggiungere nuova teoria, ma *imparare un metodo operativo* che userai spesso: generare, guardare, confrontare.
+
+::: {.callout-note title="Idea in una riga"}
+La distribuzione predittiva posteriore è una *media pesata* delle predizioni possibili, secondo quanto i parametri sono plausibili alla luce dei dati:
+
+$$
+p(\tilde y \mid y) \;=\; \int p(\tilde y \mid \theta)\, p(\theta \mid y)\, d\theta.
+$$
+In pratica: campioni $\theta$ verosimili → genera dati $\tilde{y}$ → confronta con i dati osservati.
 :::
 
-::: callout-tip
-## Prerequisiti
+**Cosa faremo concretamente**
 
-- 
-:::
+1. Genereremo dati *a priori* per verificare che le ipotesi iniziali non producano scenari assurdi.  
+2. Genereremo dati *a posteriori* per valutare se il modello allenato “sa” riprodurre i dati.  
+3. Useremo grafici semplici per un confronto visivo chiaro.
 
-::: .callout-caution
-## Preparazione del Notebook
-
-```{r}
-here::here("code", "_common.R") |> 
-  source()
-
-# Load packages
-if (!requireNamespace("pacman")) install.packages("pacman")
-pacman::p_load(cmdstanr, posterior, bayestestR)
-```
-:::
-
-## Introduzione 
-
-In questo capitolo esamineremo in dettaglio le distribuzioni predittive a priori e a posteriori. La distribuzione predittiva a priori rappresenta le aspettative sui dati prima di qualsiasi osservazione reale, riflettendo le conoscenze preesistenti e le ipotesi sui parametri del modello. Essa fornisce un'indicazione delle caratteristiche che i dati potrebbero assumere in base al modello. Confrontare queste previsioni con i dati effettivamente osservati consente di valutare la validità delle ipotesi incorporate nel modello.
-
-La distribuzione predittiva è spesso di maggiore interesse rispetto alla distribuzione a posteriori. Mentre la distribuzione a posteriori descrive l'incertezza sui parametri (ad esempio, la proporzione di palline rosse in un'urna), la distribuzione predittiva descrive l'incertezza sugli eventi futuri (ad esempio, il colore della pallina che verrà estratta in futuro). Questa differenza è cruciale, soprattutto quando si tratta di prevedere gli effetti di un intervento, come la somministrazione di un trattamento a un paziente.
-
-La distribuzione predittiva a posteriori è inoltre fondamentale per valutare quanto le previsioni del modello siano coerenti con i dati osservati. Se le previsioni del modello risultano allineate con i dati raccolti, il modello può essere considerato accurato nel rappresentare il processo generativo sottostante. Questo confronto è essenziale per convalidare il modello e assicurarsi che le ipotesi riflettano adeguatamente la realtà osservata.
-
-## La distribuzione predittiva a posteriori {#sec-posterior-predictive-distribution}
-
-La [distribuzione predittiva a posteriori](https://mc-stan.org/docs/stan-users-guide/posterior-predictive-checks.html#prior-predictive-checks) offre una valutazione critica della coerenza tra i dati reali e quelli simulati dal modello [@gelman2013philosophy]. Confrontando direttamente i dati osservati con quelli generati dal modello, essa permette di identificare eventuali discrepanze che potrebbero segnalare problemi nella specificazione del modello. In pratica, la PPC (Posterior Predictive Check) funge da test diagnostico, consentendo di rilevare e correggere eventuali carenze nel modello, migliorandone così le capacità predittive.
-
-Per comprendere meglio il concetto, consideriamo la distribuzione predittiva a posteriori in termini di un modello coniugato normale-normale. Supponiamo di voler predire la media di una distribuzione normale futura, basandoci sui dati osservati e sulle nostre conoscenze a priori. La PPD ci offre uno strumento per calcolare queste probabilità, combinando le informazioni provenienti dai dati osservati con quelle fornite dalla distribuzione a priori.
-
-Ad esempio, immaginiamo di aver raccolto dati sulle altezze di 100 persone, ottenendo una media campionaria di 170 cm e una deviazione standard campionaria di 10 cm. Il nostro obiettivo è stimare la media delle altezze in un futuro campione di $n=100$ persone. La nostra conoscenza a priori sulla media delle altezze è rappresentata da una distribuzione normale con media 175 cm e deviazione standard di 5 cm. 
-
-In termini di notazione, possiamo esprimere questa distribuzione come $P(\tilde{y} \mid \theta=\theta_1)$, dove $\tilde{y}$ rappresenta un nuovo dato che è diverso dai dati attuali $y$, e $\theta_1$ è la media a posteriori. Tuttavia, in statistica bayesiana, è fondamentale incorporare tutta l'incertezza nei risultati. Poiché $\theta_1$ è solo uno dei possibili valori per $\theta$, dovremmo includere ogni valore di $\theta$ per la nostra previsione. Per ottenere la migliore previsione, possiamo "mediare" le previsioni attraverso i diversi valori di $\theta$, ponderando ciascun valore secondo la sua probabilità a posteriori.
-
-La distribuzione risultante è la distribuzione predittiva a posteriori, che in notazione matematica è data da:
-
-$$ P(\tilde{y} \mid y) = \int_\theta p(\tilde{y} \mid \theta, y) p(\theta \mid y) d\theta. $$
-
-In questo modo, la distribuzione predittiva a posteriori combina le informazioni dai dati osservati con la conoscenza a priori, fornendo una previsione che riflette l'incertezza associata a tutti i possibili valori dei parametri del modello.
-
-## Distribuzione predittiva a posteriori nel modello normale-normale
-
-Nel modello coniugato normale-normale, se i dati osservati $Y = \{y_1, y_2, ..., y_n\}$ sono modellati come provenienti da una distribuzione normale con media $\mu$ e varianza $\sigma^2$, e assumendo una distribuzione a priori normale per $\mu$, la distribuzione a posteriori di $\mu$ sarà anch'essa normale.
-
-### Formule della distribuzione predittiva a posteriori
-
-Dato che:
-
-1. I dati osservati $y_i \sim \mathcal{N}(\mu, \sigma^2)$
-2. La prior per $\mu$ è $\mu \sim \mathcal{N}(\mu_0, \tau_0^2)$
-
-La distribuzione a posteriori per $\mu$ sarà:
-
-$$
-\mu \mid Y \sim \mathcal{N}(\mu_n, \tau_n^2)
-$$
-
-dove:
-
-$$
-\mu_n = \frac{\tau_0^2 \bar{y} + \sigma^2 \mu_0}{\tau_0^2 + \sigma^2}
-$$
-
-in cui $\bar{y}$ è la media campionaria dei dati osservati, e
-
-$$
-\tau_n^2 = \frac{\tau_0^2 \sigma^2}{\tau_0^2 + \sigma^2} .
-$$
-
-
-
-::: {#exm-}
-
-Consideriamo che:
-
-- $\mu_0 = 175$ cm (media a priori)
-- $\tau_0 = 5$ cm (deviazione standard a priori)
-- $\bar{y} = 170$ cm (media campionaria)
-- $\sigma = 10$ cm (deviazione standard campionaria)
-- $n = 100$ (numero di osservazioni)
-
-I parametri della distribuzione a posteriori sono:
-
-$$
-\mu_n = \frac{(5^2 \cdot 170) + (10^2 \cdot 175)}{5^2 + 10^2} = \frac{42500 + 175000}{25 + 100} = \frac{217500}{125} = 174 \quad \text{cm}
-$$
-
-$$
-\tau_n^2 = \frac{5^2 \cdot 10^2}{5^2 + 10^2} = \frac{2500}{125} = 20 \quad \text{cm}^2 \Rightarrow \tau_n = \sqrt{20} \approx 4.47 \quad \text{cm}
-$$
-
-Pertanto, la distribuzione a posteriori per $\mu$ è:
-
-$$
-\mu \mid Y \sim \mathcal{N}(174, 4.47^2)
-$$
-
-Per la distribuzione predittiva a posteriori, dobbiamo considerare anche la varianza della distribuzione futura. Se stiamo predicendo per $n_{\text{fut}}=100$ nuove osservazioni, la varianza della media predittiva sarà:
-
-$$
-\sigma_{\text{pred}}^2 = \tau_n^2 + \frac{\sigma^2}{n_{\text{fut}}}
-$$
-
-$$
-\sigma_{\text{pred}}^2 = 20 + \frac{10^2}{100} = 20 + 1 = 21 \quad \text{cm}^2 \Rightarrow \sigma_{\text{pred}} = \sqrt{21} \approx 4.58 \quad \text{cm}
-$$
-
-Quindi, la distribuzione predittiva a posteriori è:
-
-$$
-\tilde{Y} \sim \mathcal{N}(174, 4.58^2)
-$$
-
-## Implementazione con `cmdstanr`
-
-Per illustrare come viene generata la distribuzione predittiva a posteriori nel contesto del modello normale-normale, possiamo utilizzare `cmdstanr` per eseguire l'analisi. Il codice seguente mostra come configurare il modello e generare previsioni.
+::: {.callout-caution collapse=true title="Preparazione del Notebook"}
 
 ```{r}
-# Dati osservati
-set.seed(123)  # Imposta il seed per la riproducibilità
-y_observed <- rnorm(100, 170, 10)
-mean_y <- mean(y_observed)
-std_y <- sd(y_observed)
-
-# Parametri a priori
-mu_0 <- 175
-tau_0 <- 5
-
-# Parametri posteriori
-tau_n_sq <- (tau_0^2 * std_y^2) / (tau_0^2 + std_y^2)
-tau_n <- sqrt(tau_n_sq)
-mu_n <- (tau_0^2 * mean_y + std_y^2 * mu_0) / (tau_0^2 + std_y^2)
-
-# Parametri predittivi
-n_fut <- 100
-sigma_pred_sq <- tau_n_sq + (std_y^2 / n_fut)
-sigma_pred <- sqrt(sigma_pred_sq)
-mu_pred <- mu_n
-
-# Simulazioni
-y_pred_samples <- rnorm(1000, mu_pred, sigma_pred)
-
-# Dati per ggplot
-data <- data.frame(Heights = y_pred_samples)
-
-# Grafico
-p <- ggplot(data, aes(x = Heights)) +
-  geom_histogram(
-    aes(y = ..density..), 
-    bins = 30, 
-    fill = "gray", 
-    colour = "gray", 
-    alpha = 0.5
-  ) +
-  geom_density(colour = "black", size = 1.5) +
-  geom_vline(
-    xintercept = mu_pred, 
-    colour = "gray", 
-    linetype = "dashed", 
-    size = 1
-  ) +
-  labs(title = "Posterior Predictive Distribution for Heights",
-       x = "Heights (cm)",
-       y = "Density") +
-  theme(legend.position = "none")
-
-# Visualizza il grafico
-print(p)
-```
-
-Questo codice produce un grafico che illustra visivamente la distribuzione predittiva a posteriori per le altezze nel nostro campione di 100 nuove osservazioni, tenendo conto sia dei dati osservati che delle nostre aspettative iniziali.
-
-In sintesi, la distribuzione predittiva a posteriori è stata generata nel modo seguente:
-
-1. Campioniamo un valore $\mu$ dalla distribuzione a posteriori di $\mu$.
-2. Campioniamo un valore $\sigma$ dalla distribuzione a posteriori di $\sigma$.
-3. Utilizziamo questi valori per generare un campione dalla distribuzione normale con parametri $\mu$ e $\sigma$.
-4. Ripetiamo questo processo molte volte.
-
-La distribuzione dei valori ottenuti da questi campionamenti costituisce la distribuzione predittiva a posteriori.
-
-## Metodo MCMC
-
-Quando usiamo un PPL come Stan, la distribuzione predittiva viene stimata mediante il campionamento da una catena di Markov, che è particolarmente utile in scenari complessi dove l'analisi analitica potrebbe essere impraticabile. Attraverso i metodi MCMC, si stimano le potenziali osservazioni future $p(\tilde{y} \mid y)$, indicate come $p(y^{rep} \mid y)$, seguendo questi passaggi:
-
-1. Si campiona $\theta_i \sim p(\theta \mid y)$: Viene selezionato casualmente un valore del parametro (o dei parametri) dalla distribuzione a posteriori.
-2. Si campiona $y^{rep} \sim p(y^{rep} \mid \theta_i)$: Viene scelta casualmente un'osservazione dalla funzione di verosimiglianza, condizionata al valore del parametro (o dei parametri)ottenuto nel passo precedente.
-
-Ripetendo questi due passaggi un numero sufficiente di volte, l'istogramma risultante approssimerà la distribuzione predittiva a posteriori. 
-
-Esaminiamo ora come ottenere la distribuzione predittiva a posteriori con Stan per i dati dell'esempio precedente. Iniziamo creando le distribuzioni a posteriori di $\mu$ e $\sigma$.
-
-Definiamo un dizionario che contiene i dati.
-
-```{r}
-stan_data_gauss = list(
-  N = length(y_observed),
-  y = y_observed,
-  mu_prior = 180,
-  sigma_prior = 20,
-  sigma_prior_mean = 10,
-  sigma_prior_sd = 3
-)
-```
-
-```{r}
-y_mean = mean(y_observed)
-y_std = sd(y_observed)
-
-y_mean
-y_std
-```
-
-Compiliamo e stampiamo il modello Stan:
-
-```{r}
-# Path to the Stan file
-stan_file <- here::here("stan", "gaussian_model.stan")
-
-# Create a CmdStanModel object
-mod <- cmdstan_model(stan_file)
-```
-
-```{r}
-mod$print()
-```
-
-Eseguiamo il campionamento MCMC:
-
-```{r}
-#| message: false
-#| warning: false
 #| output: false
-#| 
-fit <- mod$sample(
-  data = stan_data_gauss,
-  seed = 123,
-  chains = 4,
-  parallel_chains = 4,
-  iter_sampling = 2000, 
-  iter_warmup = 2000,
-  show_messages = FALSE
-)
+
+here::here("code", "_common.R") |> source()
+
+# Carichiamo i pacchetti necessari
+if (!requireNamespace("pacman")) install.packages("pacman")
+pacman::p_load(cmdstanr, posterior, insight, bayesplot, ggplot2)
 ```
+:::
 
-Un sommario delle distribuzioni a posteriori dei parametri si ottiene nel modo seguente:
 
-```{r}
-fit$summary(c("mu", "sigma"))
-```
+## La distribuzione predittiva a posteriori 
 
-Estraiamo i dati prodotti dal modello `y_rep` e i dati osservati `y`:
+Ricordiamo la definizione:
 
-```{r}
-# Extract posterior predictive samples for y_rep
-y_rep <- fit$draws(variables = "y_rep", format = "draws_matrix")
+$$
+p(\tilde{y} \mid y) = \int p(\tilde{y} \mid \theta)\, p(\theta \mid y)\, d\theta ,
+$$
+che nei Posterior Predictive Checks (PPC) viene stimata simulando nuovi dati a partire dal posteriore dei parametri.
 
-# Extract observed data
-y_obs <- stan_data_gauss$y
-```
+Perfetto, ti propongo una versione rielaborata e più didattica del testo, pensata per studenti di psicologia non esperti di statistica. Ho mantenuto il codice, ma ho reso più narrativo il commento e più chiaro il legame tra teoria, Stan e R.
 
-Convertiamo `y_rep` in una matrice per compatibilità con *{bayesplot}*.
 
-```{r}
-# Convert y_rep to a matrix
-y_rep_matrix <- as.matrix(y_rep)
-```
+## Esempio: il modello normale–normale
 
-Generiamo il posterior predictive chech plot:
+Per rendere concreti i concetti di predizione bayesiana, partiamo da un caso molto semplice ma istruttivo: il **modello normale–normale**.  
 
-```{r}
-# Posterior predictive check plot
-set.seed(123)
-selected_indices <- sample(nrow(y_rep_matrix), 50)
-ppc_dens_overlay(y = y_obs, yrep = y_rep_matrix[selected_indices, ])
-```
+Immaginiamo di voler stimare l’altezza media di una popolazione. Scegliamo come modello:  
 
-La distribuzione predittiva a posteriori è utilizzata per eseguire i *controlli predittivi a posteriori* (PPC), noti come *Posterior Predictive Checks*. I PPC consistono in un confronto grafico tra $p(y^{rep} \mid y)$, ossia la distribuzione delle osservazioni future previste, e i dati osservati $y$. Questo confronto visivo permette di valutare se il modello utilizzato è adeguato per descrivere le proprietà dei dati osservati.
+- un *prior* sulla media $\mu$, distribuito normalmente con parametri $\mu_0$ (media a priori) e $\tau_0^2$ (varianza a priori);  
+- dei *dati osservati* $y_i$, anch’essi distribuiti normalmente attorno a $\mu$, con varianza fissata $\sigma^2$.  
 
-Oltre al confronto grafico tra le distribuzioni $p(y)$ e $p(y^{rep})$, è possibile effettuare un confronto tra le distribuzioni di varie statistiche descrittive calcolate su diversi campioni $y^{rep}$ e le corrispondenti statistiche calcolate sui dati osservati. Tipicamente, vengono considerate statistiche descrittive come la media, la varianza, la deviazione standard, il minimo o il massimo, ma è possibile confrontare qualsiasi altra statistica rilevante.
+Matematicamente:
 
-I controlli predittivi a posteriori offrono un valido strumento per un'analisi critica delle prestazioni del modello e, se necessario, per apportare eventuali modifiche o considerare modelli alternativi più adatti ai dati in esame.
+$$
+\mu \sim \mathcal{N}(\mu_0, \tau_0^2), \qquad
+y_i \sim \mathcal{N}(\mu, \sigma^2).
+$$
 
-## Distribuzione Predittiva a Priori
+In questo contesto, la *distribuzione predittiva posteriore* per una nuova osservazione $\tilde{y}$ si scrive:
 
-La **verifica predittiva a priori** è un metodo fondamentale per esplorare le implicazioni dei tuoi prior. Genera dati simulati basandosi unicamente sui prior, ignorando completamente i dati osservati. Questo permette di rispondere a domande cruciali come:
+$$
+\tilde{y} \mid Y \sim \mathcal{N}\!\big(\mu_n, \; \tau_n^2 + \sigma^2 \big),
+$$
+dove $\mu_n$ e $\tau_n^2$ sono la media e la varianza della distribuzione a posteriori di $\mu$.   
 
-- I dati generati dal prior riflettono scenari plausibili?
-- Il prior è troppo restrittivo o troppo ampio rispetto ai dati attesi?
+La formula in sé non è la parte più importante: ciò che ci interessa è *come realizzare la simulazione* in pratica, così da poter confrontare i dati osservati con i dati replicati dal modello.
 
-Questa verifica è particolarmente utile per identificare eventuali incongruenze o assunzioni non realistiche prima di raccogliere i dati osservati.
 
-### Modello Beta-Binomiale
+### Implementazione con Stan
 
-Iniziamo con il caso più semplice. Il modello beta-binomiale è un esempio classico per illustrare la verifica predittiva a priori. In questo modello:
+Creiamo un modello Stan (`normal_pred.stan`) che ci consente di generare:
 
-- `theta` rappresenta la probabilità di successo.
-- Il prior su `theta` è distribuito secondo una distribuzione Beta parametrizzata da `alpha_prior` e `beta_prior`.
-- I dati (`y`) seguono una distribuzione Bernoulliana condizionata su `theta`.
+- *prior predictive* (se `prior_only = 1`): simulazioni solo a partire dal prior, prima di vedere i dati;  
+- *posterior predictive* (se `prior_only = 0`): simulazioni aggiornate dopo aver visto i dati.
 
-Il modello Stan per l'inferenza sui dati osservati è il seguente:
-
-```
+```stan
 data {
-  int<lower=0> N;             // Numero di osservazioni
-  array[N] int<lower=0, upper=1> y; // Dati osservati (successi)
-  real<lower=0> alpha_prior;  // Parametro alpha del prior Beta
-  real<lower=0> beta_prior;   // Parametro beta del prior Beta
+  int<lower=0> N;
+  vector[N] y;
+  real mu0;
+  real<lower=0> tau0;
+  real<lower=0> sigma;
+  int<lower=0,upper=1> prior_only;
 }
 parameters {
-  real<lower=0, upper=1> theta; // Probabilità di successo
+  real mu;
 }
 model {
-  theta ~ beta(alpha_prior, beta_prior); // Prior su theta
-  y ~ bernoulli(theta);                  // Likelihood
+  mu ~ normal(mu0, tau0);          // prior
+  if (prior_only == 0)
+    y ~ normal(mu, sigma);         // likelihood (solo se usiamo i dati)
+}
+generated quantities {
+  real y_rep;
+  y_rep = normal_rng(mu, sigma);   // generiamo una nuova osservazione
 }
 ```
 
-Per eseguire la simulazione dalla distribuzione predittiva a priori, rimuoviamo il blocco `model` e utilizziamo `generated quantities` per simulare:
 
-- l'estrazione di un valore per `theta` dalla distribuzione Beta specificata dai parametri del prior;
-- la generazione di successi simulati (`y_sim`) dalla distribuzione Bernoulliana condizionata su theta.
+### In R
 
-Compiliamo il modello:
+Simuliamo 100 altezze con media 170 cm e deviazione standard 10 cm, poi invochiamo Stan per stimare il modello:
 
 ```{r}
-# Create a CmdStanModel object
-mod_prior <- cmdstan_model(here::here("stan", "betabinomial_prior.stan"))
+#| output: false
+N <- 100
+y <- rnorm(N, mean = 170, sd = 10)
+
+stan_data <- list(
+  N = N, y = y,
+  mu0 = 175, tau0 = 5, sigma = 10,
+  prior_only = 0
+)
+
+mod <- cmdstan_model(here::here("stan", "normal_pred.stan"))
+fit <- mod$sample(data = stan_data, chains = 4, iter_sampling = 1000, refresh = 0)
 ```
 
-Esaminiamo il modello:
+
+### Visualizzazione: Posterior Predictive Checks
+
+Per i controlli predittivi, generiamo i dati replicati e li confrontiamo con i dati osservati:
 
 ```{r}
-mod_prior$print()
+y_rep_vars <- paste0("y_rep[", 1:N, "]")
+y_rep <- as_draws_matrix(fit$draws(y_rep_vars))
+
+# Confronto distribuzioni
+bayesplot::ppc_dens_overlay(y, y_rep[1:200, ])
 ```
 
-In questo script abbiamo
+Il grafico mostra la distribuzione reale delle altezze (`y`) e quelle simulate dal modello (`y_rep`). Se le due curve si sovrappongono in modo plausibile, significa che il modello è in grado di riprodurre le caratteristiche essenziali dei dati.
 
-* *eliminato il blocco `model`:* Questo blocco serve per l'inferenza Bayesiana, ma non è necessario per generare dati a priori.
-* *aggiunto il blocco `generated quantities`:* In questo blocco generiamo quantità di interesse, come i dati simulati `y_sim` e il valore di `theta` estratto dalla distribuzione a priori.
-* *utilizzato la funzione `beta_rng`* per estrarre un valore per `theta` dalla distribuzione $\mathcal{Beta}$ definita dai parametri `alpha_prior` e `beta_prior`. Questo valore rappresenta una possibile realizzazione del parametro prima di osservare i dati.
-* *utilizzato la funzione `binomial_rng`* per simulare `N` osservazioni dalla distribuzione binomiale. Il parametro di successo `theta` è fissato al valore estratto `theta_prior`.
-
-In sostanza, questo codice ci permette di generare un dataset simulato che potrebbe essere osservato se il processo stocastico fosse governato unicamente dai parametri specificati nella distribuzione a priori. In questo modo, possiamo valutare le proprietà del modello e la sua capacità di generare dati simili a quelli reali, prima ancora di avere a disposizione i dati osservati.
-
-La distribuzione a priori rappresenta la nostra conoscenza o credenza sul valore del parametro `theta` prima di osservare i dati. Scegliendo diversi valori per `alpha_prior` e `beta_prior`, possiamo specificare diverse distribuzioni a priori e quindi esplorare come queste influenzano i risultati della simulazione.
-
-I dati richiesti dal modello vengono specificati nel modo seguente:
+Altri strumenti utili per controlli più mirati:
 
 ```{r}
-# Dati osservati
-N <- 100               # Numero di osservazioni
+bayesplot::ppc_stat(y, y_rep, stat = "mean")        # confronto delle medie
+```
 
-# Parametri del prior
-alpha_prior <- 4
-beta_prior <- 6
+```{r}
+bayesplot::ppc_intervals(y, y_rep[1:100, ])        # confronto di intervalli
+```
 
-# Dati per Stan
+Questi controlli ci permettono di capire *quanto bene il modello “mima” la realtà*: se i dati simulati divergono fortemente da quelli osservati, vuol dire che le assunzioni di base (prior, varianza fissata, ecc.) non sono adatte e vanno riviste.
+
+
+## Distribuzione predittiva a priori
+
+Prima di raccogliere un solo dato, possiamo chiederci:  *“Se il mondo fosse davvero come lo descrive il nostro modello, che tipo di dati mi aspetterei di osservare?”*
+
+Questa è la *predizione a priori* (*prior predictive*): generiamo dati simulati *solo dalle assunzioni iniziali* (i prior), senza alcuna informazione empirica. Lo scopo non è “indovinare” i dati reali, ma *verificare che i prior producano scenari plausibili* alla luce della conoscenza di dominio (ordini di grandezza, range, code).
+
+### Perché è utile?
+
+- Se le simulazioni risultano *implausibili* (es. altezze negative o centinaia di cm fuori scala), i prior sono *mal calibrati* (troppo stretti, troppo larghi, con media irrealistica).  
+- Se le simulazioni sono compatibili con ciò che ci aspetteremmo in contesti reali, il modello *non parte*, è *già “rotto”* e possiamo procedere.
+
+L’idea pratica è semplice: *campioniamo i parametri dal prior*, poi *generiamo dati fittizi* con il meccanismo del modello, senza “guardare” i dati osservati.
+
+
+### Stan (prior predictive minimale e robusta)
+
+Usiamo un file dedicato, ad es. `normal_prior_predictive.stan`. Qui non servono i blocchi `parameters` e `model`: in prior predictive *campioniamo i parametri direttamente in `generated quantities`* con le funzioni `_rng`, ed eseguiamo `fixed_param=TRUE` in R.
+
+```stan
+// file: normal_prior_predictive.stan
+data {
+  int<lower=0> N;          // dimensione della replica che vuoi generare
+  vector[N] y;             // ignorato (può essere numeric(0) o un vettore qualsiasi)
+  real mu0;                // media a priori di mu
+  real<lower=0> tau0;      // dev. standard a priori di mu
+  real<lower=0> sigma;     // dev. standard nota dei dati
+}
+generated quantities {
+  real mu_prior;           // un draw del parametro dal prior
+  vector[N] y_rep;         // una replica completa (lunghezza N)
+
+  mu_prior = normal_rng(mu0, tau0);
+  for (n in 1:N) {
+    y_rep[n] = normal_rng(mu_prior, sigma);
+  }
+}
+```
+
+> Nota: se vuoi generare più repliche per draw, puoi aggiungere una dimensione `N_rep` e produrre una matrice `y_rep[N, N_rep]`. Per l’uso didattico, una replica per draw (ma tante iterazioni) è di solito sufficiente.
+
+
+### Codice R (prior predictive)
+
+Dati per la prior predictive** (qui scegliamo una replica di lunghezza `N = 200`):
+
+```{r}
+N <- 200
 stan_data_prior <- list(
-  N = N, 
-  alpha_prior = alpha_prior, 
-  beta_prior = beta_prior
+  N    = N,
+  y    = rep(0, N),  # ignorato
+  mu0  = 175,
+  tau0 = 5,
+  sigma= 10
 )
 ```
 
-Eseguiamo il campionamento:
-
-```{r}
-# Simulazione del prior
-fit_prior <- mod_prior$sample(
-  data = stan_data_prior,
-  chains = 4, 
-  iter_sampling = 1000, 
-  iter_warmup = 0,
-  fixed_param = TRUE, 
-  show_messages = FALSE
-)
-```
-
-Si noti l'argomento `fixed_param = TRUE` in quanto nessun parametro viene aggiornato.
-
-Estraiamo i campioni a posteriori e visualizziamo i risultati:
-
-```{r}
-# Estraiamo theta_prior e y_sim
-theta_prior <- fit_prior$draws("theta_prior")
-y_sim <- fit_prior$draws("y_sim")
-```
-
-Generiamo la distribuzione a priori di `theta`:
-
-```{r}
-# Distribuzione a priori di theta
-hist(
-  theta_prior, 
-  main = "Distribuzione a priori di theta", 
-  xlab = "theta", 
-  freq = FALSE
-)
-```
-
-Costruiamo la distribuzione predittiva a priori della proporzione di successi:
-
-```{r}
-# Distribuzione dei successi simulati
-y_sim_mean <- rowMeans(y_sim)
-hist(
-  y_sim_mean, 
-  breaks = 20, 
-  main = "Distribuzione predittiva a priori", 
-  xlab = "Proporzione di successi", 
-  freq = FALSE
-)
-```
-
-La distribuzione predittiva a priori mostra che i dati simulati riflettono il comportamento atteso dato il *prior*. Per il prior $\mathcal{Beta}(4, 6)$:
-
-- La media attesa di `theta` è $\mathbb{E}[\theta] = \frac{\alpha}{\alpha + \beta} = 0.4$.
-- La varianza attesa è $\text{Var}(\theta) = \frac{\alpha \beta}{(\alpha + \beta)^2 (\alpha + \beta + 1)}$.
-
-Con 14 successi su 100 osservazioni reali, corrispondenti a una proporzione di 0.14, notiamo che:
-
-- Il prior $\mathcal{Beta}(4, 6)$ è informativo, con un centro più alto rispetto ai dati osservati.
-- Se vogliamo un prior meno concentrato (ad esempio $\mathcal{Beta}(2, 2)$), i dati avranno un peso maggiore.
-
-In conclusione, 
-
-- utilizzare un prior informativo è appropriato se abbiamo conoscenze precedenti robuste;
-- se vogliamo un prior che lasci maggior spazio ai dati osservati, potremmo scegliere distribuzioni più ampie come $\mathcal{Beta}(2, 2)$.
-
-La verifica predittiva a priori è uno strumento potente per convalidare queste scelte.
-
-### Modello Gaussiano
-
-Consideriamo un secondo esempio, facciamo riferimento al caso discusso in precedenza dove veniva considerato un campione di dati gaussiani e un modello gaussiano in cui le distribuzioni a priori per μ e σ erano gaussiane.
-
-Compiliamo e stampiamo il modello Stan per generare la distribuzione predittiva a priori:
-
-```{r}
-mod_gauss_prior <- cmdstan_model(
-  here::here("stan", "gaussian_model_prior.stan")
-)
-```
-
-```{r}
-mod_gauss_prior$print()
-```
-
-```{r}
-stan_data_gauss <- list(
-  N = 100,
-  mu_prior = 180,
-  sigma_prior = 20,
-  sigma_prior_mean = 10,
-  sigma_prior_sd = 3
-)
-```
-
-
-Eseguiamo il campionamento MCMC:
+Compilazione e campionamento (solo `generated quantities`):
 
 ```{r}
 #| message: false
 #| warning: false
-#| output: false
-#| 
-fit_gauss_prior <- mod_gauss_prior$sample(
-  data = stan_data_gauss,
-  chains = 4, 
-  iter_sampling = 1000, 
+mod_prior <- cmdstan_model(here::here("stan", "normal_prior_predictive.stan"))
+
+fit_prior <- mod_prior$sample(
+  data = stan_data_prior,
+  chains = 4,
+  iter_sampling = 1000,
   iter_warmup = 0,
-  fixed_param = TRUE, # Nessun parametro aggiornato
-  show_messages = FALSE
+  fixed_param = TRUE,   # fondamentale per prior predictive
+  refresh = 0,
+  seed = 123
 )
 ```
 
-Un sommario delle distribuzioni a posteriori dei parametri si ottiene nel modo seguente:
+Estrazione e check analitico (normale–normale):
 
 ```{r}
-# Estrai i campioni per mu e sigma
-draws <- fit_gauss_prior$draws(c("mu", "sigma"))
-print(draws)
+# y_rep: matrice (S x N) con S = numero totale di draws (tutte le chain combinate)
+yrep_mat <- as_draws_matrix(fit_prior$draws("y_rep"))
+df_mc <- data.frame(x = as.numeric(yrep_mat))  # vettore lungo S*N
+
+# Deviazione standard predittiva a priori (analitica): sqrt(tau0^2 + sigma^2)
+sd_prior_pred <- sqrt(5^2 + 10^2)   # = sqrt(125) ≈ 11.18034
+
+# Code analitiche (confronto con Monte Carlo)
+p_bassa <- pnorm(150, mean = 175, sd = sd_prior_pred)
+p_alta  <- 1 - pnorm(200, mean = 175, sd = sd_prior_pred)
+c(p_bassa = p_bassa, p_alta = p_alta)
 ```
 
-Estraiamo i campioni per mu e sigma:
+Prior Predictive: Monte Carlo vs. analitica..
 
 ```{r}
-draws <- fit_gauss_prior$draws(c("mu", "sigma"))
+ggplot(df_mc, aes(x = x)) +
+  geom_density() +
+  stat_function(fun = dnorm,
+                args = list(mean = 175, sd = sd_prior_pred),
+                linetype = 2) +
+  labs(x = "y", y = "Densità")
 ```
 
-Convertiamo i campioni in data frame:
+::: {.callout-note title="Cosa stai verificando, in pratica?"}
 
-```{r}
-draws_df <- as_draws_df(draws)
-```
+* **Scala e posizione**: la media simulata è coerente con $\mu_0$?
+* **Variabilità**: la dispersione simulata è coerente con $\sqrt{\tau_0^2 + \sigma^2}$?
+* **Code e range**: la massa di probabilità in regioni “assurde” (es. <150 cm o >200 cm) è ragionevole?
+:::
 
-Creaiamo un grafico della distribuzione a priori di mu:
 
-```{r}
-draws_df |> 
-  ggplot(aes(x = mu)) +
-    geom_density(fill = "gray", alpha = 0.5) +
-    labs(title = "Distribuzione Predittiva a Priori di Mu",
-         x = "Mu",
-         y = "Densità")
-```
+### Come interpretare
 
-Distribuzione a priori di sigma:
+* Se le repliche *a priori* risultano sistematicamente *più grandi/piccole* di ciò che riterresti plausibile, il prior su $\mu$ è **mal calibrato** (es. $\mu_0$ troppo alto, $\tau_0$ troppo stretto/larghissimo).
+* Se la *variabilità* è troppo diversa da quella che consideri realistica, rivedi $\tau_0$ (e, in modelli con $\sigma$ ignota, il prior su $\sigma$).
+* L’obiettivo **non** è “forzare i dati nel prior”, ma **evitare prior implausibili** rispetto alla conoscenza di dominio e all’ordine di grandezza atteso.
 
-```{r}
-draws_df |> 
-  ggplot(aes(x = sigma)) +
-    geom_density(fill = "lightgray", alpha = 0.5) +
-    labs(title = "Distribuzione Predittiva a Priori di Sigma",
-         x = "Sigma",
-         y = "Densità")
-```
+::: {.callout-tip title="Regola pratica"}
+Se la prior predictive **non passa il test del buon senso** (scala, range, code), *rivedi i prior* prima di stimare il modello.
+:::
 
-Il grafico della distribuzione predittiva a priori ci mostra che i prior utilizzati nel codice Stan implicano una distribuzione della variabile di interesse `y` che è approssimativamente normale con media di 180 e deviazione standard di 22. Questo *prior predictive check* garantisce che le distribuzioni a priori dei parametri `mu` e `sigma` siano realistiche e adeguate per l'analisi dei dati considerati. Un discorso simile si può fare per sigma. Questo passaggio consente di identificare e correggere eventuali ipotesi errate prima di procedere con l'analisi dei dati osservati, migliorando così la validità dei risultati ottenuti.
+::: {.callout-caution title="Errori comuni"}
 
-## Riflessioni Conclusive
+* **Usare `parameters` in prior predictive con `fixed_param=TRUE`**: i parametri non vengono campionati ⇒ valori costanti. In prior predictive *campiona i parametri in `generated quantities`* con le funzioni `_rng`.
+* **Dipendere da `N` quando è 0**: se definisci `vector[N] y_rep` e passi `N=0`, l’oggetto è vuoto: va bene, ma ricorda che alcune pipeline di estrazione richiedono attenzione. In alternativa usa sempre `N>0` per le repliche a priori.
+* **Confondere prior vs posterior predictive**: la prior predictive controlla le **assunzioni**; la posterior predictive controlla la **capacità del modello**, dopo aver “visto” i dati, di riprodurre le caratteristiche osservate.
+:::
 
-Le distribuzioni predittive a priori e a posteriori, pur essendo generate in modo simile, differiscono per la fonte di informazione utilizzata nella loro costruzione.
 
-- **Distribuzione Predittiva a Priori**: Questa distribuzione rappresenta le nostre aspettative sui dati prima che qualsiasi osservazione effettiva sia disponibile. Per costruirla, prendiamo i valori dei parametri dalla distribuzione a priori e li utilizziamo nella funzione di verosimiglianza per generare dati simulati. La distribuzione risultante di questi dati generati è la distribuzione predittiva a priori, che riflette le nostre conoscenze e incertezze iniziali, prima di osservare i dati reali.
+## Riflessioni conclusive {.unnumbered .unlisted}
 
-- **Distribuzione Predittiva a Posteriori**: Dopo aver osservato i dati, aggiorniamo le nostre credenze sui parametri utilizzando il teorema di Bayes, ottenendo così la distribuzione a posteriori dei parametri. La distribuzione predittiva a posteriori viene quindi generata prendendo valori dei parametri dalla distribuzione a posteriori, che ora incorpora l'informazione ottenuta dai dati osservati, e utilizzandoli nella funzione di verosimiglianza per generare nuovi dati simulati. Questa distribuzione riflette le nostre previsioni sui dati futuri o non osservati, dopo aver tenuto conto dei dati già raccolti.
+Le due distribuzioni predittive rispondono a domande complementari ma distinte. La distribuzione predittiva a priori ci permette di valutare la plausibilità delle nostre assunzioni iniziali: dati i prior scelti, il modello è in grado di generare dati che abbiano un senso nel contesto del problema? Si tratta di un controllo fondamentale per assicurarci che le nostre ipotesi partano da basi ragionevoli.
 
-La differenza principale tra queste due distribuzioni predittive risiede nella distribuzione dei parametri utilizzata: nella distribuzione predittiva a priori si utilizzano i parametri estratti dal prior, mentre nella distribuzione predittiva a posteriori si utilizzano i parametri estratti dal posterior. La distribuzione predittiva a posteriori è generalmente più informativa poiché integra i dati osservati, migliorando le previsioni future.
+La distribuzione predittiva a posteriori, invece, verifica la capacità del modello – dopo aver incorporato l’evidenza dei dati – di cogliere le caratteristiche salienti del fenomeno osservato. La domanda guida qui diventa: il modello riesce a riprodurre non solo la tendenza centrale, ma anche la variabilità e la struttura dei dati reali?
 
-È cruciale per l'integrità del modello che la distribuzione predittiva a posteriori sia coerente con la distribuzione dei dati osservati. Per verificare questa coerenza, si utilizzano le verifiche predittive a posteriori, confrontando la distribuzione predittiva con i dati empirici tramite tecniche come le stime di densità kernel (KDE). Questo confronto permette di valutare quanto bene il modello riesca ad approssimare la struttura reale dei dati e la sua capacità di fornire previsioni affidabili.
+Da un punto di vista operativo, entrambe le verifiche seguono la stessa logica: si simulano campioni di dati sulla base di parametri estratti dalle distribuzioni (che siano prior o posteriori), per poi confrontarli visivamente e quantitativamente con i dati osservati.
 
-Ad esempio, consideriamo un modello gaussiano con varianza $\sigma^2$ nota:
+Questi strumenti non costituiscono una validazione definitiva del modello, ma offrono un mezzo agile e intuitivo per individuare incoerenze macroscopiche: prior eccessivamente vincolanti, modelli che sottostimano la variabilità, o strutture probabilistiche inadeguate. Rappresentano perciò una tappa obbligata nel workflow bayesiano, da svolgere prima di affrontare confronti predittivi più formali, come quelli basati sull’ELPD o sulla cross-validazione LOO.
 
-$$
-\begin{aligned}
-  y\sim \mathop{\mathrm{N}}(\theta,\sigma^2),
-\end{aligned}
-$$
 
-dove $\sigma^2$ descrive l'incertezza aleatoria. Usando un prior uniforme, la distribuzione a posteriori per $\theta$ sarà:
-
-$$
-\begin{aligned}
-  p(\theta|y) \sim \mathop{\mathrm{N}}(\theta|\bar{y},\sigma^2/n),
-\end{aligned}
-$$
-
-dove $\sigma^2/n$ rappresenta l'incertezza epistemica legata a $\theta$. La distribuzione predittiva a posteriori per un nuovo valore $\tilde{y}$ sarà:
-
-$$
-\begin{aligned}
-  p(\tilde{y}|y) \sim \mathop{\mathrm{N}}(\tilde{y}|\bar{y},\sigma^2+\sigma^2/n),
-\end{aligned}
-$$
-
-In questo caso, l'incertezza totale è data dalla somma dell'incertezza epistemica ($\sigma^2/n$) e dell'incertezza aleatoria ($\sigma^2$).
-
-## Informazioni sull'Ambiente di Sviluppo {.unnumbered} 
+::: {.callout-note collapse=true title="Informazioni sull'ambiente di sviluppo"}
 
 ```{r}
 sessionInfo()
 ```
+:::
 
-## Bibliografia {.unnumbered}
-
+## Bibliografia {.unnumbered .unlisted}

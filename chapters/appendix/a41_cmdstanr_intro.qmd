@@ -1,0 +1,224 @@
+# Implementazione di modelli Bayesiani con Stan tramite `cmdstanr` {#sec-cmdstanr-intro}
+
+
+## Obiettivo {.unnumbered .unlisted} 
+
+In questa sezione dell'appendice presentiamo una guida pratica all'implementazione di modelli Bayesiani utilizzando *Stan* attraverso l'interfaccia *cmdstanr* in R. Il framework `cmdstanr` rappresenta l'evoluzione moderna delle interfacce R per Stan, offrendo prestazioni ottimizzate e un workflow semplificato per l'inferenza Bayesiana.
+
+Illustreremo il flusso di lavoro completo attraverso i seguenti passaggi:
+
+1. *Preparazione e input dei dati*: strutturare i dati per l'analisi in Stan.
+2. *Compilazione del modello*: trasformazione del codice Stan in eseguibile ottimizzato.
+3. *Campionamento MCMC*: esecuzione efficiente degli algoritmi di campionamento.
+4. *Estrazione e analisi dei risultati*: elaborazione degli output campionati.
+5. *Diagnostica e visualizzazione*: validazione del modello e rappresentazione grafica.
+
+
+## Perché usare CmdStanR
+
+`CmdStanR` è l'interfaccia R per CmdStan, la versione più leggera e flessibile di Stan. A differenza di `rstan`, che integra il compilatore C++ dentro R, `CmdStanR` utilizza direttamente gli eseguibili di CmdStan. Questo porta diversi vantaggi:
+
+-   *Maggiore stabilità e velocità di compilazione*, grazie all'uso diretto di CmdStan.
+-   *Aggiornamenti indipendenti*: CmdStanR si appoggia a CmdStan, che può essere aggiornato separatamente.
+-   *Controllo avanzato* sulle opzioni di campionamento, diagnostica e gestione dei file di output.
+-   *Portabilità*: funziona in modo coerente su diversi sistemi operativi.
+
+Inoltre, `CmdStanR` rappresenta oggi la soluzione consigliata dagli sviluppatori Stan, in quanto più manutenuta e allineata con le versioni più recenti del linguaggio.
+
+
+## Installazione
+
+Per prima cosa, installiamo il pacchetto `cmdstanr` da GitHub:
+
+``` r
+# install.packages("pak")
+pak::pak("stan-dev/cmdstanr")
+```
+
+Dopodiché, occorre installare CmdStan:
+
+``` r
+cmdstanr::install_cmdstan()
+```
+
+Questo comando scarica e compila CmdStan localmente. La prima installazione può richiedere qualche minuto, ma successivamente sarà sufficiente aggiornare all’occorrenza con:
+
+``` r
+cmdstanr::install_cmdstan(update = TRUE)
+```
+
+Per verificare la corretta installazione:
+
+```{r}
+library(cmdstanr)
+cmdstanr::cmdstan_version()
+```
+
+
+## Pacchetti necessari
+
+Per lavorare ci servono alcuni pacchetti:
+
+```{r}
+suppressPackageStartupMessages({
+  library(tidyverse)   # per manipolare i dati
+  library(cmdstanr)    # interfaccia R per Stan
+  library(posterior)   # per lavorare con i campioni MCMC
+  library(bayesplot)   # per visualizzare i risultati
+  library(here)        # per gestire i percorsi ai file
+})
+
+set.seed(42) # per riproducibilità
+```
+
+```{r}
+#| echo: false
+here::here("code", "_common.R") |> 
+  source()
+```
+
+
+## Un esempio semplice: modello beta-binomiale
+
+Consideriamo il seguente scenario sperimentale: in un esperimento bernoulliano abbiamo osservato *6 successi su 9 prove*. L'obiettivo dell'analisi è stimare la distribuzione a posteriori della probabilità di successo $\theta$. 
+
+A questo scopo, adottiamo come distribuzione a priori una *Beta(2, 2)*, scelta in quanto debolmente informativa e in grado di esprimere una moderata convinzione preliminare sulla simmetria della probabilità di successo, pur mantenendo una sufficiente flessibilità per permettere ai dati di guidare l'inferenza.
+
+Il modello Stan è già stato scritto in un file `beta_binomial_model.stan`. Il codice Stan è identico indipendentemente dall’interfaccia (R, Python, Julia, …).
+
+
+### Passare i dati a Stan
+
+Stan richiede che i dati siano in una *lista* di R con i nomi esattamente uguali a quelli usati nel file `.stan`.
+
+```{r}
+data_list <- list(
+  N = 9,          # numero di prove
+  y = 6,          # numero di successi
+  alpha_prior = 2, # parametri del prior
+  beta_prior = 2
+)
+```
+
+
+### Leggere e compilare il modello
+
+Diciamo a R dove si trova il file `.stan` e lo compiliamo:
+
+```{r}
+#| output: false
+file <- file.path(here::here("stan", "beta_binomial_model.stan"))
+file
+
+mod <- cmdstan_model(file)  # compila il modello
+```
+
+L’oggetto `mod` rappresenta il modello Stan compilato. Possiamo visualizzarne le informazioni:
+
+```{r}
+mod$print()
+```
+
+
+### Eseguire l’algoritmo MCMC
+
+Per stimare i parametri usiamo il metodo `$sample()`. Questo esegue l’algoritmo MCMC di Stan:
+
+```{r}
+#| output: false
+fit <- mod$sample(
+  data = data_list,
+  seed = 123,
+  chains = 4,            # numero di catene
+  parallel_chains = 4    # quante catene girano in parallelo
+)
+```
+
+**Nota:** per default ogni catena produce 1000 campioni dopo il warmup, quindi avremo 4000 campioni posteriori.
+
+
+### Estrarre i campioni
+
+I campioni possono essere estratti in diversi formati.
+Per esempio, come *array a 3 dimensioni* (iterazioni × catene × variabili):
+
+```{r}
+draws_arr <- fit$draws()
+str(draws_arr)
+dim(draws_arr)
+```
+
+Oppure come *data frame lungo*:
+
+```{r}
+draws_df <- as_draws_df(fit)
+head(draws_df)
+```
+
+
+### Statistiche riassuntive
+
+Il metodo `$summary()` calcola statistiche posteriori (medie, deviazioni standard, quantili, ecc.):
+
+```{r}
+fit$summary(variables = "theta")
+```
+
+Possiamo specificare statistiche personalizzate, ad esempio:
+
+```{r}
+fit$summary(
+  variables = "theta", 
+  mean, 
+  sd,
+  ~quantile(.x, probs = c(0.03, 0.97))
+)
+```
+
+### Esempio di test bayesiano
+
+Possiamo stimare la probabilità che $\theta \leq 0.5$:
+
+```{r}
+fit$summary("theta", pr_less_05 = ~ mean(. <= 0.5))
+```
+
+
+### Visualizzare i campioni
+
+Il pacchetto `bayesplot` semplifica la creazione di grafici. Ad esempio, un istogramma della distribuzione posteriore di $\theta$:
+
+```{r}
+mcmc_hist(fit$draws("theta"))
+```
+
+
+### Diagnostica del campionatore
+
+Per verificare che l’MCMC abbia funzionato correttamente:
+
+```{r}
+fit$diagnostic_summary()
+```
+
+È anche possibile accedere alle variabili interne del campionatore (es. profondità dell’albero, divergenze):
+
+```{r}
+head(fit$sampler_diagnostics(format = "df"))
+```
+
+Se ci sono problemi (molte divergenze, R-hat alto, ecc.), occorre rivedere il modello o i parametri di campionamento.
+
+
+### Conclusioni
+
+In conclusione, abbiamo visto i passaggi fondamentali per usare *cmdstanr*:
+
+1. preparare i dati in una lista;
+2. compilare il modello Stan;
+3. lanciare il campionamento MCMC;
+4. estrarre e riassumere i campioni;
+5. visualizzare i risultati e controllare la diagnostica.
+
+Questa procedura è la base di ogni analisi con Stan via R: indipendentemente dal modello, i passaggi saranno sempre questi.
+
