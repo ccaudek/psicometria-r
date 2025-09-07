@@ -1180,7 +1180,7 @@ Preparazione del Notebook
 <span></span>
 <span><span class="co"># Carichiamo i pacchetti necessari</span></span>
 <span><span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/ns-load.html">requireNamespace</a></span><span class="op">(</span><span class="st">"pacman"</span><span class="op">)</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html">install.packages</a></span><span class="op">(</span><span class="st">"pacman"</span><span class="op">)</span></span>
-<span><span class="fu">pacman</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/pacman/man/p_load.html">p_load</a></span><span class="op">(</span><span class="va">cmdstanr</span>, <span class="va">posterior</span>, <span class="va">insight</span>, <span class="va">bayesplot</span>, <span class="va">ggplot2</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span><span class="fu">pacman</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/pacman/man/p_load.html">p_load</a></span><span class="op">(</span><span class="va">cmdstanr</span>, <span class="va">posterior</span>, <span class="va">insight</span>, <span class="va">coda</span>, <span class="va">loo</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </div>
 </div>
@@ -1215,8 +1215,82 @@ Preparazione del Notebook
 </div>
 </div>
 </div>
-<section id="cosa-fare-se-le-catene-non-convergono" class="level3" data-number="51.1.1"><h3 data-number="51.1.1" class="anchored" data-anchor-id="cosa-fare-se-le-catene-non-convergono">
-<span class="header-section-number">51.1.1</span> Cosa fare se le catene non convergono?</h3>
+<section id="codice-r" class="level3" data-number="51.1.1"><h3 data-number="51.1.1" class="anchored" data-anchor-id="codice-r">
+<span class="header-section-number">51.1.1</span> Codice R</h3>
+<p>Esaminiamo il codice R necessario per generare i grafici di tracciamento. Per semplicità, usiamo il modello beta-binomiale in <code>cmdstanr</code>:</p>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">stancode</span> <span class="op">&lt;-</span> <span class="st">"</span></span>
+<span><span class="st">data {</span></span>
+<span><span class="st">  int&lt;lower=1&gt; N;                      // numero di prove</span></span>
+<span><span class="st">  array[N] int&lt;lower=0, upper=1&gt; y;    // esiti (0/1)</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">transformed data {</span></span>
+<span><span class="st">  int&lt;lower=0, upper=N&gt; k = sum(y);    // numero totale di successi</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">parameters {</span></span>
+<span><span class="st">  real&lt;lower=0, upper=1&gt; theta;        // probabilità di successo</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">model {</span></span>
+<span><span class="st">  theta ~ beta(1, 1);                  // prior uniforme</span></span>
+<span><span class="st">  k ~ binomial(N, theta);              // verosimiglianza sui successi totali</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">generated quantities {</span></span>
+<span><span class="st">  vector[N] log_lik;</span></span>
+<span><span class="st">  for (n in 1:N) {</span></span>
+<span><span class="st">    log_lik[n] = bernoulli_lpmf(y[n] | theta);</span></span>
+<span><span class="st">  }</span></span>
+<span><span class="st">}</span></span>
+<span><span class="st">"</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">mod</span> <span class="op">&lt;-</span> <span class="fu">cmdstanr</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/cmdstanr/reference/cmdstan_model.html">cmdstan_model</a></span><span class="op">(</span></span>
+<span>  <span class="fu">write_stan_file</span><span class="op">(</span><span class="va">stancode</span><span class="op">)</span>,</span>
+<span>  compile <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">y</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">1</span>, <span class="fl">1</span>, <span class="fl">1</span>, <span class="fl">1</span>, <span class="fl">1</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">0</span><span class="op">)</span></span>
+<span><span class="va">data_list</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html">list</a></span><span class="op">(</span></span>
+<span>  N <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html">length</a></span><span class="op">(</span><span class="va">y</span><span class="op">)</span>,</span>
+<span>  y <span class="op">=</span> <span class="va">y</span></span>
+<span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="va">mod</span><span class="op">$</span><span class="fu">sample</span><span class="op">(</span></span>
+<span>  data <span class="op">=</span> <span class="va">data_list</span>,</span>
+<span>  iter_warmup <span class="op">=</span> <span class="fl">1000</span>,</span>
+<span>  iter_sampling <span class="op">=</span> <span class="fl">4000</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">4</span>,</span>
+<span>  parallel_chains <span class="op">=</span> <span class="fl">4</span>,</span>
+<span>  seed <span class="op">=</span> <span class="fl">4790</span>,</span>
+<span>  refresh <span class="op">=</span> <span class="fl">0</span> </span>
+<span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">post</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/array.html">as.array</a></span><span class="op">(</span><span class="va">fit</span><span class="op">$</span><span class="fu">draws</span><span class="op">(</span><span class="st">"theta"</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/dim.html">dim</a></span><span class="op">(</span><span class="va">post</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] 4000    4    1</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu">glimpse</span><span class="op">(</span><span class="va">post</span><span class="op">)</span></span>
+<span><span class="co">#&gt;  'draws_array' num [1:4000, 1:4, 1] 0.665 0.862 0.834 0.791 0.809 ...</span></span>
+<span><span class="co">#&gt;  - attr(*, "dimnames")=List of 3</span></span>
+<span><span class="co">#&gt;   ..$ iteration: chr [1:4000] "1" "2" "3" "4" ...</span></span>
+<span><span class="co">#&gt;   ..$ chain    : chr [1:4] "1" "2" "3" "4"</span></span>
+<span><span class="co">#&gt;   ..$ variable : chr "theta"</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu">mcmc_trace</span><span class="op">(</span><span class="va">fit</span><span class="op">$</span><span class="fu">draws</span><span class="op">(</span><span class="st">"theta"</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span> </span>
+<span>  <span class="fu">xlab</span><span class="op">(</span><span class="st">"Post-warmup iteration"</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure"><p><img src="04_stan_diagnostics_files/figure-html/unnamed-chunk-13-1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:85.0%"></p>
+</figure>
+</div>
+</div>
+</div>
+</section><section id="cosa-fare-se-le-catene-non-convergono" class="level3" data-number="51.1.2"><h3 data-number="51.1.2" class="anchored" data-anchor-id="cosa-fare-se-le-catene-non-convergono">
+<span class="header-section-number">51.1.2</span> Cosa fare se le catene non convergono?</h3>
 <p>Se i trace plot assomigliano a quelli “cattivi” degli esempi, occorre intervenire. Una possibilità è rivedere il modello, domandandosi se la sua struttura o le prior siano adeguate ai dati. In altri casi basta aumentare la lunghezza del campionamento, così da superare transitori iniziali o oscillazioni locali.</p>
 <p>In ogni caso, i trace plot restano uno degli strumenti diagnostici più semplici ma anche più potenti: abituarsi a leggerli con attenzione è una competenza imprescindibile per chiunque utilizzi modelli bayesiani.</p>
 </section></section><section id="i-grafici-della-densità-posteriore-sono-adeguati" class="level2" data-number="51.2"><h2 data-number="51.2" class="anchored" data-anchor-id="i-grafici-della-densità-posteriore-sono-adeguati">
@@ -1226,14 +1300,49 @@ Preparazione del Notebook
 <p>Tuttavia, non sempre il quadro è così rassicurante. Asimmetrie marcate o code molto lunghe possono indicare che il modello fatica a vincolare i parametri. La presenza di più picchi suggerisce che il campionatore abbia esplorato regioni distinte dello spazio senza riuscire a integrarle in un’unica distribuzione coerente. Curve troppo piatte o irregolari, infine, possono riflettere un campionamento insufficiente o catene non ancora convergenti.</p>
 <p>Quando la densità non appare adeguata, esistono diversi rimedi. Prolungare le catene aiuta a ottenere distribuzioni più stabili; rivedere le prior consente di evitare posteriori irrealistiche o mal condizionate; migliorare le impostazioni del campionatore può rendere l’esplorazione più efficiente.</p>
 <p>In sintesi, l’ispezione delle densità posteriori non è solo un controllo grafico preliminare, ma un passaggio cruciale per valutare l’affidabilità delle inferenze: ci dice se il modello ha catturato la struttura informativa dei dati in maniera coerente ed equilibrata.</p>
-</section><section id="lautocorrelazione-nelle-catene-mcmc-come-interpretarla-e-gestirla" class="level2" data-number="51.3"><h2 data-number="51.3" class="anchored" data-anchor-id="lautocorrelazione-nelle-catene-mcmc-come-interpretarla-e-gestirla">
+<section id="codice-r-1" class="level3" data-number="51.2.1"><h3 data-number="51.2.1" class="anchored" data-anchor-id="codice-r-1">
+<span class="header-section-number">51.2.1</span> Codice R</h3>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># Estrai i draw posteriori di theta</span></span>
+<span><span class="va">theta_draws</span> <span class="op">&lt;-</span> <span class="va">fit</span><span class="op">$</span><span class="fu">draws</span><span class="op">(</span><span class="st">"theta"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Densità marginale complessiva</span></span>
+<span><span class="fu">mcmc_dens</span><span class="op">(</span><span class="va">theta_draws</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html">labs</a></span><span class="op">(</span></span>
+<span>    x <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/expression.html">expression</a></span><span class="op">(</span><span class="va">theta</span><span class="op">)</span>,</span>
+<span>    y <span class="op">=</span> <span class="st">"Densità"</span></span>
+<span>  <span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure"><p><img src="04_stan_diagnostics_files/figure-html/unnamed-chunk-14-1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:85.0%"></p>
+</figure>
+</div>
+</div>
+</div>
+</section></section><section id="lautocorrelazione-nelle-catene-mcmc-come-interpretarla-e-gestirla" class="level2" data-number="51.3"><h2 data-number="51.3" class="anchored" data-anchor-id="lautocorrelazione-nelle-catene-mcmc-come-interpretarla-e-gestirla">
 <span class="header-section-number">51.3</span> L’autocorrelazione nelle catene MCMC: come interpretarla e gestirla</h2>
 <p>Quando utilizziamo il metodo Monte Carlo basato su catene di Markov (MCMC) per stimare modelli bayesiani, è importante ricordare che i campioni successivi prodotti dall’algoritmo non sono del tutto indipendenti tra loro. Questo fenomeno, chiamato <em>autocorrelazione</em>, è una caratteristica intrinseca delle catene di Markov. Finché rimane contenuta, non costituisce un problema; ma quando diventa troppo elevata, riduce l’efficienza del campionamento e può compromettere la qualità delle stime.</p>
 <p>L’autocorrelazione misura la somiglianza tra un campione e quelli che lo precedono. In un campionamento ideale questa somiglianza si riduce rapidamente man mano che ci si allontana nel tempo: già dopo pochi passi, i campioni dovrebbero risultare quasi indipendenti. Il modo più immediato per valutare questo comportamento è il <em>correlogramma</em>, che rappresenta l’autocorrelazione in funzione della distanza (lag) tra i campioni. Un correlogramma rassicurante mostra un valore iniziale non troppo alto e un rapido decadimento verso lo zero.</p>
 <p>Quando invece l’autocorrelazione persiste anche a lag elevati, significa che la catena si muove lentamente nello spazio dei parametri e produce campioni molto simili tra loro. In questo caso l’informazione effettiva contenuta nella sequenza è minore di quanto suggerisca il numero complessivo di iterazioni, perché molti campioni risultano ridondanti.</p>
 <p>Se ci troviamo di fronte a una catena con forte autocorrelazione, abbiamo diverse strategie a disposizione. Una possibilità è prolungare il campionamento, così da compensare la perdita di efficienza con un numero maggiore di iterazioni. In alternativa si può applicare il cosiddetto <em>thinning</em>, cioè conservare soltanto un campione ogni certo numero di passi, riducendo così la dipendenza tra osservazioni consecutive; questa soluzione, tuttavia, comporta uno spreco di calcoli e viene consigliata solo in casi particolari. Infine, spesso è più efficace rivedere le impostazioni dell’algoritmo di campionamento, ad esempio regolando i parametri di proposta, così da migliorare la capacità della catena di esplorare lo spazio dei parametri.</p>
 <p>L’analisi dell’autocorrelazione non è quindi un dettaglio tecnico secondario, ma un passaggio essenziale nella diagnosi di un’analisi bayesiana. Osservando il modo in cui la catena si muove nel tempo, possiamo capire se i campioni raccolti forniscono davvero un quadro robusto e affidabile della distribuzione posteriore.</p>
-</section><section id="la-dimensione-effettiva-del-campione-un-indicatore-cruciale-per-laffidabilità-delle-stime" class="level2" data-number="51.4"><h2 data-number="51.4" class="anchored" data-anchor-id="la-dimensione-effettiva-del-campione-un-indicatore-cruciale-per-laffidabilità-delle-stime">
+<section id="codice-r-2" class="level3" data-number="51.3.1"><h3 data-number="51.3.1" class="anchored" data-anchor-id="codice-r-2">
+<span class="header-section-number">51.3.1</span> Codice R</h3>
+<p>Esaminiamo l’autocorrelazione MCMC di <code>theta</code> per ciascuna catena:</p>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># Estraggo i draw di theta nel formato atteso da bayesplot (iter x chain x param)</span></span>
+<span><span class="va">theta_draws</span> <span class="op">&lt;-</span> <span class="va">fit</span><span class="op">$</span><span class="fu">draws</span><span class="op">(</span><span class="st">"theta"</span><span class="op">)</span>  <span class="co"># draws_array</span></span>
+<span></span>
+<span><span class="co"># ACF fino a 10 ritardi </span></span>
+<span><span class="fu">mcmc_acf</span><span class="op">(</span><span class="va">theta_draws</span>, lags <span class="op">=</span> <span class="fl">10</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure"><p><img src="04_stan_diagnostics_files/figure-html/unnamed-chunk-15-1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:85.0%"></p>
+</figure>
+</div>
+</div>
+</div>
+</section></section><section id="la-dimensione-effettiva-del-campione-un-indicatore-cruciale-per-laffidabilità-delle-stime" class="level2" data-number="51.4"><h2 data-number="51.4" class="anchored" data-anchor-id="la-dimensione-effettiva-del-campione-un-indicatore-cruciale-per-laffidabilità-delle-stime">
 <span class="header-section-number">51.4</span> La dimensione effettiva del campione: un indicatore cruciale per l’affidabilità delle stime</h2>
 <p>Uno degli aspetti più importanti da considerare quando utilizziamo metodi MCMC è la <em>dimensione effettiva del campione</em>, indicata con <span class="math inline">\(N_{\text{eff}}\)</span>. A differenza del numero totale di iterazioni prodotte dall’algoritmo, <span class="math inline">\(N_{\text{eff}}\)</span> rappresenta il numero equivalente di campioni statisticamente indipendenti che avrebbero garantito lo stesso livello di precisione nelle stime.</p>
 <p>Poiché i campioni generati da una catena di Markov tendono a essere correlati tra loro, <span class="math inline">\(N_{\text{eff}}\)</span> è sempre inferiore al numero complessivo di iterazioni. La formula che ne consente il calcolo tiene conto proprio dell’autocorrelazione presente nella sequenza:</p>
@@ -1243,7 +1352,41 @@ N_{\text{eff}} = \frac{T}{1 + 2 \sum_{s=1}^{S} \rho_{s}},
 <p>Dal punto di vista pratico, se <span class="math inline">\(N_{\text{eff}}\)</span> si avvicina a <span class="math inline">\(T\)</span> possiamo concludere che i campioni ottenuti sono quasi indipendenti e che l’algoritmo ha esplorato lo spazio dei parametri in maniera efficiente. Al contrario, un valore molto più basso segnala che la catena ha prodotto osservazioni fortemente correlate, riducendo così l’informazione effettiva disponibile.</p>
 <p>Quando ci troviamo in questa seconda situazione, diverse strategie possono migliorare la qualità delle stime. Prolungare la catena è spesso la soluzione più semplice, perché un numero maggiore di iterazioni permette di accumulare campioni indipendenti anche in presenza di autocorrelazione. In altri casi può essere utile ridurre la dipendenza tra osservazioni successive applicando il cosiddetto <em>thinning</em>, cioè conservando solo un campione ogni determinato numero di iterazioni; questa scelta, tuttavia, implica un costo in termini di dati scartati e va adottata con cautela. Talvolta, infine, è necessario agire a monte, intervenendo sull’algoritmo di campionamento o sulla specificazione del modello, così da aumentare l’efficienza complessiva.</p>
 <p>La dimensione effettiva del campione non va considerata un dettaglio tecnico marginale, ma un indicatore essenziale della qualità delle nostre inferenze. Solo valori sufficientemente elevati di <span class="math inline">\(N_{\text{eff}}\)</span> ci consentono di avere fiducia nelle conclusioni che traiamo dai modelli bayesiani.</p>
-</section><section id="la-statistica-hatr-il-termometro-della-convergenza-delle-catene" class="level2" data-number="51.5"><h2 data-number="51.5" class="anchored" data-anchor-id="la-statistica-hatr-il-termometro-della-convergenza-delle-catene">
+<section id="codice-r-3" class="level3" data-number="51.4.1"><h3 data-number="51.4.1" class="anchored" data-anchor-id="codice-r-3">
+<span class="header-section-number">51.4.1</span> Codice R</h3>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">fit</span><span class="op">$</span><span class="fu">summary</span><span class="op">(</span>variables <span class="op">=</span> <span class="st">"theta"</span><span class="op">)</span></span>
+<span><span class="co">#&gt; # A tibble: 1 × 10</span></span>
+<span><span class="co">#&gt;   variable  mean median    sd   mad    q5   q95  rhat ess_bulk ess_tail</span></span>
+<span><span class="co">#&gt;   &lt;chr&gt;    &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;</span></span>
+<span><span class="co">#&gt; 1 theta    0.668  0.678 0.132 0.137 0.436 0.868 1.001 5663.008 6066.721</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<ul>
+<li>
+<strong>ess_bulk</strong>: dimensione effettiva del campione nella parte centrale della distribuzione. Misura quanto i draw MCMC siano <em>non correlati</em>. Qui è circa 5663: significa che i 16.000 campioni (4 catene × 4000) “valgono” come oltre 5600 campioni indipendenti. È un valore molto alto, quindi la stima della media e di altre statistiche centrali è molto stabile.</li>
+<li>
+<strong>ess_tail</strong>: dimensione effettiva del campione per le code della distribuzione. Qui è circa 6067: anche in questo caso le stime dei quantili estremi (ad esempio intervalli al 95%) sono affidabili.</li>
+</ul>
+<p>Il pacchetto <code>bayesplot</code> fornisce una funzione generica di estrazione <code>neff_ratio</code> che restituisce il rapporto <span class="math inline">\(N_{\text{eff}} / N\)</span>:</p>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">ratios_bb</span> <span class="op">&lt;-</span> <span class="fu">neff_ratio</span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html">print</a></span><span class="op">(</span><span class="va">ratios_bb</span><span class="op">)</span></span>
+<span><span class="co">#&gt;       theta  log_lik[1]  log_lik[2]  log_lik[3]  log_lik[4]  log_lik[5] </span></span>
+<span><span class="co">#&gt;       0.370       0.388       0.388       0.388       0.388       0.388 </span></span>
+<span><span class="co">#&gt;  log_lik[6]  log_lik[7]  log_lik[8]  log_lik[9] log_lik[10] </span></span>
+<span><span class="co">#&gt;       0.388       0.388       0.333       0.333       0.333</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Le funzioni <code>mcmc_neff</code> e <code>mcmc_neff_hist</code> possono quindi essere utilizzate per visualizzare graficamente questi rapporti.</p>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu">mcmc_neff</span><span class="op">(</span><span class="va">ratios_bb</span>, size <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure"><p><img src="04_stan_diagnostics_files/figure-html/unnamed-chunk-18-1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:85.0%"></p>
+</figure>
+</div>
+</div>
+</div>
+</section></section><section id="la-statistica-hatr-il-termometro-della-convergenza-delle-catene" class="level2" data-number="51.5"><h2 data-number="51.5" class="anchored" data-anchor-id="la-statistica-hatr-il-termometro-della-convergenza-delle-catene">
 <span class="header-section-number">51.5</span> La statistica <span class="math inline">\(\hat{R}\)</span>: il termometro della convergenza delle catene</h2>
 <p>Tra gli strumenti diagnostici più diffusi e affidabili per valutare la convergenza delle catene MCMC vi è la statistica <span class="math inline">\(\hat{R}\)</span>, nota anche come <em>potenziale scale reduction factor</em>. La sua funzione è semplice ma cruciale: stabilire se catene inizializzate da punti di partenza diversi hanno finito per descrivere la stessa distribuzione posteriore. Quando ciò accade, possiamo considerare le stime prodotte robuste e affidabili.</p>
 <p>Il calcolo di <span class="math inline">\(\hat{R}\)</span> si basa sul confronto tra due quantità: la variabilità interna a ciascuna catena e la variabilità osservata tra catene differenti. In formule,</p>
@@ -1254,52 +1397,266 @@ N_{\text{eff}} = \frac{T}{1 + 2 \sum_{s=1}^{S} \rho_{s}},
 <p>L’importanza di questa statistica sta nella sua capacità di mettere in luce eventuali discrepanze sistematiche. Se le catene non si sovrappongono, <span class="math inline">\(\hat{R}\)</span> segnala che esse stanno campionando da regioni diverse dello spazio dei parametri. Le cause possono essere molteplici: un numero insufficiente di iterazioni, difficoltà di identificazione del modello, oppure problemi di esplorazione legati al campionatore.</p>
 <p>Oggi la maggior parte dei software per l’inferenza bayesiana calcola automaticamente <span class="math inline">\(\hat{R}\)</span> per tutti i parametri, rendendo semplice monitorare la qualità del campionamento. Non sorprende quindi che in letteratura si insista sul fatto che catene ben comportate producano valori estremamente prossimi all’unità, mentre catene problematiche si rivelino subito attraverso valori anomali.</p>
 <p>In conclusione, <span class="math inline">\(\hat{R}\)</span> può essere considerato a pieno titolo un vero e proprio termometro della convergenza: una misura sintetica, chiara e quantitativa che consente di valutare la credibilità delle simulazioni MCMC e, di conseguenza, delle inferenze tratte dai modelli bayesiani.</p>
-</section><section id="la-diagnostica-di-geweke" class="level2" data-number="51.6"><h2 data-number="51.6" class="anchored" data-anchor-id="la-diagnostica-di-geweke">
+<section id="codice-r-4" class="level3" data-number="51.5.1"><h3 data-number="51.5.1" class="anchored" data-anchor-id="codice-r-4">
+<span class="header-section-number">51.5.1</span> Codice R</h3>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">rhats</span> <span class="op">&lt;-</span> <span class="fu">bayesplot</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/bayesplot/reference/bayesplot-extractors.html">rhat</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html">print</a></span><span class="op">(</span><span class="va">rhats</span><span class="op">)</span></span>
+<span><span class="co">#&gt;       theta  log_lik[1]  log_lik[2]  log_lik[3]  log_lik[4]  log_lik[5] </span></span>
+<span><span class="co">#&gt;           1           1           1           1           1           1 </span></span>
+<span><span class="co">#&gt;  log_lik[6]  log_lik[7]  log_lik[8]  log_lik[9] log_lik[10] </span></span>
+<span><span class="co">#&gt;           1           1           1           1           1</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Possiamo visualizzare i valori di <span class="math inline">\(\hat{R}\)</span> con la funzione <code>mcmc_rhat</code>:</p>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu">mcmc_rhat</span><span class="op">(</span><span class="va">rhats</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure"><p><img src="04_stan_diagnostics_files/figure-html/unnamed-chunk-20-1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:85.0%"></p>
+</figure>
+</div>
+</div>
+</div>
+</section></section><section id="la-diagnostica-di-geweke" class="level2" data-number="51.6"><h2 data-number="51.6" class="anchored" data-anchor-id="la-diagnostica-di-geweke">
 <span class="header-section-number">51.6</span> La diagnostica di Geweke</h2>
 <p>La diagnostica proposta da Geweke rappresenta un metodo semplice ma efficace per verificare se una catena MCMC ha raggiunto la stazionarietà. L’idea alla base è intuitiva: se la catena sta campionando da una distribuzione stabile, allora le sue prime e le sue ultime porzioni dovrebbero produrre stime simili dei parametri.</p>
 <p>In pratica, il test confronta la media dei valori ottenuti nei primi campioni della catena (spesso il 10% iniziale) con la media calcolata sugli ultimi campioni (ad esempio l’ultimo 50%). Se le due stime coincidono entro i limiti della variabilità campionaria, possiamo considerare la catena stazionaria; se invece differiscono in modo consistente, significa che il processo non si è ancora stabilizzato.</p>
-<p>Il risultato viene espresso sotto forma di uno <em>z-score</em>. Valori vicini allo zero indicano una buona corrispondenza tra le due parti della catena e quindi un campionamento affidabile. Valori con grandezza superiore a 2 segnalano invece una discrepanza significativa, che mette in dubbio la qualità del campionamento.</p>
+<p>Il risultato viene espresso sotto forma di uno <em>z-score</em>. Valori vicini allo zero indicano una buona corrispondenza tra le due parti della catena e quindi un campionamento affidabile. Valori con grandezza superiore a 2 segnalano invece una discrepanza degna di nota, che mette in dubbio la qualità del campionamento.</p>
 <p>Possiamo pensare a questa diagnostica come a un termometro della stabilità temporale: misura se l’andamento della catena all’inizio è coerente con quello alla fine. Quando il test evidenzia problemi, le possibili soluzioni consistono nel prolungare il campionamento, nel rivedere i parametri del campionatore o, se necessario, nel interrogarsi sulla specificazione del modello, che potrebbe rendere difficile la convergenza.</p>
 <p>In definitiva, la diagnostica di Geweke fornisce un’indicazione diretta e facilmente interpretabile sulla qualità della catena, ed è quindi uno strumento utile da affiancare agli altri controlli standard nella valutazione delle analisi bayesiane.</p>
-</section><section id="lerrore-standard-di-monte-carlo-quantificare-lincertezza-dellapprossimazione" class="level2" data-number="51.7"><h2 data-number="51.7" class="anchored" data-anchor-id="lerrore-standard-di-monte-carlo-quantificare-lincertezza-dellapprossimazione">
+<section id="codice-r-5" class="level3" data-number="51.6.1"><h3 data-number="51.6.1" class="anchored" data-anchor-id="codice-r-5">
+<span class="header-section-number">51.6.1</span> Codice R</h3>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># 1) Estrai i draw di theta come data frame con metadati (.chain, .iteration)</span></span>
+<span><span class="va">df_theta</span> <span class="op">&lt;-</span> <span class="fu">as_draws_df</span><span class="op">(</span><span class="va">fit</span><span class="op">$</span><span class="fu">draws</span><span class="op">(</span><span class="st">"theta"</span><span class="op">)</span><span class="op">)</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="st">".chain"</span>, <span class="st">".iteration"</span>, <span class="st">"theta"</span><span class="op">)</span><span class="op">]</span></span>
+<span></span>
+<span><span class="co"># 2) Spezza per catena e crea un mcmc.list</span></span>
+<span><span class="va">chains</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/split.html">split</a></span><span class="op">(</span><span class="va">df_theta</span><span class="op">$</span><span class="va">theta</span>, <span class="va">df_theta</span><span class="op">$</span><span class="va">.chain</span><span class="op">)</span></span>
+<span><span class="va">mcmc_list</span> <span class="op">&lt;-</span> <span class="fu">mcmc.list</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/lapply.html">lapply</a></span><span class="op">(</span><span class="va">chains</span>, <span class="va">mcmc</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 3) Geweke diagnostic: Z-score per catena</span></span>
+<span><span class="co">#    frac1 = frazione iniziale del campione (default 0.1),</span></span>
+<span><span class="co">#    frac2 = frazione finale (default 0.5)</span></span>
+<span><span class="va">gd</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html">lapply</a></span><span class="op">(</span><span class="va">mcmc_list</span>, <span class="va">geweke.diag</span>, frac1 <span class="op">=</span> <span class="fl">0.1</span>, frac2 <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 4) Estrai gli Z (uno per catena, parametro univariato)</span></span>
+<span><span class="va">z_scores</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html">sapply</a></span><span class="op">(</span><span class="va">gd</span>, <span class="kw">function</span><span class="op">(</span><span class="va">x</span><span class="op">)</span> <span class="va">x</span><span class="op">$</span><span class="va">z</span><span class="op">)</span></span>
+<span><span class="va">z_scores</span></span>
+<span><span class="co">#&gt; 1.var1 2.var1 3.var1 4.var1 </span></span>
+<span><span class="co">#&gt; -1.338  0.815 -0.583  0.915</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># p-value bilaterale associato a ciascun Z</span></span>
+<span><span class="va">pvals</span> <span class="op">&lt;-</span> <span class="fl">2</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html">pnorm</a></span><span class="op">(</span><span class="op">-</span><span class="fu"><a href="https://rdrr.io/r/base/MathFun.html">abs</a></span><span class="op">(</span><span class="va">z_scores</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">pvals</span></span>
+<span><span class="co">#&gt; 1.var1 2.var1 3.var1 4.var1 </span></span>
+<span><span class="co">#&gt;  0.181  0.415  0.560  0.360</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># 5) Plot diagnostico (per ogni catena)</span></span>
+<span><span class="fu">geweke.plot</span><span class="op">(</span><span class="va">mcmc_list</span>, auto.layout <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure"><p><img src="04_stan_diagnostics_files/figure-html/unnamed-chunk-23-1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:85.0%"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure"><p><img src="04_stan_diagnostics_files/figure-html/unnamed-chunk-23-2.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:85.0%"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure"><p><img src="04_stan_diagnostics_files/figure-html/unnamed-chunk-23-3.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:85.0%"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure"><p><img src="04_stan_diagnostics_files/figure-html/unnamed-chunk-23-4.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:85.0%"></p>
+</figure>
+</div>
+</div>
+</div>
+</section></section><section id="lerrore-standard-di-monte-carlo-quantificare-lincertezza-dellapprossimazione" class="level2" data-number="51.7"><h2 data-number="51.7" class="anchored" data-anchor-id="lerrore-standard-di-monte-carlo-quantificare-lincertezza-dellapprossimazione">
 <span class="header-section-number">51.7</span> L’errore standard di Monte Carlo: quantificare l’incertezza dell’approssimazione</h2>
 <p>Quando utilizziamo i metodi Monte Carlo basati su catene di Markov (MCMC), dobbiamo sempre ricordare che i risultati ottenuti non sono la distribuzione a posteriori “vera”, ma soltanto una sua approssimazione basata su un numero finito di campioni. Come ogni approssimazione, anche questa porta con sé un margine di errore che è necessario quantificare. A questo scopo si utilizza l’<em>Errore Standard di Monte Carlo</em> (MCSE), una misura che indica quanto sia precisa la stima prodotta dalle catene.</p>
 <p>Il calcolo del MCSE si basa su una relazione semplice ma molto informativa:</p>
-<p><span class="math display">\[
+<p><span id="eq-mcmc-mcse"><span class="math display">\[
 \text{MCSE} = \frac{\text{SD}}{\sqrt{N_{\text{eff}}}},
-\]</span> dove la deviazione standard (SD) descrive la variabilità della stima e <span class="math inline">\(N_{\text{eff}}\)</span> rappresenta la dimensione effettiva del campione, cioè il numero equivalente di osservazioni indipendenti che forniscono la stessa quantità di informazione dei campioni autocorrelati generati dall’algoritmo.</p>
+\tag{51.1}\]</span></span> dove la deviazione standard (SD) descrive la variabilità della stima e <span class="math inline">\(N_{\text{eff}}\)</span> rappresenta la dimensione effettiva del campione, cioè il numero equivalente di osservazioni indipendenti che forniscono la stessa quantità di informazione dei campioni autocorrelati generati dall’algoritmo.</p>
 <p>Dal punto di vista interpretativo, un MCSE piccolo rispetto alla scala del parametro indica che la stima è sufficientemente precisa per essere considerata affidabile. Se invece il MCSE risulta elevato, significa che la nostra approssimazione è troppo rumorosa e che la catena non ha fornito abbastanza informazione utile. Una regola empirica spesso citata suggerisce che il MCSE dovrebbe essere almeno un ordine di grandezza più piccolo della deviazione standard associata alla stima.</p>
 <p>Quando il MCSE è insoddisfacente, la prima strategia consiste nell’aumentare la lunghezza delle catene, così da raccogliere più campioni indipendenti. Non sempre, però, questo approccio è il più efficiente: in molti casi conviene lavorare sull’efficienza dell’algoritmo, regolando i suoi parametri o rivedendo la specificazione del modello, così da ridurre l’autocorrelazione tra i campioni e ottenere stime più informative a parità di iterazioni.</p>
 <p>Il MCSE, considerato insieme ad altre diagnostiche come la statistica <span class="math inline">\(\hat{R}\)</span> o il test di Geweke, fornisce un quadro complessivo della qualità delle nostre catene MCMC. Solo quando questi indicatori convergono verso valutazioni positive possiamo avere fiducia che le nostre stime siano davvero pronte per essere interpretate in termini sostantivi.</p>
-</section><section id="transizioni-divergenti-segnali-dallarme-nellalgoritmo-hmc" class="level2" data-number="51.8"><h2 data-number="51.8" class="anchored" data-anchor-id="transizioni-divergenti-segnali-dallarme-nellalgoritmo-hmc">
+<section id="codice-r-6" class="level3" data-number="51.7.1"><h3 data-number="51.7.1" class="anchored" data-anchor-id="codice-r-6">
+<span class="header-section-number">51.7.1</span> Codice R</h3>
+<p>L’<a href="#eq-mcmc-mcse" class="quarto-xref">Equazione&nbsp;<span>51.1</span></a> può essere implementata in R così:</p>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># Estrai il sommario per theta</span></span>
+<span><span class="va">summ_theta</span> <span class="op">&lt;-</span> <span class="va">fit</span><span class="op">$</span><span class="fu">summary</span><span class="op">(</span>variables <span class="op">=</span> <span class="st">"theta"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Calcola l'errore standard Monte Carlo</span></span>
+<span><span class="va">mcse_theta</span> <span class="op">&lt;-</span> <span class="va">summ_theta</span><span class="op">$</span><span class="va">sd</span> <span class="op">/</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html">sqrt</a></span><span class="op">(</span><span class="va">summ_theta</span><span class="op">$</span><span class="va">ess_bulk</span><span class="op">)</span></span>
+<span><span class="va">mcse_theta</span></span>
+<span><span class="co">#&gt; [1] 0.00175</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section></section><section id="transizioni-divergenti-segnali-dallarme-nellalgoritmo-hmc" class="level2" data-number="51.8"><h2 data-number="51.8" class="anchored" data-anchor-id="transizioni-divergenti-segnali-dallarme-nellalgoritmo-hmc">
 <span class="header-section-number">51.8</span> Transizioni divergenti: segnali d’allarme nell’algoritmo HMC</h2>
 <p>Nel campionamento con <em>Hamiltonian Monte Carlo</em> (HMC), la comparsa di transizioni divergenti è un campanello d’allarme che non deve essere ignorato. Questi eventi si verificano quando l’algoritmo incontra difficoltà nell’esplorare regioni complicate dello spazio dei parametri, caratterizzate da forte curvatura o da geometrie irregolari. In tali situazioni, invece di proseguire con un movimento fluido e coerente, la traiettoria simulata “salta” o si interrompe, segnalando che l’integrazione numerica dell’Hamiltoniana non è stata accurata.</p>
 <p>La presenza di transizioni divergenti ha conseguenze importanti: significa che porzioni rilevanti della distribuzione posteriore potrebbero non essere state esplorate, con il rischio di produrre inferenze incomplete o distorte. È come disporre di una mappa geografica con intere zone lasciate in bianco: ogni conclusione basata su quel campionamento rischia di essere parziale o fuorviante.</p>
 <p>Fortunatamente, esistono diverse strategie per affrontare il problema. Talvolta i dati stessi contengono valori estremi o configurazioni che accentuano le difficoltà numeriche, ed è utile verificarne la qualità. In altri casi, la causa va ricercata nelle distribuzioni a priori, che se troppo restrittive o mal calibrate possono creare colli di bottiglia nello spazio dei parametri. Spesso è possibile intervenire regolando i parametri operativi dell’HMC, come la dimensione del passo di integrazione o il numero di passi simulati, così da rendere più accurata e stabile la dinamica. Quando tutto ciò non basta, una riparametrizzazione del modello – cioè una riformulazione delle variabili latenti in forme più semplici da esplorare – può migliorare radicalmente la geometria dello spazio e ridurre le difficoltà del campionatore.</p>
 <p>In sintesi, le transizioni divergenti non sono un dettaglio secondario, ma un indicatore cruciale della qualità del campionamento. La loro assenza è condizione necessaria per poter considerare affidabile l’esplorazione della distribuzione posteriore: solo in loro mancanza possiamo confidare che il modello stia davvero catturando tutta la complessità del fenomeno in studio.</p>
-</section><section id="la-bayesian-fraction-of-missing-information-bfmi-un-indicatore-di-efficienza-esplorativa" class="level2" data-number="51.9"><h2 data-number="51.9" class="anchored" data-anchor-id="la-bayesian-fraction-of-missing-information-bfmi-un-indicatore-di-efficienza-esplorativa">
+<section id="codice-r-7" class="level3" data-number="51.8.1"><h3 data-number="51.8.1" class="anchored" data-anchor-id="codice-r-7">
+<span class="header-section-number">51.8.1</span> Codice R</h3>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># Numero totale di transizioni divergenti</span></span>
+<span><span class="va">fit</span><span class="op">$</span><span class="fu">diagnostic_summary</span><span class="op">(</span><span class="op">)</span><span class="op">$</span><span class="va">num_divergent</span></span>
+<span><span class="co">#&gt; [1] 0 0 0 0</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section></section><section id="la-bayesian-fraction-of-missing-information-bfmi-un-indicatore-di-efficienza-esplorativa" class="level2" data-number="51.9"><h2 data-number="51.9" class="anchored" data-anchor-id="la-bayesian-fraction-of-missing-information-bfmi-un-indicatore-di-efficienza-esplorativa">
 <span class="header-section-number">51.9</span> La Bayesian Fraction of Missing Information (BFMI): un indicatore di efficienza esplorativa</h2>
 <p>Nei metodi di campionamento avanzati come l’Hamiltonian Monte Carlo (HMC) e il No-U-Turn Sampler (NUTS), la <em>Bayesian Fraction of Missing Information</em> (BFMI) costituisce uno strumento diagnostico particolarmente utile per valutare l’efficienza con cui l’algoritmo esplora lo spazio dei parametri. A differenza di altre misure che si concentrano sulla convergenza delle catene, la BFMI fornisce informazioni più profonde sul “modo” in cui il campionatore si muove all’interno della distribuzione a posteriori.</p>
 <p>Il concetto si basa sull’analisi delle fluttuazioni di energia durante il processo di campionamento. Possiamo immaginare l’energia come il carburante che consente all’algoritmo di spostarsi da una regione all’altra dello spazio dei parametri: un’esplorazione efficiente richiede che questo carburante venga utilizzato in maniera equilibrata, senza sbalzi eccessivi né stagnazioni.</p>
-<p>L’interpretazione dei valori è piuttosto chiara. Quando la BFMI è uguale o superiore a 0.3, possiamo considerare l’esplorazione soddisfacente: l’algoritmo riesce a coprire in modo efficace tutte le aree rilevanti della distribuzione. Se i valori si collocano tra 0.2 e 0.3, conviene prestare attenzione: l’esplorazione potrebbe essere incompleta e richiede una verifica più accurata. Valori inferiori a 0.2 rappresentano un vero e proprio segnale d’allarme, perché indicano che l’algoritmo incontra difficoltà significative e le inferenze risultanti rischiano di essere poco affidabili.</p>
+<p>L’interpretazione dei valori è piuttosto chiara. Quando la BFMI è uguale o superiore a 0.3, possiamo considerare l’esplorazione soddisfacente: l’algoritmo riesce a coprire in modo efficace tutte le aree rilevanti della distribuzione. Se i valori si collocano tra 0.2 e 0.3, conviene prestare attenzione: l’esplorazione potrebbe essere incompleta e richiede una verifica più accurata. Valori inferiori a 0.2 rappresentano un vero e proprio segnale d’allarme, perché indicano che l’algoritmo incontra notevoli difficoltà e le inferenze risultanti rischiano di essere poco affidabili.</p>
 <p>Le cause di un basso BFMI vanno spesso ricercate nella complessità geometrica della distribuzione posteriore. Parametri fortemente correlati, scale molto diverse tra loro o curvature accentuate rendono più ardua l’esplorazione. Anche scelte di prior troppo restrittive possono introdurre barriere artificiali che ostacolano i movimenti del campionatore.</p>
 <p>Quando ci si trova in questa situazione, diverse strategie possono migliorare le cose. Una riparametrizzazione del modello, magari attraverso trasformazioni più naturali delle variabili, può semplificare notevolmente lo spazio da esplorare. L’aggiustamento della matrice di massa nell’HMC consente di calibrare meglio i movimenti del campionatore. Infine, una revisione critica delle distribuzioni a priori aiuta a rimuovere vincoli inutili che potrebbero ostacolare la dinamica.</p>
 <p>La BFMI non è dunque un dettaglio tecnico secondario, ma una finestra privilegiata sul comportamento interno dell’algoritmo. Monitorarne i valori significa assicurarsi che le inferenze bayesiane siano basate su un’esplorazione realmente completa e affidabile dello spazio dei parametri, condizione essenziale per la solidità delle conclusioni tratte.</p>
-</section><section id="la-leave-one-out-cross-validation-uno-sguardo-allaffidabilità-predittiva-del-modello" class="level2" data-number="51.10"><h2 data-number="51.10" class="anchored" data-anchor-id="la-leave-one-out-cross-validation-uno-sguardo-allaffidabilità-predittiva-del-modello">
+<section id="codice-r-8" class="level3" data-number="51.9.1"><h3 data-number="51.9.1" class="anchored" data-anchor-id="codice-r-8">
+<span class="header-section-number">51.9.1</span> Codice R</h3>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># 1) Diagnostiche del sampler come data.frame (senza warmup)</span></span>
+<span><span class="va">sd_df</span> <span class="op">&lt;-</span> <span class="va">fit</span><span class="op">$</span><span class="fu">sampler_diagnostics</span><span class="op">(</span>inc_warmup <span class="op">=</span> <span class="cn">FALSE</span>, format <span class="op">=</span> <span class="st">"df"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">np_all</span> <span class="op">&lt;-</span> <span class="va">sd_df</span> <span class="op">%&gt;%</span></span>
+<span>  <span class="fu">pivot_longer</span><span class="op">(</span></span>
+<span>    cols <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="va">accept_stat__</span>, <span class="va">stepsize__</span>, <span class="va">treedepth__</span>, <span class="va">n_leapfrog__</span>, <span class="va">divergent__</span>, <span class="va">energy__</span><span class="op">)</span>,</span>
+<span>    names_to <span class="op">=</span> <span class="st">"Parameter"</span>, values_to <span class="op">=</span> <span class="st">"Value"</span></span>
+<span>  <span class="op">)</span> <span class="op">%&gt;%</span></span>
+<span>  <span class="fu">rename</span><span class="op">(</span>Chain <span class="op">=</span> <span class="va">.chain</span>, Iteration <span class="op">=</span> <span class="va">.iteration</span><span class="op">)</span> <span class="op">%&gt;%</span></span>
+<span>  <span class="fu">relocate</span><span class="op">(</span><span class="va">Chain</span>, <span class="va">Iteration</span>, <span class="va">Parameter</span>, <span class="va">Value</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/class.html">class</a></span><span class="op">(</span><span class="va">np_all</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="st">"nuts_params"</span>, <span class="st">"data.frame"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Tieni SOLO energy__ e le colonne richieste</span></span>
+<span><span class="va">np_energy</span> <span class="op">&lt;-</span> <span class="va">np_all</span> <span class="op">%&gt;%</span></span>
+<span>  <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/filter.html">filter</a></span><span class="op">(</span><span class="va">Parameter</span> <span class="op">==</span> <span class="st">"energy__"</span><span class="op">)</span> <span class="op">%&gt;%</span></span>
+<span>  <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html">select</a></span><span class="op">(</span><span class="va">Chain</span>, <span class="va">Iteration</span>, <span class="va">Parameter</span>, <span class="va">Value</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Assicurati della classe attesa</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/class.html">class</a></span><span class="op">(</span><span class="va">np_energy</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="st">"nuts_params"</span>, <span class="st">"data.frame"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Plot diagnostico dell’energia (BFMI)</span></span>
+<span><span class="fu">mcmc_nuts_energy</span><span class="op">(</span><span class="va">np_energy</span><span class="op">)</span> </span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure"><p><img src="04_stan_diagnostics_files/figure-html/unnamed-chunk-26-1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:85.0%"></p>
+</figure>
+</div>
+</div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">energy_by_chain</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/split.html">split</a></span><span class="op">(</span><span class="va">np_energy</span><span class="op">$</span><span class="va">Value</span>, <span class="va">np_energy</span><span class="op">$</span><span class="va">Chain</span><span class="op">)</span></span>
+<span><span class="va">bfmi</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html">sapply</a></span><span class="op">(</span><span class="va">energy_by_chain</span>, <span class="kw">function</span><span class="op">(</span><span class="va">e</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">de</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/diff.html">diff</a></span><span class="op">(</span><span class="va">e</span><span class="op">)</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/mean.html">mean</a></span><span class="op">(</span><span class="va">de</span><span class="op">^</span><span class="fl">2</span><span class="op">)</span> <span class="op">/</span> <span class="fu">stats</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/stats/cor.html">var</a></span><span class="op">(</span><span class="va">e</span><span class="op">)</span></span>
+<span><span class="op">}</span><span class="op">)</span></span>
+<span><span class="va">bfmi</span></span>
+<span><span class="co">#&gt;    1    2    3    4 </span></span>
+<span><span class="co">#&gt; 1.10 1.21 1.11 1.09</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># BFMI complessiva (media pesata per numero di iterazioni per catena)</span></span>
+<span><span class="va">bfmi_overall</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/weighted.mean.html">weighted.mean</a></span><span class="op">(</span><span class="va">bfmi</span>, <span class="fu"><a href="https://rdrr.io/r/base/lapply.html">sapply</a></span><span class="op">(</span><span class="va">energy_by_chain</span>, <span class="va">length</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">bfmi_overall</span></span>
+<span><span class="co">#&gt; [1] 1.13</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Per regola pratica, un BFMI minore di <em>0.3</em> è considerato problematico: indica che l’algoritmo NUTS non sta esplorando bene la distribuzione dell’energia, e quindi l’efficienza del campionamento è ridotta.</p>
+<p>Tutti i valori sono <em>ben sopra 1</em>, quindi molto più alti della soglia critica. Questo indica che le catene hanno esplorato lo spazio dei parametri con efficienza elevata, senza perdita informativa.</p>
+<p>BFMI &gt; 1 non è un problema: significa semplicemente che la varianza dei salti nell’energia è in linea con (o superiore a) la varianza totale dell’energia. Quello che conta è che non siano troppo bassi.</p>
+</section></section><section id="la-leave-one-out-cross-validation-uno-sguardo-allaffidabilità-predittiva-del-modello" class="level2" data-number="51.10"><h2 data-number="51.10" class="anchored" data-anchor-id="la-leave-one-out-cross-validation-uno-sguardo-allaffidabilità-predittiva-del-modello">
 <span class="header-section-number">51.10</span> La Leave-One-Out Cross-Validation: uno sguardo all’affidabilità predittiva del modello</h2>
 <p>Tra i metodi più efficaci per valutare la capacità predittiva di un modello bayesiano vi è la <em>Leave-One-Out Cross-Validation</em> (LOO). Questa procedura risponde a una domanda cruciale: quanto possiamo fidarci delle previsioni del nostro modello quando deve affrontare nuove osservazioni?</p>
 <p>L’idea alla base della LOO è semplice ed elegante. Immaginiamo di togliere a turno una singola osservazione dal dataset, stimare il modello sui dati rimanenti e verificare quanto bene esso riesce a predire proprio il dato lasciato fuori. Ripetendo questo esperimento concettuale per tutte le osservazioni, otteniamo una misura complessiva della capacità del modello di generalizzare oltre i dati su cui è stato addestrato.</p>
 <p>Il valore di questo approccio sta soprattutto nel suo equilibrio. Da un lato, la LOO riduce il rischio di <em>overfitting</em>, ossia la tendenza di un modello a seguire troppo da vicino le particolarità del campione, perdendo capacità di generalizzazione. Dall’altro, aiuta a individuare l’<em>underfitting</em>, cioè il caso in cui un modello eccessivamente rigido non riesce a cogliere le regolarità effettive nei dati.</p>
 <p>Nella pratica, la valutazione si sintetizza attraverso indici come il <em>Leave-One-Out Information Criterion</em> (LOOIC). Valori più bassi di LOOIC indicano una migliore capacità predittiva, perché il modello riesce a bilanciare in modo ottimale adattamento e generalizzazione. Le differenze di LOOIC tra modelli alternativi possono quindi orientare le nostre scelte, ma la loro interpretazione deve essere accompagnata da una riflessione teorica sul modello e sul contesto di applicazione.</p>
 <p>La LOO, dunque, non è un verdetto definitivo, ma uno strumento diagnostico di grande utilità. Applicata in modo sistematico, ci consente di selezionare modelli non solo statisticamente ben calibrati, ma anche realmente utili per formulare previsioni affidabili. È per questo motivo che costituisce una tappa fondamentale nel percorso verso analisi bayesiane robuste e credibili.</p>
-</section><section id="il-parametro-κ-un-indicatore-cruciale-per-laffidabilità-delle-stime" class="level2" data-number="51.11"><h2 data-number="51.11" class="anchored" data-anchor-id="il-parametro-κ-un-indicatore-cruciale-per-laffidabilità-delle-stime">
+<section id="codice-r-9" class="level3" data-number="51.10.1"><h3 data-number="51.10.1" class="anchored" data-anchor-id="codice-r-9">
+<span class="header-section-number">51.10.1</span> Codice R</h3>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># log_lik come array: [iter, chain, N]</span></span>
+<span><span class="va">ll_array</span> <span class="op">&lt;-</span> <span class="fu">as_draws_array</span><span class="op">(</span><span class="va">fit</span><span class="op">$</span><span class="fu">draws</span><span class="op">(</span><span class="st">"log_lik"</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">S</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/dim.html">dim</a></span><span class="op">(</span><span class="va">ll_array</span><span class="op">)</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span>   <span class="co"># iterazioni post-warmup per catena</span></span>
+<span><span class="va">C</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/dim.html">dim</a></span><span class="op">(</span><span class="va">ll_array</span><span class="op">)</span><span class="op">[</span><span class="fl">2</span><span class="op">]</span>   <span class="co"># numero di catene</span></span>
+<span><span class="va">N</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/dim.html">dim</a></span><span class="op">(</span><span class="va">ll_array</span><span class="op">)</span><span class="op">[</span><span class="fl">3</span><span class="op">]</span>   <span class="co"># numero di osservazioni</span></span>
+<span></span>
+<span><span class="co"># log_lik come matrice: [S*C, N] (formato atteso da loo)</span></span>
+<span><span class="va">ll_mat</span> <span class="op">&lt;-</span> <span class="fu">as_draws_matrix</span><span class="op">(</span><span class="va">fit</span><span class="op">$</span><span class="fu">draws</span><span class="op">(</span><span class="st">"log_lik"</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># r_eff per PSIS-LOO (consigliato): serve chain_id per correggere autocorrelazione</span></span>
+<span><span class="va">chain_id</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html">rep</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="va">C</span>, each <span class="op">=</span> <span class="va">S</span><span class="op">)</span></span>
+<span><span class="va">r_eff</span> <span class="op">&lt;-</span> <span class="fu">relative_eff</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Log.html">exp</a></span><span class="op">(</span><span class="va">ll_mat</span><span class="op">)</span>, chain_id <span class="op">=</span> <span class="va">chain_id</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># LOO</span></span>
+<span><span class="va">loo_res</span> <span class="op">&lt;-</span> <span class="fu">loo</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/loo/reference/loo.html">loo</a></span><span class="op">(</span><span class="va">ll_mat</span>, r_eff <span class="op">=</span> <span class="va">r_eff</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html">print</a></span><span class="op">(</span><span class="va">loo_res</span><span class="op">)</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Computed from 16000 by 10 log-likelihood matrix.</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt;          Estimate  SE</span></span>
+<span><span class="co">#&gt; elpd_loo     -7.1 1.3</span></span>
+<span><span class="co">#&gt; p_loo         0.9 0.2</span></span>
+<span><span class="co">#&gt; looic        14.2 2.6</span></span>
+<span><span class="co">#&gt; ------</span></span>
+<span><span class="co">#&gt; MCSE of elpd_loo is 0.0.</span></span>
+<span><span class="co">#&gt; MCSE and ESS estimates assume MCMC draws (r_eff in [0.4, 0.4]).</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; All Pareto k estimates are good (k &lt; 0.7).</span></span>
+<span><span class="co">#&gt; See help('pareto-k-diagnostic') for details.</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Il calcolo di LOO-CV restituisce in questo esempio un valore di <em>elpd_loo ≈ –7.1</em> con errore standard 1.3. Poiché l’<em>LOOIC</em> è definito come <span class="math inline">\(-2 \times \text{elpd\_loo}\)</span>, otteniamo <em>LOOIC ≈ 14.2</em>. L’effettivo numero di parametri stimati dal modello è indicato da <em>p_loo ≈ 0.9</em>, molto vicino a 1, il che è coerente con la presenza di un unico parametro <span class="math inline">\(\theta\)</span>.</p>
+<p>Tutti i valori di <em>Pareto k</em> sono inferiori a 0.7, segnalando che l’approssimazione PSIS-LOO è stabile e affidabile. In pratica, questo significa che il modello ha una complessità adeguata rispetto ai dati e non presenta osservazioni influenti tali da compromettere la validità del criterio predittivo.</p>
+<p>In sintesi, LOO ci dice che il modello binomiale con prior Beta(1,1) riesce a spiegare i dati senza problemi di adattamento o di stabilità numerica. I valori ottenuti diventano particolarmente utili quando si confrontano più modelli: quello con <em>elpd_loo più alto (o LOOIC più basso)</em> è da preferire, in quanto fornisce predizioni fuori campione più accurate.</p>
+</section></section><section id="il-parametro-κ-un-indicatore-cruciale-per-laffidabilità-delle-stime" class="level2" data-number="51.11"><h2 data-number="51.11" class="anchored" data-anchor-id="il-parametro-κ-un-indicatore-cruciale-per-laffidabilità-delle-stime">
 <span class="header-section-number">51.11</span> Il parametro κ: un indicatore cruciale per l’affidabilità delle stime</h2>
 <p>Quando si utilizza il <em>Pareto Smoothed Importance Sampling</em> (PSIS) per approssimare quantità di interesse in un’analisi bayesiana, il parametro κ (kappa) diventa un indicatore chiave della qualità delle stime. Possiamo considerarlo come un termometro che misura quanto il processo di campionamento sia influenzato da osservazioni particolarmente estreme, cioè da quei dati che rischiano di avere un peso eccessivo nelle conclusioni finali.</p>
 <p>Per capire l’intuizione, immaginiamo di voler stimare le preferenze alimentari di una popolazione molto ampia. Se ci basassimo solo su pochi individui con gusti estremi, le nostre inferenze risulterebbero distorte. Allo stesso modo, in un’analisi bayesiana, campioni con peso anomalo possono compromettere la stabilità delle stime. Il parametro κ misura proprio questo rischio.</p>
 <p>Valori bassi di κ (inferiori a 0.5) indicano una situazione rassicurante: la variabilità dei dati è stata rappresentata in modo adeguato e nessuna osservazione domina eccessivamente il processo. Quando κ si colloca tra 0.5 e 0.7, occorre maggiore prudenza: le stime possono ancora essere utilizzabili, ma meritano un controllo più attento. Il vero campanello d’allarme scatta quando κ supera 0.7: in questo scenario, pochi valori influenti stanno probabilmente guidando l’intera stima, riducendone l’affidabilità.</p>
 <p>Questa diagnosi è particolarmente rilevante nel contesto della <em>Leave-One-Out Cross-Validation</em> (LOO-CV), dove un κ elevato segnala che le valutazioni predittive del modello possono essere seriamente compromesse da un numero eccessivo di osservazioni influenti.</p>
 <p>In pratica, monitorare κ è una buona abitudine per ogni analista bayesiano. Proprio come un meccanico che controlla regolarmente gli indicatori della propria automobile per assicurarsi che tutto funzioni correttamente, anche chi utilizza modelli bayesiani dovrebbe verificare κ prima di trarre conclusioni dalle analisi. Solo così è possibile distinguere tra inferenze solide e risultati che rischiano di essere fuorvianti.</p>
-</section><section id="riflessioni-conclusive" class="level2 unnumbered unlisted"><h2 class="unnumbered unlisted anchored" data-anchor-id="riflessioni-conclusive">Riflessioni conclusive</h2>
+<section id="codice-r-10" class="level3" data-number="51.11.1"><h3 data-number="51.11.1" class="anchored" data-anchor-id="codice-r-10">
+<span class="header-section-number">51.11.1</span> Codice R</h3>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb25"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># 1. Estrai il vettore completo dei valori k</span></span>
+<span><span class="va">k_values</span> <span class="op">&lt;-</span> <span class="fu">pareto_k_values</span><span class="op">(</span><span class="va">loo_res</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 2. Esplora la distribuzione</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/summary.html">summary</a></span><span class="op">(</span><span class="va">k_values</span><span class="op">)</span></span>
+<span><span class="co">#&gt;     Min.  1st Qu.   Median     Mean  3rd Qu.     Max. </span></span>
+<span><span class="co">#&gt; -0.00138 -0.00138 -0.00138  0.03905  0.09970  0.13340</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb26"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/stats/quantile.html">quantile</a></span><span class="op">(</span><span class="va">k_values</span>, probs <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="fl">0.25</span>, <span class="fl">0.5</span>, <span class="fl">0.75</span>, <span class="fl">0.9</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt;      25%      50%      75%      90% </span></span>
+<span><span class="co">#&gt; -0.00138 -0.00138  0.09970  0.13340</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="sourceCode" id="cb27"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># 3. Conta e calcola proporzioni per classi di soglia</span></span>
+<span><span class="va">counts</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/table.html">table</a></span><span class="op">(</span></span>
+<span>  good    <span class="op">=</span> <span class="va">k_values</span> <span class="op">&lt;=</span> <span class="fl">0.5</span>,</span>
+<span>  OK      <span class="op">=</span> <span class="va">k_values</span> <span class="op">&gt;</span> <span class="fl">0.5</span> <span class="op">&amp;</span> <span class="va">k_values</span> <span class="op">&lt;=</span> <span class="fl">0.7</span>,</span>
+<span>  problematic <span class="op">=</span> <span class="va">k_values</span> <span class="op">&gt;</span> <span class="fl">0.7</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/proportions.html">prop.table</a></span><span class="op">(</span><span class="va">counts</span><span class="op">)</span></span>
+<span><span class="co">#&gt; , , problematic = FALSE</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt;       OK</span></span>
+<span><span class="co">#&gt; good   FALSE</span></span>
+<span><span class="co">#&gt;   TRUE     1</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section></section><section id="riflessioni-conclusive" class="level2 unnumbered unlisted"><h2 class="unnumbered unlisted anchored" data-anchor-id="riflessioni-conclusive">Riflessioni conclusive</h2>
 <p>In questo capitolo abbiamo visto come gli strumenti diagnostici costituiscano una parte imprescindibile del lavoro con i metodi MCMC. Ogni parametro stimato, infatti, non è soltanto un numero, ma il risultato di un processo di campionamento che va attentamente valutato prima di trarne conclusioni sostantive.</p>
 <p>Il percorso di verifica inizia con i controlli di base: l’assenza di transizioni divergenti, il buon completamento della fase di adattamento e la stabilità delle catene nei grafici di tracciamento. Prosegue con l’analisi dell’autocorrelazione, della dimensione effettiva del campione e delle statistiche sintetiche come <span class="math inline">\(\hat{R}\)</span> e l’errore standard di Monte Carlo. Nei modelli HMC/NUTS entrano in gioco anche indicatori specifici, come la BFMI e il parametro <span class="math inline">\(\kappa\)</span> quando si utilizzano tecniche di validazione predittiva.</p>
 <p>Quando questi strumenti segnalano problemi, la risposta non consiste in un’unica strategia ma in un lavoro di raffinamento: prolungare il campionamento, rivedere le parametrizzazioni, ripensare le distribuzioni a priori o intervenire sulle impostazioni dell’algoritmo. Ogni correzione ha lo scopo di migliorare la qualità dell’esplorazione e, con essa, l’affidabilità delle stime.</p>
@@ -1319,7 +1676,7 @@ Informazioni sull’ambiente di sviluppo
 <div id="callout-2" class="callout-2-contents callout-collapse collapse">
 <div class="callout-body-container callout-body">
 <div class="cell" data-layout-align="center">
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/sessionInfo.html">sessionInfo</a></span><span class="op">(</span><span class="op">)</span></span>
+<div class="sourceCode" id="cb28"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/sessionInfo.html">sessionInfo</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="co">#&gt; R version 4.5.1 (2025-06-13)</span></span>
 <span><span class="co">#&gt; Platform: aarch64-apple-darwin20</span></span>
 <span><span class="co">#&gt; Running under: macOS Sequoia 15.6.1</span></span>
@@ -1338,15 +1695,16 @@ Informazioni sull’ambiente di sviluppo
 <span><span class="co">#&gt; [1] stats     graphics  grDevices utils     datasets  methods   base     </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; other attached packages:</span></span>
-<span><span class="co">#&gt;  [1] insight_1.4.2         cmdstanr_0.9.0        pillar_1.11.0        </span></span>
-<span><span class="co">#&gt;  [4] tinytable_0.13.0      patchwork_1.3.2       ggdist_3.3.3         </span></span>
-<span><span class="co">#&gt;  [7] tidybayes_3.0.7       bayesplot_1.14.0      ggplot2_3.5.2        </span></span>
-<span><span class="co">#&gt; [10] reliabilitydiag_0.2.1 priorsense_1.1.1      posterior_1.6.1      </span></span>
-<span><span class="co">#&gt; [13] loo_2.8.0             rstan_2.32.7          StanHeaders_2.32.10  </span></span>
-<span><span class="co">#&gt; [16] brms_2.22.0           Rcpp_1.1.0            sessioninfo_1.2.3    </span></span>
-<span><span class="co">#&gt; [19] conflicted_1.2.0      janitor_2.2.1         matrixStats_1.5.0    </span></span>
-<span><span class="co">#&gt; [22] modelr_0.1.11         tibble_3.3.0          dplyr_1.1.4          </span></span>
-<span><span class="co">#&gt; [25] tidyr_1.3.1           rio_1.2.3             here_1.0.1           </span></span>
+<span><span class="co">#&gt;  [1] coda_0.19-4.1         insight_1.4.2         cmdstanr_0.9.0       </span></span>
+<span><span class="co">#&gt;  [4] pillar_1.11.0         tinytable_0.13.0      patchwork_1.3.2      </span></span>
+<span><span class="co">#&gt;  [7] ggdist_3.3.3          tidybayes_3.0.7       bayesplot_1.14.0     </span></span>
+<span><span class="co">#&gt; [10] ggplot2_3.5.2         reliabilitydiag_0.2.1 priorsense_1.1.1     </span></span>
+<span><span class="co">#&gt; [13] posterior_1.6.1       loo_2.8.0             rstan_2.32.7         </span></span>
+<span><span class="co">#&gt; [16] StanHeaders_2.32.10   brms_2.22.0           Rcpp_1.1.0           </span></span>
+<span><span class="co">#&gt; [19] sessioninfo_1.2.3     conflicted_1.2.0      janitor_2.2.1        </span></span>
+<span><span class="co">#&gt; [22] matrixStats_1.5.0     modelr_0.1.11         tibble_3.3.0         </span></span>
+<span><span class="co">#&gt; [25] dplyr_1.1.4           tidyr_1.3.1           rio_1.2.3            </span></span>
+<span><span class="co">#&gt; [28] here_1.0.1           </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; loaded via a namespace (and not attached):</span></span>
 <span><span class="co">#&gt;  [1] gridExtra_2.3         inline_0.3.21         sandwich_3.1-1       </span></span>
@@ -1354,29 +1712,29 @@ Informazioni sull’ambiente di sviluppo
 <span><span class="co">#&gt;  [7] snakecase_0.11.1      compiler_4.5.1        reshape2_1.4.4       </span></span>
 <span><span class="co">#&gt; [10] systemfonts_1.2.3     vctrs_0.6.5           stringr_1.5.1        </span></span>
 <span><span class="co">#&gt; [13] pkgconfig_2.0.3       arrayhelpers_1.1-0    fastmap_1.2.0        </span></span>
-<span><span class="co">#&gt; [16] backports_1.5.0       labeling_0.4.3        rmarkdown_2.29       </span></span>
-<span><span class="co">#&gt; [19] ps_1.9.1              ragg_1.5.0            purrr_1.1.0          </span></span>
-<span><span class="co">#&gt; [22] xfun_0.53             cachem_1.1.0          jsonlite_2.0.0       </span></span>
-<span><span class="co">#&gt; [25] broom_1.0.9           parallel_4.5.1        R6_2.6.1             </span></span>
-<span><span class="co">#&gt; [28] stringi_1.8.7         RColorBrewer_1.1-3    lubridate_1.9.4      </span></span>
-<span><span class="co">#&gt; [31] estimability_1.5.1    knitr_1.50            zoo_1.8-14           </span></span>
-<span><span class="co">#&gt; [34] pacman_0.5.1          Matrix_1.7-4          splines_4.5.1        </span></span>
-<span><span class="co">#&gt; [37] timechange_0.3.0      tidyselect_1.2.1      abind_1.4-8          </span></span>
-<span><span class="co">#&gt; [40] yaml_2.3.10           codetools_0.2-20      curl_7.0.0           </span></span>
-<span><span class="co">#&gt; [43] processx_3.8.6        pkgbuild_1.4.8        plyr_1.8.9           </span></span>
-<span><span class="co">#&gt; [46] lattice_0.22-7        withr_3.0.2           bridgesampling_1.1-2 </span></span>
-<span><span class="co">#&gt; [49] coda_0.19-4.1         evaluate_1.0.5        survival_3.8-3       </span></span>
+<span><span class="co">#&gt; [16] backports_1.5.0       labeling_0.4.3        utf8_1.2.6           </span></span>
+<span><span class="co">#&gt; [19] rmarkdown_2.29        ps_1.9.1              ragg_1.5.0           </span></span>
+<span><span class="co">#&gt; [22] purrr_1.1.0           xfun_0.53             cachem_1.1.0         </span></span>
+<span><span class="co">#&gt; [25] jsonlite_2.0.0        broom_1.0.9           parallel_4.5.1       </span></span>
+<span><span class="co">#&gt; [28] R6_2.6.1              stringi_1.8.7         RColorBrewer_1.1-3   </span></span>
+<span><span class="co">#&gt; [31] lubridate_1.9.4       estimability_1.5.1    knitr_1.50           </span></span>
+<span><span class="co">#&gt; [34] zoo_1.8-14            pacman_0.5.1          Matrix_1.7-4         </span></span>
+<span><span class="co">#&gt; [37] splines_4.5.1         timechange_0.3.0      tidyselect_1.2.1     </span></span>
+<span><span class="co">#&gt; [40] abind_1.4-8           yaml_2.3.10           codetools_0.2-20     </span></span>
+<span><span class="co">#&gt; [43] curl_7.0.0            processx_3.8.6        pkgbuild_1.4.8       </span></span>
+<span><span class="co">#&gt; [46] plyr_1.8.9            lattice_0.22-7        withr_3.0.2          </span></span>
+<span><span class="co">#&gt; [49] bridgesampling_1.1-2  evaluate_1.0.5        survival_3.8-3       </span></span>
 <span><span class="co">#&gt; [52] RcppParallel_5.1.11-1 tensorA_0.36.2.1      checkmate_2.3.3      </span></span>
 <span><span class="co">#&gt; [55] stats4_4.5.1          distributional_0.5.0  generics_0.1.4       </span></span>
 <span><span class="co">#&gt; [58] rprojroot_2.1.1       rstantools_2.5.0      scales_1.4.0         </span></span>
 <span><span class="co">#&gt; [61] xtable_1.8-4          glue_1.8.0            emmeans_1.11.2-8     </span></span>
-<span><span class="co">#&gt; [64] tools_4.5.1           mvtnorm_1.3-3         grid_4.5.1           </span></span>
-<span><span class="co">#&gt; [67] QuickJSR_1.8.0        colorspace_2.1-1      nlme_3.1-168         </span></span>
-<span><span class="co">#&gt; [70] cli_3.6.5             textshaping_1.0.3     svUnit_1.0.8         </span></span>
-<span><span class="co">#&gt; [73] Brobdingnag_1.2-9     V8_7.0.0              gtable_0.3.6         </span></span>
-<span><span class="co">#&gt; [76] digest_0.6.37         TH.data_1.1-4         htmlwidgets_1.6.4    </span></span>
-<span><span class="co">#&gt; [79] farver_2.1.2          memoise_2.0.1         htmltools_0.5.8.1    </span></span>
-<span><span class="co">#&gt; [82] lifecycle_1.0.4       MASS_7.3-65</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span><span class="co">#&gt; [64] tools_4.5.1           data.table_1.17.8     mvtnorm_1.3-3        </span></span>
+<span><span class="co">#&gt; [67] grid_4.5.1            QuickJSR_1.8.0        colorspace_2.1-1     </span></span>
+<span><span class="co">#&gt; [70] nlme_3.1-168          cli_3.6.5             textshaping_1.0.3    </span></span>
+<span><span class="co">#&gt; [73] svUnit_1.0.8          Brobdingnag_1.2-9     V8_7.0.0             </span></span>
+<span><span class="co">#&gt; [76] gtable_0.3.6          digest_0.6.37         TH.data_1.1-4        </span></span>
+<span><span class="co">#&gt; [79] htmlwidgets_1.6.4     farver_2.1.2          memoise_2.0.1        </span></span>
+<span><span class="co">#&gt; [82] htmltools_0.5.8.1     lifecycle_1.0.4       MASS_7.3-65</span></span></code><button title="Copia negli appunti" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </div>
 </div>
