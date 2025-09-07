@@ -1,6 +1,5 @@
 # Diagnostica delle catene markoviane {#sec-mcmc-diagnostics}
 
-
 ## Introduzione {.unnumbered .unlisted}
 
 Una volta eseguita la stima di un modello in Stan, il primo passo non è interpretare subito i parametri, ma verificare se la procedura di campionamento ha funzionato correttamente. Le catene MCMC, infatti, possono produrre risultati fuorvianti se non hanno esplorato in modo adeguato lo spazio dei parametri.
@@ -13,7 +12,6 @@ Per questo motivo, Stan fornisce diversi indicatori diagnostici che permettono d
 
 Prima di utilizzare i risultati di un modello, è quindi necessario controllare con attenzione queste diagnosi. Solo dopo aver verificato che il campionamento sia affidabile possiamo procedere con l’analisi e l’interpretazione dei parametri.
 
-
 ::: {.callout-caution collapse=true title="Preparazione del Notebook"}
 
 ```{r}
@@ -23,10 +21,9 @@ here::here("code", "_common.R") |> source()
 
 # Carichiamo i pacchetti necessari
 if (!requireNamespace("pacman")) install.packages("pacman")
-pacman::p_load(cmdstanr, posterior, insight, bayesplot, ggplot2)
+pacman::p_load(cmdstanr, posterior, insight, coda, loo)
 ```
 :::
-
 
 ## Grafici di tracciamento
 
@@ -143,12 +140,83 @@ p_bad0
 p_bad1
 ```
 
+### Codice R
+
+Esaminiamo il codice R necessario per generare i grafici di tracciamento. Per semplicità, usiamo il modello beta-binomiale in `cmdstanr`:
+
+```{r}
+stancode <- "
+data {
+  int<lower=1> N;                      // numero di prove
+  array[N] int<lower=0, upper=1> y;    // esiti (0/1)
+}
+transformed data {
+  int<lower=0, upper=N> k = sum(y);    // numero totale di successi
+}
+parameters {
+  real<lower=0, upper=1> theta;        // probabilità di successo
+}
+model {
+  theta ~ beta(1, 1);                  // prior uniforme
+  k ~ binomial(N, theta);              // verosimiglianza sui successi totali
+}
+generated quantities {
+  vector[N] log_lik;
+  for (n in 1:N) {
+    log_lik[n] = bernoulli_lpmf(y[n] | theta);
+  }
+}
+"
+```
+
+```{r}
+#| output: false
+mod <- cmdstanr::cmdstan_model(
+  write_stan_file(stancode),
+  compile = TRUE
+)
+```
+
+```{r}
+y <- c(1, 1, 1, 1, 1, 1, 1, 0, 0, 0)
+data_list <- list(
+  N = length(y),
+  y = y
+)
+```
+
+```{r}
+#| output: false
+fit <- mod$sample(
+  data = data_list,
+  iter_warmup = 1000,
+  iter_sampling = 4000,
+  chains = 4,
+  parallel_chains = 4,
+  seed = 4790,
+  refresh = 0 
+)
+```
+
+```{r}
+post <- as.array(fit$draws("theta"))
+dim(post)
+```
+
+```{r}
+glimpse(post)
+```
+
+```{r}
+mcmc_trace(fit$draws("theta")) + 
+  xlab("Post-warmup iteration")
+```
+
 ### Cosa fare se le catene non convergono?
 
 Se i trace plot assomigliano a quelli “cattivi” degli esempi, occorre intervenire. Una possibilità è rivedere il modello, domandandosi se la sua struttura o le prior siano adeguate ai dati. In altri casi basta aumentare la lunghezza del campionamento, così da superare transitori iniziali o oscillazioni locali.
 
 In ogni caso, i trace plot restano uno degli strumenti diagnostici più semplici ma anche più potenti: abituarsi a leggerli con attenzione è una competenza imprescindibile per chiunque utilizzi modelli bayesiani.
-
 
 ## I grafici della densità posteriore sono adeguati?
 
@@ -162,6 +230,19 @@ Quando la densità non appare adeguata, esistono diversi rimedi. Prolungare le c
 
 In sintesi, l’ispezione delle densità posteriori non è solo un controllo grafico preliminare, ma un passaggio cruciale per valutare l’affidabilità delle inferenze: ci dice se il modello ha catturato la struttura informativa dei dati in maniera coerente ed equilibrata.
 
+### Codice R
+
+```{r}
+# Estrai i draw posteriori di theta
+theta_draws <- fit$draws("theta")
+
+# Densità marginale complessiva
+mcmc_dens(theta_draws) +
+  ggplot2::labs(
+    x = expression(theta),
+    y = "Densità"
+  )
+```
 
 ## L'autocorrelazione nelle catene MCMC: come interpretarla e gestirla
 
@@ -175,6 +256,17 @@ Se ci troviamo di fronte a una catena con forte autocorrelazione, abbiamo divers
 
 L’analisi dell’autocorrelazione non è quindi un dettaglio tecnico secondario, ma un passaggio essenziale nella diagnosi di un’analisi bayesiana. Osservando il modo in cui la catena si muove nel tempo, possiamo capire se i campioni raccolti forniscono davvero un quadro robusto e affidabile della distribuzione posteriore.
 
+### Codice R
+
+Esaminiamo l'autocorrelazione MCMC di `theta` per ciascuna catena:
+
+```{r}
+# Estraggo i draw di theta nel formato atteso da bayesplot (iter x chain x param)
+theta_draws <- fit$draws("theta")  # draws_array
+
+# ACF fino a 10 ritardi 
+mcmc_acf(theta_draws, lags = 10)
+```
 
 ## La dimensione effettiva del campione: un indicatore cruciale per l'affidabilità delle stime
 
@@ -193,6 +285,27 @@ Quando ci troviamo in questa seconda situazione, diverse strategie possono migli
 
 La dimensione effettiva del campione non va considerata un dettaglio tecnico marginale, ma un indicatore essenziale della qualità delle nostre inferenze. Solo valori sufficientemente elevati di $N_{\text{eff}}$ ci consentono di avere fiducia nelle conclusioni che traiamo dai modelli bayesiani.
 
+### Codice R
+
+```{r}
+fit$summary(variables = "theta")
+```
+
+* **ess\_bulk**: dimensione effettiva del campione nella parte centrale della distribuzione. Misura quanto i draw MCMC siano *non correlati*. Qui è circa 5663: significa che i 16.000 campioni (4 catene × 4000) “valgono” come oltre 5600 campioni indipendenti. È un valore molto alto, quindi la stima della media e di altre statistiche centrali è molto stabile.
+* **ess\_tail**: dimensione effettiva del campione per le code della distribuzione. Qui è circa 6067: anche in questo caso le stime dei quantili estremi (ad esempio intervalli al 95%) sono affidabili.
+
+Il pacchetto `bayesplot` fornisce una funzione generica di estrazione `neff_ratio` che restituisce il rapporto $N_{\text{eff}} / N$:
+
+```{r}
+ratios_bb <- neff_ratio(fit)
+print(ratios_bb)
+```
+
+Le funzioni `mcmc_neff` e `mcmc_neff_hist` possono quindi essere utilizzate per visualizzare graficamente questi rapporti.
+
+```{r}
+mcmc_neff(ratios_bb, size = 2)
+```
 
 ## La statistica $\hat{R}$: il termometro della convergenza delle catene
 
@@ -213,18 +326,61 @@ Oggi la maggior parte dei software per l’inferenza bayesiana calcola automatic
 
 In conclusione, $\hat{R}$ può essere considerato a pieno titolo un vero e proprio termometro della convergenza: una misura sintetica, chiara e quantitativa che consente di valutare la credibilità delle simulazioni MCMC e, di conseguenza, delle inferenze tratte dai modelli bayesiani.
 
+### Codice R
+
+```{r}
+rhats <- bayesplot::rhat(fit)
+print(rhats)
+```
+
+Possiamo visualizzare i valori di $\hat{R}$ con la funzione `mcmc_rhat`:
+
+```{r}
+mcmc_rhat(rhats)
+```
+
 ## La diagnostica di Geweke
 
 La diagnostica proposta da Geweke rappresenta un metodo semplice ma efficace per verificare se una catena MCMC ha raggiunto la stazionarietà. L’idea alla base è intuitiva: se la catena sta campionando da una distribuzione stabile, allora le sue prime e le sue ultime porzioni dovrebbero produrre stime simili dei parametri.
 
 In pratica, il test confronta la media dei valori ottenuti nei primi campioni della catena (spesso il 10% iniziale) con la media calcolata sugli ultimi campioni (ad esempio l’ultimo 50%). Se le due stime coincidono entro i limiti della variabilità campionaria, possiamo considerare la catena stazionaria; se invece differiscono in modo consistente, significa che il processo non si è ancora stabilizzato.
 
-Il risultato viene espresso sotto forma di uno *z-score*. Valori vicini allo zero indicano una buona corrispondenza tra le due parti della catena e quindi un campionamento affidabile. Valori con grandezza superiore a 2 segnalano invece una discrepanza significativa, che mette in dubbio la qualità del campionamento.
+Il risultato viene espresso sotto forma di uno *z-score*. Valori vicini allo zero indicano una buona corrispondenza tra le due parti della catena e quindi un campionamento affidabile. Valori con grandezza superiore a 2 segnalano invece una discrepanza degna di nota, che mette in dubbio la qualità del campionamento.
 
 Possiamo pensare a questa diagnostica come a un termometro della stabilità temporale: misura se l’andamento della catena all’inizio è coerente con quello alla fine. Quando il test evidenzia problemi, le possibili soluzioni consistono nel prolungare il campionamento, nel rivedere i parametri del campionatore o, se necessario, nel interrogarsi sulla specificazione del modello, che potrebbe rendere difficile la convergenza.
 
 In definitiva, la diagnostica di Geweke fornisce un’indicazione diretta e facilmente interpretabile sulla qualità della catena, ed è quindi uno strumento utile da affiancare agli altri controlli standard nella valutazione delle analisi bayesiane.
 
+### Codice R
+
+```{r}
+# 1) Estrai i draw di theta come data frame con metadati (.chain, .iteration)
+df_theta <- as_draws_df(fit$draws("theta"))[, c(".chain", ".iteration", "theta")]
+
+# 2) Spezza per catena e crea un mcmc.list
+chains <- split(df_theta$theta, df_theta$.chain)
+mcmc_list <- mcmc.list(lapply(chains, mcmc))
+
+# 3) Geweke diagnostic: Z-score per catena
+#    frac1 = frazione iniziale del campione (default 0.1),
+#    frac2 = frazione finale (default 0.5)
+gd <- lapply(mcmc_list, geweke.diag, frac1 = 0.1, frac2 = 0.5)
+
+# 4) Estrai gli Z (uno per catena, parametro univariato)
+z_scores <- sapply(gd, function(x) x$z)
+z_scores
+```
+
+```{r}
+# p-value bilaterale associato a ciascun Z
+pvals <- 2 * pnorm(-abs(z_scores))
+pvals
+```
+
+```{r}
+# 5) Plot diagnostico (per ogni catena)
+geweke.plot(mcmc_list, auto.layout = TRUE)
+```
 
 ## L'errore standard di Monte Carlo: quantificare l'incertezza dell'approssimazione
 
@@ -234,7 +390,7 @@ Il calcolo del MCSE si basa su una relazione semplice ma molto informativa:
 
 $$
 \text{MCSE} = \frac{\text{SD}}{\sqrt{N_{\text{eff}}}},
-$$
+$$ {#eq-mcmc-mcse}
 dove la deviazione standard (SD) descrive la variabilità della stima e $N_{\text{eff}}$ rappresenta la dimensione effettiva del campione, cioè il numero equivalente di osservazioni indipendenti che forniscono la stessa quantità di informazione dei campioni autocorrelati generati dall’algoritmo.
 
 Dal punto di vista interpretativo, un MCSE piccolo rispetto alla scala del parametro indica che la stima è sufficientemente precisa per essere considerata affidabile. Se invece il MCSE risulta elevato, significa che la nostra approssimazione è troppo rumorosa e che la catena non ha fornito abbastanza informazione utile. Una regola empirica spesso citata suggerisce che il MCSE dovrebbe essere almeno un ordine di grandezza più piccolo della deviazione standard associata alla stima.
@@ -243,6 +399,18 @@ Quando il MCSE è insoddisfacente, la prima strategia consiste nell’aumentare 
 
 Il MCSE, considerato insieme ad altre diagnostiche come la statistica $\hat{R}$ o il test di Geweke, fornisce un quadro complessivo della qualità delle nostre catene MCMC. Solo quando questi indicatori convergono verso valutazioni positive possiamo avere fiducia che le nostre stime siano davvero pronte per essere interpretate in termini sostantivi.
 
+### Codice R
+
+L'@eq-mcmc-mcse può essere implementata in R così:
+
+```{r}
+# Estrai il sommario per theta
+summ_theta <- fit$summary(variables = "theta")
+
+# Calcola l'errore standard Monte Carlo
+mcse_theta <- summ_theta$sd / sqrt(summ_theta$ess_bulk)
+mcse_theta
+```
 
 ## Transizioni divergenti: segnali d'allarme nell'algoritmo HMC
 
@@ -254,6 +422,12 @@ Fortunatamente, esistono diverse strategie per affrontare il problema. Talvolta 
 
 In sintesi, le transizioni divergenti non sono un dettaglio secondario, ma un indicatore cruciale della qualità del campionamento. La loro assenza è condizione necessaria per poter considerare affidabile l’esplorazione della distribuzione posteriore: solo in loro mancanza possiamo confidare che il modello stia davvero catturando tutta la complessità del fenomeno in studio.
 
+### Codice R
+
+```{r}
+# Numero totale di transizioni divergenti
+fit$diagnostic_summary()$num_divergent
+```
 
 ## La Bayesian Fraction of Missing Information (BFMI): un indicatore di efficienza esplorativa
 
@@ -261,7 +435,7 @@ Nei metodi di campionamento avanzati come l’Hamiltonian Monte Carlo (HMC) e il
 
 Il concetto si basa sull’analisi delle fluttuazioni di energia durante il processo di campionamento. Possiamo immaginare l’energia come il carburante che consente all’algoritmo di spostarsi da una regione all’altra dello spazio dei parametri: un’esplorazione efficiente richiede che questo carburante venga utilizzato in maniera equilibrata, senza sbalzi eccessivi né stagnazioni.
 
-L’interpretazione dei valori è piuttosto chiara. Quando la BFMI è uguale o superiore a 0.3, possiamo considerare l’esplorazione soddisfacente: l’algoritmo riesce a coprire in modo efficace tutte le aree rilevanti della distribuzione. Se i valori si collocano tra 0.2 e 0.3, conviene prestare attenzione: l’esplorazione potrebbe essere incompleta e richiede una verifica più accurata. Valori inferiori a 0.2 rappresentano un vero e proprio segnale d’allarme, perché indicano che l’algoritmo incontra difficoltà significative e le inferenze risultanti rischiano di essere poco affidabili.
+L’interpretazione dei valori è piuttosto chiara. Quando la BFMI è uguale o superiore a 0.3, possiamo considerare l’esplorazione soddisfacente: l’algoritmo riesce a coprire in modo efficace tutte le aree rilevanti della distribuzione. Se i valori si collocano tra 0.2 e 0.3, conviene prestare attenzione: l’esplorazione potrebbe essere incompleta e richiede una verifica più accurata. Valori inferiori a 0.2 rappresentano un vero e proprio segnale d’allarme, perché indicano che l’algoritmo incontra notevoli difficoltà e le inferenze risultanti rischiano di essere poco affidabili.
 
 Le cause di un basso BFMI vanno spesso ricercate nella complessità geometrica della distribuzione posteriore. Parametri fortemente correlati, scale molto diverse tra loro o curvature accentuate rendono più ardua l’esplorazione. Anche scelte di prior troppo restrittive possono introdurre barriere artificiali che ostacolano i movimenti del campionatore.
 
@@ -269,6 +443,55 @@ Quando ci si trova in questa situazione, diverse strategie possono migliorare le
 
 La BFMI non è dunque un dettaglio tecnico secondario, ma una finestra privilegiata sul comportamento interno dell’algoritmo. Monitorarne i valori significa assicurarsi che le inferenze bayesiane siano basate su un’esplorazione realmente completa e affidabile dello spazio dei parametri, condizione essenziale per la solidità delle conclusioni tratte.
 
+### Codice R
+
+```{r}
+#| warning: false
+# 1) Diagnostiche del sampler come data.frame (senza warmup)
+sd_df <- fit$sampler_diagnostics(inc_warmup = FALSE, format = "df")
+
+np_all <- sd_df %>%
+  pivot_longer(
+    cols = c(accept_stat__, stepsize__, treedepth__, n_leapfrog__, divergent__, energy__),
+    names_to = "Parameter", values_to = "Value"
+  ) %>%
+  rename(Chain = .chain, Iteration = .iteration) %>%
+  relocate(Chain, Iteration, Parameter, Value)
+
+class(np_all) <- c("nuts_params", "data.frame")
+
+# Tieni SOLO energy__ e le colonne richieste
+np_energy <- np_all %>%
+  dplyr::filter(Parameter == "energy__") %>%
+  dplyr::select(Chain, Iteration, Parameter, Value)
+
+# Assicurati della classe attesa
+class(np_energy) <- c("nuts_params", "data.frame")
+
+# Plot diagnostico dell’energia (BFMI)
+mcmc_nuts_energy(np_energy) 
+```
+
+```{r}
+energy_by_chain <- split(np_energy$Value, np_energy$Chain)
+bfmi <- sapply(energy_by_chain, function(e) {
+  de <- diff(e)
+  mean(de^2) / stats::var(e)
+})
+bfmi
+```
+
+```{r}
+# BFMI complessiva (media pesata per numero di iterazioni per catena)
+bfmi_overall <- weighted.mean(bfmi, sapply(energy_by_chain, length))
+bfmi_overall
+```
+
+Per regola pratica, un BFMI minore di *0.3* è considerato problematico: indica che l’algoritmo NUTS non sta esplorando bene la distribuzione dell’energia, e quindi l’efficienza del campionamento è ridotta.
+
+Tutti i valori sono *ben sopra 1*, quindi molto più alti della soglia critica. Questo indica che le catene hanno esplorato lo spazio dei parametri con efficienza elevata, senza perdita informativa.
+
+BFMI > 1 non è un problema: significa semplicemente che la varianza dei salti nell’energia è in linea con (o superiore a) la varianza totale dell’energia. Quello che conta è che non siano troppo bassi.
 
 ## La Leave-One-Out Cross-Validation: uno sguardo all’affidabilità predittiva del modello
 
@@ -282,6 +505,33 @@ Nella pratica, la valutazione si sintetizza attraverso indici come il *Leave-One
 
 La LOO, dunque, non è un verdetto definitivo, ma uno strumento diagnostico di grande utilità. Applicata in modo sistematico, ci consente di selezionare modelli non solo statisticamente ben calibrati, ma anche realmente utili per formulare previsioni affidabili. È per questo motivo che costituisce una tappa fondamentale nel percorso verso analisi bayesiane robuste e credibili.
 
+### Codice R
+
+```{r}
+# log_lik come array: [iter, chain, N]
+ll_array <- as_draws_array(fit$draws("log_lik"))
+
+S <- dim(ll_array)[1]   # iterazioni post-warmup per catena
+C <- dim(ll_array)[2]   # numero di catene
+N <- dim(ll_array)[3]   # numero di osservazioni
+
+# log_lik come matrice: [S*C, N] (formato atteso da loo)
+ll_mat <- as_draws_matrix(fit$draws("log_lik"))
+
+# r_eff per PSIS-LOO (consigliato): serve chain_id per correggere autocorrelazione
+chain_id <- rep(1:C, each = S)
+r_eff <- relative_eff(exp(ll_mat), chain_id = chain_id)
+
+# LOO
+loo_res <- loo::loo(ll_mat, r_eff = r_eff)
+print(loo_res)
+```
+
+Il calcolo di LOO-CV restituisce in questo esempio un valore di *elpd_loo ≈ –7.1* con errore standard 1.3. Poiché l’*LOOIC* è definito come $-2 \times \text{elpd\_loo}$, otteniamo *LOOIC ≈ 14.2*. L’effettivo numero di parametri stimati dal modello è indicato da *p_loo ≈ 0.9*, molto vicino a 1, il che è coerente con la presenza di un unico parametro $\theta$.
+
+Tutti i valori di *Pareto k* sono inferiori a 0.7, segnalando che l’approssimazione PSIS-LOO è stabile e affidabile. In pratica, questo significa che il modello ha una complessità adeguata rispetto ai dati e non presenta osservazioni influenti tali da compromettere la validità del criterio predittivo.
+
+In sintesi, LOO ci dice che il modello binomiale con prior Beta(1,1) riesce a spiegare i dati senza problemi di adattamento o di stabilità numerica. I valori ottenuti diventano particolarmente utili quando si confrontano più modelli: quello con *elpd_loo più alto (o LOOIC più basso)* è da preferire, in quanto fornisce predizioni fuori campione più accurate.
 
 ## Il parametro κ: un indicatore cruciale per l’affidabilità delle stime
 
@@ -294,6 +544,30 @@ Valori bassi di κ (inferiori a 0.5) indicano una situazione rassicurante: la va
 Questa diagnosi è particolarmente rilevante nel contesto della *Leave-One-Out Cross-Validation* (LOO-CV), dove un κ elevato segnala che le valutazioni predittive del modello possono essere seriamente compromesse da un numero eccessivo di osservazioni influenti.
 
 In pratica, monitorare κ è una buona abitudine per ogni analista bayesiano. Proprio come un meccanico che controlla regolarmente gli indicatori della propria automobile per assicurarsi che tutto funzioni correttamente, anche chi utilizza modelli bayesiani dovrebbe verificare κ prima di trarre conclusioni dalle analisi. Solo così è possibile distinguere tra inferenze solide e risultati che rischiano di essere fuorvianti.
+
+### Codice R
+
+```{r}
+# 1. Estrai il vettore completo dei valori k
+k_values <- pareto_k_values(loo_res)
+
+# 2. Esplora la distribuzione
+summary(k_values)
+```
+
+```{r}
+quantile(k_values, probs = c(0.25, 0.5, 0.75, 0.9))
+```
+
+```{r}
+# 3. Conta e calcola proporzioni per classi di soglia
+counts <- table(
+  good    = k_values <= 0.5,
+  OK      = k_values > 0.5 & k_values <= 0.7,
+  problematic = k_values > 0.7
+)
+prop.table(counts)
+```
 
 
 ## Riflessioni conclusive {.unnumbered .unlisted}

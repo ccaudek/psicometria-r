@@ -1,36 +1,12 @@
 # Controlli predittivi bayesiani (a priori e a posteriori) con `cmdstanr` {#sec-mcmc-prediction}
 
-
-
 ## Introduzione {.unnumbered .unlisted}
 
+Quando costruiamo un modello statistico, possiamo rivolgere lo sguardo in due direzioni diverse. Da un lato ci chiediamo che cosa i dati ci dicano sui parametri, ovvero qual è la distribuzione a posteriori che sintetizza la conoscenza aggiornata dopo aver osservato l’evidenza empirica. Dall’altro, possiamo domandarci che cosa il modello ci permette di prevedere riguardo a nuove osservazioni, cioè quale forma assume la distribuzione predittiva a posteriori.
 
-Quando costruiamo un modello, possiamo chiederci due cose diverse: 
+Nella pratica psicologica applicata, è proprio questa seconda prospettiva a rivelarsi spesso decisiva. Lo scopo di un modello non è soltanto stimare parametri astratti, ma soprattutto fornire previsioni su come potrebbero presentarsi nuovi dati e, in particolare, mostrarci se le strutture probabilistiche che abbiamo ipotizzato sono in grado di generare esiti simili a quelli che riscontriamo nella realtà. Da qui derivano due strategie complementari. I controlli predittivi a priori consistono nel generare dati simulati prima ancora di osservare un singolo dato reale, utilizzando soltanto le assunzioni codificate nei prior. Se gli scenari prodotti appaiono manifestamente implausibili, la difficoltà non risiede nei dati, ma nelle ipotesi di partenza. I controlli predittivi a posteriori, invece, vengono effettuati dopo avere osservato i dati: a partire dalla distribuzione aggiornata dei parametri, simuliamo nuove repliche dei dati stessi e le confrontiamo con quelli reali. In questo modo verifichiamo se il modello, una volta informato dall’evidenza, è in grado di riprodurre in maniera plausibile le caratteristiche fondamentali del fenomeno studiato [@gelman1995bayesian; @Johnson2022bayesrules; @McElreath_rethinking].
 
-1. *che cosa sappiamo dei parametri* dati i dati osservati (la *posterior*), e  
-2. *che cosa ci aspettiamo di osservare* in nuove rilevazioni (la *distribuzione predittiva a posteriori*).
-
-Nel lavoro psicologico applicato, la seconda domanda è spesso quella decisiva: vogliamo usare il modello per *prevedere* come si comporteranno nuovi dati e, soprattutto, per capire se il modello *riproduce in modo plausibile* le caratteristiche dei dati reali. Da qui nascono due strumenti pratici:
-
-- *Controlli predittivi a priori* (*prior predictive checks*): generiamo dati sintetici *prima* di vedere i dati reali, solo dalle ipotesi iniziali (prior). Se questi scenari “immaginati” risultano totalmente irrealistici, il problema è nelle nostre assunzioni di partenza.  
-- *Controlli predittivi a posteriori* (*posterior predictive checks*): generiamo dati sintetici *dopo* aver visto i dati, cioè dalla distribuzione dei parametri aggiornata (posteriori). Questo ci dice se il modello, una volta “istruito” dai dati, è in grado di produrre esiti simili a quelli osservati.
-
-In questo capitolo *mettiamo in pratica* queste idee: vedremo come simulare dati dal modello, visualizzarli e confrontarli con i dati reali per giudicare la coerenza del modello. L’obiettivo non è aggiungere nuova teoria, ma *imparare un metodo operativo* che userai spesso: generare, guardare, confrontare.
-
-::: {.callout-note title="Idea in una riga"}
-La distribuzione predittiva posteriore è una *media pesata* delle predizioni possibili, secondo quanto i parametri sono plausibili alla luce dei dati:
-
-$$
-p(\tilde y \mid y) \;=\; \int p(\tilde y \mid \theta)\, p(\theta \mid y)\, d\theta.
-$$
-In pratica: campioni $\theta$ verosimili → genera dati $\tilde{y}$ → confronta con i dati osservati.
-:::
-
-**Cosa faremo concretamente**
-
-1. Genereremo dati *a priori* per verificare che le ipotesi iniziali non producano scenari assurdi.  
-2. Genereremo dati *a posteriori* per valutare se il modello allenato “sa” riprodurre i dati.  
-3. Useremo grafici semplici per un confronto visivo chiaro.
+Nel capitolo che segue mostreremo come realizzare operativamente questi controlli con `cmdstanr`. L’intento non è quello di introdurre nuova teoria, ma di acquisire familiarità con una procedura che diventerà abituale: generare dati simulati dal modello, confrontarli visivamente con i dati osservati e valutare, in modo intuitivo ma rigoroso, la coerenza complessiva delle nostre ipotesi modellistiche.
 
 ::: {.callout-caution collapse=true title="Preparazione del Notebook"}
 
@@ -45,51 +21,48 @@ pacman::p_load(cmdstanr, posterior, insight, bayesplot, ggplot2)
 ```
 :::
 
+## La distribuzione predittiva a posteriori
 
-## La distribuzione predittiva a posteriori 
+I controlli predittivi a posteriori costituiscono uno degli strumenti più efficaci per valutare la qualità di un modello bayesiano. La loro logica è semplice ma potente: se il modello è adeguato, allora i dati generati a partire dai parametri posteriori dovrebbero assomigliare, nelle loro caratteristiche essenziali, ai dati effettivamente osservati.
 
-Ricordiamo la definizione:
+Il procedimento si articola in tre passaggi concettuali. In primo luogo, estraiamo campioni dei parametri dalla distribuzione a posteriori, ossia da quella distribuzione che riflette ciò che sappiamo dei parametri dopo aver osservato i dati. In secondo luogo, per ciascun campione generiamo un dataset fittizio, simulato secondo il meccanismo del modello. Infine, confrontiamo i dati simulati con quelli reali, verificando fino a che punto le repliche prodotte dal modello sono coerenti con le osservazioni empiriche.
+
+Dal punto di vista formale, la distribuzione predittiva a posteriori si scrive come
 
 $$
 p(\tilde{y} \mid y) = \int p(\tilde{y} \mid \theta)\, p(\theta \mid y)\, d\theta ,
 $$
-che nei Posterior Predictive Checks (PPC) viene stimata simulando nuovi dati a partire dal posteriore dei parametri.
+dove $\theta$ rappresenta i parametri del modello, $y$ i dati osservati e $\tilde{y}$ i dati replicati. Nella pratica, questa integrazione viene approssimata attraverso la simulazione Monte Carlo: si campionano valori $\theta^{(s)}$ dalla distribuzione posteriore e, per ciascuno di essi, si genera una replica $\tilde{y}^{(s)}$ secondo il modello. Il risultato è una collezione di dataset simulati che possono essere messi a confronto diretto con i dati osservati.
 
-Perfetto, ti propongo una versione rielaborata e più didattica del testo, pensata per studenti di psicologia non esperti di statistica. Ho mantenuto il codice, ma ho reso più narrativo il commento e più chiaro il legame tra teoria, Stan e R.
+L’importanza di questo strumento risiede nel fatto che esso consente di valutare il modello non soltanto in termini di stima dei parametri, ma in termini di capacità generativa. In altri termini, un modello può produrre stime dei parametri apparentemente ragionevoli e tuttavia rivelarsi inadeguato quando si tratta di riprodurre la variabilità o la struttura dei dati. I controlli predittivi a posteriori ci permettono di rilevare queste discrepanze, guidandoci verso una revisione delle assunzioni modellistiche quando necessario.
 
+### Esempio: il modello normale–normale
 
-## Esempio: il modello normale–normale
+Per comprendere in maniera concreta il funzionamento dei controlli predittivi, è utile partire da un caso estremamente semplice, ma didatticamente chiaro: il modello normale–normale. Immaginiamo di voler stimare l’altezza media di una popolazione. Decidiamo di descrivere la nostra incertezza a priori assumendo che la media $\mu$ segua una distribuzione normale con media $\mu_0$ e varianza $\tau_0^2$. Gli individui osservati, invece, sono considerati come realizzazioni di una distribuzione normale centrata su $\mu$ e con varianza nota $\sigma^2$.
 
-Per rendere concreti i concetti di predizione bayesiana, partiamo da un caso molto semplice ma istruttivo: il **modello normale–normale**.  
-
-Immaginiamo di voler stimare l’altezza media di una popolazione. Scegliamo come modello:  
-
-- un *prior* sulla media $\mu$, distribuito normalmente con parametri $\mu_0$ (media a priori) e $\tau_0^2$ (varianza a priori);  
-- dei *dati osservati* $y_i$, anch’essi distribuiti normalmente attorno a $\mu$, con varianza fissata $\sigma^2$.  
-
-Matematicamente:
+Formalmente, il modello può essere espresso così:
 
 $$
 \mu \sim \mathcal{N}(\mu_0, \tau_0^2), \qquad
 y_i \sim \mathcal{N}(\mu, \sigma^2).
 $$
 
-In questo contesto, la *distribuzione predittiva posteriore* per una nuova osservazione $\tilde{y}$ si scrive:
+In questo contesto, la distribuzione predittiva a posteriori per una nuova osservazione $\tilde{y}$ assume la forma
 
 $$
 \tilde{y} \mid Y \sim \mathcal{N}\!\big(\mu_n, \; \tau_n^2 + \sigma^2 \big),
 $$
-dove $\mu_n$ e $\tau_n^2$ sono la media e la varianza della distribuzione a posteriori di $\mu$.   
+dove $\mu_n$ e $\tau_n^2$ rappresentano rispettivamente la media e la varianza della distribuzione a posteriori di $\mu$.
 
-La formula in sé non è la parte più importante: ciò che ci interessa è *come realizzare la simulazione* in pratica, così da poter confrontare i dati osservati con i dati replicati dal modello.
-
+Questa espressione mostra che la nuova osservazione attesa non dipende soltanto dalla varianza campionaria, ma anche dall’incertezza residua sulla stima della media. Tuttavia, il punto cruciale non è tanto la formula in sé, quanto la possibilità di realizzare simulazioni dirette. Grazie a esse possiamo generare dati fittizi dal modello e confrontarli con i dati reali, verificando in modo intuitivo se la nostra rappresentazione probabilistica è in grado di cogliere i tratti caratteristici del fenomeno osservato.
 
 ### Implementazione con Stan
 
-Creiamo un modello Stan (`normal_pred.stan`) che ci consente di generare:
+Per tradurre queste idee in pratica, costruiamo un semplice modello in Stan, che chiameremo `normal_pred.stan`. L’obiettivo è duplice: da un lato vogliamo simulare dati a partire soltanto dalle assunzioni iniziali, quindi senza alcuna informazione empirica; dall’altro desideriamo generare dati replicati dopo aver aggiornato le nostre credenze con i dati osservati. In altre parole, lo stesso modello può essere usato sia per i controlli a priori sia per quelli a posteriori, a seconda di come impostiamo i dati di input.
 
-- *prior predictive* (se `prior_only = 1`): simulazioni solo a partire dal prior, prima di vedere i dati;  
-- *posterior predictive* (se `prior_only = 0`): simulazioni aggiornate dopo aver visto i dati.
+Il codice Stan è strutturato in modo da riflettere questa distinzione. Nel blocco `data` specifichiamo il numero di osservazioni, il vettore dei dati (che può anche essere ignorato in caso di prior predictive), i parametri del prior e un indicatore logico (`prior_only`) che decide se utilizzare o meno i dati osservati. Nel blocco `parameters` dichiariamo la media $\mu$, mentre nel blocco `model` definiamo il prior e, se richiesto, la verosimiglianza dei dati osservati. Infine, nel blocco `generated quantities` generiamo una nuova osservazione simulata, che rappresenta la replica dei dati secondo il modello.
+
+Questo approccio, apparentemente minimale, è estremamente utile in ottica didattica: consente di vedere chiaramente come cambiano le simulazioni se utilizziamo soltanto le ipotesi iniziali oppure se lasciamo che siano i dati a informare la distribuzione dei parametri. In entrambi i casi, il cuore del procedimento resta invariato: generare dati dal modello e metterli a confronto con ciò che abbiamo osservato nella realtà.
 
 ```stan
 data {
@@ -114,10 +87,15 @@ generated quantities {
 }
 ```
 
+### Codice R
 
-### In R
+Dopo aver definito il modello in Stan, possiamo passare alla sua applicazione concreta in R. Immaginiamo di simulare un campione di cento altezze, con media pari a 170 centimetri e deviazione standard di 10. Questi dati fungeranno da base per verificare il comportamento del nostro modello.
 
-Simuliamo 100 altezze con media 170 cm e deviazione standard 10 cm, poi invochiamo Stan per stimare il modello:
+Prepariamo dunque la lista dei dati da passare a Stan. Oltre al vettore delle osservazioni, specifichiamo i parametri del prior: una media a priori di 175 centimetri, una deviazione standard a priori di 5 e una deviazione standard nota dei dati pari a 10. Infine, fissiamo il valore dell’indicatore `prior_only` a zero, in modo da utilizzare effettivamente i dati osservati e non limitarci a una simulazione puramente a priori.
+
+A questo punto possiamo compilare il modello e lanciare la procedura di campionamento. Con `cmdstanr` il flusso di lavoro è lineare: si richiama la funzione `cmdstan_model()` indicando il file Stan e poi si esegue `$sample()` con i dati appena preparati. Il risultato è un oggetto che contiene i campioni dalla distribuzione a posteriori dei parametri e le repliche dei dati, pronto per essere analizzato e visualizzato.
+
+Questo passaggio segna il momento in cui il modello teorico prende vita: da semplici equazioni passiamo a un insieme di simulazioni concrete, attraverso cui possiamo verificare se le assunzioni di partenza riescono a tradursi in previsioni compatibili con i dati empirici.
 
 ```{r}
 #| output: false
@@ -134,51 +112,65 @@ mod <- cmdstan_model(here::here("stan", "normal_pred.stan"))
 fit <- mod$sample(data = stan_data, chains = 4, iter_sampling = 1000, refresh = 0)
 ```
 
-
 ### Visualizzazione: Posterior Predictive Checks
 
-Per i controlli predittivi, generiamo i dati replicati e li confrontiamo con i dati osservati:
+Una volta ottenuti i campioni posteriori, possiamo verificare se il modello è in grado di generare dati “verosimili” rispetto a quelli osservati. L’idea operativa è semplice: per ciascun draw dei parametri dal posteriore, il modello produce una *replica* dell’intero dataset; mettendo a confronto molte repliche con i dati reali, giudichiamo la coerenza tra ipotesi e fenomeno.
+
+Per usare le funzioni `ppc_*()` di `bayesplot`, è essenziale che Stan restituisca, ad ogni draw, *un vettore di repliche* lungo `N` (una per ciascuna osservazione). In termini Stan, in `generated quantities` deve esserci qualcosa come `vector[N] y_rep;`. Se nel tuo file hai definito un solo scalare (ad esempio `real y_rep;`), le funzioni `ppc_*()` non avranno la struttura attesa: occorre quindi che il modello generi *tante repliche quante sono le osservazioni*. Con questa premessa, possiamo estrarre le repliche e procedere ai controlli grafici.
+
+Nel nostro esempio, estraiamo `yrep` dall’oggetto `fit` (ottenuto con `cmdstanr`) in forma di matrice. Ogni *riga* rappresenta un dataset replicato per intero, ogni *colonna* corrisponde a una delle `N` osservazioni originarie. Se hai quattro catene e mille iterazioni utili per catena, otterrai circa 4000 righe.
 
 ```{r}
-y_rep_vars <- paste0("y_rep[", 1:N, "]")
-y_rep <- as_draws_matrix(fit$draws(y_rep_vars))
-
-# Confronto distribuzioni
-bayesplot::ppc_dens_overlay(y, y_rep[1:200, ])
+yrep <- fit$draws("y_rep", format = "matrix")
 ```
 
-Il grafico mostra la distribuzione reale delle altezze (`y`) e quelle simulate dal modello (`y_rep`). Se le due curve si sovrappongono in modo plausibile, significa che il modello è in grado di riprodurre le caratteristiche essenziali dei dati.
-
-Altri strumenti utili per controlli più mirati:
+Per un dataset con `N = 100` osservazioni e `S = 4000` repliche, `yrep` avrà dimensioni:
 
 ```{r}
-bayesplot::ppc_stat(y, y_rep, stat = "mean")        # confronto delle medie
+dim(yrep)  # [4000, 100]
 ```
+
+Questa struttura `[S, N]` è quella richiesta da `bayesplot`. Le *colonne* identificano le posizioni dei dati originali; le *righe* sono interi dataset “fittizi” generati dal modello ai diversi draw posteriori. Con questa organizzazione, ogni grafico PPC può confrontare in modo coerente osservazioni e repliche.
+
+Un primo controllo molto informale, ma spesso rivelatore, è la *sovrapposizione delle densità*: tracciamo la densità empirica dei dati osservati e la confrontiamo con un gruppo di densità simulate dalle repliche. Per evitare un eccesso di linee, usiamo solo le prime cinquanta repliche; il numero è arbitrario, ma sufficiente per far emergere eventuali discrepanze grossolane.
 
 ```{r}
-bayesplot::ppc_intervals(y, y_rep[1:100, ])        # confronto di intervalli
+ppc_dens_overlay(y, yrep[1:50, ])
 ```
 
-Questi controlli ci permettono di capire *quanto bene il modello “mima” la realtà*: se i dati simulati divergono fortemente da quelli osservati, vuol dire che le assunzioni di base (prior, varianza fissata, ecc.) non sono adatte e vanno riviste.
+Nel grafico, la linea scura rappresenta la distribuzione empirica di `y`, mentre le linee più chiare sono le densità delle repliche simulate. Se il modello è ragionevole, le densità simulate “abbracciano” quella osservata: non devono coincidere in ogni dettaglio, ma ne devono riprodurre posizione, dispersione e forma generale. Se, al contrario, tutte o quasi tutte le repliche risultano più strette, più larghe, o sistematicamente spostate, il modello sta fallendo nel cogliere un tratto saliente della distribuzione.
 
+Possiamo poi rivolgerci a controlli più mirati su *statistiche riassuntive*. Ad esempio, verificare se la *media* dei dati simulati è compatibile con la media osservata è un test di coerenza di base sulla tendenza centrale. `bayesplot` calcola la statistica su ciascuna replica e ne mostra la distribuzione, mettendola accanto al valore osservato:
+
+```{r}
+ppc_stat(y, yrep, stat = "mean")
+```
+
+Se il punto corrispondente alla media osservata si colloca in un’area plausibile della distribuzione delle medie simulate (ad esempio vicino al centro o comunque non in coda estrema), il modello non sta introducendo un bias evidente sulla posizione. Se invece il valore osservato cade regolarmente nelle code, il modello tende a sovra- o sotto-stimare la media.
+
+Un controllo complementare riguarda la *variabilità puntuale*: gli *intervalli predittivi* per ciascuna osservazione ci dicono se la dispersione generata dal modello è compatibile con l’ampiezza delle fluttuazioni empiriche. Il grafico seguente visualizza, per le prime cento osservazioni, gli intervalli credibili delle repliche e sovrappone i corrispondenti valori osservati:
+
+```{r}
+ppc_intervals(y, yrep[1:100, ])
+```
+
+Quando la maggior parte dei punti osservati cade all’interno delle bande predittive, possiamo dire che la dispersione generata dal modello è adeguata; se molti punti si collocano sistematicamente fuori, o tutti molto vicino al bordo, il modello sta sottostimando o sovrastimando l’incertezza. Questo tipo di grafico è particolarmente utile quando sospetti eteroschedasticità o quando vuoi individuare regioni del dominio in cui il modello fallisce più spesso.
+
+L’interpretazione di questi controlli è sempre di natura *generativa*: non stiamo testando l’importanza di un coefficiente, ma verificando che l’intero meccanismo probabilistico sia capace di riprodurre gli aspetti essenziali dei dati. Se la forma delle distribuzioni simulate è incompatibile con quella osservata, se le statistiche riassuntive risultano sistematicamente spostate, o se le bande predittive non coprono i punti osservati in modo plausibile, la conclusione non è “il modello è falso” in senso assoluto, ma “il modello, così specificato, non genera dati con le caratteristiche che vediamo”. In quel caso, la diagnosi va ricercata nelle assunzioni: prior troppo stretti o troppo larghi, verosimiglianza mal specificata (ad esempio una normale con code troppo leggere dove servirebbe una t-student), varianza fissata quando dovrebbe essere stimata, o una struttura mancante (trend, effetti gerarchici, dipendenze nel tempo) che i dati sembrano richiedere.
+
+In sintesi, i PPC spostano l’attenzione dalla stima dei parametri alla *capacità predittiva del modello come generatore di dati*. È questa la domanda che conta quando il modello deve essere usato per comprendere e prevedere fenomeni psicologici: il processo probabilistico che abbiamo ipotizzato “sa fare” dati che assomigliano, per struttura e variabilità, a quelli del mondo reale?
 
 ## Distribuzione predittiva a priori
 
-Prima di raccogliere un solo dato, possiamo chiederci:  *“Se il mondo fosse davvero come lo descrive il nostro modello, che tipo di dati mi aspetterei di osservare?”*
+Prima ancora di raccogliere un singolo dato, possiamo chiederci che tipo di osservazioni ci aspetteremmo se il mondo fosse davvero descritto dalle nostre assunzioni iniziali. Questa è l’idea dei controlli predittivi a priori: generare dati fittizi soltanto dai *prior*, senza alcuna informazione empirica, e verificare se questi scenari risultano plausibili alla luce della nostra conoscenza di dominio.
 
-Questa è la *predizione a priori* (*prior predictive*): generiamo dati simulati *solo dalle assunzioni iniziali* (i prior), senza alcuna informazione empirica. Lo scopo non è “indovinare” i dati reali, ma *verificare che i prior producano scenari plausibili* alla luce della conoscenza di dominio (ordini di grandezza, range, code).
+L’obiettivo non è predire con esattezza i dati reali, ma controllare che i prior non ci conducano in regioni assurde o incoerenti. Se, per esempio, i dati simulati suggerissero altezze negative, valori esageratamente grandi o dispersioni completamente fuori scala, potremmo concludere che il problema non sta nei dati, ma nelle nostre ipotesi iniziali.
 
-### Perché è utile?
+In termini pratici, questo controllo si traduce in un procedimento molto semplice: campioniamo i parametri direttamente dalla distribuzione a priori e li utilizziamo per generare repliche di dati sintetici attraverso lo stesso meccanismo probabilistico del modello. Così facendo, otteniamo un insieme di dataset simulati che possono essere confrontati con ciò che consideriamo realistico in quel contesto.
 
-- Se le simulazioni risultano *implausibili* (es. altezze negative o centinaia di cm fuori scala), i prior sono *mal calibrati* (troppo stretti, troppo larghi, con media irrealistica).  
-- Se le simulazioni sono compatibili con ciò che ci aspetteremmo in contesti reali, il modello *non parte*, è *già “rotto”* e possiamo procedere.
+### Implementazione in Stan
 
-L’idea pratica è semplice: *campioniamo i parametri dal prior*, poi *generiamo dati fittizi* con il meccanismo del modello, senza “guardare” i dati osservati.
-
-
-### Stan (prior predictive minimale e robusta)
-
-Usiamo un file dedicato, ad es. `normal_prior_predictive.stan`. Qui non servono i blocchi `parameters` e `model`: in prior predictive *campioniamo i parametri direttamente in `generated quantities`* con le funzioni `_rng`, ed eseguiamo `fixed_param=TRUE` in R.
+Per i controlli a priori, il file Stan può essere ridotto all’essenziale. Non servono blocchi di parametri o di modello: i parametri vengono campionati direttamente nel blocco `generated quantities` tramite funzioni `_rng`. L’esecuzione avviene con l’opzione `fixed_param=TRUE`, che dice a Stan di ignorare il sampling MCMC e di limitarsi a produrre simulazioni casuali.
 
 ```stan
 // file: normal_prior_predictive.stan
@@ -200,12 +192,11 @@ generated quantities {
 }
 ```
 
-> Nota: se vuoi generare più repliche per draw, puoi aggiungere una dimensione `N_rep` e produrre una matrice `y_rep[N, N_rep]`. Per l’uso didattico, una replica per draw (ma tante iterazioni) è di solito sufficiente.
+In questo modo, ogni draw produce un valore casuale del parametro $\mu$ dal prior e un dataset simulato di lunghezza `N`. È un’implementazione volutamente minimale, che mette in evidenza la logica del procedimento.
 
+### Codice R
 
-### Codice R (prior predictive)
-
-Dati per la prior predictive** (qui scegliamo una replica di lunghezza `N = 200`):
+Passiamo ora a R. Per semplicità, chiediamo di generare repliche di lunghezza `N = 200`. I dati reali non servono, quindi possiamo passare un vettore fittizio di zeri al posto di `y`.
 
 ```{r}
 N <- 200
@@ -218,11 +209,10 @@ stan_data_prior <- list(
 )
 ```
 
-Compilazione e campionamento (solo `generated quantities`):
+Compiliamo quindi il modello e lanciamo il campionamento. Poiché abbiamo specificato `fixed_param=TRUE`, Stan non stimerà nulla, ma genererà soltanto simulazioni casuali a partire dai prior.
 
 ```{r}
-#| message: false
-#| warning: false
+#| output: false
 mod_prior <- cmdstan_model(here::here("stan", "normal_prior_predictive.stan"))
 
 fit_prior <- mod_prior$sample(
@@ -236,23 +226,32 @@ fit_prior <- mod_prior$sample(
 )
 ```
 
-Estrazione e check analitico (normale–normale):
+### Analisi dei risultati
+
+Il risultato di questa simulazione è un insieme di repliche `y_rep`, organizzate in una matrice con una riga per ogni draw. Possiamo estrarle e metterle in un dataframe per un’ispezione grafica.
 
 ```{r}
-# y_rep: matrice (S x N) con S = numero totale di draws (tutte le chain combinate)
 yrep_mat <- as_draws_matrix(fit_prior$draws("y_rep"))
 df_mc <- data.frame(x = as.numeric(yrep_mat))  # vettore lungo S*N
+```
 
-# Deviazione standard predittiva a priori (analitica): sqrt(tau0^2 + sigma^2)
-sd_prior_pred <- sqrt(5^2 + 10^2)   # = sqrt(125) ≈ 11.18034
+Confrontiamo ora la distribuzione empirica ottenuta via Monte Carlo con quella attesa dal calcolo analitico. Nel modello normale–normale, la deviazione standard della distribuzione predittiva a priori è data da
 
-# Code analitiche (confronto con Monte Carlo)
+$$
+\sqrt{\tau_0^2 + \sigma^2}.
+$$
+
+Con i valori scelti ($\tau_0 = 5$, $\sigma = 10$), otteniamo una deviazione standard predittiva di circa 11.18. Possiamo usare questa quantità per confrontare le code della distribuzione simulata con quelle della distribuzione normale teorica:
+
+```{r}
+sd_prior_pred <- sqrt(5^2 + 10^2)   # ≈ 11.18034
+
 p_bassa <- pnorm(150, mean = 175, sd = sd_prior_pred)
 p_alta  <- 1 - pnorm(200, mean = 175, sd = sd_prior_pred)
 c(p_bassa = p_bassa, p_alta = p_alta)
 ```
 
-Prior Predictive: Monte Carlo vs. analitica..
+Infine, possiamo visualizzare la distribuzione simulata sovrapponendola alla curva normale analitica attesa:
 
 ```{r}
 ggplot(df_mc, aes(x = x)) +
@@ -263,42 +262,23 @@ ggplot(df_mc, aes(x = x)) +
   labs(x = "y", y = "Densità")
 ```
 
-::: {.callout-note title="Cosa stai verificando, in pratica?"}
-
-* **Scala e posizione**: la media simulata è coerente con $\mu_0$?
-* **Variabilità**: la dispersione simulata è coerente con $\sqrt{\tau_0^2 + \sigma^2}$?
-* **Code e range**: la massa di probabilità in regioni “assurde” (es. <150 cm o >200 cm) è ragionevole?
-:::
-
+In questo grafico, la curva tratteggiata rappresenta la distribuzione normale teorica corrispondente ai prior, mentre la curva continua mostra la distribuzione empirica ricavata dalle simulazioni Monte Carlo. La sovrapposizione fra le due conferma che il procedimento sta funzionando come previsto.
 
 ### Come interpretare
 
-* Se le repliche *a priori* risultano sistematicamente *più grandi/piccole* di ciò che riterresti plausibile, il prior su $\mu$ è **mal calibrato** (es. $\mu_0$ troppo alto, $\tau_0$ troppo stretto/larghissimo).
-* Se la *variabilità* è troppo diversa da quella che consideri realistica, rivedi $\tau_0$ (e, in modelli con $\sigma$ ignota, il prior su $\sigma$).
-* L’obiettivo **non** è “forzare i dati nel prior”, ma **evitare prior implausibili** rispetto alla conoscenza di dominio e all’ordine di grandezza atteso.
+L’interpretazione dei controlli a priori segue una logica molto semplice: ci chiediamo se i dati simulati abbiano senso rispetto alla nostra conoscenza del problema. Se le repliche risultano sistematicamente più alte o più basse del range plausibile, allora il prior sulla media $\mu$ è mal calibrato. Se la variabilità appare eccessiva o troppo limitata, è necessario rivedere l’ampiezza del prior. L’obiettivo non è vincolare il modello a produrre dati “giusti”, ma evitare assunzioni così irrealistiche da rendere il modello inutilizzabile già prima di osservare i dati.
 
-::: {.callout-tip title="Regola pratica"}
-Se la prior predictive **non passa il test del buon senso** (scala, range, code), *rivedi i prior* prima di stimare il modello.
-:::
-
-::: {.callout-caution title="Errori comuni"}
-
-* **Usare `parameters` in prior predictive con `fixed_param=TRUE`**: i parametri non vengono campionati ⇒ valori costanti. In prior predictive *campiona i parametri in `generated quantities`* con le funzioni `_rng`.
-* **Dipendere da `N` quando è 0**: se definisci `vector[N] y_rep` e passi `N=0`, l’oggetto è vuoto: va bene, ma ricorda che alcune pipeline di estrazione richiedono attenzione. In alternativa usa sempre `N>0` per le repliche a priori.
-* **Confondere prior vs posterior predictive**: la prior predictive controlla le **assunzioni**; la posterior predictive controlla la **capacità del modello**, dopo aver “visto” i dati, di riprodurre le caratteristiche osservate.
-:::
-
+In breve, il controllo predittivo a priori è un *test di buon senso*: ci permette di accorgerci subito se i nostri prior stanno spingendo il modello verso scenari che sappiamo non avere alcuna plausibilità empirica. Meglio scoprirlo a questo stadio, piuttosto che dopo aver speso tempo e risorse in stime inutilmente complicate.
 
 ## Riflessioni conclusive {.unnumbered .unlisted}
 
-Le due distribuzioni predittive rispondono a domande complementari ma distinte. La distribuzione predittiva a priori ci permette di valutare la plausibilità delle nostre assunzioni iniziali: dati i prior scelti, il modello è in grado di generare dati che abbiano un senso nel contesto del problema? Si tratta di un controllo fondamentale per assicurarci che le nostre ipotesi partano da basi ragionevoli.
+I controlli predittivi a priori e a posteriori rappresentano due momenti distinti, ma complementari, nel processo di modellizzazione bayesiana. La distribuzione predittiva a priori ci permette di verificare se le assunzioni iniziali, tradotte nei prior, siano ragionevoli rispetto alla conoscenza di dominio. In questa fase, la domanda cruciale non riguarda la corrispondenza con i dati osservati, ma la plausibilità degli scenari generati: i valori simulati hanno senso? si collocano in un range realistico? riflettono un ordine di grandezza compatibile con il fenomeno?
 
-La distribuzione predittiva a posteriori, invece, verifica la capacità del modello – dopo aver incorporato l’evidenza dei dati – di cogliere le caratteristiche salienti del fenomeno osservato. La domanda guida qui diventa: il modello riesce a riprodurre non solo la tendenza centrale, ma anche la variabilità e la struttura dei dati reali?
+La distribuzione predittiva a posteriori, invece, mette alla prova la capacità del modello di riprodurre le caratteristiche essenziali dei dati una volta incorporata l’evidenza empirica. Qui non si tratta più soltanto di buon senso, ma di valutare se il meccanismo probabilistico che abbiamo ipotizzato sia in grado di generare dati che assomigliano, nelle loro proprietà fondamentali, a quelli osservati. Un modello che fallisce sistematicamente in questa prova mostra i limiti delle proprie assunzioni e segnala la necessità di una revisione.
 
-Da un punto di vista operativo, entrambe le verifiche seguono la stessa logica: si simulano campioni di dati sulla base di parametri estratti dalle distribuzioni (che siano prior o posteriori), per poi confrontarli visivamente e quantitativamente con i dati osservati.
+Entrambe le procedure si basano sulla stessa idea operativa: generare dati simulati dal modello e confrontarli, in modo visivo e quantitativo, con i dati reali o con ciò che sappiamo del fenomeno. Non si tratta di una validazione definitiva — nessun modello può dirsi “vero” o “falso” sulla base di un singolo controllo grafico — ma di un passaggio essenziale per diagnosticare incoerenze macroscopiche e per orientare la costruzione di modelli più adeguati.
 
-Questi strumenti non costituiscono una validazione definitiva del modello, ma offrono un mezzo agile e intuitivo per individuare incoerenze macroscopiche: prior eccessivamente vincolanti, modelli che sottostimano la variabilità, o strutture probabilistiche inadeguate. Rappresentano perciò una tappa obbligata nel workflow bayesiano, da svolgere prima di affrontare confronti predittivi più formali, come quelli basati sull’ELPD o sulla cross-validazione LOO.
-
+In questo senso, i controlli predittivi non vanno intesi come un’aggiunta opzionale, ma come una fase imprescindibile del workflow bayesiano. Solo dopo aver verificato la plausibilità dei prior e la coerenza predittiva del modello, ha senso procedere verso forme più raffinate di confronto, come la stima dell’ELPD o la cross-validazione LOO. I controlli predittivi costituiscono quindi una sorta di “porta di ingresso” alla valutazione del modello: un controllo immediato, intuitivo e al tempo stesso rigoroso, capace di rivelare a colpo d’occhio se siamo sulla strada giusta o se le nostre assunzioni necessitano di essere riconsiderate.
 
 ::: {.callout-note collapse=true title="Informazioni sull'ambiente di sviluppo"}
 
