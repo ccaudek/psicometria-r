@@ -291,8 +291,38 @@ La dimensione effettiva del campione non va considerata un dettaglio tecnico mar
 fit$summary(variables = "theta")
 ```
 
-* **ess\_bulk**: dimensione effettiva del campione nella parte centrale della distribuzione. Misura quanto i draw MCMC siano *non correlati*. Qui è circa 5663: significa che i 16.000 campioni (4 catene × 4000) “valgono” come oltre 5600 campioni indipendenti. È un valore molto alto, quindi la stima della media e di altre statistiche centrali è molto stabile.
-* **ess\_tail**: dimensione effettiva del campione per le code della distribuzione. Qui è circa 6067: anche in questo caso le stime dei quantili estremi (ad esempio intervalli al 95%) sono affidabili.
+#### Due versioni: **bulk** e **tail**
+
+* **ESS bulk**
+
+  * misura l’efficienza nel campionare la parte *centrale* della distribuzione posteriore.
+  * è basato su stime di autocorrelazione in regioni vicine alla mediana.
+  * serve per stimare media, varianza, correlazioni: tutte quantità “di bulk”.
+
+* **ESS tail**
+
+  * misura l’efficienza nel campionare le *code* della distribuzione posteriore.
+  * è cruciale per quantili estremi (ad esempio 2.5% e 97.5% dell’intervallo credibile).
+  * se è basso, gli intervalli credibili possono essere instabili, anche se le medie sembrano ben stimate.
+
+#### Quale considerare?
+
+Dipende da cosa ti interessa:
+
+* Se vuoi **media, deviazione standard, correlazioni** → guarda **ESS bulk**.
+* Se vuoi **intervalli credibili affidabili (quantili)** → guarda anche **ESS tail**.
+* In pratica:
+
+  * **entrambi** dovrebbero essere almeno > 400 (regola di Gelman et al.).
+  * Se bulk è alto ma tail basso → le stime puntuali sono affidabili, ma le code sono male esplorate → gli intervalli possono sottostimare l’incertezza.
+
+#### Regola pratica in Stan 
+
+* **ess_bulk** troppo basso → media e varianza non affidabili.
+* **ess_tail** troppo basso → intervalli credibili poco accurati.
+* **Entrambi alti** → campionamento ben riuscito.
+
+Nel caso presente, *ess\_bulk* è circa 5663: significa che i 16.000 campioni (4 catene × 4000) “valgono” come oltre 5600 campioni indipendenti. È un valore molto alto, quindi la stima della media e di altre statistiche centrali è molto stabile. *ess_tail* è circa 6067: anche in questo caso le stime dei quantili estremi (ad esempio intervalli al 95%) sono affidabili.
 
 Il pacchetto `bayesplot` fornisce una funzione generica di estrazione `neff_ratio` che restituisce il rapporto $N_{\text{eff}} / N$:
 
