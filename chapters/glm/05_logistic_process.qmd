@@ -2,23 +2,18 @@
 
 ## Introduzione {.unnumbered .unlisted}
 
-La regressione logistica, introdotta nei capitoli precedenti, è uno strumento fondamentale per analizzare variabili dicotomiche $y \in {0,1}$ (ad esempio: scelta sì/no, risposta corretta/errata, accettazione/rifiuto) in funzione di predittori osservabili $\mathbf{x}$. Tuttavia, questo approccio presenta limiti importanti quando vogliamo descrivere *processi psicologici dinamici*, nei quali la risposta osservata è soltanto la manifestazione finale di meccanismi interni che si sviluppano nel tempo.
+La *regressione logistica* è lo strumento di riferimento per analizzare esiti binari $y\in\{0,1\}$ in funzione di predittori osservabili $\mathbf{x}$. Fin qui l’abbiamo usata come *GLM statico*, assumendo osservazioni indipendenti, effetti invarianti nel tempo e un unico meccanismo generativo. Queste ipotesi sono utili per molti problemi, ma diventano limitanti quando vogliamo descrivere *processi psicologici dinamici*, in cui la risposta osservata è l’esito momentaneo di *stati interni* che si evolvono nel tempo.
 
-Ad esempio, in un questionario online possiamo usare la regressione logistica per prevedere se uno studente risponde correttamente o erroneamente in base alla difficoltà della domanda. Ma in un compito cognitivo ripetuto, la risposta dello stesso studente al trial 10 dipende anche da come è andato il trial 9 (feedback positivo/negativo, fatica accumulata, ecc.). Il modello statico non “vede” questa dipendenza, mentre un modello processuale la incorpora.
+Esempi classici: in un compito ripetuto, la risposta al *trial* $t$ può dipendere dall’esito al *trial* $t-1$ (rinforzo, frustrazione, fatica), così come da *stati latenti* che variano lentamente (motivazione, attenzione). Il GLM logit standard non “vede” questa *history dependence*: tratta ogni risposta come se nascesse da zero. Per catturare la dimensione temporale, introduciamo una *variabile latente continua* $u_{i,t}$ — la propensione interna a rispondere “1” del soggetto $i$ al tempo $t$ — e le permettiamo di *portare memoria del passato*:
 
-In molti contesti cognitivi e comportamentali, le risposte binarie riflettono infatti:
+$$
+\Pr(y_{i,t}=1\mid u_{i,t})=\operatorname{logit}^{-1}(u_{i,t}), \qquad
+u_{i,t}= \alpha_i + \mathbf{x}_{i,t}^\top\boldsymbol\beta + \phi\,u_{i,t-1} + \eta_{i,t}.
+$$
 
-* *processi accumulativi*, come l’integrazione di evidenza nel decision making,
-* *dinamiche temporali interne*, ad esempio legate all’apprendimento, all’adattamento o all’affaticamento,
-* *interazioni stato-dipendenti*, come variazioni momentanee di motivazione o attenzione.
+Qui $\alpha_i$ cattura la propensione media soggetto-specifica, $\boldsymbol\beta$ gli effetti dei predittori, $\phi$ la *persistenza dinamica* (quanta parte dello stato passato sopravvive), e $\eta_{i,t}$ il *rumore di processo*. Se $\phi=0$, torniamo al GLM statico; se $\phi\neq 0$, modelliamo esplicitamente la *dipendenza seriale*.
 
-Il modello logistico standard assume invece indipendenza tra le osservazioni, effetti costanti nel tempo e un unico meccanismo generativo omogeneo. Queste ipotesi sono spesso poco realistiche nei dati psicologici longitudinali o sperimentali, dove:
-
-* le risposte sono influenzate dalla *storia precedente* (history dependence),
-* gli *stati latenti* del soggetto evolvono lungo traiettorie individuali,
-* la stessa *soglia decisionale* può cambiare nel corso del tempo.
-
-Per catturare meglio questi aspetti servono modelli più sofisticati, capaci di rappresentare la *dipendenza temporale* tra le osservazioni, l’*eterogeneità intra-individuale* e la *natura incrementale* dei processi cognitivi sottostanti. Questa transizione da una rappresentazione statica alla *modellazione dinamica* è cruciale in psicologia: il comportamento osservato non va visto come un evento isolato, ma come l’istantanea di un sistema complesso in continua evoluzione.
+In questo capitolo mostreremo come passare dal GLM logit a un *modello processuale autoregressivo* (AR) su scala logit, implementato in *Stan*. Partiremo da un’interpretazione latente del logit, introdurremo l’AR(1) e la sua estensione AR($K$) per memorie più lunghe, simuleremo dati per verificare il recupero dei parametri e confronteremo le stime con un *GLMM logit* (via `brms`). Vedremo che distinguere tra *effetto dei predittori* ($\boldsymbol\beta$) e *dinamica interna* ($\phi$) è essenziale per evitare stime distorte e per ancorare l’analisi statistica a *ipotesi psicologiche* sui meccanismi che generano il comportamento.
 
 ::: {.callout-caution collapse="true"}
 ### Esempio.
@@ -795,16 +790,18 @@ Il modello in Stan, invece, *separa esplicitamente* il contributo del predittore
 * Il GLMM con slope/intercette casuali cattura bene l’eterogeneità tra soggetti, ma non la dipendenza temporale.
 * Il modello AR(1) in Stan, introducendo la dinamica degli stati latenti, fornisce un effetto di $x$ più vicino al valore vero e una rappresentazione più realistica del processo psicologico sottostante.
 
-
 ## Riflessioni conclusive {.unnumbered .unlisted} 
 
-In questo capitolo abbiamo visto come estendere la regressione logistica a un modello dinamico AR, in grado di descrivere processi psicologici che evolvono nel tempo. Abbiamo imparato che:
+In questo capitolo abbiamo superato i limiti del *GLM logit statico* introducendo una *struttura dinamica* sugli stati latenti. L’idea chiave è semplice e potente: la probabilità di risposta non dipende solo da $\mathbf{x}$, ma anche da *ciò che è appena accaduto*, tramite lo stato $u_{i,t}$ che *accumula* informazioni nel tempo. Con l’AR(1) (ed estensioni AR($K$)) abbiamo reso esplicita la *memoria* del processo; con *Stan* abbiamo separato in modo netto *propensione media* ($\alpha_i$), *effetto dei predittori* ($\boldsymbol\beta$), *persistenza* ($\phi$) e *rumore di processo* ($\sigma_u$), ottenendo stime fedeli al *meccanismo generativo*.
 
-- modellare la dipendenza temporale è essenziale quando si lavora con i dati sequenziali;
-- Stan consente di implementare questi modelli in modo flessibile;
-- i modelli statici (come il GLMM logit) rischiano di fornire stime distorte se la dinamica interna non viene presa in considerazione.
+Il confronto con un *GLMM logit* ha chiarito il punto: i modelli multilevel gestiscono bene l’eterogeneità tra soggetti, ma se la *dipendenza temporale* non è rappresentata, parte della dinamica viene assorbita in varianze casuali o negli effetti medi, *distorcendo* l’interpretazione. I *posterior predictive checks* hanno confermato che il modello processuale riproduce le caratteristiche salienti dei dati, aumentando la fiducia nella sua adeguatezza.
 
-Nei capitoli successivi estenderemo questa logica ad altri processi cognitivi e decisionali, mostrando come la modellazione dinamica sia una chiave potente per passare dalla *descrizione statistica* alla *spiegazione psicologica*. Questo passaggio dal GLMM al modello processuale mostra che i metodi bayesiani con Stan non servono solo a stimare i parametri in modo diverso, ma anche consentano di testare ipotesi sui meccanismi psicologici sottostanti ai dati osservati. 
+Il messaggio metodologico è duplice:
+
+1. **Statisticamente**, i GLM restano un quadro unificante, ma vanno estesi quando la struttura dei dati lo richiede: nei compiti ripetuti, nelle misure EMA, nei processi di apprendimento o affaticamento, la *storia* conta.
+2. **Psicologicamente**, passare a un *modello processuale* significa spostarsi dalla *descrizione* all’*ipotesi sui meccanismi*: ciò che stimiamo non è solo “se un predittore influisce”, ma *come* l’influenza si accumula, persiste o si alterna nel tempo.
+
+Nei capitoli successivi useremo questa logica per ampliare la modellazione di processi cognitivi e decisionali: la dinamica latente diventerà il filo conduttore che collega il dato osservato al *processo* che lo ha generato.
 
 ::: {.callout-note collapse=true title="Informazioni sull'ambiente di sviluppo"}
 ```{r}

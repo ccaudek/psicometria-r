@@ -3,10 +3,13 @@
 
 ## Introduzione {.unnumbered .unlisted}
 
-La *regressione logistica* è un modello lineare generalizzato che collega variabili indipendenti, quantitative o categoriali, a un esito dicotomico. A differenza della regressione lineare, non modelliamo direttamente la probabilità di successo, ma il suo logit, ossia il logaritmo del rapporto fra odds di successo e odds di insuccesso. Questo passaggio è essenziale perché consente di trattare il modello in forma lineare e, al tempo stesso, garantisce che le probabilità restino confinate tra 0 e 1.
+La *regressione logistica* è un’estensione del modello lineare che consente di analizzare esiti dicotomici, cioè variabili che assumono soltanto due valori (ad esempio: successo/insuccesso, presente/assente, risposta corretta/errata). Situazioni di questo tipo sono molto frequenti nella ricerca psicologica: pensiamo alle risposte a item vero/falso, alla presenza o assenza di un sintomo clinico, oppure alla scelta tra due alternative in un compito sperimentale.
 
-In questo capitolo introduciamo la *regressione logistica bivariata*, cioè un modello con un solo predittore, che può essere continuo o categoriale. L’obiettivo è comprendere come stimare i coefficienti del modello (con approccio bayesiano) e come interpretarli in termini di probabilità, odds ratio e risk ratio. In particolare, vedremo come lo stesso coefficiente possa essere tradotto su più scale interpretative e come il caso con variabile dummy non sia che una specializzazione del modello con predittore continuo.  
+A differenza della regressione lineare, non modelliamo direttamente la probabilità di successo, ma il suo *logit*, ossia il logaritmo del rapporto tra odds di successo e odds di insuccesso. Questo passaggio ha due vantaggi fondamentali: da un lato mantiene la struttura lineare del modello, dall’altro assicura che le probabilità restino confinate tra 0 e 1, rispettando così la natura del fenomeno da descrivere.
 
+In questo capitolo ci concentreremo sulla *regressione logistica bivariata*, cioè con un solo predittore, continuo o categoriale. L’obiettivo è duplice: da un lato, imparare a stimare i coefficienti del modello in un’ottica *bayesiana* utilizzando *Stan*; dall’altro, capire come interpretare questi coefficienti su scale diverse: in termini di probabilità, di *odds ratio* e di *risk ratio*. Vedremo in particolare come un coefficiente unico possa assumere significati diversi a seconda della scala di lettura, e come il caso di un predittore dicotomico (dummy) sia in realtà una specializzazione del modello con variabile continua.
+
+La regressione logistica rappresenta dunque un primo passo importante nel percorso dei *modelli lineari generalizzati (GLM)*, ampliando le possibilità dell’analisi statistica ben oltre il caso della regressione lineare e preparandoci ad affrontare dati e domande di ricerca più vari e realistici.
 
 ### Panoramica del capitolo {.unnumbered .unlisted}
 
@@ -95,19 +98,19 @@ p_b = \text{logit}^{-1}(\alpha + \beta b)
 $$
 le probabilità corrispondenti. Possiamo descrivere la differenza fra i due livelli in tre modi:  
 
-- **Risk difference (RD):**  
+- *Risk difference (RD):*  
   $$
   RD = p_b - p_a .
   $$
   È la differenza assoluta fra le due probabilità.  
 
-- **Odds ratio (OR):**  
+- *Odds ratio (OR):*  
   $$
   OR = \frac{p_b/(1-p_b)}{p_a/(1-p_a)} = \exp\!\bigl(\beta(b-a)\bigr).
   $$
   Mostra come gli odds cambiano passando da $a$ a $b$.  
 
-- **Risk ratio (RR):**  
+- *Risk ratio (RR):*  
   $$
   RR = \frac{p_b}{p_a}.
   $$
@@ -229,9 +232,9 @@ Il segno del coefficiente $\beta$ determina la direzione dell’effetto. Se $\be
 
 Lo stesso effetto può essere letto su scale diverse, che offrono prospettive complementari:  
 
-- sulla **scala delle probabilità**, si osserva la variazione assoluta di $p(x)$;  
-- sulla **scala degli odds**, l’effetto è un moltiplicatore costante $OR = e^{\beta}$ per ogni incremento unitario di $x$;  
-- sulla **scala logit**, l’effetto si traduce in un incremento lineare costante di $\beta$ nei log-odds.  
+- sulla *scala delle probabilità*, si osserva la variazione assoluta di $p(x)$;  
+- sulla *scala degli odds*, l’effetto è un moltiplicatore costante $OR = e^{\beta}$ per ogni incremento unitario di $x$;  
+- sulla *scala logit*, l’effetto si traduce in un incremento lineare costante di $\beta$ nei log-odds.  
 
 Un ulteriore strumento utile è la *risk difference* (RD), cioè la differenza di probabilità fra due livelli di $x$, e il *risk ratio* (RR), cioè il loro rapporto. Queste misure, pur non derivando direttamente dal coefficiente come l’odds ratio, offrono un linguaggio più immediato in molti contesti applicativi (per esempio in epidemiologia o psicologia clinica).  
 
@@ -381,13 +384,13 @@ In uscita otteniamo per ciascun parametro la media posteriore, la deviazione sta
 
 Le distribuzioni posteriori di $\alpha$ e $\beta$ possono essere tradotte nelle tre scale discusse in precedenza.
 
-**Scala dei logit.**
+*Scala dei logit.*
 L’intercetta $\alpha$ rappresenta i log-odds quando $x=0$. Supponiamo, ad esempio, che la posteriore dia $\alpha \approx -2$ con CrI 95% \[-2.2, -1.8]. Significa che al livello di riferimento la probabilità è bassa. Il coefficiente $\beta$, centrato intorno a 1 con CrI 95% \[0.9, 1.1], indica che ogni unità in più di $x$ aumenta i log-odds di circa un punto.
 
-**Scala degli odds.**
+*Scala degli odds.*
 Esponenziando $\beta$ otteniamo l’odds ratio. Con $\beta \approx 1$, la distribuzione posteriore di $OR$ è centrata su 2.7, con CrI ad esempio \[2.5, 3.0]. Questo significa che, con altissima probabilità, un incremento unitario di $x$ moltiplica gli odds di successo di circa 2.5–3 volte.
 
-**Scala delle probabilità.**
+*Scala delle probabilità.*
 Applicando la trasformazione logistica, otteniamo $p(x) = \text{logit}^{-1}(\alpha + \beta x)$. Per ogni draw posteriore possiamo calcolare una curva sigmoide: ne risulta un ventaglio di curve plausibili che descrivono l’incertezza. Intorno a $p=0.5$, la pendenza è massima e vale circa $\beta/4$. Con $\beta \approx 1$, ciò corrisponde a un incremento massimo di probabilità di circa 25 punti percentuali per unità di $x$.
 
 
@@ -556,14 +559,13 @@ Il confronto fra due gruppi, dunque, non è un modello separato ma un’applicaz
 
 ## Riflessioni conclusive {.unnumbered .unlisted}
 
-In questo capitolo abbiamo introdotto la regressione logistica con un predittore continuo, mostrando come il coefficiente β controlli la pendenza della curva sigmoide che lega il predittore alla probabilità di successo. Abbiamo chiarito che lo stesso effetto può essere interpretato su tre scale diverse, ma coerenti: sulla scala dei logit, come incremento lineare costante; sulla scala degli odds, come moltiplicatore costante dato da $e^{\beta}$; sulla scala delle probabilità, come variazione non costante che raggiunge il valore massimo in corrispondenza di $p=0,5$, con un'entità approssimabile da $\beta/4$.
+In questo capitolo abbiamo introdotto la *regressione logistica* come estensione naturale del modello lineare ai casi in cui l’esito è dicotomico. Abbiamo visto come il passaggio dal parametro probabilistico al logit consenta di mantenere la struttura lineare del modello, pur rispettando i vincoli logici delle probabilità comprese tra 0 e 1.
 
-Le misure di confronto più utilizzate, ovvero risk difference, odds ratio e risk ratio, non sono quindi strumenti separati, ma diversi modi di interpretare lo stesso meccanismo generato dal modello logit. Ciò rende la regressione logistica una cornice unificata e flessibile, in grado di adattarsi a diversi linguaggi applicativi senza perdere coerenza interna.
+La stima bayesiana dei coefficienti, implementata in *Stan*, ci ha permesso di ottenere una rappresentazione completa dell’incertezza sulle relazioni tra predittori ed esiti. Abbiamo imparato a interpretare i coefficienti su scale diverse — probabilità, odds ratio, risk ratio — cogliendo così la flessibilità del modello e la sua capacità di adattarsi a molteplici domande di ricerca.
 
-Abbiamo anche notato che il confronto fra due gruppi, pur essendo stato discusso in modo più esteso in un capitolo dedicato, è in realtà un caso particolare della stessa logica: una variabile dummy può essere considerata come una versione semplificata di un predittore continuo. Questo collegamento mette in evidenza l'unità concettuale del modello.
+La regressione logistica è particolarmente rilevante in psicologia, dove esiti binari o dicotomici sono frequenti: dalle risposte corrette/errate in compiti cognitivi, alla presenza o assenza di sintomi clinici, fino alle scelte tra due alternative in contesti decisionali. Comprendere questo modello significa quindi dotarsi di uno strumento fondamentale, capace di connettere le nostre ipotesi teoriche con la natura concreta dei dati raccolti.
 
-In conclusione, la regressione logistica permette di modellare un esito binario e di prevedere probabilità sempre comprese tra 0 e 1, offrendo chiavi interpretative sia sul piano delle probabilità assolute sia su quello degli odds e dei logit. Questa stessa struttura può essere estesa a più predittori e a disegni sperimentali più complessi.
-
+Ma la regressione logistica rappresenta anche un punto di partenza. Essa appartiene alla più ampia famiglia dei *modelli lineari generalizzati (GLM)*, che consentono di modellare variabili di natura diversa attraverso la combinazione di una distribuzione della famiglia esponenziale e di una funzione di collegamento (*link*). Nei prossimi capitoli esploreremo altri casi di GLM, consolidando così l’idea che regressione lineare, regressione logistica e ANOVA non siano strumenti separati, ma variazioni di un unico quadro metodologico, flessibile e coerente.
 
 ::: {.callout-note collapse=true title="Informazioni sull'ambiente di sviluppo"}
 ```{r}
